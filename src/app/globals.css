@@ -103,3 +103,30 @@
     @apply outline-2 outline-offset-2 outline-foreground;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #donation-receipt-print,
+  #donation-receipt-print * {
+    visibility: visible;
+  }
+  #donation-receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    border: 2px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+  [data-slot="dialog-overlay"],
+  [data-slot="dialog-close"] {
+    display: none !important;
+  }
+}

@@ -54,7 +54,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/#support" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                <Link href="/donate" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   Shelter Wishlist & Donations
                 </Link>
               </li>

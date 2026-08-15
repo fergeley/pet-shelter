@@ -38,7 +38,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0 border border-border bg-card">
+      <DialogContent className="w-full max-w-[95vw] sm:max-w-3xl lg:max-w-4xl max-h-[92vh] overflow-y-auto p-0 border border-border bg-card shadow-2xl rounded-2xl">
         {/* Header */}
         <div className="bg-primary text-primary-foreground p-6 sm:p-8">
           <div className="flex items-center gap-2 mb-2">

@@ -9,6 +9,7 @@ import {
   CheckCircle2, 
   Phone,
   Loader2,
+  HeartHandshake,
 } from "lucide-react";
 import { Hero } from "@/components/Hero";
 import { PetGallery } from "@/components/PetGallery";
@@ -242,8 +243,20 @@ export default async function HomePage() {
                 </p>
                 <div className="flex flex-wrap gap-3 pt-2">
                   <Link
+                    href="/donate"
+                    className={buttonVariants({
+                      size: "sm",
+                      className: "text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-5 py-2.5 gap-1.5",
+                    })}
+                  >
+                    <HeartHandshake className="size-4" />
+                    Donate & Sponsor Care
+                  </Link>
+
+                  <Link
                     href="/pets"
                     className={buttonVariants({
+                      variant: "outline",
                       size: "sm",
                       className: "text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-5 py-2.5",
                     })}

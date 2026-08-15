@@ -25,11 +25,11 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/pets", label: "Adoptable Pets" },
+    { href: "/donate", label: "Donate" },
     { href: "/applications/track", label: "Track Application" },
     { href: "/bulletins", label: "Updates & News" },
     { href: "/#how-it-works", label: "Adoption Process" },
     { href: "/#mission", label: "About Us" },
-    { href: "/#support", label: "Foster & Donate" },
   ];
 
   return (
