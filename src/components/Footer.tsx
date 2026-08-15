@@ -53,6 +53,11 @@ export function Footer() {
                   Shelter Wishlist & Donations
                 </Link>
               </li>
+              <li>
+                <Link href="/admin/login" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  Staff & Volunteer Portal
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -103,6 +108,10 @@ export function Footer() {
         <div className="mt-10 border-t border-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
           <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
           <div className="flex items-center gap-4">
+            <Link href="/admin/login" className="text-xs font-semibold hover:text-foreground hover:underline">
+              Staff & Volunteer Login
+            </Link>
+            <span className="text-muted-foreground/40">•</span>
             <p className="font-mono text-xs">ROS Reg: PPM-012-10-18042016</p>
             <ThemeToggle showLabel={true} />
           </div>

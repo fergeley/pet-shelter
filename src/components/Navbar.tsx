@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Heart, Menu, Sparkles, HeartHandshake } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -37,7 +38,7 @@ export function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 focus-visible:ring-2">
             <div className="flex size-9 items-center justify-center overflow-hidden rounded-[1rem] bg-[#f8dfd7] text-primary-foreground shadow-[0_8px_16px_rgba(214,122,111,0.18)] ring-1 ring-[#edc9c0] dark:bg-[#382d2d] dark:ring-[#5b4040]">
-              <img src="/android-icon-192x192.png" alt="Hope for Strays" className="h-full w-full object-cover" />
+              <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" priority />
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-lg font-bold tracking-tight text-foreground leading-tight">
@@ -131,7 +132,7 @@ export function Navbar() {
                 <SheetHeader>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex size-6 items-center justify-center overflow-hidden rounded-sm bg-primary/10 ring-1 ring-border">
-                      <img src="/android-icon-192x192.png" alt="Hope for Strays" className="h-full w-full object-cover" />
+                      <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={24} height={24} className="h-full w-full object-cover" />
                     </div>
                     <SheetTitle className="font-heading text-base font-bold">Hope for Strays</SheetTitle>
                   </div>

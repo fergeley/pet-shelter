@@ -271,11 +271,12 @@ export default function AdminLoginPage() {
                     <ShieldCheck className="size-4 text-emerald-800 dark:text-emerald-400" />
                     <span>1-Click Quick Demo Staff Sign In</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     {[
                       { role: "Admin", email: "admin@hopeforstrays.org", pass: "admin123" },
                       { role: "Coordinator", email: "coordinator@hopeforstrays.org", pass: "coord123" },
                       { role: "Staff", email: "staff@hopeforstrays.org", pass: "staff123" },
+                      { role: "Volunteer", email: "volunteer@hopeforstrays.org", pass: "vol123" },
                     ].map((demo) => (
                       <Button
                         key={demo.role}

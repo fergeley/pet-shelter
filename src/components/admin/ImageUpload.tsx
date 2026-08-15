@@ -3,7 +3,6 @@
 import React, { useRef, useState, useCallback, useId } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface UploadedImage {
   url: string;
