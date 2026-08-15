@@ -1,104 +1,147 @@
-# Engineering Handoff & Next Prompt Tasks
+# Engineering Handoff & Next Steps Roadmap
 
 - **Status as of**: 2026-08-15
-- **Current Stack**: Next.js 16 (App Router / Turbopack), React 19, TypeScript 5, Tailwind CSS v4, Node.js `node:crypto`, Lucide React, Shadcn/UI.
+- **Stack**: Next.js 16 (App Router + Turbopack), React 19, TypeScript 5, Tailwind CSS v4, Prisma 7, PostgreSQL, Vitest 4, Resend SDK.
 - **Repository Location**: `c:\Users\User\pet-shelter`
+- **Primary Operational Guide**: [`documents/OPERATIONAL_RUNBOOK.md`](file:///c:/Users/User/pet-shelter/documents/OPERATIONAL_RUNBOOK.md)
 
 ---
 
-## 1. Quick Onboarding Handoff
+## 1. System Architecture & Completed Milestones
 
-### Architecture State
-- **Authentication**: Signed HTTP-Only session cookies (`hope_shelter_session`) using HMAC-SHA256 in [`src/lib/security/session.ts`](file:///c:/Users/User/pet-shelter/src/lib/security/session.ts).
-- **Authorization**: Declarative RBAC (`assertAuthorized`) in [`src/lib/security/rbac.ts`](file:///c:/Users/User/pet-shelter/src/lib/security/rbac.ts).
-- **Traffic Defense**: Sliding window rate limiter in [`src/lib/security/rateLimit.ts`](file:///c:/Users/User/pet-shelter/src/lib/security/rateLimit.ts) and idempotency keys in [`src/lib/security/idempotency.ts`](file:///c:/Users/User/pet-shelter/src/lib/security/idempotency.ts).
-- **Business Logic**: Finite State Machine (FSM) in [`src/lib/domain/stateMachine.ts`](file:///c:/Users/User/pet-shelter/src/lib/domain/stateMachine.ts).
-- **State & Transactions**: Unified server state with atomic adoption cascades and audit trail logging in [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts).
-- **Audit Viewer**: Live inspector at `/admin/audit`.
-
-### Staff Demo Credentials
-- Admin: `admin@hopeforstrays.org` / `admin123` (or PIN `1234`)
-- Coordinator: `coordinator@hopeforstrays.org` / `coord123`
-- Staff: `staff@hopeforstrays.org` / `staff123`
-
----
-
-## 2. Next Tasks Backlog (Prioritized)
-
-### [TASK-01] PostgreSQL Database Migration & Prisma Client Integration
-- **Status**: ✅ COMPLETED (2026-08-15)
-- **Implemented**:
-  - Prisma 7 configuration with `@prisma/adapter-pg` in [`prisma.config.ts`](file:///c:/Users/User/pet-shelter/prisma.config.ts) and [`src/lib/prisma.ts`](file:///c:/Users/User/pet-shelter/src/lib/prisma.ts).
-  - Models for `User` (with `Role` enum), `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings` in [`prisma/schema.prisma`](file:///c:/Users/User/pet-shelter/prisma/schema.prisma).
-  - Multi-entity interactive transaction cascade (`prisma.$transaction`) in [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts).
-  - Automated seeding pipeline in [`prisma/seed.ts`](file:///c:/Users/User/pet-shelter/prisma/seed.ts) with `docker-compose.yml` for 1-command startup.
-  - Automated integration test suite (`tests/unit/database.test.ts`).
-
----
-
-### [TASK-02] Automated Test Suite (Unit + Integration)
-- **Status**: ✅ COMPLETED (2026-08-15)
-- **Implemented**:
-  - 11 Vitest test suites (89 unit tests, 100% pass rate) in [`tests/unit/`](file:///c:/Users/User/pet-shelter/tests/unit/).
-  - Tests covering State Machine FSM transitions, HMAC-SHA256 cryptographic session sealing, sliding-window rate limiting, RBAC authorization, Prisma database adapters, and Resend transactional email simulation.
-
----
-
-### [TASK-03] Operational Runbook & Production Deployment Guide
-- **Status**: ✅ COMPLETED (2026-08-15)
-- **Implemented**:
-  - Full operational guide in [`documents/OPERATIONAL_RUNBOOK.md`](file:///c:/Users/User/pet-shelter/documents/OPERATIONAL_RUNBOOK.md) covering environment setup, PostgreSQL Docker startup, schema push, database seeding, email dispatch, troubleshooting runbooks, and staff accounts.
-
----
-
-### [TASK-04] Server-Sent Events (SSE) Live Application Alerts
-- **Priority**: Medium
-- **Goal**: Add real-time visual alerts for shelter staff when a public user submits a new adoption questionnaire.
-- **Key Files**: `src/app/api/admin/sse/route.ts`, `src/components/admin/LiveApplicationNotifier.tsx`.
-- **Acceptance Criteria**:
-  - Zero third-party cloud WebSocket dependencies (native HTTP SSE route).
-  - Submitting an application triggers an immediate desktop notification toast on active coordinator dashboards.
-
----
-
-## 3. Ready-to-Use Next Prompts for AI Agents
-
-You can copy and paste any of the following prompts directly to initiate the next engineering phase:
-
-### Prompt Option 1: Execute Database Migration (TASK-01)
-```markdown
-Please implement TASK-01: Connect the unified server store and server actions to a live PostgreSQL database using Prisma ORM.
-
-Requirements:
-1. Update prisma/schema.prisma to include models for User (Staff accounts with role enum), AuditLog, Pet, and AdoptionApplication.
-2. Create src/lib/prisma.ts for the singleton PrismaClient instance.
-3. Migrate src/lib/serverStore.ts and src/actions/ to execute multi-entity updates using interactive interactive transactions (prisma.$transaction).
-4. Maintain all existing FSM validations, RBAC guards, and audit logging.
-5. Run typecheck and verify with npm run build.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Next.js App Router                       │
+│  Public Views (/, /pets, /pets/[id])  │ Admin (/admin/*)    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│                    Server Actions Layer                     │
+│  src/actions/{pets, applications, auth, audit, settings}.ts │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+┌──────────────▼──────────────┐ ┌─────────────▼───────────────┐
+│     Security & Domain       │ │   Resilient Storage Engine  │
+│  - HMAC-SHA256 Sessions     │ │   - PostgreSQL (Prisma 7)   │
+│  - Declarative RBAC Guards  │ │   - Memory Cache Fallback   │
+│  - Finite State Machine     │ │   - Resend Email Dispatch   │
+└─────────────────────────────┘ └─────────────────────────────┘
 ```
 
-### Prompt Option 2: Build Automated Test Suite (TASK-02)
+### Completed & Production-Hardened Components
+* **Database & ORM**: PostgreSQL schema with valid referential actions (`onDelete: SetNull`), interactive transaction cascades (`$transaction`), and seed script (`prisma/seed.ts`).
+* **Authentication & RBAC**: HMAC-SHA256 signed HTTP-only cookies, sliding-window rate limiting, cryptographic scrypt hashing, and role hierarchy (`ADMIN` $\rightarrow$ `COORDINATOR` $\rightarrow$ `STAFF` $\rightarrow$ `VOLUNTEER`).
+* **Staff Administration Dashboard**: TanStack tables at `/admin/pets` and `/admin/applications` with search, multi-badge filters, and CSV export.
+* **Transactional Email Service**: Resend integration in [`src/lib/email.ts`](file:///c:/Users/User/pet-shelter/src/lib/email.ts) with development simulation mode.
+* **Public SSR & Dynamic SEO**: Canonical `getPets()` SSR data fetching, Google JSON-LD structured schemas, and dynamic route resolution.
+* **Test Suite**: 11 Vitest test suites (89 unit tests, 100% pass rate).
+* **Operational Runbook**: Complete day-to-day operations guide in [`documents/OPERATIONAL_RUNBOOK.md`](file:///c:/Users/User/pet-shelter/documents/OPERATIONAL_RUNBOOK.md).
+
+---
+
+## 2. Future Enhancements Backlog (Prioritized)
+
+### [FEATURE-01] Direct Media Drag-and-Drop Uploader
+* **Priority**: High
+* **Goal**: Replace manual external image URL inputs in pet dialogs with a multi-image drag-and-drop file uploader.
+* **Files to create/modify**:
+  * `src/components/admin/ImageUpload.tsx`: Drag-and-drop zone with preview grid, progress indicator, and delete buttons.
+  * `src/app/api/upload/route.ts`: Storage integration endpoint (Uploadthing or Supabase Storage bucket).
+  * `src/components/admin/PetFormDialog.tsx`: Integrate `ImageUpload` component.
+* **Acceptance Criteria**:
+  * Supports uploading up to 4 images per rescue animal (JPEG/PNG/WebP, max 5MB each).
+  * Automatically sets primary thumbnail and populates `additionalImages` array.
+
+---
+
+### [FEATURE-02] Stripe Checkout Donations Component
+* **Priority**: Medium
+* **Goal**: Add a public donation CTA on the homepage with preset tiers ($10, $25, $50, custom amount) to fund shelter rescue operations.
+* **Files to create/modify**:
+  * `src/components/DonationSection.tsx`: Tier selector with monthly recurring vs one-time toggle.
+  * `src/actions/donations.ts`: Server action creating a Stripe Checkout Session.
+  * `src/app/page.tsx`: Embed donation section between Adoption Process and Testimonials.
+* **Acceptance Criteria**:
+  * Adopter selects tier or enters custom amount in MYR / USD.
+  * Redirects securely to Stripe Checkout and returns to `/thank-you` page with payment confirmation.
+
+---
+
+### [FEATURE-03] Playwright Browser E2E Test Suite & GitHub Actions CI
+* **Priority**: High
+* **Goal**: Automate end-to-end browser tests across public adoption flows and admin management workflows in GitHub Actions.
+* **Files to create/modify**:
+  * `playwright.config.ts`: Browser test configuration.
+  * `tests/e2e/adoption-flow.spec.ts`: Public user searches pet, opens modal, and submits adoption questionnaire.
+  * `tests/e2e/admin-crud.spec.ts`: Staff logs in, creates a pet listing, updates status, and verifies table reflect.
+  * `.github/workflows/ci.yml`: Automated CI pipeline on PR/push running lint, typecheck, unit tests, and build.
+* **Acceptance Criteria**:
+  * Playwright tests pass in headless Chromium and Firefox.
+  * CI pipeline executes in < 3 minutes on pull requests.
+
+---
+
+### [FEATURE-04] Server-Sent Events (SSE) Live Coordinator Alerts
+* **Priority**: Low / Nice-to-Have
+* **Goal**: Provide real-time desktop visual toasts when a public user submits an adoption application.
+* **Files to create/modify**:
+  * `src/app/api/admin/sse/route.ts`: Streaming SSE route for authenticated staff sessions.
+  * `src/components/admin/LiveApplicationNotifier.tsx`: Client toast listener in admin layout.
+* **Acceptance Criteria**:
+  * Zero third-party cloud WebSocket dependencies.
+  * Submitting an application triggers an immediate desktop notification on active coordinator screens.
+
+---
+
+## 3. Ready-to-Use Copy-Paste Prompts for AI Agents
+
+You can hand off any of the following prompts directly to your AI coding assistant (Antigravity, Claude Code, Cursor, or Copilot):
+
+### 📋 Prompt 1: Implement Direct Media Drag-and-Drop Uploader (FEATURE-01)
 ```markdown
-Please implement TASK-02: Setup an automated unit and integration test suite using Vitest.
+Please implement FEATURE-01: Direct Media Drag-and-Drop Uploader in pet-shelter.
 
 Requirements:
-1. Install and configure Vitest with TypeScript support.
-2. Write unit tests for:
-   - src/lib/domain/stateMachine.ts (all valid and invalid transition permutations).
-   - src/lib/security/crypto.ts (scrypt hashing, timingSafeEqual verification, HMAC signing).
-   - src/lib/security/rateLimit.ts (sliding window eviction and limit enforcement).
-   - src/lib/security/idempotency.ts (TTL caching and duplicate request prevention).
-3. Add a test script in package.json and run the test suite to verify 100% pass rate.
+1. Create a reusable client component `src/components/admin/ImageUpload.tsx` using HTML5 drag-and-drop or react-dropzone.
+2. Support uploading up to 4 images per pet with image previews, upload progress indicator, and removal buttons.
+3. Integrate an upload endpoint `src/app/api/upload/route.ts` with local buffer storage or Supabase Storage.
+4. Update `src/components/admin/PetFormDialog.tsx` to replace raw URL text inputs with `ImageUpload`.
+5. Verify that uploaded photos display properly in `PetCard.tsx` and `PetDetailDialog.tsx`.
+6. Run `npx tsc --noEmit` and `npm run build` to confirm zero errors.
 ```
 
-### Prompt Option 3: Add Live SSE Notifications (TASK-03)
+---
+
+### 📋 Prompt 2: Implement Stripe Donations Section (FEATURE-02)
 ```markdown
-Please implement TASK-03: Implement a zero-bloat Server-Sent Events (SSE) live alert stream for shelter staff.
+Please implement FEATURE-02: Stripe Checkout Donations Component in pet-shelter.
 
 Requirements:
-1. Create a GET /api/admin/sse route in Next.js App Router guarded by session authentication.
-2. Broadcast an SSE event whenever submitApplication or atomicUpdateApplicationStatus is executed.
-3. Build a client component in AdminLayout that listens to the SSE stream and shows animated toast notifications for new adoption applications.
-4. Ensure graceful reconnection handling and unsubscription on unmount.
-5. Verify build with npm run build.
+1. Install stripe SDK (`npm install stripe @stripe/stripe-js`).
+2. Create `src/actions/donations.ts` with Server Action `createCheckoutSession(amount: number, frequency: 'once' | 'monthly')`.
+3. Create `src/components/DonationSection.tsx` with preset donation tiers (RM 25, RM 50, RM 100, custom) and payment frequency toggle.
+4. Embed `DonationSection` in `src/app/page.tsx`.
+5. Add fallback test simulation mode when `STRIPE_SECRET_KEY` is not present in `.env`.
+6. Verify with `npm test` and `npm run build`.
+```
+
+---
+
+### 📋 Prompt 3: Implement Playwright E2E & GitHub Actions CI (FEATURE-03)
+```markdown
+Please implement FEATURE-03: Playwright E2E Tests & GitHub Actions CI in pet-shelter.
+
+Requirements:
+1. Install Playwright (`npm install -D @playwright/test`) and create `playwright.config.ts`.
+2. Write E2E test `tests/e2e/adoption-flow.spec.ts`:
+   - Navigate to `/pets`.
+   - Filter by dog / cat.
+   - Open pet adoption modal and fill out questionnaire.
+   - Assert application submission confirmation dialog appears.
+3. Write E2E test `tests/e2e/admin-crud.spec.ts`:
+   - Log in at `/admin/login` using `admin@hopeforstrays.org` / `admin123`.
+   - Navigate to `/admin/pets` and add a new pet.
+   - Assert new pet appears in the TanStack table.
+4. Create `.github/workflows/ci.yml` running lint, typecheck, unit tests, and next build on push and pull requests.
+5. Run tests locally with `npx playwright test`.
 ```
