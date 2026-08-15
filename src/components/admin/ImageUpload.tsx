@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useId } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ interface UploadedImage {
   url: string;
   name: string;
   size: number;
+  id?: string; // Stable unique identifier
 }
 
 interface ImageUploadProps {
@@ -32,8 +33,18 @@ export function ImageUpload({
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  const dragTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const componentId = useId();
 
   const canAddMore = images.length < maxImages;
+
+  /**
+   * Clear error message with delay
+   */
+  const clearError = useCallback(() => {
+    const timer = setTimeout(() => setError(null), 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleUpload = useCallback(
     async (files: File[]) => {
@@ -59,6 +70,7 @@ export function ImageUpload({
       const filesToUpload = validImages.slice(0, availableSlots);
 
       setUploading(true);
+      const newImages: UploadedImage[] = [];
 
       try {
         for (const file of filesToUpload) {
@@ -68,69 +80,65 @@ export function ImageUpload({
           const progressKey = file.name + Date.now();
           setUploadProgress((prev) => ({ ...prev, [progressKey]: 0 }));
 
-          const xhr = new XMLHttpRequest();
+          try {
+            const response = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
 
-          // Track upload progress
-          xhr.upload.addEventListener("progress", (e) => {
-            if (e.lengthComputable) {
-              const percentComplete = Math.round((e.loaded / e.total) * 100);
-              setUploadProgress((prev) => ({
-                ...prev,
-                [progressKey]: percentComplete,
-              }));
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || "Upload failed");
             }
-          });
 
-          // Handle completion
-          await new Promise<void>((resolve, reject) => {
-            xhr.addEventListener("load", () => {
-              if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                const newImage: UploadedImage = {
-                  url: response.url,
-                  name: file.name,
-                  size: file.size,
-                };
-                setImages((prev) => [...prev, newImage]);
-                setUploadProgress((prev) => {
-                  const updated = { ...prev };
-                  delete updated[progressKey];
-                  return updated;
-                });
-                resolve();
-              } else {
-                reject(new Error("Upload failed"));
-              }
+            const data = await response.json();
+            const newImage: UploadedImage = {
+              url: data.url,
+              name: file.name,
+              size: file.size,
+              id: `${componentId}-${Date.now()}-${Math.random()}`, // Stable unique ID
+            };
+            newImages.push(newImage);
+
+            setUploadProgress((prev) => {
+              const updated = { ...prev };
+              delete updated[progressKey];
+              return updated;
             });
-
-            xhr.addEventListener("error", () => {
-              reject(new Error("Upload error"));
-            });
-
-            xhr.open("POST", "/api/upload");
-            xhr.send(formData);
-          });
+          } catch (err) {
+            const errorMsg = err instanceof Error ? err.message : "Unknown error";
+            setError(`Failed to upload ${file.name}: ${errorMsg}`);
+            throw err;
+          }
         }
 
-        // Notify parent component after all uploads complete
-        setImages((updatedImages) => {
-          onImagesChange(updatedImages);
-          return updatedImages;
-        });
+        // Update images state with new uploads
+        setImages((prevImages) => [...prevImages, ...newImages]);
+        
+        // Notify parent AFTER state update completes
+        // This prevents infinite loop from callback changes
+        setTimeout(() => {
+          onImagesChange([...images, ...newImages]);
+        }, 0);
       } catch (err) {
-        setError(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
         console.error("Upload error:", err);
+        clearError();
       } finally {
         setUploading(false);
       }
     },
-    [images.length, maxImages, onImagesChange]
+    [images, maxImages, onImagesChange, componentId, clearError]
   );
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current++;
+
+    if (dragTimeoutRef.current) {
+      clearTimeout(dragTimeoutRef.current);
+    }
+
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0 && canAddMore) {
       e.currentTarget.classList.add("border-foreground", "bg-accent");
     }
@@ -140,6 +148,7 @@ export function ImageUpload({
     e.preventDefault();
     e.stopPropagation();
     dragCounterRef.current--;
+
     if (dragCounterRef.current === 0) {
       e.currentTarget.classList.remove("border-foreground", "bg-accent");
     }
@@ -173,8 +182,10 @@ export function ImageUpload({
     }
   };
 
-  const handleRemoveImage = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
+  const handleRemoveImage = (imageId: string | number) => {
+    const newImages = images.filter((_, i) => 
+      images[i].id !== imageId && i !== imageId
+    );
     setImages(newImages);
     onImagesChange(newImages);
   };
@@ -188,28 +199,31 @@ export function ImageUpload({
 
       {/* Image Previews Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {images.map((image, index) => (
-          <div
-            key={`${image.name}-${index}`}
-            className="relative aspect-square border border-border bg-muted rounded-lg overflow-hidden group"
-          >
-            <Image
-              src={image.url}
-              alt={`Upload ${index + 1}`}
-              fill
-              className="object-cover"
-              sizes="(max-width: 640px) 50vw, 150px"
-            />
-            <button
-              type="button"
-              onClick={() => handleRemoveImage(index)}
-              className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-              aria-label="Remove image"
+        {images.map((image, index) => {
+          const stableId = image.id || index;
+          return (
+            <div
+              key={stableId}
+              className="relative aspect-square border border-border bg-muted rounded-lg overflow-hidden group"
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
+              <Image
+                src={image.url}
+                alt={`Upload ${index + 1}`}
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 50vw, 150px"
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveImage(stableId)}
+                className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Remove image"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
 
         {/* Upload Dropzone (shown if can add more) */}
         {canAddMore && (
@@ -272,7 +286,7 @@ export function ImageUpload({
 
       {/* Error Message */}
       {error && (
-        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+        <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg animate-in">
           <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
           <p className="text-sm text-destructive">{error}</p>
         </div>
