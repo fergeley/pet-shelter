@@ -23,7 +23,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
     });
     if (dbPets && dbPets.length > 0) {
-      return dbPets.map((p) => ({
+      return (dbPets as any[]).map((p: any) => ({
         id: p.id,
         name: p.name,
         species: p.species as Pet["species"],
@@ -76,7 +76,7 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
       orderBy: { createdAt: "desc" },
     });
     if (dbApps && dbApps.length > 0) {
-      return dbApps.map((a) => ({
+      return (dbApps as any[]).map((a: any) => ({
         id: a.id,
         petId: a.petId || "",
         petName: a.petName,
@@ -336,7 +336,7 @@ export async function atomicUpdateApplicationStatus(
 
   // 2. Try Prisma Interactive Transaction ($transaction)
   try {
-    await prisma.$transaction(async (tx) => {
+    await (prisma as any).$transaction(async (tx: any) => {
       // Update target application
       await tx.adoptionApplication.update({
         where: { id: applicationId },

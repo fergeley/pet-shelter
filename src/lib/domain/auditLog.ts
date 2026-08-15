@@ -64,7 +64,17 @@ export async function getAuditLogsAsync(limit = 50): Promise<AuditEntry[]> {
     });
 
     if (dbLogs && dbLogs.length > 0) {
-      return dbLogs.map((log) => ({
+      return (dbLogs as Array<{
+        id: string;
+        actorId: string | null;
+        actorEmail: string;
+        actorRole: string;
+        action: string;
+        targetEntity: string;
+        targetId: string | null;
+        metadata?: unknown;
+        createdAt: Date;
+      }>).map((log) => ({
         id: log.id,
         actorId: log.actorId || "",
         actorEmail: log.actorEmail,
@@ -73,7 +83,7 @@ export async function getAuditLogsAsync(limit = 50): Promise<AuditEntry[]> {
         entity: log.targetEntity,
         entityId: log.targetId || "",
         details: log.metadata ? (log.metadata as Record<string, unknown>) : undefined,
-        createdAt: log.createdAt.toISOString(),
+        createdAt: typeof log.createdAt === "string" ? log.createdAt : new Date(log.createdAt).toISOString(),
       }));
     }
   } catch {

@@ -199,13 +199,13 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
       orderBy: { createdAt: "asc" },
     });
     if (dbUsers && dbUsers.length > 0) {
-      return dbUsers.map((u) => ({
+      return (dbUsers as any[]).map((u: any) => ({
         id: u.id,
         email: u.email,
         name: u.name,
         role: u.role as Role,
-        createdAt: u.createdAt.toISOString(),
-        updatedAt: u.updatedAt.toISOString(),
+        createdAt: typeof u.createdAt === "string" ? u.createdAt : new Date(u.createdAt).toISOString(),
+        updatedAt: typeof u.updatedAt === "string" ? u.updatedAt : new Date(u.updatedAt).toISOString(),
       }));
     }
   } catch {
