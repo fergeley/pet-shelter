@@ -1,7 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import initialPetsData from "@/data/pets.json";
-import { Pet } from "@/types/pet";
+import { getPets, getPetById } from "@/actions/pets";
 import { PetDetailView } from "@/components/PetDetailView";
 
 interface PetPageProps {
@@ -9,7 +8,7 @@ interface PetPageProps {
 }
 
 export async function generateStaticParams() {
-  const pets = initialPetsData as Pet[];
+  const pets = await getPets();
   return pets.map((pet) => ({
     id: pet.id,
   }));
@@ -17,8 +16,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: PetPageProps): Promise<Metadata> {
   const { id } = await params;
-  const pets = initialPetsData as Pet[];
-  const pet = pets.find((p) => p.id === id);
+  const pet = await getPetById(id);
 
   if (!pet) {
     return {
@@ -59,8 +57,7 @@ export async function generateMetadata({ params }: PetPageProps): Promise<Metada
 
 export default async function PetProfilePage({ params }: PetPageProps) {
   const { id } = await params;
-  const pets = initialPetsData as Pet[];
-  const pet = pets.find((p) => p.id === id);
+  const pet = await getPetById(id);
 
   if (!pet) {
     notFound();

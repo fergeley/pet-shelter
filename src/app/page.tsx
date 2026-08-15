@@ -12,8 +12,10 @@ import { Hero } from "@/components/Hero";
 import { PetGallery } from "@/components/PetGallery";
 import { BulletinFeed } from "@/components/BulletinFeed";
 import { buttonVariants } from "@/components/ui/button";
+import { getPets } from "@/actions/pets";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const initialPets = await getPets();
   const steps = [
     {
       num: "01",
@@ -64,6 +66,7 @@ export default function HomePage() {
       <section className="bg-card py-12 sm:py-16">
         <div className="w-full px-6 sm:px-8 lg:px-12">
           <PetGallery
+            initialPets={initialPets}
             featuredOnly={true}
             title="Featured Animals"
             showFilters={false}

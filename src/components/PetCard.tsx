@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { Info, Heart } from "lucide-react";
 import { Pet } from "@/types/pet";
@@ -12,7 +13,10 @@ interface PetCardProps {
   onAdoptPet?: (pet: Pet) => void;
 }
 
+const FALLBACK_PET_IMAGE = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80";
+
 export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
+  const [imgSrc, setImgSrc] = useState(pet.image || FALLBACK_PET_IMAGE);
   const isAvailable = pet.status === "Available";
 
   return (
@@ -21,9 +25,10 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
         {/* Pet Image Container */}
         <div className="relative aspect-4/3 w-full overflow-hidden bg-muted">
           <Image
-            src={pet.image}
+            src={imgSrc}
             alt={`${pet.name}, ${pet.breed}`}
             fill
+            onError={() => setImgSrc(FALLBACK_PET_IMAGE)}
             className="object-cover transition-transform duration-300 group-hover:scale-102"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />

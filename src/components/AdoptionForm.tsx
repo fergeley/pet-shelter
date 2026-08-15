@@ -1,9 +1,5 @@
 "use client";
 
-import React, { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Pet } from "@/types/pet";
 import {
@@ -17,27 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useApplicationStore } from "@/lib/applicationStore";
-
-const adoptionFormSchema = z.object({
-  petId: z.string().min(1, "Please select an adoptable pet"),
-  petName: z.string().min(1, "Pet name is required"),
-  applicantName: z.string().min(2, "Please enter your full name"),
-  applicantEmail: z.string().email("Please enter a valid email address"),
-  applicantPhone: z.string().min(9, "Please enter a valid Malaysian phone number"),
-  applicantAddress: z.string().min(5, "Please provide your residential address and city"),
-  housingType: z.enum(["landed_terrace", "semi_d_bungalow", "condo_apartment", "townhouse", "other"]),
-  hasFencedYard: z.enum(["yes", "no", "not_applicable"]),
-  currentPets: z.enum(["none", "dogs", "cats", "both", "other"]),
-  currentPetDetails: z.string().optional(),
-  householdExperience: z.enum(["first_time", "some_experience", "experienced"]),
-  applicantNotes: z.string().optional(),
-  agreeToTerms: z.boolean().refine((val) => val === true, {
-    message: "Please agree to the adoption terms to submit your application",
-  }),
-});
-
-type AdoptionFormValues = z.infer<typeof adoptionFormSchema>;
+import { useAdoptionFormController } from "@/hooks/useAdoptionFormController";
 
 interface AdoptionFormProps {
   selectedPet: Pet | null;
@@ -46,84 +22,12 @@ interface AdoptionFormProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function AdoptionForm({
-  selectedPet,
-  allPets,
-  open,
-  onOpenChange,
-}: AdoptionFormProps) {
-  const { addApplication } = useApplicationStore();
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [submittedData, setSubmittedData] = useState<AdoptionFormValues | null>(null);
-
-  const availablePets = allPets.filter((p) => p.status === "Available");
-  const defaultPet = selectedPet || availablePets[0] || allPets[0] || null;
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    control,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<AdoptionFormValues>({
-    resolver: zodResolver(adoptionFormSchema) as any,
-    defaultValues: {
-      petId: defaultPet?.id || "",
-      petName: defaultPet?.name || "",
-      applicantName: "",
-      applicantEmail: "",
-      applicantPhone: "",
-      applicantAddress: "",
-      housingType: "landed_terrace",
-      hasFencedYard: "yes",
-      currentPets: "none",
-      currentPetDetails: "",
-      householdExperience: "experienced",
-      applicantNotes: "",
-      agreeToTerms: true,
-    },
-  });
-
-  React.useEffect(() => {
-    if (selectedPet && open) {
-      setValue("petId", selectedPet.id);
-      setValue("petName", selectedPet.name);
-    }
-  }, [selectedPet, open, setValue]);
-
-  const activePetId = useWatch({ control, name: "petId" }) || defaultPet?.id;
-  const activePet = allPets.find((p) => p.id === activePetId) || selectedPet;
-
-  const onSubmit = async (data: AdoptionFormValues) => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    addApplication({
-      petId: data.petId,
-      petName: data.petName,
-      applicantName: data.applicantName,
-      email: data.applicantEmail,
-      phone: data.applicantPhone,
-      address: data.applicantAddress,
-      housingType: data.housingType,
-      hasFencedYard: data.hasFencedYard,
-      currentPets: data.currentPets,
-      currentPetDetails: data.currentPetDetails,
-      householdExperience: data.householdExperience,
-      applicantNotes: data.applicantNotes,
-    });
-    setSubmittedData(data);
-    setIsSubmitted(true);
-  };
-
-  const handleClose = () => {
-    onOpenChange(false);
-    if (isSubmitted) {
-      setTimeout(() => {
-        setIsSubmitted(false);
-        reset();
-      }, 200);
-    }
-  };
+export function AdoptionForm(props: AdoptionFormProps) {
+  const { open, allPets } = props;
+  const { state, form, handlers } = useAdoptionFormController(props);
+  const { activePet, isSubmitted, submittedData, submissionError } = state;
+  const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = form;
+  const { onSubmit, handleClose } = handlers;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -138,6 +42,12 @@ export function AdoptionForm({
                 Applications take about 5 minutes. Our volunteer coordinators in Petaling Jaya will review and follow up within 1–2 business days.
               </DialogDescription>
             </DialogHeader>
+
+            {submissionError && (
+              <div className="mb-6 bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive font-medium flex items-center gap-2">
+                <span>⚠️ {submissionError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { 
   Heart, 
@@ -29,12 +30,15 @@ interface PetDetailDialogProps {
   onStartAdoption: (pet: Pet) => void;
 }
 
+const FALLBACK_PET_IMAGE = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80";
+
 export function PetDetailDialog({
   pet,
   open,
   onOpenChange,
   onStartAdoption,
 }: PetDetailDialogProps) {
+  const [imgSrc, setImgSrc] = useState(pet?.image || FALLBACK_PET_IMAGE);
   if (!pet) return null;
 
   const isAvailable = pet.status === "Available";
@@ -51,9 +55,10 @@ export function PetDetailDialog({
         {/* Photo Banner */}
         <div className="relative aspect-16/9 w-full bg-muted">
           <Image
-            src={pet.image}
+            src={imgSrc || pet.image}
             alt={`${pet.name} - ${pet.breed}`}
             fill
+            onError={() => setImgSrc(FALLBACK_PET_IMAGE)}
             className="object-cover"
             sizes="(max-width: 768px) 100vw, 700px"
           />

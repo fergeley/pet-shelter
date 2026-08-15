@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Pet } from "@/types/pet";
-import { usePetStore } from "@/lib/petStore";
 import { AdoptionForm } from "@/components/AdoptionForm";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -13,13 +11,11 @@ import {
   ShieldCheck,
   Check,
   X,
-  Calendar,
   Activity,
   Baby,
   Dog,
   Cat,
   Share2,
-  Phone,
   MessageCircle,
   ArrowLeft,
   HeartHandshake,
@@ -28,50 +24,16 @@ import {
   MapPin,
 } from "lucide-react";
 
+import { usePetDetailViewController } from "@/hooks/usePetDetailViewController";
+
 interface PetDetailViewProps {
   initialPet: Pet;
 }
 
-export function PetDetailView({ initialPet }: PetDetailViewProps) {
-  const { pets } = usePetStore();
-  
-  // Hydrate with client store version if available
-  const pet = pets.find((p) => p.id === initialPet.id) || initialPet;
-  const isAvailable = pet.status === "Available";
-
-  // Modals
-  const [isAdoptionOpen, setIsAdoptionOpen] = useState(false);
-  const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
-
-  // WhatsApp Inquiry URL pre-filled
-  const waMessage = encodeURIComponent(
-    `Hello Hope for Strays Selangor! I am interested in inquiring about adopting ${pet.name} (${pet.breed}, Ref: ${pet.id}). Could you let me know about visiting arrangements?`
-  );
-  const waUrl = `https://wa.me/60127876543?text=${waMessage}`;
-
-  const handleShare = async () => {
-    if (typeof window !== "undefined") {
-      const shareData = {
-        title: `Adopt ${pet.name} | Hope for Strays Petaling Jaya`,
-        text: `Meet ${pet.name}, a lovable ${pet.breed} looking for a forever home in Selangor!`,
-        url: window.location.href,
-      };
-
-      if (navigator.share) {
-        try {
-          await navigator.share(shareData);
-          return;
-        } catch (e) {
-          // Fallback to clipboard
-        }
-      }
-
-      navigator.clipboard.writeText(window.location.href);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    }
-  };
+export function PetDetailView(props: PetDetailViewProps) {
+  const { state, handlers } = usePetDetailViewController(props);
+  const { pet, pets, isAvailable, isAdoptionOpen, isSponsorshipOpen, copiedLink, waUrl } = state;
+  const { setIsAdoptionOpen, setIsSponsorshipOpen, handleShare } = handlers;
 
   return (
     <div className="min-h-screen bg-card pb-20">

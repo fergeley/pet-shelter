@@ -1,9 +1,5 @@
 "use client";
 
-import React, { useState } from "react";
-import { Pet } from "@/types/pet";
-import { SponsorshipTier, DonationReceipt } from "@/types/sponsorship";
-import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/sponsorshipStore";
 import {
   Dialog,
   DialogContent,
@@ -17,75 +13,39 @@ import { Label } from "@/components/ui/label";
 import {
   HeartHandshake,
   QrCode,
-  Building,
   CheckCircle2,
   Copy,
-  Download,
   Printer,
-  Sparkles,
   ShieldCheck,
   ArrowRight,
   RotateCcw,
 } from "lucide-react";
+import { useSponsorshipController, UseSponsorshipControllerProps } from "@/hooks/useSponsorshipController";
 
-interface SponsorshipModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  targetPet?: Pet | null;
-}
-
-export function SponsorshipModal({
-  open,
-  onOpenChange,
-  targetPet,
-}: SponsorshipModalProps) {
-  const { createDonationReceipt } = useSponsorshipStore();
-
-  const [selectedTier, setSelectedTier] = useState<SponsorshipTier>(SPONSORSHIP_TIERS[1]); // Default to Vaccination (RM 50)
-  const [customAmount, setCustomAmount] = useState<string>("50");
-  const [donorName, setDonorName] = useState("");
-  const [donorEmail, setDonorEmail] = useState("");
-  const [donorPhone, setDonorPhone] = useState("");
-  const [copiedBank, setCopiedBank] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [completedReceipt, setCompletedReceipt] = useState<DonationReceipt | null>(null);
-
-  const finalAmount = selectedTier.id === "custom" ? Number(customAmount) || 10 : selectedTier.amount;
-
-  const handleCopyMaybank = () => {
-    navigator.clipboard.writeText("514012345678");
-    setCopiedBank(true);
-    setTimeout(() => setCopiedBank(false), 2500);
-  };
-
-  const handleCompleteDonation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!donorName || !donorEmail) return;
-
-    setIsProcessing(true);
-    await new Promise((r) => setTimeout(r, 800)); // Simulate banking verification
-
-    const receipt = createDonationReceipt({
-      donorName,
-      donorEmail,
-      donorPhone,
-      tierId: selectedTier.id,
-      tierName: selectedTier.name,
-      amountMYR: finalAmount,
-      paymentMethod: "duitnow_qr",
-      targetPetName: targetPet?.name,
-    });
-
-    setIsProcessing(false);
-    setCompletedReceipt(receipt);
-  };
-
-  const handleReset = () => {
-    setCompletedReceipt(null);
-    setDonorName("");
-    setDonorEmail("");
-    setDonorPhone("");
-  };
+export function SponsorshipModal(props: UseSponsorshipControllerProps) {
+  const { open, onOpenChange, targetPet } = props;
+  const { state, handlers } = useSponsorshipController(props);
+  const {
+    selectedTier,
+    donorName,
+    donorEmail,
+    donorPhone,
+    copiedBank,
+    isProcessing,
+    completedReceipt,
+    finalAmount,
+    tiers,
+  } = state;
+  const {
+    setSelectedTier,
+    setDonorName,
+    setDonorEmail,
+    setDonorPhone,
+    handleCopyMaybank,
+    handleCompleteDonation,
+    handleReset,
+    handlePrintReceipt,
+  } = handlers;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -119,7 +79,7 @@ export function SponsorshipModal({
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {SPONSORSHIP_TIERS.map((tier) => {
+                  {tiers.map((tier) => {
                     const isSelected = selectedTier.id === tier.id;
                     return (
                       <button
@@ -385,7 +345,7 @@ export function SponsorshipModal({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.print()}
+                    onClick={handlePrintReceipt}
                     className="gap-1.5"
                   >
                     <Printer className="size-3.5" />

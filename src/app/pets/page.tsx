@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { PetGallery } from "@/components/PetGallery";
 import { BulletinFeed } from "@/components/BulletinFeed";
+import { getPets } from "@/actions/pets";
 import { PhoneCall } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
   description: "Browse rescue dogs and cats currently available for adoption at Hope for Strays shelter in Petaling Jaya, Selangor.",
 };
 
-export default function PetsDirectoryPage() {
+export default async function PetsDirectoryPage() {
+  const initialPets = await getPets();
   const faqs = [
     {
       q: "What does the adoption fee cover?",
@@ -33,6 +35,7 @@ export default function PetsDirectoryPage() {
       {/* Directory Gallery */}
       <div className="w-full px-6 sm:px-8 lg:px-12 pt-8 sm:pt-10">
         <PetGallery
+          initialPets={initialPets}
           title="Adoptable Animals"
           showFilters={true}
         />

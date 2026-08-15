@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
 import Image from "next/image";
-import { Pet } from "@/types/pet";
-import { QuizAnswers, PetMatchResult } from "@/types/match";
-import { matchPetsWithQuiz } from "@/lib/matchEngine";
-import { usePetStore } from "@/lib/petStore";
+import { QuizAnswers } from "@/types/match";
+import { usePetMatchQuizController, UsePetMatchQuizControllerProps } from "@/hooks/usePetMatchQuizController";
 import {
   Dialog,
   DialogContent,
@@ -33,66 +30,11 @@ import {
   Heart,
 } from "lucide-react";
 
-interface PetMatchQuizProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelectPet?: (pet: Pet) => void;
-  onApplyForPet?: (pet: Pet) => void;
-}
-
-export function PetMatchQuiz({
-  open,
-  onOpenChange,
-  onSelectPet,
-  onApplyForPet,
-}: PetMatchQuizProps) {
-  const { pets } = usePetStore();
-  const [step, setStep] = useState<number>(1);
-
-  const [answers, setAnswers] = useState<QuizAnswers>({
-    housing: "condo_apartment",
-    household: "adults_only",
-    existingPets: "none",
-    dailyActivity: "moderate_30_60m",
-    experience: "some_experience",
-    preferredSpecies: "any",
-  });
-
-  const [isCalculated, setIsCalculated] = useState(false);
-
-  const matchResults: PetMatchResult[] = useMemo(() => {
-    if (!isCalculated) return [];
-    return matchPetsWithQuiz(pets, answers);
-  }, [pets, answers, isCalculated]);
-
-  const handleNext = () => {
-    if (step < 4) {
-      setStep(step + 1);
-    } else {
-      setIsCalculated(true);
-    }
-  };
-
-  const handlePrev = () => {
-    if (isCalculated) {
-      setIsCalculated(false);
-    } else if (step > 1) {
-      setStep(step - 1);
-    }
-  };
-
-  const handleReset = () => {
-    setStep(1);
-    setIsCalculated(false);
-    setAnswers({
-      housing: "condo_apartment",
-      household: "adults_only",
-      existingPets: "none",
-      dailyActivity: "moderate_30_60m",
-      experience: "some_experience",
-      preferredSpecies: "any",
-    });
-  };
+export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
+  const { open, onOpenChange } = props;
+  const { state, handlers } = usePetMatchQuizController(props);
+  const { step, answers, isCalculated, matchResults } = state;
+  const { setAnswers, handleNext, handlePrev, handleReset, handleSelectPet, handleApplyForPet } = handlers;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,7 +105,7 @@ export function PetMatchQuiz({
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => setAnswers({ ...answers, preferredSpecies: item.id as any })}
+                            onClick={() => setAnswers({ ...answers, preferredSpecies: item.id as QuizAnswers["preferredSpecies"] })}
                             className={`p-3.5 border flex flex-col items-center justify-center gap-2 transition-all cursor-pointer text-center ${
                               isSelected
                                 ? "border-primary bg-primary text-primary-foreground font-bold shadow-sm"
@@ -210,7 +152,7 @@ export function PetMatchQuiz({
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => setAnswers({ ...answers, housing: item.id as any })}
+                            onClick={() => setAnswers({ ...answers, housing: item.id as QuizAnswers["housing"] })}
                             className={`p-4 border text-left flex flex-col justify-between transition-all cursor-pointer ${
                               isSelected
                                 ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -285,7 +227,7 @@ export function PetMatchQuiz({
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setAnswers({ ...answers, household: item.id as any })}
+                          onClick={() => setAnswers({ ...answers, household: item.id as QuizAnswers["household"] })}
                           className={`p-4 border text-left flex items-start gap-3.5 transition-all cursor-pointer ${
                             isSelected
                               ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -352,7 +294,7 @@ export function PetMatchQuiz({
                         <button
                           key={item.id}
                           type="button"
-                          onClick={() => setAnswers({ ...answers, existingPets: item.id as any })}
+                          onClick={() => setAnswers({ ...answers, existingPets: item.id as QuizAnswers["existingPets"] })}
                           className={`p-4 border text-left flex items-start gap-3.5 transition-all cursor-pointer ${
                             isSelected
                               ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -418,7 +360,7 @@ export function PetMatchQuiz({
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => setAnswers({ ...answers, dailyActivity: item.id as any })}
+                            onClick={() => setAnswers({ ...answers, dailyActivity: item.id as QuizAnswers["dailyActivity"] })}
                             className={`p-3.5 border text-left transition-all cursor-pointer ${
                               isSelected
                                 ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -457,7 +399,7 @@ export function PetMatchQuiz({
                           <button
                             key={item.id}
                             type="button"
-                            onClick={() => setAnswers({ ...answers, experience: item.id as any })}
+                            onClick={() => setAnswers({ ...answers, experience: item.id as QuizAnswers["experience"] })}
                             className={`p-3.5 border text-left transition-all cursor-pointer ${
                               isSelected
                                 ? "border-primary bg-primary/5 ring-1 ring-primary"
@@ -583,31 +525,23 @@ export function PetMatchQuiz({
 
                         {/* Actions */}
                         <div className="flex flex-wrap items-center gap-2 pt-1">
-                          {onApplyForPet && pet.status === "Available" && (
+                          {pet.status === "Available" && (
                             <Button
                               size="sm"
-                              onClick={() => {
-                                onOpenChange(false);
-                                onApplyForPet(pet);
-                              }}
+                              onClick={() => handleApplyForPet(pet)}
                               className="text-xs font-bold"
                             >
                               Apply to Adopt {pet.name}
                             </Button>
                           )}
-                          {onSelectPet && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                onOpenChange(false);
-                                onSelectPet(pet);
-                              }}
-                              className="text-xs"
-                            >
-                              Full Profile
-                            </Button>
-                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSelectPet(pet)}
+                            className="text-xs"
+                          >
+                            Full Profile
+                          </Button>
                         </div>
                       </div>
                     </div>

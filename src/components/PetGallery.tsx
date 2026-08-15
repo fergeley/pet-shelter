@@ -1,17 +1,15 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
 import { Search, RotateCcw, Dog, Cat, SlidersHorizontal, X } from "lucide-react";
 import { Pet } from "@/types/pet";
-import defaultPetsData from "@/data/pets.json";
 import { PetCard } from "@/components/PetCard";
 import { PetDetailDialog } from "@/components/PetDetailDialog";
 import { AdoptionForm } from "@/components/AdoptionForm";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
 import { Button } from "@/components/ui/button";
-import { usePetStore } from "@/lib/petStore";
 import { Sparkles, HeartHandshake } from "lucide-react";
+import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 
 interface PetGalleryProps {
   initialPets?: Pet[];
@@ -28,92 +26,40 @@ export function PetGallery({
   subtitle,
   showFilters = true,
 }: PetGalleryProps) {
-  const { pets: storePets } = usePetStore();
-  const pets = initialPets || storePets;
-  
-  // Filter States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSpecies, setSelectedSpecies] = useState<string>("all");
-  const [selectedAge, setSelectedAge] = useState<string>("all");
-  const [selectedSize, setSelectedSize] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<string>("all");
-
-  // Modal Dialog States
-  const [activePetForDetail, setActivePetForDetail] = useState<Pet | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  
-  const [activePetForAdoption, setActivePetForAdoption] = useState<Pet | null>(null);
-  const [isAdoptionOpen, setIsAdoptionOpen] = useState(false);
-
-  const [isQuizOpen, setIsQuizOpen] = useState(false);
-  const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
-  const [activePetForSponsorship, setActivePetForSponsorship] = useState<Pet | null>(null);
-
-  // Filter Logic
-  const filteredPets = useMemo(() => {
-    return pets.filter((pet) => {
-      if (featuredOnly && !pet.featured) return false;
-
-      // Search Query
-      if (searchQuery.trim() !== "") {
-        const query = searchQuery.toLowerCase();
-        const matchesName = pet.name.toLowerCase().includes(query);
-        const matchesBreed = pet.breed.toLowerCase().includes(query);
-        const matchesTags = pet.tags.some((t) => t.toLowerCase().includes(query));
-        const matchesDesc = pet.description.toLowerCase().includes(query);
-        if (!matchesName && !matchesBreed && !matchesTags && !matchesDesc) {
-          return false;
-        }
-      }
-
-      // Species Filter
-      if (selectedSpecies !== "all" && pet.species !== selectedSpecies) {
-        return false;
-      }
-
-      // Age Category Filter
-      if (selectedAge !== "all" && pet.ageCategory !== selectedAge) {
-        return false;
-      }
-
-      // Size Filter
-      if (selectedSize !== "all" && pet.size !== selectedSize) {
-        return false;
-      }
-
-      // Status Filter
-      if (selectedStatus !== "all" && pet.status !== selectedStatus) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [pets, featuredOnly, searchQuery, selectedSpecies, selectedAge, selectedSize, selectedStatus]);
-
-  const hasActiveFilters =
-    searchQuery !== "" ||
-    selectedSpecies !== "all" ||
-    selectedAge !== "all" ||
-    selectedSize !== "all" ||
-    selectedStatus !== "all";
-
-  const handleResetFilters = () => {
-    setSearchQuery("");
-    setSelectedSpecies("all");
-    setSelectedAge("all");
-    setSelectedSize("all");
-    setSelectedStatus("all");
-  };
-
-  const handleOpenDetail = (pet: Pet) => {
-    setActivePetForDetail(pet);
-    setIsDetailOpen(true);
-  };
-
-  const handleOpenAdoption = (pet: Pet) => {
-    setActivePetForAdoption(pet);
-    setIsAdoptionOpen(true);
-  };
+  const { state, handlers } = usePetGalleryController({ initialPets, featuredOnly });
+  const {
+    pets,
+    filteredPets,
+    hasActiveFilters,
+    searchQuery,
+    selectedSpecies,
+    selectedAge,
+    selectedSize,
+    selectedStatus,
+    activePetForDetail,
+    isDetailOpen,
+    activePetForAdoption,
+    isAdoptionOpen,
+    isQuizOpen,
+    isSponsorshipOpen,
+    activePetForSponsorship,
+  } = state;
+  const {
+    setSearchQuery,
+    setSelectedSpecies,
+    setSelectedAge,
+    setSelectedSize,
+    setSelectedStatus,
+    handleResetFilters,
+    handleOpenDetail,
+    handleOpenAdoption,
+    handleOpenSponsor,
+    setIsDetailOpen,
+    setIsAdoptionOpen,
+    setIsQuizOpen,
+    setIsSponsorshipOpen,
+    setActivePetForAdoption,
+  } = handlers;
 
   return (
     <section className="w-full">
@@ -145,10 +91,7 @@ export function PetGallery({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => {
-              setActivePetForSponsorship(null);
-              setIsSponsorshipOpen(true);
-            }}
+            onClick={() => handleOpenSponsor()}
             className="text-xs font-bold gap-1.5"
           >
             <HeartHandshake className="size-3.5" />

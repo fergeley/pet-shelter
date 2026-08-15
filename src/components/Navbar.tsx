@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PawPrint, Heart, Menu, Phone, Sparkles, HeartHandshake } from "lucide-react";
+import { PawPrint, Heart, Menu, Sparkles, HeartHandshake } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
