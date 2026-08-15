@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { ShelterSettingsInput } from "@/lib/validations/settings";
 
-const STORAGE_KEY = "hope_for_strays_settings_v1";
+const STORAGE_KEY = "hope_for_strays_settings_v2";
 
 const defaultSettings: ShelterSettingsInput = {
   shelterName: "Hope for Strays",
@@ -14,6 +14,14 @@ const defaultSettings: ShelterSettingsInput = {
   announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
   adoptionFeeDog: "Free",
   adoptionFeeCat: "Free",
+  resendApiKey: "",
+  emailFrom: "Hope for Strays <onboarding@resend.dev>",
+  shelterNotificationEmail: "fergeley@gmail.com",
+  storageProvider: "local",
+  s3Bucket: "",
+  s3Region: "ap-southeast-1",
+  s3CdnUrl: "",
+  cloudinaryCloudName: "",
 };
 
 export function useSettingsStore() {
@@ -22,7 +30,7 @@ export function useSettingsStore() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          return JSON.parse(saved);
+          return { ...defaultSettings, ...JSON.parse(saved) };
         }
       } catch (e) {
         console.error("Failed to load settings", e);
@@ -38,7 +46,7 @@ export function useSettingsStore() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSettings(JSON.parse(saved));
+        setSettings((prev) => ({ ...prev, ...JSON.parse(saved) }));
       }
     } catch (e) {
       console.error(e);
