@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,7 +43,7 @@ export function PetFormDialog({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<PetFormInput>({
-    resolver: zodResolver(petFormSchema) as any,
+    resolver: zodResolver(petFormSchema),
     defaultValues: {
       name: "",
       species: "dog",
@@ -72,7 +72,11 @@ export function PetFormDialog({
     },
   });
 
-  useEffect(() => {
+  const [prevKey, setPrevKey] = useState<string | null>(null);
+  const currentKey = open ? (editingPet ? `edit-${editingPet.id}` : "create-new") : null;
+
+  if (currentKey !== prevKey) {
+    setPrevKey(currentKey);
     if (editingPet) {
       reset({
         name: editingPet.name,
@@ -100,9 +104,7 @@ export function PetFormDialog({
         goodWithKids: editingPet.compatibility.goodWithKids,
         energyLevel: editingPet.compatibility.energyLevel as "Low" | "Moderate" | "High",
       });
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTags(editingPet.tags);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImageUrl(editingPet.image);
     } else {
       const defaultImg = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80";
@@ -132,12 +134,10 @@ export function PetFormDialog({
         goodWithKids: true,
         energyLevel: "Moderate",
       });
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTags(["Vaccinated", "Friendly"]);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImageUrl(defaultImg);
     }
-  }, [editingPet, open, reset]);
+  }
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,14 +9,11 @@ import {
   getSortedRowModel,
   ColumnDef,
   flexRender,
-  SortingState,
 } from "@tanstack/react-table";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
-import { useApplicationStore } from "@/lib/applicationStore";
 import { ApplicationDetailDialog } from "@/components/admin/ApplicationDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { exportApplicationsToCsv } from "@/lib/exportCsv";
 import {
   Search,
   CheckCircle2,
@@ -40,36 +37,39 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-export function ApplicationDataTable() {
+import { useApplicationTableController } from "@/hooks/useApplicationTableController";
+
+export function ApplicationDataTable({
+  initialApplications,
+}: {
+  initialApplications?: AdoptionApplicationRecord[];
+} = {}) {
+  const { state, handlers } = useApplicationTableController(initialApplications);
   const {
     applications,
-    updateApplicationStatus,
-    deleteApplication,
+    filteredData,
+    globalFilter,
+    statusFilter,
+    sorting,
+    activeAppForDetail,
+    isDetailOpen,
+    deleteCandidate,
+    statusError,
+  } = state;
+  const {
+    setGlobalFilter,
+    setStatusFilter,
+    setSorting,
+    setActiveAppForDetail,
+    setIsDetailOpen,
+    setDeleteCandidate,
+    setStatusError,
+    handleQuickStatus,
+    handleUpdateStatusWithNotes,
+    confirmDelete,
+    handleExportCsv,
     resetToDefaultApplications,
-  } = useApplicationStore();
-
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [sorting, setSorting] = useState<SortingState>([]);
-
-  // Modals
-  const [activeAppForDetail, setActiveAppForDetail] = useState<AdoptionApplicationRecord | null>(null);
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [deleteCandidate, setDeleteCandidate] = useState<AdoptionApplicationRecord | null>(null);
-
-  const filteredData = useMemo(() => {
-    return applications.filter((app) => {
-      if (statusFilter !== "all" && app.status !== statusFilter) return false;
-      if (globalFilter.trim() !== "") {
-        const q = globalFilter.toLowerCase();
-        const matchApplicant = app.applicantName.toLowerCase().includes(q);
-        const matchPet = app.petName.toLowerCase().includes(q);
-        const matchEmail = app.email.toLowerCase().includes(q);
-        if (!matchApplicant && !matchPet && !matchEmail) return false;
-      }
-      return true;
-    });
-  }, [applications, statusFilter, globalFilter]);
+  } = handlers;
 
   const columns = useMemo<ColumnDef<AdoptionApplicationRecord>[]>(
     () => [
@@ -159,9 +159,7 @@ export function ApplicationDataTable() {
             <div className="flex items-center gap-1.5 justify-end">
               <select
                 value={app.status}
-                onChange={(e) => {
-                  updateApplicationStatus(app.id, e.target.value as ApplicationStatus);
-                }}
+                onChange={(e) => handleQuickStatus(app.id, e.target.value as ApplicationStatus)}
                 className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground"
                 aria-label={`Change status for application from ${app.applicantName}`}
               >
@@ -198,7 +196,7 @@ export function ApplicationDataTable() {
         },
       },
     ],
-    [updateApplicationStatus]
+    [handleQuickStatus, setActiveAppForDetail, setIsDetailOpen, setDeleteCandidate]
   );
 
   const table = useReactTable({
@@ -215,15 +213,20 @@ export function ApplicationDataTable() {
     },
   });
 
-  const confirmDelete = () => {
-    if (deleteCandidate) {
-      deleteApplication(deleteCandidate.id);
-      setDeleteCandidate(null);
-    }
-  };
-
   return (
     <div className="space-y-6">
+      {statusError && (
+        <div className="bg-destructive/10 border border-destructive/30 p-3.5 text-xs text-destructive flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <XCircle className="size-4 shrink-0" />
+            <span>{statusError}</span>
+          </div>
+          <Button variant="ghost" size="xs" onClick={() => setStatusError(null)} className="text-xs">
+            Dismiss
+          </Button>
+        </div>
+      )}
+
       {/* Top Toolbar */}
       <div className="border border-border bg-card p-4 sm:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         
@@ -276,7 +279,7 @@ export function ApplicationDataTable() {
           <Button
             variant="outline"
             size="xs"
-            onClick={() => exportApplicationsToCsv(filteredData)}
+            onClick={handleExportCsv}
             title="Export filtered records to RFC-4180 CSV"
             className="text-xs font-semibold gap-1 text-foreground"
           >
@@ -373,7 +376,7 @@ export function ApplicationDataTable() {
         application={activeAppForDetail}
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
-        onUpdateStatus={updateApplicationStatus}
+        onUpdateStatus={handleUpdateStatusWithNotes}
       />
 
       {/* Delete / Archive Confirmation */}

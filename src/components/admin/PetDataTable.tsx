@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import Image from "next/image";
 import {
   useReactTable,
@@ -10,12 +10,9 @@ import {
   getSortedRowModel,
   ColumnDef,
   flexRender,
-  SortingState,
 } from "@tanstack/react-table";
 import { Pet } from "@/types/pet";
-import { usePetStore } from "@/lib/petStore";
 import { PetFormDialog } from "@/components/admin/PetFormDialog";
-import { PetFormInput } from "@/lib/validations/pet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -41,35 +38,35 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-export function PetDataTable() {
-  const { pets, addPet, updatePet, updatePetStatus, deletePet, resetToDefaultPets } = usePetStore();
-  
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [speciesFilter, setSpeciesFilter] = useState<string>("all");
-  const [sorting, setSorting] = useState<SortingState>([]);
-  
-  // Modals
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingPet, setEditingPet] = useState<Pet | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<Pet | null>(null);
-  const [statusCandidate, setStatusCandidate] = useState<{ pet: Pet; newStatus: Pet["status"] } | null>(null);
+import { usePetTableController } from "@/hooks/usePetTableController";
 
-  // Filtered dataset for TanStack Table
-  const filteredData = useMemo(() => {
-    return pets.filter((pet) => {
-      if (statusFilter !== "all" && pet.status !== statusFilter) return false;
-      if (speciesFilter !== "all" && pet.species !== speciesFilter) return false;
-      if (globalFilter.trim() !== "") {
-        const q = globalFilter.toLowerCase();
-        const matchName = pet.name.toLowerCase().includes(q);
-        const matchBreed = pet.breed.toLowerCase().includes(q);
-        const matchTags = pet.tags.some((t) => t.toLowerCase().includes(q));
-        if (!matchName && !matchBreed && !matchTags) return false;
-      }
-      return true;
-    });
-  }, [pets, statusFilter, speciesFilter, globalFilter]);
+export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
+  const { state, handlers } = usePetTableController(initialPets);
+  const {
+    pets,
+    filteredData,
+    globalFilter,
+    statusFilter,
+    speciesFilter,
+    sorting,
+    isFormOpen,
+    editingPet,
+    deleteCandidate,
+  } = state;
+  const {
+    setGlobalFilter,
+    setStatusFilter,
+    setSpeciesFilter,
+    setSorting,
+    setIsFormOpen,
+    setDeleteCandidate,
+    handleOpenCreate,
+    handleOpenEdit,
+    handleFormSubmit,
+    handleConfirmDelete,
+    handleStatusChange,
+    resetToDefaultPets,
+  } = handlers;
 
   const columns = useMemo<ColumnDef<Pet>[]>(
     () => [
@@ -176,9 +173,7 @@ export function PetDataTable() {
               {/* Quick Status Dropdown */}
               <select
                 value={pet.status}
-                onChange={(e) => {
-                  updatePetStatus(pet.id, e.target.value as Pet["status"]);
-                }}
+                onChange={(e) => handleStatusChange(pet.id, e.target.value as Pet["status"])}
                 className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground"
                 aria-label={`Change status for ${pet.name}`}
               >
@@ -190,10 +185,7 @@ export function PetDataTable() {
               <Button
                 variant="outline"
                 size="xs"
-                onClick={() => {
-                  setEditingPet(pet);
-                  setIsFormOpen(true);
-                }}
+                onClick={() => handleOpenEdit(pet)}
                 className="text-xs"
                 title="Edit pet details"
               >
@@ -214,7 +206,7 @@ export function PetDataTable() {
         },
       },
     ],
-    [updatePetStatus]
+    [handleStatusChange, handleOpenEdit, setDeleteCandidate]
   );
 
   const table = useReactTable({
@@ -230,21 +222,6 @@ export function PetDataTable() {
       pagination: { pageSize: 8 },
     },
   });
-
-  const handleSavePet = (data: PetFormInput) => {
-    if (editingPet) {
-      updatePet(editingPet.id, data);
-    } else {
-      addPet(data);
-    }
-  };
-
-  const confirmDelete = () => {
-    if (deleteCandidate) {
-      deletePet(deleteCandidate.id);
-      setDeleteCandidate(null);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -316,10 +293,7 @@ export function PetDataTable() {
         <div className="flex items-center gap-2.5">
           <Button
             size="sm"
-            onClick={() => {
-              setEditingPet(null);
-              setIsFormOpen(true);
-            }}
+            onClick={handleOpenCreate}
             className="text-xs font-semibold uppercase tracking-wider px-4 py-2 gap-1.5"
           >
             <Plus className="size-4" />
@@ -416,7 +390,7 @@ export function PetDataTable() {
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
         editingPet={editingPet}
-        onSave={handleSavePet}
+        onSave={handleFormSubmit}
       />
 
       {/* Delete Confirmation Modal */}
@@ -434,7 +408,7 @@ export function PetDataTable() {
             <Button variant="outline" size="sm" onClick={() => setDeleteCandidate(null)} className="text-xs">
               Cancel
             </Button>
-            <Button variant="destructive" size="sm" onClick={confirmDelete} className="text-xs font-semibold">
+            <Button variant="destructive" size="sm" onClick={handleConfirmDelete} className="text-xs font-semibold">
               Yes, Delete Record
             </Button>
           </DialogFooter>

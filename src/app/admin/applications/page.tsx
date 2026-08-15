@@ -1,6 +1,15 @@
 import { ApplicationDataTable } from "@/components/admin/ApplicationDataTable";
+import { getApplications } from "@/actions/applications";
 
-export default function AdminApplicationsPage() {
+export default async function AdminApplicationsPage() {
+  let applications;
+  try {
+    applications = await getApplications();
+  } catch {
+    // If not authenticated in server context, let client controller handle auth redirect / display
+    applications = undefined;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -12,7 +21,7 @@ export default function AdminApplicationsPage() {
         </p>
       </div>
 
-      <ApplicationDataTable />
+      <ApplicationDataTable initialApplications={applications} />
     </div>
   );
 }

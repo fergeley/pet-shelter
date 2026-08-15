@@ -1,6 +1,9 @@
 import { PetDataTable } from "@/components/admin/PetDataTable";
+import { getPets } from "@/actions/pets";
 
-export default function AdminPetsPage() {
+export default async function AdminPetsPage() {
+  const pets = await getPets();
+
   return (
     <div className="space-y-6">
       <div>
@@ -12,7 +15,7 @@ export default function AdminPetsPage() {
         </p>
       </div>
 
-      <PetDataTable />
+      <PetDataTable initialPets={pets} />
     </div>
   );
 }

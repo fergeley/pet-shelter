@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
 import {
   Dialog,
@@ -28,7 +28,7 @@ interface ApplicationDetailDialogProps {
   application: AdoptionApplicationRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdateStatus: (id: string, status: ApplicationStatus, notes: string) => void;
+  onUpdateStatus: (id: string, status: ApplicationStatus, notes: string) => { success: boolean; error?: string } | void;
 }
 
 export function ApplicationDetailDialog({
@@ -39,20 +39,29 @@ export function ApplicationDetailDialog({
 }: ApplicationDetailDialogProps) {
   const [status, setStatus] = useState<ApplicationStatus>("SUBMITTED");
   const [notes, setNotes] = useState("");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const [prevKey, setPrevKey] = useState<string | null>(null);
+  const currentKey = application && open ? `${application.id}-${application.status}-${open}` : null;
+
+  if (currentKey !== prevKey) {
+    setPrevKey(currentKey);
     if (application) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus(application.status);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotes(application.adminReviewNotes || "");
+      setErrorMessage(null);
     }
-  }, [application, open]);
+  }
 
   if (!application) return null;
 
   const handleSave = () => {
-    onUpdateStatus(application.id, status, notes);
+    setErrorMessage(null);
+    const result = onUpdateStatus(application.id, status, notes);
+    if (result && !result.success) {
+      setErrorMessage(result.error || "Failed to update status.");
+      return;
+    }
     onOpenChange(false);
   };
 
@@ -71,6 +80,13 @@ export function ApplicationDetailDialog({
             </div>
           </div>
         </DialogHeader>
+
+        {errorMessage && (
+          <div className="bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive flex items-center gap-2">
+            <XCircle className="size-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
 
         <div className="space-y-6">
           
