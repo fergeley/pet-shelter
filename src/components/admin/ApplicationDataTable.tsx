@@ -16,6 +16,7 @@ import { useApplicationStore } from "@/lib/applicationStore";
 import { ApplicationDetailDialog } from "@/components/admin/ApplicationDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { exportApplicationsToCsv } from "@/lib/exportCsv";
 import {
   Search,
   CheckCircle2,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   SlidersHorizontal,
   FileText,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -270,7 +272,17 @@ export function ApplicationDataTable() {
           )}
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={() => exportApplicationsToCsv(filteredData)}
+            title="Export filtered records to RFC-4180 CSV"
+            className="text-xs font-semibold gap-1 text-foreground"
+          >
+            <Download className="size-3" /> Export CSV ({filteredData.length})
+          </Button>
+
           <Button
             variant="outline"
             size="xs"

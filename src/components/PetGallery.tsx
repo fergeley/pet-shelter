@@ -7,8 +7,11 @@ import defaultPetsData from "@/data/pets.json";
 import { PetCard } from "@/components/PetCard";
 import { PetDetailDialog } from "@/components/PetDetailDialog";
 import { AdoptionForm } from "@/components/AdoptionForm";
+import { PetMatchQuiz } from "@/components/PetMatchQuiz";
+import { SponsorshipModal } from "@/components/SponsorshipModal";
 import { Button } from "@/components/ui/button";
 import { usePetStore } from "@/lib/petStore";
+import { Sparkles, HeartHandshake } from "lucide-react";
 
 interface PetGalleryProps {
   initialPets?: Pet[];
@@ -41,6 +44,10 @@ export function PetGallery({
   
   const [activePetForAdoption, setActivePetForAdoption] = useState<Pet | null>(null);
   const [isAdoptionOpen, setIsAdoptionOpen] = useState(false);
+
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
+  const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
+  const [activePetForSponsorship, setActivePetForSponsorship] = useState<Pet | null>(null);
 
   // Filter Logic
   const filteredPets = useMemo(() => {
@@ -123,9 +130,34 @@ export function PetGallery({
           )}
         </div>
 
-        {/* Pet Counter */}
-        <div className="text-sm font-mono text-muted-foreground font-semibold">
-          Showing {filteredPets.length} of {pets.length} animals
+        {/* Actions & Pet Counter */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsQuizOpen(true)}
+            className="text-xs font-bold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/10 text-foreground"
+          >
+            <Sparkles className="size-3.5 text-primary" />
+            Find Your Match (Quiz)
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setActivePetForSponsorship(null);
+              setIsSponsorshipOpen(true);
+            }}
+            className="text-xs font-bold gap-1.5"
+          >
+            <HeartHandshake className="size-3.5" />
+            Sponsor
+          </Button>
+
+          <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted">
+            {filteredPets.length} of {pets.length} animals
+          </div>
         </div>
       </div>
 
@@ -326,6 +358,21 @@ export function PetGallery({
         allPets={pets}
         open={isAdoptionOpen}
         onOpenChange={setIsAdoptionOpen}
+      />
+
+      {/* Pet Match Quiz Modal */}
+      <PetMatchQuiz
+        open={isQuizOpen}
+        onOpenChange={setIsQuizOpen}
+        onSelectPet={handleOpenDetail}
+        onApplyForPet={handleOpenAdoption}
+      />
+
+      {/* Rescue Sponsorship Modal */}
+      <SponsorshipModal
+        open={isSponsorshipOpen}
+        onOpenChange={setIsSponsorshipOpen}
+        targetPet={activePetForSponsorship}
       />
     </section>
   );

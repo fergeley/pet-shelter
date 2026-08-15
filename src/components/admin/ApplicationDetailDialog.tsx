@@ -20,7 +20,8 @@ import {
   Phone, 
   MapPin, 
   Home, 
-  User 
+  User,
+  Printer 
 } from "lucide-react";
 
 interface ApplicationDetailDialogProps {
@@ -178,6 +179,17 @@ export function ApplicationDetailDialog({
             </div>
 
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                type="button"
+                onClick={() => window.print()}
+                className="text-xs gap-1.5"
+                title="Print field inspection dossier"
+              >
+                <Printer className="size-3.5" />
+                Print Dossier
+              </Button>
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-xs">
                 Cancel
               </Button>
