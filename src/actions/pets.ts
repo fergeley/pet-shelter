@@ -2,14 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { petFormSchema, PetFormInput, PetFilterInput } from "@/lib/validations/pet";
-import initialPetsData from "@/data/pets.json";
 import { Pet } from "@/types/pet";
-
-// In-memory server cache for demo and server actions
-let serverPets: Pet[] = [...(initialPetsData as Pet[])];
+import { getCurrentSession } from "@/lib/security/session";
+import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import {
+  getServerPetsAsync,
+  findServerPetById,
+  insertServerPet,
+  updateServerPet,
+  deleteServerPet,
+} from "@/lib/serverStore";
 
 export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
-  let filtered = [...serverPets];
+  const allPets = await getServerPetsAsync();
+  let filtered = [...allPets];
 
   if (filters?.species && filters.species !== "all") {
     filtered = filtered.filter((p) => p.species === filters.species);
@@ -41,12 +47,14 @@ export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
 }
 
 export async function getPetById(id: string): Promise<Pet | null> {
-  const pet = serverPets.find((p) => p.id === id);
-  return pet || null;
+  return findServerPetById(id);
 }
 
 export async function createPet(data: PetFormInput): Promise<{ success: boolean; data?: Pet; error?: string }> {
   try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
     const validated = petFormSchema.parse(data);
     const newPet: Pet = {
       id: `pet-${Date.now()}`,
@@ -80,7 +88,8 @@ export async function createPet(data: PetFormInput): Promise<{ success: boolean;
       },
     };
 
-    serverPets = [newPet, ...serverPets];
+    await insertServerPet(newPet, session);
+
     revalidatePath("/pets");
     revalidatePath("/admin/pets");
     revalidatePath("/");
@@ -94,14 +103,17 @@ export async function createPet(data: PetFormInput): Promise<{ success: boolean;
 
 export async function updatePet(id: string, data: PetFormInput): Promise<{ success: boolean; data?: Pet; error?: string }> {
   try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
     const validated = petFormSchema.parse(data);
-    const index = serverPets.findIndex((p) => p.id === id);
-    if (index === -1) {
+    const existing = findServerPetById(id);
+    if (!existing) {
       return { success: false, error: "Pet not found" };
     }
 
     const updated: Pet = {
-      ...serverPets[index],
+      ...existing,
       ...validated,
       medical: {
         vaccinated: validated.vaccinated,
@@ -117,8 +129,10 @@ export async function updatePet(id: string, data: PetFormInput): Promise<{ succe
       },
     };
 
-    serverPets[index] = updated;
+    await updateServerPet(id, updated, session);
+
     revalidatePath("/pets");
+    revalidatePath(`/pets/${id}`);
     revalidatePath("/admin/pets");
     revalidatePath("/");
 
@@ -130,29 +144,47 @@ export async function updatePet(id: string, data: PetFormInput): Promise<{ succe
 }
 
 export async function deletePet(id: string): Promise<{ success: boolean; error?: string }> {
-  const index = serverPets.findIndex((p) => p.id === id);
-  if (index === -1) {
-    return { success: false, error: "Pet not found" };
+  try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN]);
+
+    const ok = await deleteServerPet(id, session);
+    if (!ok) {
+      return { success: false, error: "Pet not found" };
+    }
+
+    revalidatePath("/pets");
+    revalidatePath("/admin/pets");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to delete pet";
+    return { success: false, error: msg };
   }
-
-  serverPets = serverPets.filter((p) => p.id !== id);
-  revalidatePath("/pets");
-  revalidatePath("/admin/pets");
-  revalidatePath("/");
-
-  return { success: true };
 }
 
 export async function updatePetStatus(id: string, status: Pet["status"]): Promise<{ success: boolean; error?: string }> {
-  const index = serverPets.findIndex((p) => p.id === id);
-  if (index === -1) {
-    return { success: false, error: "Pet not found" };
+  try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+    const existing = findServerPetById(id);
+    if (!existing) {
+      return { success: false, error: "Pet not found" };
+    }
+
+    const updated: Pet = { ...existing, status };
+    await updateServerPet(id, updated, session);
+
+    revalidatePath("/pets");
+    revalidatePath(`/pets/${id}`);
+    revalidatePath("/admin/pets");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to update pet status";
+    return { success: false, error: msg };
   }
-
-  serverPets[index] = { ...serverPets[index], status };
-  revalidatePath("/pets");
-  revalidatePath("/admin/pets");
-  revalidatePath("/");
-
-  return { success: true };
 }

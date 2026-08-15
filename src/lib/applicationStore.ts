@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
 import initialApplicationsData from "@/data/applications.json";
 import { ApplicationFormInput } from "@/lib/validations/application";
+import { validateApplicationTransition } from "@/lib/domain/stateMachine";
 
 const STORAGE_KEY = "hope_for_strays_applications_v1";
 
@@ -79,21 +80,54 @@ export function useApplicationStore() {
   );
 
   const updateApplicationStatus = useCallback(
-    (id: string, status: ApplicationStatus, notes?: string): boolean => {
+    (id: string, status: ApplicationStatus, notes?: string): { success: boolean; error?: string } => {
       const index = applications.findIndex((a) => a.id === id);
-      if (index === -1) return false;
+      if (index === -1) return { success: false, error: "Application not found" };
+
+      const current = applications[index];
+
+      // Enforce Finite State Machine rules
+      try {
+        validateApplicationTransition(current.status, status);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Invalid state transition";
+        return { success: false, error: msg };
+      }
 
       const today = new Date().toISOString().split("T")[0];
-      const updated = [...applications];
-      updated[index] = {
-        ...updated[index],
-        status,
-        adminReviewNotes: notes !== undefined ? notes : updated[index].adminReviewNotes,
-        updatedAt: today,
-      };
+      let updated = [...applications];
+
+      // If approved, automatically close other applications for the same pet
+      if (status === "APPROVED") {
+        updated = updated.map((other) => {
+          if (
+            other.id !== id &&
+            (other.petId === current.petId || other.petName.toLowerCase() === current.petName.toLowerCase()) &&
+            (other.status === "SUBMITTED" || other.status === "UNDER_REVIEW")
+          ) {
+            return {
+              ...other,
+              status: "REJECTED" as ApplicationStatus,
+              adminReviewNotes: `Auto-closed: ${current.petName} was adopted on ${today}.`,
+              updatedAt: today,
+            };
+          }
+          return other;
+        });
+      }
+
+      const targetIdx = updated.findIndex((a) => a.id === id);
+      if (targetIdx !== -1) {
+        updated[targetIdx] = {
+          ...updated[targetIdx],
+          status,
+          adminReviewNotes: notes !== undefined ? notes : updated[targetIdx].adminReviewNotes,
+          updatedAt: today,
+        };
+      }
 
       saveApplications(updated);
-      return true;
+      return { success: true };
     },
     [applications, saveApplications]
   );

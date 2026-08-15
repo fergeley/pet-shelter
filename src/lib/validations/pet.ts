@@ -32,7 +32,8 @@ export const petFormSchema = z.object({
   energyLevel: z.enum(["Low", "Moderate", "High"]),
 });
 
-export type PetFormInput = z.infer<typeof petFormSchema>;
+export type PetFormInput = z.input<typeof petFormSchema>;
+export type PetFormOutput = z.output<typeof petFormSchema>;
 
 export const petFilterSchema = z.object({
   species: z.enum(["all", "dog", "cat", "other"]).optional().default("all"),
