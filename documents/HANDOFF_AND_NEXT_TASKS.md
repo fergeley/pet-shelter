@@ -114,28 +114,32 @@ You are continuing development on **Hope for Strays** (`c:\Users\User\pet-shelte
 
 ## Current Status & Recent Accomplishments
 All recent milestones are committed and verified:
-1. **Public Application Tracking Portal (`/applications/track`)**: Self-service lookup by Reference ID + Email with 4-stage stepper, Google Maps / Video Call action buttons, and direct WhatsApp support.
-2. **Coordinator Management Enhancements**: 1-click status pills, copy tracking link, and direct WhatsApp chat generation in `ApplicationDetailDialog.tsx`.
-3. **Transactional Email Deliverability**: Full multi-part HTML/plain-text templates, Resend integration, anti-spam headers, and deep links.
-4. **Cloud Storage Engine**: Multi-provider storage (Local, S3/R2, Cloudinary) with client-side WebP canvas downscaling.
-5. **Zero-Error Build Pipeline**: 22/22 routes statically compiled, 155/155 tests passing, 0 TypeScript/ESLint errors.
+1. **Hybrid Donation & Sponsorship Subsystem (`/donate` + Widened Modal)**: Dedicated high-conversion `/donate` page, `DonationWidget`, widened `SponsorshipModal`, custom amounts, DuitNow QR PayNet rails, Maybank transfers, and LHDN Section 44(6) tax-exempt receipt engine.
+2. **Public Application Tracking Portal (`/applications/track`)**: Self-service lookup by Reference ID + Email with 4-stage stepper, Google Maps / Video Call action buttons, and direct WhatsApp support.
+3. **Coordinator Management Enhancements**: 1-click status pills, copy tracking link, and direct WhatsApp chat generation in `ApplicationDetailDialog.tsx`.
+4. **Transactional Email Deliverability**: Full multi-part HTML/plain-text templates, Resend integration, anti-spam headers, donation receipts, and deep links.
+5. **Zero-Error Build Pipeline**: 23/23 routes statically compiled, 163/163 tests passing across 21 suites, 0 TypeScript/ESLint errors.
 
 ---
 
-## Next Recommended Task: Donations & Pet Sponsorship Portal
-Build the donation & sponsorship workflow:
-1. **Donation Component (`src/components/DonationSection.tsx`)**:
-   - Preset amounts (RM 30, RM 50, RM 100, custom) with One-time vs Monthly Recurring toggle.
-   - Malaysian DuitNow QR modal with instant download / copy reference.
-2. **Server Action (`src/actions/donations.ts`)**:
-   - Stripe Checkout session creation or manual donation pledge logging with audit trail.
-3. **Unit Tests (`tests/unit/donations.test.ts`)**:
-   - Validate tier calculations, currency formatting, and input parsing.
+## Next Recommended Task: [PHASE-02] Foster Parent & Volunteer Portal
+Build the Foster & Volunteer subsystem:
+1. **Foster Application & Intake Workflow (`/foster`)**:
+   - Multi-step interactive foster parent inquiry for temporary convalescence and medical recovery stays in Petaling Jaya / Klang Valley.
+   - Housing verification, medication administration agreement, and pet compatibility screening.
+   - Server Action `submitFosterApplicationAction` with Zod validation, audit logging, and automated Resend confirmation email.
+2. **Volunteer Registration & Shift Calendar (`/volunteer`)**:
+   - Volunteer shift selection for weekend kennel walking, shelter cleaning, adoption event coordination, and veterinary transport.
+   - Server Action `submitVolunteerRegistrationAction`.
+3. **Coordinator Admin Views (`/admin/fosters` & `/admin/volunteers`)**:
+   - Management table for approving foster homes and assigning shelter animals.
+4. **Automated Unit Tests (`tests/unit/foster.test.ts` & `tests/unit/volunteer.test.ts`)**:
+   - Schema edge cases, rate limiting, and state transitions.
 
 ---
 
 ## Quality Gates Checklist Before Finishing Any Task
-- `npm run test` (must pass 155/155 tests across 20 suites)
+- `npm run test` (must pass 163+ tests across 21+ suites)
 - `npx tsc --noEmit` (must pass with 0 errors)
 - `npm run lint` (must pass with 0 errors)
 - `npm run build` (must compile cleanly without errors)
