@@ -185,6 +185,11 @@ npm start
 
 ## 8. Troubleshooting & Incident Runbooks
 
+### Dedicated Specialized Guides & Runbooks
+- 🏗️ [Architecture Guide: Prisma ORM & Neon Serverless PostgreSQL](file:///c:/Users/User/pet-shelter/documents/GUIDE_PRISMA_AND_NEON_ARCHITECTURE.md)
+- 📘 [Prisma Production Database Setup & Fallback Recovery Runbook](file:///c:/Users/User/pet-shelter/documents/RUNBOOK_PRISMA_DATABASE_SETUP.md)
+- 🖼️ [Production Media & Pet Image Upload Configuration Runbook](file:///c:/Users/User/pet-shelter/documents/RUNBOOK_PRODUCTION_MEDIA_STORAGE.md)
+
 ### Incident: Database Connection Failure / Offline Mode
 * **Symptom**: PostgreSQL container is down or `DATABASE_URL` is unreachable.
 * **Behavior**: The storage engine ([`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts)) logs diagnostic warnings and transparently falls back to in-memory caching.
@@ -202,3 +207,4 @@ npm start
 ### Incident: Prisma Schema Validation Warning
 * **Symptom**: `onDelete: SetNull` warning during schema validation.
 * **Resolution**: Ensure all `onDelete: SetNull` relation fields are marked optional (`petId String?`). Run `npx prisma validate` to confirm zero warnings.
+
