@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PawPrint, Heart, Menu, Sparkles, HeartHandshake } from "lucide-react";
+import { Heart, Menu, Sparkles, HeartHandshake } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
@@ -36,8 +36,8 @@ export function Navbar() {
         <div className="flex h-16 w-full items-center justify-between px-6 sm:px-8 lg:px-10">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 focus-visible:ring-2">
-            <div className="flex size-9 items-center justify-center bg-primary text-primary-foreground">
-              <PawPrint className="size-5" />
+            <div className="flex size-9 items-center justify-center overflow-hidden rounded-[1rem] bg-[#f8dfd7] text-primary-foreground shadow-[0_8px_16px_rgba(214,122,111,0.18)] ring-1 ring-[#edc9c0] dark:bg-[#382d2d] dark:ring-[#5b4040]">
+              <img src="/android-icon-192x192.png" alt="Hope for Strays" className="h-full w-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-lg font-bold tracking-tight text-foreground leading-tight">
@@ -130,7 +130,9 @@ export function Navbar() {
               <SheetContent side="right" className="w-[290px] bg-card">
                 <SheetHeader>
                   <div className="flex items-center gap-2 mb-2">
-                    <PawPrint className="size-5 text-foreground" />
+                    <div className="flex size-6 items-center justify-center overflow-hidden rounded-sm bg-primary/10 ring-1 ring-border">
+                      <img src="/android-icon-192x192.png" alt="Hope for Strays" className="h-full w-full object-cover" />
+                    </div>
                     <SheetTitle className="font-heading text-base font-bold">Hope for Strays</SheetTitle>
                   </div>
                 </SheetHeader>

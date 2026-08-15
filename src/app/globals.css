@@ -43,50 +43,49 @@
 }
 
 :root {
-  /* Soft, warm, non-harsh zinc/slate palette with WCAG AAA contrast */
-  --background: #f4f4f5; /* Tailwind zinc-100 */
-  --foreground: #18181b; /* Tailwind zinc-900 - 14.8:1 contrast */
-  --card: #fafafa; /* Tailwind zinc-50 / off-white */
-  --card-foreground: #18181b;
-  --popover: #fafafa;
-  --popover-foreground: #18181b;
-  --primary: #18181b; /* Tailwind zinc-900 */
-  --primary-foreground: #fafafa;
-  --secondary: #e4e4e7; /* Tailwind zinc-200 */
-  --secondary-foreground: #18181b;
-  --muted: #e4e4e7; /* Tailwind zinc-200 */
-  --muted-foreground: #52525b; /* Tailwind zinc-600 - 7.3:1 contrast against #fafafa */
-  --accent: #e4e4e7;
-  --accent-foreground: #18181b;
-  --destructive: #b91c1c; /* Tailwind red-700 - high contrast AAA */
-  --destructive-foreground: #fafafa;
-  --border: #d4d4d8; /* Tailwind zinc-300 - clear visible boundaries */
-  --input: #d4d4d8;
-  --ring: #18181b;
-  --radius: 0.375rem;
+  /* Brand-led warm neutral palette inspired by the paw logo: cream, terracotta, rosewood */
+  --background: #fff8f4;
+  --foreground: #2a1b1b;
+  --card: #fffdfb;
+  --card-foreground: #2a1b1b;
+  --popover: #fffdfb;
+  --popover-foreground: #2a1b1b;
+  --primary: #d77a6f;
+  --primary-foreground: #fffdfb;
+  --secondary: #f6e3dc;
+  --secondary-foreground: #3a2524;
+  --muted: #f7efe9;
+  --muted-foreground: #6b4c4a;
+  --accent: #f4c7b6;
+  --accent-foreground: #3a2524;
+  --destructive: #b54043;
+  --destructive-foreground: #fffdfb;
+  --border: #ecd7d0;
+  --input: #f1e2dc;
+  --ring: #c66f67;
+  --radius: 1.15rem;
 }
 
 .dark {
-  /* Dark mode palette strictly adhering to WCAG AAA contrast (>= 7:1) */
-  --background: #09090b; /* Tailwind zinc-950 */
-  --foreground: #f4f4f5; /* Tailwind zinc-100 - 15.2:1 contrast against #18181b */
-  --card: #18181b; /* Tailwind zinc-900 */
-  --card-foreground: #f4f4f5;
-  --popover: #18181b;
-  --popover-foreground: #f4f4f5;
-  --primary: #f4f4f5; /* Tailwind zinc-100 */
-  --primary-foreground: #18181b;
-  --secondary: #27272a; /* Tailwind zinc-800 */
-  --secondary-foreground: #f4f4f5;
-  --muted: #27272a; /* Tailwind zinc-800 */
-  --muted-foreground: #d4d4d8; /* Tailwind zinc-300 - 9.8:1 contrast against #18181b */
-  --accent: #27272a;
-  --accent-foreground: #f4f4f5;
-  --destructive: #f87171; /* Tailwind red-400 */
-  --destructive-foreground: #09090b;
-  --border: #3f3f46; /* Tailwind zinc-700 - 3.8:1 visible graphical border */
-  --input: #3f3f46;
-  --ring: #f4f4f5;
+  --background: #171214;
+  --foreground: #f8efe9;
+  --card: #201a1b;
+  --card-foreground: #f8efe9;
+  --popover: #201a1b;
+  --popover-foreground: #f8efe9;
+  --primary: #eaa39b;
+  --primary-foreground: #221718;
+  --secondary: #382d2d;
+  --secondary-foreground: #f8efe9;
+  --muted: #2a2122;
+  --muted-foreground: #e9d5ca;
+  --accent: #d78d7c;
+  --accent-foreground: #221718;
+  --destructive: #f39aa4;
+  --destructive-foreground: #221718;
+  --border: #4a3c3c;
+  --input: #433535;
+  --ring: #f2bea7;
 }
 
 @layer base {
