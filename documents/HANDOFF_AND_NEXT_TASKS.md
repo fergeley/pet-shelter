@@ -14,7 +14,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Next.js App Router                       │
-│  Public Views (/, /pets, /pets/[id])  │ Admin (/admin/*)    │
+│  Public Views (/, /pets, /applications/track) │ Admin (/admin/*) │
 └──────────────────────────────┬──────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -27,10 +27,21 @@
 │  - HMAC-SHA256 Sessions     │ │   - PostgreSQL (Prisma 7)   │
 │  - Declarative RBAC Guards  │ │   - Multi-Provider Storage  │
 │  - Finite State Machine     │ │   - Resend Email & Auditing │
+│  - Privacy-Safe Lookups     │ │   - Sliding-Window Rate Lim │
 └─────────────────────────────┘ └─────────────────────────────┘
 ```
 
 ### Completed & Production-Hardened Components
+* **Public Adoption Application Tracking Portal ([`src/app/applications/track/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/applications/track/page.tsx))**:
+  - Adopter self-service lookup by Reference ID + Email with URL deep-link auto-query (`?ref=...&email=...`).
+  - 4-stage visual progress stepper (`Received` $\rightarrow$ `Under Review` $\rightarrow$ `Meet & Greet Scheduled` $\rightarrow$ `Approved & Ready`).
+  - Dynamic interaction cards: "Join Video Meeting" for virtual sessions, "View Location on Google Maps" for in-person shelter visits in Petaling Jaya.
+  - 100% Free Adoption badges and adoption day preparation checklists.
+  - Rate-limited server action [`lookupApplicationStatusAction`](file:///c:/Users/User/pet-shelter/src/actions/applications.ts) with strict privacy filtering (internal coordinator notes stripped).
+* **Coordinator & Admin Workflow Controls ([`src/components/admin/ApplicationDetailDialog.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/ApplicationDetailDialog.tsx))**:
+  - 1-click status selection pills (`Submitted`, `Under Review`, `Approve`, `Reject`).
+  - 1-click "Copy Public Tracking Link" button with copied toast confirmation.
+  - Direct 1-click WhatsApp launcher pre-filling applicant phone, pet name, reference ID, and live tracking link.
 * **Database & ORM**: PostgreSQL schema with valid referential actions (`onDelete: SetNull`), interactive transaction cascades (`$transaction`), seed script (`prisma/seed.ts`), and optimized connection pool caching in `src/lib/prisma.ts`.
 * **Authentication & RBAC**: HMAC-SHA256 signed HTTP-only cookies, sliding-window rate limiting, cryptographic scrypt hashing, and role hierarchy (`ADMIN` $\rightarrow$ `COORDINATOR` $\rightarrow$ `STAFF` $\rightarrow$ `VOLUNTEER`).
 * **Multi-Provider Cloud Storage (`src/lib/storage/index.ts`)**:
@@ -40,40 +51,40 @@
 * **Transactional Email Lifecycle & Deliverability (`src/lib/email.ts`)**:
   - Official `resend` integration with offline simulation fallback.
   - Multi-part emails (HTML + Plain text), anti-spam compliance (`reply_to`, category tags, suppression headers).
+  - Deep links embedded across all email templates for 1-click application tracking.
   - Production HTML templates for: Application Received, Staff Alert, Status Changes (`APPROVED`, `UNDER_REVIEW`, `REJECTED`), and Meet & Greet scheduling.
-  - Interactive scheduler in `src/components/admin/ApplicationDetailDialog.tsx` and server action `scheduleApplicationInterview`.
   - Automatic immutable audit trail recording in `src/lib/domain/auditLog.ts` (`EMAIL_SENT`, `EMAIL_FAILED`, `INTERVIEW_SCHEDULED`, `TEST_EMAIL_SENT`).
 * **Client-Side Admin Settings Menu (`src/app/admin/settings/page.tsx`)**:
   - Configurable tabs for Sanctuary Identity, Transactional Email (with live in-app test email dispatcher), and Media Storage Providers.
 * **100% Free Adoption Model**: Enforced across all pet listings, JSON-LD structured schemas, and admin UI.
-* **Test Suite**: **19 Vitest test suites (151 unit tests, 100% passing rate)**.
-* **Quality Gates**: `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), `npm run build` (21/21 routes statically compiled).
+* **Test Suite**: **20 Vitest test suites (155 unit tests, 100% passing rate)**.
+* **Quality Gates**: `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), `npm run build` (22/22 routes statically compiled).
 
 ---
 
 ## 2. Future Enhancements Backlog (Prioritized)
 
-### [PHASE-01] Public Adoption Application Tracking Portal
+### [PHASE-01] Donations & Pet Sponsorships (Stripe Checkout & DuitNow QR)
 * **Priority**: High (Recommended Next Step)
-* **Goal**: Allow public adopters to look up their submitted application status in real time using their reference ID (e.g. `app-123456`) and email without needing an admin login.
+* **Goal**: Add a public donation and recurring pet sponsorship checkout to fund veterinary care, food supplies, and shelter operations.
 * **Features**:
-  * Visual progress stepper: Submitted $\rightarrow$ Under Review / Meet & Greet $\rightarrow$ Approved / Completed.
-  * Public-safe view: Displays pet name, submitted date, current milestone status, and coordinator notes for the applicant (without exposing internal staff notes).
-  * Rate limiting: Sliding-window rate limiter prevents enumeration attacks on reference IDs.
+  * Preset contribution tiers (RM 30, RM 50, RM 100, custom) with monthly recurring vs one-time toggle.
+  * Direct animal sponsorship ("Sponsor Bella's Medical Care").
+  * Dual payment gateways: Stripe Checkout (international cards) and DuitNow QR / FPX instructions for local Malaysian supporters.
 * **Files to create/modify**:
-  * `src/app/applications/track/page.tsx`: Public lookup UI with progress timeline and guidance notes.
-  * `src/actions/applications.ts`: `lookupApplicationStatusAction(refId, email)` with rate limiting.
-  * `tests/unit/applicationTracking.test.ts`: Vitest unit tests for verification and privacy protection.
+  * `src/components/DonationModal.tsx` & `src/components/SponsorshipModal.tsx`
+  * `src/actions/donations.ts`: Server action generating checkout sessions.
+  * `src/app/donate/page.tsx`: Dedicated donation and sponsorship page.
 
 ---
 
-### [PHASE-02] Stripe Checkout Donations & Pet Sponsorships
+### [PHASE-02] Foster Parent & Volunteer Scheduling Portal
 * **Priority**: Medium
-* **Goal**: Add a public donation & pet sponsorship checkout with preset tiers ($10, $25, $50, custom) to fund veterinary care and food supplies.
-* **Files to create/modify**:
-  * `src/components/DonationSection.tsx`: Tier selector with recurring monthly vs one-time toggle.
-  * `src/actions/donations.ts`: Server action creating Stripe Checkout Sessions.
-  * `src/app/page.tsx`: Embedded donation CTA section.
+* **Goal**: Provide a lightweight self-service form for foster volunteers to apply, log weekend shifts, and submit health updates for foster animals.
+* **Features**:
+  * Foster application form with housing checks.
+  * Volunteer shift registration calendar.
+  * Staff review and approval flow.
 
 ---
 
@@ -94,36 +105,35 @@ You are continuing development on **Hope for Strays** (`c:\Users\User\pet-shelte
 - **Language**: TypeScript 5 (Strict Mode, 0 `any` escapes)
 - **Database & ORM**: PostgreSQL with Prisma 7.9.1 (`@prisma/adapter-pg`, connection pooling) & dual-layer in-memory fallback
 - **Styling**: Tailwind CSS v4 & Lucide React
-- **Testing**: Vitest (19 test suites, 151 tests)
+- **Testing**: Vitest (20 test suites, 155 tests)
 - **Telemetry**: `@vercel/analytics` and `@vercel/speed-insights`
 
 ---
 
 ## Current Status & Recent Accomplishments
-All recent bug fixes, type safety enhancements, and feature requests are committed and verified:
-1. **Zero-Error Build Pipeline**: Clean build on Next.js Turbopack with 21/21 statically compiled routes.
-2. **Neon PostgreSQL Integration**: Synchronized cloud schema and connection pool caching across Turbopack dev cycles.
-3. **Resend Email & Deliverability**: Live verified email delivery, DMARC/SPF/DKIM guidance, and client-side test email dispatcher in `/admin/settings`.
+All recent milestones are committed and verified:
+1. **Public Application Tracking Portal (`/applications/track`)**: Self-service lookup by Reference ID + Email with 4-stage stepper, Google Maps / Video Call action buttons, and direct WhatsApp support.
+2. **Coordinator Management Enhancements**: 1-click status pills, copy tracking link, and direct WhatsApp chat generation in `ApplicationDetailDialog.tsx`.
+3. **Transactional Email Deliverability**: Full multi-part HTML/plain-text templates, Resend integration, anti-spam headers, and deep links.
 4. **Cloud Storage Engine**: Multi-provider storage (Local, S3/R2, Cloudinary) with client-side WebP canvas downscaling.
-5. **Analytics Board Status**: Marked as KIV (Keep In View) since Vercel Analytics / Speed Insights covers telemetry.
+5. **Zero-Error Build Pipeline**: 22/22 routes statically compiled, 155/155 tests passing, 0 TypeScript/ESLint errors.
 
 ---
 
-## Next Recommended Task: Public Adoption Application Tracking Portal
-Build a public tracking portal at `/applications/track` where adopters can check their application status without logging in:
-1. **Lookup Action (`src/actions/applications.ts`)**:
-   - `lookupApplicationStatusAction(refId: string, email: string)`: Rate-limited lookup returning public-safe status fields (pet name, current status, milestone dates, interview details if scheduled).
-2. **Tracking Page UI (`src/app/applications/track/page.tsx`)**:
-   - Clean search bar for Application Reference ID + Email.
-   - Dynamic step-by-step progress timeline: Submitted $\rightarrow$ Under Review / Interview Scheduled $\rightarrow$ Approved / Finalized.
-   - Next-step checklist and direct contact card with shelter visiting hours.
-3. **Unit Tests (`tests/unit/applicationTracking.test.ts`)**:
-   - Verify rate limiting, invalid reference handling, and strict privacy filtering (no leak of internal coordinator notes).
+## Next Recommended Task: Donations & Pet Sponsorship Portal
+Build the donation & sponsorship workflow:
+1. **Donation Component (`src/components/DonationSection.tsx`)**:
+   - Preset amounts (RM 30, RM 50, RM 100, custom) with One-time vs Monthly Recurring toggle.
+   - Malaysian DuitNow QR modal with instant download / copy reference.
+2. **Server Action (`src/actions/donations.ts`)**:
+   - Stripe Checkout session creation or manual donation pledge logging with audit trail.
+3. **Unit Tests (`tests/unit/donations.test.ts`)**:
+   - Validate tier calculations, currency formatting, and input parsing.
 
 ---
 
 ## Quality Gates Checklist Before Finishing Any Task
-- `npm run test` (must pass 151/151 tests across 19 suites)
+- `npm run test` (must pass 155/155 tests across 20 suites)
 - `npx tsc --noEmit` (must pass with 0 errors)
 - `npm run lint` (must pass with 0 errors)
 - `npm run build` (must compile cleanly without errors)
