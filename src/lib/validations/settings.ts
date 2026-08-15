@@ -11,4 +11,5 @@ export const shelterSettingsSchema = z.object({
   adoptionFeeCat: z.string().min(1, "Cat adoption fee is required"),
 });
 
-export type ShelterSettingsInput = z.infer<typeof shelterSettingsSchema>;
+export type ShelterSettingsInput = z.input<typeof shelterSettingsSchema>;
+export type ShelterSettingsOutput = z.output<typeof shelterSettingsSchema>;

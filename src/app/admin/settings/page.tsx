@@ -21,7 +21,7 @@ export default function AdminSettingsPage() {
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ShelterSettingsInput>({
-    resolver: zodResolver(shelterSettingsSchema) as any,
+    resolver: zodResolver(shelterSettingsSchema),
     defaultValues: settings,
   });
 

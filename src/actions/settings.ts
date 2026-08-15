@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
+import { getCurrentSession } from "@/lib/security/session";
+import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { recordAuditLog } from "@/lib/domain/auditLog";
 
 let serverSettings: ShelterSettingsInput = {
   shelterName: "Hope for Strays",
@@ -18,10 +21,26 @@ export async function getShelterSettings(): Promise<ShelterSettingsInput> {
   return serverSettings;
 }
 
-export async function updateShelterSettings(data: ShelterSettingsInput): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
+export async function updateShelterSettings(
+  data: ShelterSettingsInput
+): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
   try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN]);
+
     const validated = shelterSettingsSchema.parse(data);
+    const previous = { ...serverSettings };
     serverSettings = { ...validated };
+
+    recordAuditLog({
+      actorId: session.id,
+      actorEmail: session.email,
+      actorRole: session.role,
+      action: "SETTINGS_UPDATED",
+      entity: "ShelterSettings",
+      entityId: "global-settings",
+      details: { before: previous, after: serverSettings },
+    });
 
     revalidatePath("/");
     revalidatePath("/pets");

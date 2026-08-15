@@ -86,3 +86,64 @@ export function exportApplicationsToCsv(applications: AdoptionApplicationRecord[
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Exports pet inventory records to formatted RFC-4180 CSV string and triggers download.
+ */
+export function exportPetsToCsv(pets: import("@/types/pet").Pet[], filenamePrefix = "hope-for-strays-pets"): void {
+  const headers = [
+    "Pet ID",
+    "Name",
+    "Species",
+    "Breed",
+    "Age",
+    "Age Category",
+    "Gender",
+    "Size",
+    "Weight",
+    "Status",
+    "Adoption Fee",
+    "Vaccinated",
+    "Microchipped",
+    "Spayed/Neutered",
+    "Intake Date",
+    "Tags",
+  ];
+
+  const rows = pets.map((p) => [
+    p.id,
+    p.name,
+    p.species,
+    p.breed,
+    p.age,
+    p.ageCategory,
+    p.gender,
+    p.size,
+    p.weight,
+    p.status,
+    p.adoptionFee,
+    p.medical.vaccinated ? "Yes" : "No",
+    p.medical.microchipped ? "Yes" : "No",
+    p.medical.spayedNeutered ? "Yes" : "No",
+    p.intakeDate,
+    p.tags.join("; "),
+  ]);
+
+  const csvContent = [
+    headers.map(formatCsvField).join(","),
+    ...rows.map((row) => row.map(formatCsvField).join(",")),
+  ].join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const timestamp = new Date().toISOString().slice(0, 10);
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", `${filenamePrefix}-${timestamp}.csv`);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
