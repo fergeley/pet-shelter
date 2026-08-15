@@ -1,6 +1,7 @@
 import { hashPassword } from "@/lib/security/crypto";
 import { Role, ROLES } from "@/lib/security/rbac";
 import { prisma } from "@/lib/prisma";
+import type { User as PrismaUser } from "@prisma/client";
 
 export interface UserRecord {
   id: string;
@@ -199,7 +200,7 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
       orderBy: { createdAt: "asc" },
     });
     if (dbUsers && dbUsers.length > 0) {
-      return (dbUsers as any[]).map((u: any) => ({
+      return (dbUsers as PrismaUser[]).map((u: PrismaUser) => ({
         id: u.id,
         email: u.email,
         name: u.name,

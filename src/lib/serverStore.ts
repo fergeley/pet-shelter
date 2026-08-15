@@ -2,6 +2,11 @@ import initialPetsData from "@/data/pets.json";
 import initialApplicationsData from "@/data/applications.json";
 import { Pet } from "@/types/pet";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
+import type {
+  Pet as PrismaPet,
+  AdoptionApplication as PrismaAdoptionApplication,
+  Prisma,
+} from "@prisma/client";
 import { validateApplicationTransition, validatePetTransition } from "./domain/stateMachine";
 import { recordAuditLog } from "./domain/auditLog";
 import { SessionUser } from "./security/session";
@@ -23,7 +28,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
     });
     if (dbPets && dbPets.length > 0) {
-      return (dbPets as any[]).map((p: any) => ({
+      return (dbPets as PrismaPet[]).map((p: PrismaPet) => ({
         id: p.id,
         name: p.name,
         species: p.species as Pet["species"],
@@ -76,7 +81,7 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
       orderBy: { createdAt: "desc" },
     });
     if (dbApps && dbApps.length > 0) {
-      return (dbApps as any[]).map((a: any) => ({
+      return (dbApps as PrismaAdoptionApplication[]).map((a: PrismaAdoptionApplication) => ({
         id: a.id,
         petId: a.petId || "",
         petName: a.petName,
@@ -336,7 +341,7 @@ export async function atomicUpdateApplicationStatus(
 
   // 2. Try Prisma Interactive Transaction ($transaction)
   try {
-    await (prisma as any).$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Update target application
       await tx.adoptionApplication.update({
         where: { id: applicationId },
