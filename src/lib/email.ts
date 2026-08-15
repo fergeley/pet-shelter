@@ -22,15 +22,14 @@ const SHELTER_EMAIL = process.env.SHELTER_NOTIFICATION_EMAIL || "applications@ho
 const FROM_EMAIL = process.env.EMAIL_FROM || "Hope for Strays <onboarding@resend.dev>";
 const SHELTER_ADDRESS = "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia";
 const SHELTER_PHONE = "03-7876 5432";
+const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://hopeforstrays.org";
+
+function getTrackingUrl(appId: string, email: string): string {
+  return `${APP_BASE_URL}/applications/track?ref=${encodeURIComponent(appId)}&email=${encodeURIComponent(email)}`;
+}
 
 /**
  * Deliverability-Optimized Transactional Email Dispatcher.
- * Complies with Resend Best Practices:
- * 1. Uses explicit `reply_to` (No no-reply dead-ends).
- * 2. Transmits full multi-part fallback (HTML + Plain Text).
- * 3. Categorizes messages with transactional metadata tags.
- * 4. Gracefully simulates in local dev / test environments.
- * 5. Logs immutable audit entries.
  */
 async function sendRawEmail({
   to,
@@ -174,7 +173,7 @@ async function sendRawEmail({
 }
 
 /**
- * Common Accessible, Lightweight HTML Wrapper (under 15KB to avoid clipping)
+ * Common Accessible, Lightweight HTML Wrapper (under 15KB)
  */
 function wrapEmailHtml(content: string): string {
   return `
@@ -198,6 +197,7 @@ function wrapEmailHtml(content: string): string {
     .card-warning { border-left-color: #f59e0b; background: #fffbeb; }
     .steps { margin: 20px 0; padding-left: 20px; }
     .steps li { margin-bottom: 10px; }
+    .btn-track { display: inline-block; background: #0284c7; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 14px; margin: 16px 0; text-align: center; }
     .footer { background: #f8fafc; padding: 20px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
   </style>
 </head>
@@ -226,7 +226,8 @@ export async function sendApplicationConfirmationEmail(
   app: AdoptionApplicationRecord
 ): Promise<EmailResult> {
   const subject = `Application Received: Adoption Inquiry for ${app.petName} - ${SHELTER_NAME}`;
-  
+  const trackingUrl = getTrackingUrl(app.id, app.email);
+
   const text = `
 Dear ${app.applicantName},
 
@@ -239,6 +240,9 @@ Summary of Submission:
 - Applicant: ${app.applicantName} (${app.email} / ${app.phone})
 - Housing: ${app.housingType.replace(/_/g, " ")} (Fenced yard: ${app.hasFencedYard})
 - Current Pets: ${app.currentPets}
+
+Track Your Application Live:
+${trackingUrl}
 
 Next Steps:
 1. Application Review: Our team reviews applications within 1-2 business days.
@@ -264,6 +268,10 @@ ${SHELTER_ADDRESS}
       Applicant: ${app.applicantName} (${app.email} / ${app.phone})<br/>
       Housing: ${app.housingType.replace(/_/g, " ")} (Fenced yard: ${app.hasFencedYard})<br/>
       Current Pets: ${app.currentPets}
+    </div>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${trackingUrl}" class="btn-track">🔍 Track Your Application Live &rarr;</a>
     </div>
 
     <h3 style="margin-bottom: 8px;">What Happens Next?</h3>
@@ -349,6 +357,7 @@ export async function sendApplicationStatusUpdateEmail(
   notes?: string
 ): Promise<EmailResult> {
   const petName = app.petName;
+  const trackingUrl = getTrackingUrl(app.id, app.email);
   let subject = "";
   let badgeClass = "badge";
   let statusTitle = "";
@@ -370,6 +379,9 @@ export async function sendApplicationStatusUpdateEmail(
         <li><strong>Starter Essentials:</strong> Bring a secure pet carrier (for cats) or leash/collar (for dogs) on adoption day.</li>
       </ol>
       ${notes ? `<p><strong>Coordinator Remarks:</strong><br/><em>${notes}</em></p>` : ""}
+      <div style="text-align:center;margin:20px 0;">
+        <a href="${trackingUrl}" class="btn-track">🔍 View Official Adoption Dossier &rarr;</a>
+      </div>
       <p>If you have any questions or would like to confirm your arrival time, reply directly to this email or call us at <strong>${SHELTER_PHONE}</strong>.</p>
     `;
   } else if (newStatus === "UNDER_REVIEW") {
@@ -382,6 +394,9 @@ export async function sendApplicationStatusUpdateEmail(
       </div>
       <p>A team member may reach out to you via phone (<strong>${app.phone}</strong>) or email if additional verification or reference checks are required.</p>
       ${notes ? `<p><strong>Coordinator Notes:</strong><br/><em>${notes}</em></p>` : ""}
+      <div style="text-align:center;margin:20px 0;">
+        <a href="${trackingUrl}" class="btn-track">🔍 Track Application Progress &rarr;</a>
+      </div>
       <p>Thank you for your patience as we find loving, lifelong homes for our rescue animals.</p>
     `;
   } else if (newStatus === "REJECTED") {
@@ -408,6 +423,9 @@ Dear ${app.applicantName},
 
 Status Update for ${petName} (Application Ref: ${app.id}):
 Status: ${newStatus}
+
+Track Application Online:
+${trackingUrl}
 
 ${notes ? `Coordinator Notes:\n${notes}\n` : ""}
 
@@ -442,6 +460,7 @@ export async function sendInterviewInvitationEmail(
 ): Promise<EmailResult> {
   const subject = `📅 Meet & Greet Invitation for ${app.petName} - ${SHELTER_NAME}`;
   const meetingTypeLabel = details.meetingType === "video_call" ? "Virtual Video Call" : "In-Person Shelter Visit";
+  const trackingUrl = getTrackingUrl(app.id, app.email);
 
   const plainText = `
 Dear ${app.applicantName},
@@ -455,6 +474,9 @@ Session Details:
 - Location / Link: ${details.location}
 ${details.coordinatorName ? `- Coordinator: ${details.coordinatorName}` : ""}
 ${details.coordinatorNotes ? `\nSpecial Instructions:\n${details.coordinatorNotes}` : ""}
+
+Track & View Appointment Online:
+${trackingUrl}
 
 What to Bring / Prepare:
 1. Identification (IC / Passport copy).
@@ -489,6 +511,10 @@ ${SHELTER_NAME}
         <em>${details.coordinatorNotes}</em>
       </div>
     ` : ""}
+
+    <div style="text-align:center;margin:20px 0;">
+      <a href="${trackingUrl}" class="btn-track">📅 View Appointment & Location on Maps &rarr;</a>
+    </div>
 
     <h3 style="margin-bottom: 8px;">What to Bring / Prepare:</h3>
     <ul class="steps">

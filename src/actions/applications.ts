@@ -9,6 +9,12 @@ import {
   scheduleInterviewSchema,
   ScheduleInterviewInput,
 } from "@/lib/validations/application";
+import {
+  trackApplicationLookupSchema,
+  TrackApplicationLookupInput,
+  PublicApplicationTrackingDTO,
+  PublicInterviewDetails,
+} from "@/lib/validations/applicationTracking";
 import { AdoptionApplicationRecord } from "@/types/application";
 import { getCurrentSession } from "@/lib/security/session";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
@@ -87,8 +93,12 @@ export async function submitApplication(
       };
 
       await insertServerApplication(newApp);
-      revalidatePath("/admin/applications");
-      revalidatePath("/admin");
+      try {
+        revalidatePath("/admin/applications");
+        revalidatePath("/admin");
+      } catch {
+        // Safe outside Next.js runtime
+      }
 
       // Non-blocking, resilient email notification dispatch
       Promise.allSettled([
@@ -140,10 +150,14 @@ export async function updateApplicationStatus(
       ).catch((err) => console.error("[Status Email Notification Error]", err));
     }
 
-    revalidatePath("/admin/applications");
-    revalidatePath("/admin/pets");
-    revalidatePath("/pets");
-    revalidatePath("/");
+    try {
+      revalidatePath("/admin/applications");
+      revalidatePath("/admin/pets");
+      revalidatePath("/pets");
+      revalidatePath("/");
+    } catch {
+      // Safe outside Next.js runtime
+    }
 
     return { success: true };
   } catch (err: unknown) {
@@ -218,8 +232,12 @@ export async function scheduleApplicationInterview(
       }).catch((err) => console.error("[Interview Email Notification Error]", err));
     }
 
-    revalidatePath("/admin/applications");
-    revalidatePath("/admin");
+    try {
+      revalidatePath("/admin/applications");
+      revalidatePath("/admin");
+    } catch {
+      // Safe outside Next.js runtime
+    }
 
     return { success: true };
   } catch (err: unknown) {
@@ -238,10 +256,87 @@ export async function deleteApplication(id: string): Promise<{ success: boolean;
       return { success: false, error: "Application not found" };
     }
 
-    revalidatePath("/admin/applications");
+    try {
+      revalidatePath("/admin/applications");
+    } catch {
+      // Safe outside Next.js runtime
+    }
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to delete application";
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Public, rate-limited, privacy-safe status lookup for adoption applicants.
+ */
+export async function lookupApplicationStatusAction(
+  input: TrackApplicationLookupInput
+): Promise<{ success: boolean; data?: PublicApplicationTrackingDTO; error?: string }> {
+  try {
+    const validated = trackApplicationLookupSchema.parse(input);
+
+    // 1. Rate Limiting: max 15 lookup attempts per 5 minutes per email/IP
+    const rateLimit = checkRateLimit(`track-app:${validated.email}`, 15, 300000);
+    if (!rateLimit.success) {
+      return {
+        success: false,
+        error: `Too many lookup attempts. Please wait ${rateLimit.retryAfterSeconds}s before trying again.`,
+      };
+    }
+
+    // 2. Query application by ID
+    const app = findServerApplicationById(validated.referenceId);
+    if (!app || app.email.trim().toLowerCase() !== validated.email) {
+      return {
+        success: false,
+        error: "No application matching this Reference ID and Email combination was found. Please verify your reference number.",
+      };
+    }
+
+    // 3. Enrich with live pet profile data if available
+    const pet = app.petId ? findServerPetById(app.petId) : null;
+
+    // 4. Extract structured interview details if present in review notes
+    let interviewDetails: PublicInterviewDetails | undefined;
+    if (app.adminReviewNotes && app.adminReviewNotes.includes("[Meet & Greet Scheduled:")) {
+      const match = app.adminReviewNotes.match(
+        /\[Meet & Greet Scheduled:\s*([0-9-]+)\s*at\s*([0-9:]+)\s*\(([^)]+)\)\s*-\s*Location:\s*([^\]]+)\]\s*(.*)/i
+      );
+      if (match) {
+        interviewDetails = {
+          interviewDate: match[1],
+          interviewTime: match[2],
+          meetingType: match[3].toLowerCase().includes("virtual") ? "video_call" : "in_person",
+          location: match[4].trim(),
+          coordinatorNotes: match[5]?.trim() || undefined,
+        };
+      }
+    }
+
+    // 5. Construct public-safe sanitized DTO (strictly omit internal notes/applicant sensitive fields)
+    const publicDto: PublicApplicationTrackingDTO = {
+      id: app.id,
+      petId: app.petId,
+      petName: app.petName,
+      petBreed: pet?.breed || app.petBreed,
+      petSpecies: pet?.species,
+      petImage: pet?.image,
+      applicantName: app.applicantName,
+      status: app.status,
+      createdAt: app.createdAt,
+      updatedAt: app.updatedAt,
+      publicNotes:
+        app.adminReviewNotes && !app.adminReviewNotes.startsWith("[Meet & Greet")
+          ? app.adminReviewNotes
+          : undefined,
+      interviewDetails,
+    };
+
+    return { success: true, data: publicDto };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to lookup application status";
     return { success: false, error: msg };
   }
 }

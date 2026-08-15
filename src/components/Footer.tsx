@@ -34,6 +34,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/applications/track" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  Track Adoption Application
+                </Link>
+              </li>
+              <li>
                 <Link href="/bulletins" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   Shelter Updates & Bulletins
                 </Link>

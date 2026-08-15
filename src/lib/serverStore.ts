@@ -168,11 +168,13 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
 }
 
 export function findServerPetById(id: string): Pet | null {
-  return serverPets.find((p) => p.id === id) || null;
+  const norm = id.trim().toLowerCase();
+  return serverPets.find((p) => p.id.toLowerCase() === norm) || null;
 }
 
 export function findServerApplicationById(id: string): AdoptionApplicationRecord | null {
-  return serverApplications.find((a) => a.id === id) || null;
+  const norm = id.trim().toLowerCase();
+  return serverApplications.find((a) => a.id.toLowerCase() === norm) || null;
 }
 
 export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<void> {

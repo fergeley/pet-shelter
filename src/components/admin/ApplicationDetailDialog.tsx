@@ -15,17 +15,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CheckCircle2,
-  Clock,
   XCircle,
   Mail,
   Phone,
   MapPin,
   Home,
   User,
-  Printer,
   Calendar,
   Send,
   Loader2,
+  Copy,
+  Check,
+  MessageCircle,
 } from "lucide-react";
 import { scheduleApplicationInterview } from "@/actions/applications";
 
@@ -53,6 +54,7 @@ export function ApplicationDetailDialog({
   const [notifyApplicant, setNotifyApplicant] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Interview Scheduling State
   const [interviewDate, setInterviewDate] = useState("");
@@ -85,6 +87,27 @@ export function ApplicationDetailDialog({
   }
 
   if (!application) return null;
+
+  const trackingUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/applications/track?ref=${encodeURIComponent(
+          application.id
+        )}&email=${encodeURIComponent(application.email)}`
+      : `/applications/track?ref=${application.id}&email=${application.email}`;
+
+  const handleCopyTrackingLink = () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(trackingUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    }
+  };
+
+  const cleanPhone = application.phone.replace(/[^0-9]/g, "");
+  const waPhone = cleanPhone.startsWith("0") ? `60${cleanPhone.slice(1)}` : cleanPhone;
+  const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(
+    `Hi ${application.applicantName}, this is Hope for Strays regarding your adoption application for ${application.petName} (Ref: ${application.id}). You can track your status live at: ${trackingUrl}`
+  )}`;
 
   const handleSave = () => {
     setErrorMessage(null);
@@ -147,15 +170,47 @@ export function ApplicationDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto p-6 sm:p-8 bg-card border-border">
-        <DialogHeader className="mb-4 pb-2 border-b border-border">
-          <div className="flex items-center justify-between gap-2">
+        <DialogHeader className="mb-4 pb-3 border-b border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <DialogTitle className="font-heading text-2xl font-bold">
                 Application for {application.petName}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Submitted on {application.createdAt} by {application.applicantName} (Ref: {application.id})
+                Submitted on {application.createdAt} by {application.applicantName} (Ref:{" "}
+                <code className="font-mono text-foreground font-semibold">{application.id}</code>)
               </DialogDescription>
+            </div>
+
+            {/* Quick Actions Header: Copy Link & WhatsApp */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyTrackingLink}
+                className="text-xs font-semibold gap-1.5 h-8 px-2.5"
+                title="Copy public tracking link for applicant"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="size-3.5 text-emerald-600" /> Copied Link
+                  </>
+                ) : (
+                  <>
+                    <Copy className="size-3.5" /> Copy Tracking Link
+                  </>
+                )}
+              </Button>
+
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 h-8 rounded-md transition shadow-xs"
+              >
+                <MessageCircle className="size-3.5" /> WhatsApp
+              </a>
             </div>
           </div>
         </DialogHeader>
@@ -266,19 +321,59 @@ export function ApplicationDetailDialog({
           {/* Tab 1: Review & Decision */}
           {activeTab === "review" && (
             <div className="space-y-4">
+              
+              {/* Quick 1-Click Status Selection Pills */}
               <div className="space-y-1.5">
-                <Label htmlFor="app-status" className="text-xs font-semibold">Change Application Status</Label>
-                <select
-                  id="app-status"
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
-                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm text-foreground font-semibold"
-                >
-                  <option value="SUBMITTED">Submitted (New Application)</option>
-                  <option value="UNDER_REVIEW">Under Review (Checking References / Housing)</option>
-                  <option value="APPROVED">Approved (Ready for Adoption - 100% Free)</option>
-                  <option value="REJECTED">Rejected (Incompatible / Incomplete)</option>
-                </select>
+                <Label className="text-xs font-semibold">Application Status</Label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStatus("SUBMITTED")}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
+                      status === "SUBMITTED"
+                        ? "bg-sky-100 dark:bg-sky-950/60 border-sky-500 text-sky-800 dark:text-sky-300 ring-2 ring-sky-500/20"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Submitted
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus("UNDER_REVIEW")}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
+                      status === "UNDER_REVIEW"
+                        ? "bg-amber-100 dark:bg-amber-950/60 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/20"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Under Review
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus("APPROVED")}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
+                      status === "APPROVED"
+                        ? "bg-emerald-100 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/20"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Approve
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStatus("REJECTED")}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
+                      status === "REJECTED"
+                        ? "bg-red-100 dark:bg-red-950/60 border-red-500 text-red-800 dark:text-red-300 ring-2 ring-red-500/20"
+                        : "bg-background border-border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -300,40 +395,32 @@ export function ApplicationDetailDialog({
                   type="checkbox"
                   checked={notifyApplicant}
                   onChange={(e) => setNotifyApplicant(e.target.checked)}
-                  className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                  className="size-4 rounded border-input text-primary focus:ring-primary"
                 />
-                <Label htmlFor="notify-applicant" className="text-xs font-medium cursor-pointer">
-                  Send automated status update email notification to <strong>{application.email}</strong>
+                <Label htmlFor="notify-applicant" className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Mail className="size-3.5 text-muted-foreground" />
+                  Dispatch automated status update email with live tracking link to <strong>{application.email}</strong>
                 </Label>
               </div>
 
-              <div className="border-t border-border pt-4 flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {status === "APPROVED" && <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />}
-                  {status === "UNDER_REVIEW" && <Clock className="size-4 text-amber-600 dark:text-amber-400" />}
-                  {status === "REJECTED" && <XCircle className="size-4 text-destructive" />}
-                  <span>Status: <strong className="text-foreground">{status.replace("_", " ")}</strong></span>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    onClick={() => window.print()}
-                    className="text-xs gap-1.5"
-                    title="Print field inspection dossier"
-                  >
-                    <Printer className="size-3.5" />
-                    Print Dossier
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-xs">
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSave} className="text-xs font-semibold px-5">
-                    Save Review
-                  </Button>
-                </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSave}
+                  className="text-xs font-semibold uppercase tracking-wider px-6"
+                >
+                  Save Decision
+                </Button>
               </div>
             </div>
           )}
@@ -341,26 +428,31 @@ export function ApplicationDetailDialog({
           {/* Tab 2: Schedule Meet & Greet */}
           {activeTab === "interview" && (
             <form onSubmit={handleScheduleInterview} className="space-y-4">
+              <div className="p-3 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-900 dark:text-sky-300">
+                Scheduling a Meet & Greet transitions the application to <strong>Under Review</strong>, dispatches a formal invitation email, and adds the session to the applicant&apos;s live tracking dashboard.
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="interview-date" className="text-xs font-semibold">Interaction Date *</Label>
+                  <Label htmlFor="interviewDate" className="text-xs font-semibold">Appointment Date *</Label>
                   <Input
-                    id="interview-date"
+                    id="interviewDate"
                     type="date"
-                    required
                     value={interviewDate}
                     onChange={(e) => setInterviewDate(e.target.value)}
+                    required
                     className="text-xs"
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="interview-time" className="text-xs font-semibold">Interaction Time *</Label>
+                  <Label htmlFor="interviewTime" className="text-xs font-semibold">Time Slot *</Label>
                   <Input
-                    id="interview-time"
+                    id="interviewTime"
                     type="time"
-                    required
                     value={interviewTime}
                     onChange={(e) => setInterviewTime(e.target.value)}
+                    required
                     className="text-xs"
                   />
                 </div>
@@ -368,38 +460,39 @@ export function ApplicationDetailDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="meeting-type" className="text-xs font-semibold">Format</Label>
+                  <Label htmlFor="meetingType" className="text-xs font-semibold">Interaction Format *</Label>
                   <select
-                    id="meeting-type"
+                    id="meetingType"
                     value={meetingType}
                     onChange={(e) => setMeetingType(e.target.value as "in_person" | "video_call")}
-                    className="w-full bg-background border border-input rounded-md px-3 py-2 text-xs text-foreground font-semibold"
+                    className="w-full bg-background border border-input rounded-md px-3 py-2 text-xs font-semibold text-foreground"
                   >
-                    <option value="in_person">In-Person Shelter Visit</option>
-                    <option value="video_call">Virtual Video Interview</option>
+                    <option value="in_person">In-Person Shelter Visit (Petaling Jaya)</option>
+                    <option value="video_call">Virtual Video Call (Google Meet / Zoom)</option>
                   </select>
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="interview-location" className="text-xs font-semibold">Location / Video Link *</Label>
+                  <Label htmlFor="location" className="text-xs font-semibold">Sanctuary Address or Video Link *</Label>
                   <Input
-                    id="interview-location"
-                    required
-                    placeholder="e.g. Shelter compound or Google Meet link"
+                    id="location"
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Hope for Strays Sanctuary or https://meet.google.com/..."
+                    required
                     className="text-xs"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="interview-notes" className="text-xs font-semibold">Coordinator Instructions for Adopter</Label>
+                <Label htmlFor="interviewNotes" className="text-xs font-semibold">Coordinator Instructions (Visible to Applicant)</Label>
                 <Textarea
-                  id="interview-notes"
+                  id="interviewNotes"
                   rows={2}
-                  placeholder="e.g. Please bring your existing dog for socialization or lease agreement..."
                   value={interviewNotes}
                   onChange={(e) => setInterviewNotes(e.target.value)}
+                  placeholder="e.g. Please bring existing dog for outdoor socialization, arrive 10 minutes early..."
                   className="text-xs leading-relaxed"
                 />
               </div>
@@ -410,40 +503,40 @@ export function ApplicationDetailDialog({
                   type="checkbox"
                   checked={notifyApplicant}
                   onChange={(e) => setNotifyApplicant(e.target.checked)}
-                  className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                  className="size-4 rounded border-input text-primary focus:ring-primary"
                 />
-                <Label htmlFor="notify-interview" className="text-xs font-medium cursor-pointer">
-                  Send Meet & Greet invitation email with date & time to <strong>{application.email}</strong>
+                <Label htmlFor="notify-interview" className="text-xs font-medium cursor-pointer flex items-center gap-1.5">
+                  <Send className="size-3.5 text-muted-foreground" />
+                  Dispatch calendar invitation email with location details to <strong>{application.email}</strong>
                 </Label>
               </div>
 
-              <div className="border-t border-border pt-4 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  Will update application status to <strong>Under Review</strong>
-                </span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-xs">
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={scheduling}
-                    size="sm"
-                    className="text-xs font-semibold px-5 gap-1.5"
-                  >
-                    {scheduling ? (
-                      <>
-                        <Loader2 className="size-3.5 animate-spin" />
-                        Scheduling...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="size-3.5" />
-                        Send Invitation & Schedule
-                      </>
-                    )}
-                  </Button>
-                </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onOpenChange(false)}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={scheduling}
+                  size="sm"
+                  className="text-xs font-semibold uppercase tracking-wider px-6 gap-1.5"
+                >
+                  {scheduling ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" /> Scheduling...
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="size-3.5" /> Confirm Meet & Greet
+                    </>
+                  )}
+                </Button>
               </div>
             </form>
           )}

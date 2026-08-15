@@ -25,6 +25,7 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/pets", label: "Adoptable Pets" },
+    { href: "/applications/track", label: "Track Application" },
     { href: "/bulletins", label: "Updates & News" },
     { href: "/#how-it-works", label: "Adoption Process" },
     { href: "/#mission", label: "About Us" },
