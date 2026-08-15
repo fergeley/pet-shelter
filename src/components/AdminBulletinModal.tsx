@@ -238,6 +238,7 @@ export function AdminBulletinModal({
                       alt="Preview"
                       fill
                       className="object-cover"
+                      sizes="320px"
                     />
                   </div>
                 )}

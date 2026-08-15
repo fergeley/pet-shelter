@@ -198,6 +198,7 @@ export default function HomePage() {
                         alt={story.adopter}
                         fill
                         className="object-cover"
+                        sizes="44px"
                       />
                     </div>
                     <div>

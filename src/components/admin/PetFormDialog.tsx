@@ -307,7 +307,13 @@ export function PetFormDialog({
                 <Label className="text-xs font-semibold text-muted-foreground block mb-1.5">Thumbnail Preview</Label>
                 <div className="relative aspect-4/3 w-full border border-border bg-muted overflow-hidden">
                   {imageUrl ? (
-                    <Image src={imageUrl} alt="Pet Preview" fill className="object-cover" />
+                    <Image
+                      src={imageUrl}
+                      alt="Pet Preview"
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 640px) 100vw, 200px"
+                    />
                   ) : (
                     <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
                       No Image URL
