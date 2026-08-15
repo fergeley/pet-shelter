@@ -15,6 +15,7 @@ import {
   Clock,
   Calendar,
   MapPin,
+  Video,
   Heart,
   Phone,
   MessageCircle,
@@ -352,16 +353,31 @@ function ApplicationTrackerContent() {
                     )}
 
                     <div className="pt-2 flex flex-wrap gap-3">
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                          result.interviewDetails.location
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-sky-700 transition"
-                      >
-                        <MapPin className="size-3.5" /> View Location on Google Maps
-                      </a>
+                      {result.interviewDetails.meetingType === "video_call" ? (
+                        <a
+                          href={
+                            result.interviewDetails.location.startsWith("http")
+                              ? result.interviewDetails.location
+                              : `https://${result.interviewDetails.location}`
+                          }
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-sky-700 transition"
+                        >
+                          <Video className="size-3.5" /> Join Video Meeting &rarr;
+                        </a>
+                      ) : (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                            result.interviewDetails.location
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-sky-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-sky-700 transition"
+                        >
+                          <MapPin className="size-3.5" /> View Location on Google Maps
+                        </a>
+                      )}
                     </div>
                   </div>
                 )}

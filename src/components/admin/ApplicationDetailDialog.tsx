@@ -103,7 +103,7 @@ export function ApplicationDetailDialog({
     }
   };
 
-  const cleanPhone = application.phone.replace(/[^0-9]/g, "");
+  const cleanPhone = (application.phone || "").replace(/[^0-9]/g, "");
   const waPhone = cleanPhone.startsWith("0") ? `60${cleanPhone.slice(1)}` : cleanPhone;
   const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(
     `Hi ${application.applicantName}, this is Hope for Strays regarding your adoption application for ${application.petName} (Ref: ${application.id}). You can track your status live at: ${trackingUrl}`
