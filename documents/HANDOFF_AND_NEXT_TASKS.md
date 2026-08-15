@@ -4,6 +4,8 @@
 - **Stack**: Next.js 16.3.1 (App Router + Turbopack), React 19.2.8, TypeScript 5, Tailwind CSS v4, Prisma 7.9.1, Neon PostgreSQL, Vitest 4, Resend SDK.
 - **Repository Location**: `c:\Users\User\pet-shelter`
 - **Primary Operational Guide**: [`documents/OPERATIONAL_RUNBOOK.md`](file:///c:/Users/User/pet-shelter/documents/OPERATIONAL_RUNBOOK.md)
+- **Donation & Sponsorship Handoff**: [`documents/HANDOFF_DONATION_AND_SPONSORSHIP_SUBSYSTEM.md`](file:///c:/Users/User/pet-shelter/documents/HANDOFF_DONATION_AND_SPONSORSHIP_SUBSYSTEM.md)
+- **Donation & LHDN Tax Runbook**: [`documents/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md`](file:///c:/Users/User/pet-shelter/documents/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md)
 - **Feature Activation Guide**: [`documents/FEATURE_ACTIVATION_AND_HANDOFF.md`](file:///c:/Users/User/pet-shelter/documents/FEATURE_ACTIVATION_AND_HANDOFF.md)
 - **Email Deliverability Guide**: [`documents/EMAIL_DELIVERABILITY_BEST_PRACTICES.md`](file:///c:/Users/User/pet-shelter/documents/EMAIL_DELIVERABILITY_BEST_PRACTICES.md)
 
