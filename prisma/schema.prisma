@@ -7,62 +7,45 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-enum Species {
-  DOG
-  CAT
-  OTHER
+enum Role {
+  ADMIN
+  COORDINATOR
+  STAFF
+  VOLUNTEER
 }
 
-enum Gender {
-  MALE
-  FEMALE
-}
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(STAFF)
+  pinHash      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-enum Size {
-  SMALL
-  MEDIUM
-  LARGE
-}
-
-enum AgeCategory {
-  PUPPY_KITTEN
-  YOUNG
-  ADULT
-  SENIOR
-}
-
-enum PetStatus {
-  AVAILABLE
-  PENDING
-  ADOPTED
-}
-
-enum ApplicationStatus {
-  SUBMITTED
-  UNDER_REVIEW
-  APPROVED
-  REJECTED
+  @@map("users")
 }
 
 model Pet {
   id              String         @id @default(cuid())
   name            String
-  species         Species
+  species         String         // dog, cat, other
   breed           String
   age             String
-  ageCategory     AgeCategory
-  gender          Gender
-  size            Size
+  ageCategory     String         // puppy_kitten, young, adult, senior
+  gender          String         // Male, Female
+  size            String         // Small, Medium, Large
   weight          String
-  status          PetStatus      @default(AVAILABLE)
+  status          String         @default("Available") // Available, Pending, Adopted
   adoptionFee     String
   description     String
   rescueStory     String
+  image           String
+  galleryImages   String[]
   tags            String[]
-  images          String[]
   featured        Boolean        @default(false)
   intakeDate      String
   
@@ -83,13 +66,17 @@ model Pet {
 
   applications    AdoptionApplication[]
 
+  @@index([status, species])
+  @@index([featured])
   @@map("pets")
 }
 
 model AdoptionApplication {
-  id                  String             @id @default(cuid())
-  petId               String
-  pet                 Pet                @relation(fields: [petId], references: [id], onDelete: Cascade)
+  id                  String   @id @default(cuid())
+  petId               String?
+  pet                 Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  petName             String
+  petBreed            String?
   applicantName       String
   email               String
   phone               String
@@ -100,12 +87,31 @@ model AdoptionApplication {
   currentPetDetails   String?
   householdExperience String
   applicantNotes      String?
-  status              ApplicationStatus  @default(SUBMITTED)
+  status              String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
   adminReviewNotes    String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
+  @@index([petId, status])
+  @@index([email])
   @@map("adoption_applications")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  action       String
+  actorId      String?
+  actorEmail   String
+  actorRole    String
+  targetEntity String
+  targetId     String?
+  details      String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorEmail])
+  @@map("audit_logs")
 }
 
 model ShelterSettings {
