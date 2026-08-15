@@ -14,7 +14,7 @@ export const petFormSchema = z.object({
   description: z.string().min(10, "Please provide at least a brief description (10+ characters)"),
   rescueStory: z.string().min(10, "Please provide the rescue background story"),
   image: z.string().url("Please provide a valid image URL"),
-  additionalImages: z.array(z.string().url()).optional().default([]),
+  galleryImages: z.array(z.string().url()).optional().default([]),
   tags: z.array(z.string()).min(1, "Please provide at least 1 characteristic tag"),
   featured: z.boolean().default(false),
   intakeDate: z.string().min(4, "Intake date is required"),

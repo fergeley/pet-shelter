@@ -120,7 +120,7 @@ export async function createPet(
       description: validated.description,
       rescueStory: validated.rescueStory,
       image: validated.image,
-      galleryImages: validated.additionalImages || [],
+      galleryImages: validated.galleryImages || [],
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
@@ -169,7 +169,7 @@ export async function updatePet(
     const updated: Pet = {
       ...existing,
       ...validated,
-      galleryImages: validated.additionalImages || existing.galleryImages || [],
+      galleryImages: validated.galleryImages || existing.galleryImages || [],
       isArchived: validated.isArchived ?? existing.isArchived ?? false,
       deletedAt: validated.deletedAt !== undefined ? validated.deletedAt : existing.deletedAt,
       medical: {

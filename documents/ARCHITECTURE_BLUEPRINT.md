@@ -14,6 +14,48 @@ This document serves as the foundational architectural blueprint for building sc
 
 ---
 
+## 1.5 Brand & UI Direction
+
+The visual identity should feel warm, approachable, and rescue-focused without drifting into generic SaaS minimalism. The design direction is intentionally anchored to the paw-icon asset and the emotional tone of a genuine animal welfare organization.
+
+### Brand palette
+
+Use a warm neutral foundation with restrained coral or rose tones as the key accent. The palette is intentionally softer than default industrial black/white because it signals care, trust, and non-clinical friendliness.
+
+- Background: cream / warm ivory
+- Foreground: deep espresso brown / warm charcoal
+- Primary accent: muted coral / rose terracotta
+- Secondary accent: blush / warm sand
+- Borders: soft clay / warm neutral beige
+- Dark mode: deep brown-black with lighter blush or peach highlighting rather than stark cold gray
+
+### Design rationale
+
+- The application should feel more like a community shelter than a fintech product.
+- The icon and interface should share the same emotional language: caring, soft, welcoming, and sincere.
+- High-contrast accessibility must still be preserved; warmth should come from hue and softness, not reduced legibility.
+- The brand palette should stay stable across buttons, cards, modals, and nav surfaces to avoid a fragmented visual identity.
+
+### Shape language
+
+Prefer soft, semi-rounded shapes rather than harsh square corners. This is the “squircle” direction: rounded enough to feel approachable and friendly, but not so rounded that it becomes playful or unserious.
+
+- Buttons: softly rounded, with subtle depth and restrained shadow
+- Cards: rounded panels with gentle edges and light shadows
+- Dialogs: broader rounded corners for calm, non-aggressive framing
+- Navbar and app shell: soft corners and warm surfaces to maintain consistency with the icon and overall brand tone
+
+### Practical implementation guidance
+
+- Keep the palette defined centrally in the app theme tokens rather than scattered across components.
+- Preserve a single primary accent for key calls to action.
+- Avoid introducing cold blue or gray-heavy accents unless they are used intentionally as secondary neutral support tones.
+- If a purely monochrome variant is required, prefer warm black, ivory, and clay neutrals over stark black and silver gray.
+
+This visual system should remain stable through future design iterations unless a formal rebrand is approved.
+
+---
+
 ## 2. Architectural Deep-Dive by Pillar
 
 ```

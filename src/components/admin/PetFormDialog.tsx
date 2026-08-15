@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pet } from "@/types/pet";
 import { petFormSchema, PetFormInput } from "@/lib/validations/pet";
+import { ImageUpload } from "@/components/admin/ImageUpload";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,8 @@ export function PetFormDialog({
 }: PetFormDialogProps) {
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>(["Vaccinated", "House-Trained"]);
-  const [imageUrl, setImageUrl] = useState("");
+  const [primaryImage, setPrimaryImage] = useState<string | null>(null);
+  const [galleryImages, setGalleryImages] = useState<Array<{ url: string; name: string; size: number }>>([]);
 
   const {
     register,
@@ -107,7 +109,14 @@ export function PetFormDialog({
         energyLevel: editingPet.compatibility.energyLevel as "Low" | "Moderate" | "High",
       });
       setTags(editingPet.tags);
-      setImageUrl(editingPet.image);
+      setPrimaryImage(editingPet.image);
+      setGalleryImages(
+        (editingPet.galleryImages || []).map((url) => ({
+          url,
+          name: url.split("/").pop() || url,
+          size: 0,
+        }))
+      );
     } else {
       const defaultImg = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80";
       reset({
@@ -139,7 +148,8 @@ export function PetFormDialog({
         energyLevel: "Moderate",
       });
       setTags(["Vaccinated", "Friendly"]);
-      setImageUrl(defaultImg);
+      setPrimaryImage(defaultImg);
+      setGalleryImages([]);
     }
   }
 
@@ -159,8 +169,14 @@ export function PetFormDialog({
   };
 
   const onSubmit = async (data: PetFormInput) => {
+    // Update with current image selections
+    const finalData = {
+      ...data,
+      image: primaryImage || data.image,
+      galleryImages: galleryImages.map((img) => img.url),
+    };
     await new Promise((r) => setTimeout(r, 400));
-    onSave(data);
+    onSave(finalData as PetFormInput);
     onOpenChange(false);
   };
 
@@ -283,47 +299,52 @@ export function PetFormDialog({
             </div>
           </div>
 
-          {/* 2. Photo URL & Preview */}
-          <div className="space-y-3 border-t border-border pt-4">
+          {/* 2. Photo & Visuals */}
+          <div className="space-y-6 border-t border-border pt-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-foreground border-b border-border pb-1">
               2. Photo & Visuals
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
-              <div className="sm:col-span-8 space-y-1.5">
-                <Label htmlFor="image" className="text-sm font-semibold">Primary Photo URL *</Label>
-                <Input
-                  id="image"
-                  placeholder="https://images.unsplash.com/..."
-                  className="text-sm py-2"
-                  {...register("image")}
-                  onChange={(e) => {
-                    setValue("image", e.target.value);
-                    setImageUrl(e.target.value);
+            {/* Primary Image Upload */}
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">Primary Photo for Listing *</Label>
+                <ImageUpload
+                  maxImages={1}
+                  onImagesChange={(images) => {
+                    if (images.length > 0) {
+                      setPrimaryImage(images[0].url);
+                      setValue("image", images[0].url);
+                    }
                   }}
+                  initialImages={
+                    primaryImage
+                      ? [
+                          {
+                            url: primaryImage,
+                            name: primaryImage.split("/").pop() || primaryImage,
+                            size: 0,
+                          },
+                        ]
+                      : []
+                  }
+                  label=""
+                  description="Upload or drag-and-drop the main pet photo"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Paste any high-resolution photo URL from Unsplash or shelter cloud storage.
-                </p>
               </div>
+            </div>
 
-              <div className="sm:col-span-4">
-                <Label className="text-xs font-semibold text-muted-foreground block mb-1.5">Thumbnail Preview</Label>
-                <div className="relative aspect-4/3 w-full border border-border bg-muted overflow-hidden">
-                  {imageUrl ? (
-                    <Image
-                      src={imageUrl}
-                      alt="Pet Preview"
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 640px) 100vw, 200px"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-                      No Image URL
-                    </div>
-                  )}
-                </div>
+            {/* Gallery Images Upload */}
+            <div className="space-y-3 pt-2">
+              <div>
+                <Label className="text-sm font-semibold mb-3 block">Gallery Photos (up to 3 additional)</Label>
+                <ImageUpload
+                  maxImages={3}
+                  onImagesChange={setGalleryImages}
+                  initialImages={galleryImages}
+                  label=""
+                  description="Add 3 more photos to showcase the pet from different angles"
+                />
               </div>
             </div>
           </div>
