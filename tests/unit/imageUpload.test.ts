@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ImageUpload } from "@/components/admin/ImageUpload";
 
 describe("ImageUpload Component", () => {
   beforeEach(() => {
@@ -7,72 +9,69 @@ describe("ImageUpload Component", () => {
   });
 
   it("should export ImageUpload component", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     expect(ImageUpload).toBeDefined();
     expect(typeof ImageUpload).toBe("function");
   });
 
   it("should accept required onImagesChange prop", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
 
-    // Component should be callable with the required prop
     expect(() => {
-      ImageUpload({ onImagesChange: mockCallback });
+      renderToStaticMarkup(
+        React.createElement(ImageUpload, { onImagesChange: mockCallback })
+      );
     }).not.toThrow();
   });
 
   it("should accept optional maxImages prop with default of 4", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
 
-    const component = ImageUpload({
-      onImagesChange: mockCallback,
-      maxImages: 4,
-    });
+    const html = renderToStaticMarkup(
+      React.createElement(ImageUpload, {
+        onImagesChange: mockCallback,
+        maxImages: 4,
+      })
+    );
 
-    expect(component).toBeDefined();
+    expect(html).toBeDefined();
+    expect(html).toContain("0/4");
   });
 
   it("should accept optional initialImages prop", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
     const initialImages = [
       { url: "/uploads/img1.jpg", name: "img1.jpg", size: 1024 },
     ];
 
-    const component = ImageUpload({
-      onImagesChange: mockCallback,
-      initialImages,
-    });
+    const html = renderToStaticMarkup(
+      React.createElement(ImageUpload, {
+        onImagesChange: mockCallback,
+        initialImages,
+      })
+    );
 
-    expect(component).toBeDefined();
+    expect(html).toBeDefined();
+    expect(html).toContain("url=%2Fuploads%2Fimg1.jpg");
   });
 
   it("should accept optional label and description props", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
 
-    const component = ImageUpload({
-      onImagesChange: mockCallback,
-      label: "Custom Label",
-      description: "Custom Description",
-    });
+    const html = renderToStaticMarkup(
+      React.createElement(ImageUpload, {
+        onImagesChange: mockCallback,
+        label: "Custom Label",
+        description: "Custom Description",
+      })
+    );
 
-    expect(component).toBeDefined();
-  });
-
-  it("should require onImagesChange callback prop", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
-
-    // Without onImagesChange, component should still be callable but may have issues
-    const component = ImageUpload({});
-    expect(component).toBeDefined();
+    expect(html).toBeDefined();
+    expect(html).toContain("Custom Label");
+    expect(html).toContain("Custom Description");
   });
 
   it("should handle valid image types in upload logic", () => {
     const validTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
 
     // These are the file types that should be accepted
     expect(validTypes).toContain("image/jpeg");
@@ -82,15 +81,16 @@ describe("ImageUpload Component", () => {
   });
 
   it("should set maxImages default to 4", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
 
-    const component = ImageUpload({
-      onImagesChange: mockCallback,
-      // maxImages not provided, should default to 4
-    });
+    const html = renderToStaticMarkup(
+      React.createElement(ImageUpload, {
+        onImagesChange: mockCallback,
+      })
+    );
 
-    expect(component).toBeDefined();
+    expect(html).toBeDefined();
+    expect(html).toContain("0/4");
   });
 
   it("should have correct file size limit of 5MB", () => {
@@ -100,33 +100,38 @@ describe("ImageUpload Component", () => {
   });
 
   it("should support up to maxImages count", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
     const mockCallback = vi.fn();
 
     const testCases = [1, 2, 3, 4, 5, 10];
 
     testCases.forEach((maxImages) => {
-      const component = ImageUpload({
-        onImagesChange: mockCallback,
-        maxImages,
-      });
-      expect(component).toBeDefined();
+      const html = renderToStaticMarkup(
+        React.createElement(ImageUpload, {
+          onImagesChange: mockCallback,
+          maxImages,
+        })
+      );
+      expect(html).toBeDefined();
+      expect(html).toContain(`0/${maxImages}`);
     });
   });
 
-  it("should call onImagesChange callback when images are updated", () => {
-    const { ImageUpload } = require("@/components/admin/ImageUpload");
+  it("should render initial images and trigger callback structure", () => {
     const mockCallback = vi.fn();
 
-    ImageUpload({
-      onImagesChange: mockCallback,
-      initialImages: [
-        { url: "/uploads/img1.jpg", name: "img1.jpg", size: 1024 },
-      ],
-    });
+    const html = renderToStaticMarkup(
+      React.createElement(ImageUpload, {
+        onImagesChange: mockCallback,
+        initialImages: [
+          { url: "/uploads/img1.jpg", name: "img1.jpg", size: 1024 },
+        ],
+      })
+    );
 
-    // The callback is stored and should be used when images change
+    expect(html).toBeDefined();
     expect(mockCallback).toBeDefined();
     expect(typeof mockCallback).toBe("function");
   });
 });
+
+

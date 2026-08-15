@@ -8,6 +8,25 @@ vi.mock("fs/promises", () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
 }));
 
+// Mock auth to allow authorized upload tests
+vi.mock("@/lib/auth", () => ({
+  verifyAdminSession: vi.fn().mockResolvedValue(true),
+}));
+
+function createMockImageFile(name: string, type: string, size = 1024): File {
+  const bytes = new Uint8Array(size);
+  if (type === "image/jpeg") {
+    bytes.set([0xff, 0xd8, 0xff], 0);
+  } else if (type === "image/png") {
+    bytes.set([0x89, 0x50, 0x4e, 0x47], 0);
+  } else if (type === "image/webp") {
+    bytes.set([0x52, 0x49, 0x46, 0x46], 0);
+  } else if (type === "image/gif") {
+    bytes.set([0x47, 0x49, 0x46], 0);
+  }
+  return new File([bytes], name, { type });
+}
+
 describe("Upload API Handler - POST /api/upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -58,7 +77,7 @@ describe("Upload API Handler - POST /api/upload", () => {
 
     for (const { type, name } of validTypes) {
       const formData = new FormData();
-      const imageFile = new File([new ArrayBuffer(1024)], name, { type });
+      const imageFile = createMockImageFile(name, type, 1024);
       formData.append("file", imageFile);
 
       const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -77,9 +96,8 @@ describe("Upload API Handler - POST /api/upload", () => {
   });
 
   it("should reject files larger than 5MB", async () => {
-    const largeBuffer = new ArrayBuffer(6 * 1024 * 1024); // 6MB
+    const largeFile = createMockImageFile("large.jpg", "image/jpeg", 6 * 1024 * 1024);
     const formData = new FormData();
-    const largeFile = new File([largeBuffer], "large.jpg", { type: "image/jpeg" });
     formData.append("file", largeFile);
 
     const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -96,7 +114,7 @@ describe("Upload API Handler - POST /api/upload", () => {
 
   it("should generate unique filenames with timestamp and random string", async () => {
     const formData = new FormData();
-    const imageFile = new File([new ArrayBuffer(1024)], "photo.jpg", { type: "image/jpeg" });
+    const imageFile = createMockImageFile("photo.jpg", "image/jpeg", 1024);
     formData.append("file", imageFile);
 
     const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -116,7 +134,7 @@ describe("Upload API Handler - POST /api/upload", () => {
 
   it("should return correct response structure on success", async () => {
     const formData = new FormData();
-    const imageFile = new File([new ArrayBuffer(2048)], "pet.jpg", { type: "image/jpeg" });
+    const imageFile = createMockImageFile("pet.jpg", "image/jpeg", 2048);
     formData.append("file", imageFile);
 
     const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -141,7 +159,7 @@ describe("Upload API Handler - POST /api/upload", () => {
 
   it("should handle special characters in filename", async () => {
     const formData = new FormData();
-    const imageFile = new File([new ArrayBuffer(512)], "my photo (2).jpg", { type: "image/jpeg" });
+    const imageFile = createMockImageFile("my photo (2).jpg", "image/jpeg", 512);
     formData.append("file", imageFile);
 
     const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -161,7 +179,7 @@ describe("Upload API Handler - POST /api/upload", () => {
   it("should handle concurrent uploads", async () => {
     const uploadPromises = Array.from({ length: 3 }).map((_, i) => {
       const formData = new FormData();
-      const imageFile = new File([new ArrayBuffer(512)], `pet${i}.jpg`, { type: "image/jpeg" });
+      const imageFile = createMockImageFile(`pet${i}.jpg`, "image/jpeg", 512);
       formData.append("file", imageFile);
 
       const request = new NextRequest("http://localhost:3000/api/upload", {
@@ -186,3 +204,4 @@ describe("Upload API Handler - POST /api/upload", () => {
     expect(uniqueUrls.size).toBe(3);
   });
 });
+

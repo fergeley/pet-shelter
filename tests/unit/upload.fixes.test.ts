@@ -10,7 +10,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 describe("Upload Endpoint Security Enhancements", () => {
   // Mock module for testing
   const mockVerifyAdminSession = vi.fn();
-  const mockValidateFileSignature = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
