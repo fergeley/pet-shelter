@@ -33,8 +33,8 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
           
-          {/* Status Badge - WCAG AAA Compliant */}
-          <div className="absolute top-3 left-3 flex gap-2">
+          {/* Status Badge & Free Adoption Badge - WCAG AAA Compliant */}
+          <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <span
               className={`px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${
                 isAvailable
@@ -43,6 +43,9 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
               }`}
             >
               {pet.status}
+            </span>
+            <span className="bg-primary/95 text-primary-foreground font-bold px-2.5 py-1 text-xs tracking-tight">
+              Free Adoption
             </span>
           </div>
 

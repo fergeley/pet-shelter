@@ -31,7 +31,7 @@
       "energyLevel": "Moderate"
     },
     "intakeDate": "2026-06-12",
-    "adoptionFee": "RM 150",
+    "adoptionFee": "Free",
     "featured": true
   },
   {
@@ -66,7 +66,7 @@
       "energyLevel": "Moderate"
     },
     "intakeDate": "2026-07-04",
-    "adoptionFee": "RM 95",
+    "adoptionFee": "Free",
     "featured": true
   },
   {
@@ -100,7 +100,7 @@
       "energyLevel": "High"
     },
     "intakeDate": "2026-05-18",
-    "adoptionFee": "RM 180",
+    "adoptionFee": "Free",
     "featured": true
   },
   {
@@ -134,7 +134,7 @@
       "energyLevel": "High"
     },
     "intakeDate": "2026-07-22",
-    "adoptionFee": "RM 100",
+    "adoptionFee": "Free",
     "featured": false
   },
   {
@@ -168,7 +168,7 @@
       "energyLevel": "Moderate"
     },
     "intakeDate": "2026-04-10",
-    "adoptionFee": "RM 120",
+    "adoptionFee": "Free",
     "featured": false
   },
   {
@@ -202,7 +202,7 @@
       "energyLevel": "Low"
     },
     "intakeDate": "2026-06-30",
-    "adoptionFee": "RM 80",
+    "adoptionFee": "Free",
     "featured": false
   },
   {
@@ -236,7 +236,7 @@
       "energyLevel": "Low"
     },
     "intakeDate": "2026-03-15",
-    "adoptionFee": "RM 80",
+    "adoptionFee": "Free",
     "featured": false
   },
   {
@@ -270,7 +270,7 @@
       "energyLevel": "High"
     },
     "intakeDate": "2026-08-01",
-    "adoptionFee": "RM 160",
+    "adoptionFee": "Free",
     "featured": true
   }
 ]

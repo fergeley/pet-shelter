@@ -87,8 +87,8 @@ export function PetDetailDialog({
             </div>
 
             <div className="text-right hidden sm:block">
-              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block">Adoption Fee</span>
-              <p className="font-mono text-2xl font-bold text-white mt-0.5">{pet.adoptionFee}</p>
+              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300 block">Adoption Fee</span>
+              <p className="font-heading text-2xl font-bold text-white mt-0.5">{pet.adoptionFee.toLowerCase().includes("free") ? "Free (RM 0)" : pet.adoptionFee}</p>
             </div>
           </div>
         </div>
@@ -221,7 +221,7 @@ export function PetDetailDialog({
               <span>Intake: {pet.intakeDate}</span>
             </div>
             <div className="font-bold text-foreground text-sm sm:hidden">
-              Adoption Fee: <span className="font-mono">{pet.adoptionFee}</span>
+              Adoption Fee: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pet.adoptionFee.toLowerCase().includes("free") ? "Free (RM 0)" : pet.adoptionFee}</span>
             </div>
           </div>
 

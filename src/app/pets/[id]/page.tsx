@@ -84,7 +84,7 @@ export default async function PetProfilePage({ params }: PetPageProps) {
     },
     offers: {
       "@type": "Offer",
-      price: pet.adoptionFee.replace(/[^0-9]/g, "") || "180",
+      price: pet.adoptionFee.toLowerCase().includes("free") ? "0" : (pet.adoptionFee.replace(/[^0-9]/g, "") || "0"),
       priceCurrency: "MYR",
       availability: pet.status === "Available" ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
     },

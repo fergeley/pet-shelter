@@ -115,11 +115,11 @@ export function PetDetailView(props: PetDetailViewProps) {
                   {pet.name}
                 </h1>
                 <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
                     Adoption Fee
                   </span>
-                  <span className="font-mono text-2xl font-bold text-foreground">
-                    {pet.adoptionFee}
+                  <span className="font-heading text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                    {pet.adoptionFee.toLowerCase().includes("free") ? "Free (RM 0)" : pet.adoptionFee}
                   </span>
                 </div>
               </div>

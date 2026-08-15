@@ -91,8 +91,8 @@ async function main() {
       address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
       operatingHours: "Tuesday – Sunday: 10:00 AM – 5:00 PM",
       announcementBanner: "Adoption Drive this weekend in SS2! Meet our rescued dogs and cats.",
-      adoptionFeeDog: "RM 180",
-      adoptionFeeCat: "RM 95",
+      adoptionFeeDog: "Free",
+      adoptionFeeCat: "Free",
     },
   });
   console.log("  ✓ Shelter settings seeded.");

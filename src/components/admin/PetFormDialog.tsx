@@ -55,7 +55,7 @@ export function PetFormDialog({
       size: "Medium",
       weight: "15 kg",
       status: "Available",
-      adoptionFee: "RM 180",
+      adoptionFee: "Free",
       description: "",
       rescueStory: "",
       image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80",
@@ -128,7 +128,7 @@ export function PetFormDialog({
         size: "Medium",
         weight: "15 kg",
         status: "Available",
-        adoptionFee: "RM 180",
+        adoptionFee: "Free",
         description: "",
         rescueStory: "",
         image: defaultImg,
@@ -293,7 +293,7 @@ export function PetFormDialog({
 
               <div className="space-y-1.5">
                 <Label htmlFor="adoptionFee" className="text-sm font-semibold">Adoption Fee *</Label>
-                <Input id="adoptionFee" placeholder="e.g. RM 180" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
+                <Input id="adoptionFee" placeholder="e.g. Free" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
               </div>
             </div>
           </div>

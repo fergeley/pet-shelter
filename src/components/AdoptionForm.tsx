@@ -70,7 +70,7 @@ export function AdoptionForm(props: AdoptionFormProps) {
                 >
                   {allPets.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} — {p.breed} ({p.status} • {p.adoptionFee})
+                      {p.name} — {p.breed} ({p.status} • {p.adoptionFee.toLowerCase().includes("free") ? "Free Adoption" : p.adoptionFee})
                     </option>
                   ))}
                 </select>

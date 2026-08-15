@@ -12,8 +12,8 @@ const defaultSettings: ShelterSettingsInput = {
   address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
   operatingHours: "Tuesday – Sunday: 10:00 AM – 5:00 PM (Closed Mondays)",
   announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
-  adoptionFeeDog: "RM 180",
-  adoptionFeeCat: "RM 95",
+  adoptionFeeDog: "Free",
+  adoptionFeeCat: "Free",
 };
 
 export function useSettingsStore() {

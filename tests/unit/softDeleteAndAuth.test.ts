@@ -124,7 +124,7 @@ describe("Soft Deletes & Query Filtering", () => {
         size: "Medium",
         weight: "18 kg",
         status: "Available",
-        adoptionFee: "RM 180",
+        adoptionFee: "Free",
         description: "A lovely rescue dog for testing soft delete.",
         rescueStory: "Rescued safely.",
         image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1",

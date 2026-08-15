@@ -10,7 +10,7 @@ export const petFormSchema = z.object({
   size: z.enum(["Small", "Medium", "Large"]),
   weight: z.string().min(1, "Weight is required (e.g. '18 kg')"),
   status: z.enum(["Available", "Pending", "Adopted"]),
-  adoptionFee: z.string().min(1, "Adoption fee is required (e.g. 'RM 180')"),
+  adoptionFee: z.string().min(1, "Adoption fee is required (e.g. 'Free')"),
   description: z.string().min(10, "Please provide at least a brief description (10+ characters)"),
   rescueStory: z.string().min(10, "Please provide the rescue background story"),
   image: z.string().url("Please provide a valid image URL"),
