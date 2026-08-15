@@ -59,11 +59,12 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
   const handleUpdateStatusWithNotes = (
     id: string,
     status: ApplicationStatus,
-    notes: string
+    notes: string,
+    notifyApplicant = true
   ) => {
     const res = updateApplicationStatus(id, status, notes);
     if (res && res.success) {
-      serverUpdateStatus({ id, status, adminReviewNotes: notes }).catch((err) =>
+      serverUpdateStatus({ id, status, adminReviewNotes: notes, notifyApplicant }).catch((err) =>
         console.warn("Background server update sync:", err)
       );
     }

@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { applicationFormSchema, ApplicationFormInput, updateApplicationStatusSchema, UpdateApplicationStatusInput } from "@/lib/validations/application";
+import {
+  applicationFormSchema,
+  ApplicationFormInput,
+  updateApplicationStatusSchema,
+  UpdateApplicationStatusInput,
+  scheduleInterviewSchema,
+  ScheduleInterviewInput,
+} from "@/lib/validations/application";
 import { AdoptionApplicationRecord } from "@/types/application";
 import { getCurrentSession } from "@/lib/security/session";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
@@ -13,11 +20,15 @@ import {
   atomicUpdateApplicationStatus,
   deleteServerApplication,
   findServerPetById,
+  findServerApplicationById,
 } from "@/lib/serverStore";
 import {
   sendApplicationConfirmationEmail,
   sendStaffApplicationAlert,
+  sendApplicationStatusUpdateEmail,
+  sendInterviewInvitationEmail,
 } from "@/lib/email";
+import { recordAuditLog } from "@/lib/domain/auditLog";
 
 export async function getApplications(): Promise<AdoptionApplicationRecord[]> {
   const session = await getCurrentSession();
@@ -101,6 +112,8 @@ export async function updateApplicationStatus(
     assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
 
     const validated = updateApplicationStatusSchema.parse(input);
+    const existingApp = findServerApplicationById(validated.id);
+
     const result = await atomicUpdateApplicationStatus(
       validated.id,
       validated.status,
@@ -112,6 +125,21 @@ export async function updateApplicationStatus(
       return result;
     }
 
+    // Non-blocking transactional email notification for status change
+    if (existingApp && validated.notifyApplicant !== false) {
+      const updatedApp: AdoptionApplicationRecord = {
+        ...existingApp,
+        status: validated.status,
+        adminReviewNotes: validated.adminReviewNotes ?? existingApp.adminReviewNotes,
+      };
+
+      sendApplicationStatusUpdateEmail(
+        updatedApp,
+        validated.status,
+        validated.adminReviewNotes
+      ).catch((err) => console.error("[Status Email Notification Error]", err));
+    }
+
     revalidatePath("/admin/applications");
     revalidatePath("/admin/pets");
     revalidatePath("/pets");
@@ -120,6 +148,82 @@ export async function updateApplicationStatus(
     return { success: true };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update application status";
+    return { success: false, error: msg };
+  }
+}
+
+export async function scheduleApplicationInterview(
+  input: ScheduleInterviewInput
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+    const validated = scheduleInterviewSchema.parse(input);
+    const app = findServerApplicationById(validated.applicationId);
+
+    if (!app) {
+      return { success: false, error: "Application not found" };
+    }
+
+    const meetingTypeLabel = validated.meetingType === "video_call" ? "Virtual Video Call" : "In-Person Visit";
+    const formattedNotes = `[Meet & Greet Scheduled: ${validated.interviewDate} at ${validated.interviewTime} (${meetingTypeLabel}) - Location: ${validated.location}] ${validated.coordinatorNotes || ""}`.trim();
+
+    // If currently SUBMITTED, transition to UNDER_REVIEW
+    if (app.status === "SUBMITTED") {
+      await atomicUpdateApplicationStatus(
+        app.id,
+        "UNDER_REVIEW",
+        formattedNotes,
+        session
+      );
+    } else {
+      // Append interview details to review notes
+      await atomicUpdateApplicationStatus(
+        app.id,
+        app.status,
+        formattedNotes,
+        session
+      );
+    }
+
+    // Record interview scheduled audit log
+    recordAuditLog({
+      actorId: session.id,
+      actorEmail: session.email,
+      actorRole: session.role,
+      action: "INTERVIEW_SCHEDULED",
+      entity: "AdoptionApplication",
+      entityId: app.id,
+      details: {
+        petId: app.petId,
+        petName: app.petName,
+        applicantName: app.applicantName,
+        interviewDate: validated.interviewDate,
+        interviewTime: validated.interviewTime,
+        meetingType: validated.meetingType,
+        location: validated.location,
+      },
+    });
+
+    // Dispatch interview invitation email to applicant
+    if (validated.notifyApplicant !== false) {
+      sendInterviewInvitationEmail(app, {
+        interviewDate: validated.interviewDate,
+        interviewTime: validated.interviewTime,
+        location: validated.location,
+        meetingType: validated.meetingType,
+        coordinatorNotes: validated.coordinatorNotes,
+        coordinatorName: session.email.split("@")[0],
+      }).catch((err) => console.error("[Interview Email Notification Error]", err));
+    }
+
+    revalidatePath("/admin/applications");
+    revalidatePath("/admin");
+
+    return { success: true };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Failed to schedule interview";
     return { success: false, error: msg };
   }
 }
