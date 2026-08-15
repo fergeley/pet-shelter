@@ -21,8 +21,11 @@ export interface DonationReceipt {
   tierId: SponsorshipTierId;
   tierName: string;
   amountMYR: number;
+  frequency?: "one_time" | "monthly";
   paymentMethod: "duitnow_qr" | "online_banking" | "card";
   targetPetName?: string;
+  taxIdOrIc?: string;
+  notes?: string;
   taxDeductibleRef: string;
   shelterRegistrationNo: string;
 }

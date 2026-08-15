@@ -1,4 +1,5 @@
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
+import { DonationReceipt } from "@/types/sponsorship";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 
 export interface EmailResult {
@@ -535,3 +536,117 @@ ${SHELTER_NAME}
     entityId: app.id,
   });
 }
+
+/**
+ * 5. Sends official Malaysian tax-deductible e-Receipt for rescue donations and pet sponsorships.
+ */
+export async function sendDonationReceiptEmail(
+  receipt: DonationReceipt
+): Promise<EmailResult> {
+  const subject = `🐾 Official Donation Receipt: RM ${receipt.amountMYR} - ${receipt.receiptNumber} (${SHELTER_NAME})`;
+  const frequencyLabel = receipt.frequency === "monthly" ? "Monthly Recurring Partner" : "One-Time Contribution";
+
+  const plainText = `
+OFFICIAL DONATION RECEIPT & TAX DEDUCTION DOSSIER
+===================================================
+${SHELTER_NAME}
+${SHELTER_ADDRESS}
+Phone: ${SHELTER_PHONE} | Email: ${SHELTER_EMAIL}
+Registrar of Societies (PPM): ${receipt.shelterRegistrationNo}
+LHDN Tax Exemption Reference: ${receipt.taxDeductibleRef}
+
+Receipt No: ${receipt.receiptNumber}
+Date Issued: ${receipt.date}
+Contribution Frequency: ${frequencyLabel}
+
+DONOR INFORMATION:
+- Issued To: ${receipt.donorName}
+- Email: ${receipt.donorEmail}
+${receipt.donorPhone ? `- Phone: ${receipt.donorPhone}\n` : ""}${receipt.taxIdOrIc ? `- NRIC / Passport / SSM: ${receipt.taxIdOrIc}\n` : ""}
+SPONSORSHIP ALLOCATION:
+- Allocation: ${receipt.tierName}
+${receipt.targetPetName ? `- Dedicated Animal: ${receipt.targetPetName}\n` : ""}- Payment Rail: ${receipt.paymentMethod === "duitnow_qr" ? "DuitNow QR Instant Standard (PayNet)" : receipt.paymentMethod === "online_banking" ? "Direct Bank Transfer (Maybank)" : "Credit / Debit Card"}
+${receipt.notes ? `- Donor Message: "${receipt.notes}"\n` : ""}
+TOTAL CONTRIBUTION RECEIVED: RM ${receipt.amountMYR}.00
+
+* Under Subsection 44(6) of the Income Tax Act 1967 (Malaysia), donations to Pertubuhan Kebajikan Hope for Strays are eligible for income tax deductions.
+* This receipt is computer-generated and valid without signature.
+
+Thank you for your life-saving generosity and support of our shelter animals!
+  `.trim();
+
+  const html = wrapEmailHtml(`
+    <div style="border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+      <span class="badge" style="background:#dcfce7;color:#15803d;">Official Tax-Exempt e-Receipt</span>
+      <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: #0f172a;">Thank You for Your Generous Contribution!</h2>
+      <p style="margin: 0; font-size: 13px; color: #64748b;">
+        Receipt Reference: <strong style="font-family: monospace; color: #0f172a;">${receipt.receiptNumber}</strong> &bull; Date: ${receipt.date}
+      </p>
+    </div>
+
+    <p>Dear <strong>${receipt.donorName}</strong>,</p>
+    <p>We gratefully acknowledge receipt of your gift of <strong style="font-size: 16px; color: #0f172a;">RM ${receipt.amountMYR}.00</strong> (${frequencyLabel}) to <strong>${SHELTER_NAME}</strong>.</p>
+
+    <div class="card" style="background:#f8fafc; border-left: 4px solid #16a34a; padding: 18px; margin: 20px 0;">
+      <table style="width:100%; font-size: 13px; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 4px 0; color: #64748b; width: 40%;"><strong>Issued To:</strong></td>
+          <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">${receipt.donorName}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Email / Contact:</strong></td>
+          <td style="padding: 4px 0; color: #1e293b;">${receipt.donorEmail} ${receipt.donorPhone ? `(${receipt.donorPhone})` : ""}</td>
+        </tr>
+        ${receipt.taxIdOrIc ? `
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Tax ID / NRIC / SSM:</strong></td>
+          <td style="padding: 4px 0; font-family: monospace; font-weight: 600; color: #1e293b;">${receipt.taxIdOrIc}</td>
+        </tr>` : ""}
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Allocation Fund:</strong></td>
+          <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">${receipt.tierName}</td>
+        </tr>
+        ${receipt.targetPetName ? `
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Dedicated Pet:</strong></td>
+          <td style="padding: 4px 0; font-weight: 600; color: #0284c7;">🐾 ${receipt.targetPetName}</td>
+        </tr>` : ""}
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Payment Rail:</strong></td>
+          <td style="padding: 4px 0; color: #1e293b;">${receipt.paymentMethod === "duitnow_qr" ? "DuitNow QR Instant Rail (PayNet)" : "Direct Bank Transfer"}</td>
+        </tr>
+        <tr style="border-top: 1px solid #e2e8f0;">
+          <td style="padding: 10px 0 4px 0; font-size: 15px; font-weight: 700; color: #0f172a;"><strong>Total Received:</strong></td>
+          <td style="padding: 10px 0 4px 0; font-size: 18px; font-weight: 800; color: #16a34a;">RM ${receipt.amountMYR}.00</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background:#f1f5f9; padding: 14px; border-radius: 6px; font-size: 12px; color: #475569; margin: 20px 0; line-height: 1.5;">
+      <strong>Malaysian Tax Deduction Information:</strong><br/>
+      Official Shelter Registration No: <strong>${receipt.shelterRegistrationNo}</strong><br/>
+      LHDN Inland Revenue Board Tax Exemption Reference: <strong>${receipt.taxDeductibleRef}</strong><br/>
+      <em>* This computer-generated receipt is valid for personal or corporate tax filing in Malaysia under Section 44(6) of the Income Tax Act 1967.</em>
+    </div>
+
+    <p style="font-size: 14px; color: #475569;">
+      Because of donors like you, 100% of our rescued dogs and cats receive full veterinary clearance, spay/neuter surgery, and free adoption placements.
+    </p>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+      Warm regards,<br/>
+      <strong>The Hope for Strays Sanctuary & Caretaker Team</strong><br/>
+      ${SHELTER_ADDRESS}
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: receipt.donorEmail,
+    subject,
+    text: plainText,
+    html,
+    template: "DONATION_RECEIPT",
+    entityId: receipt.receiptNumber,
+  });
+}
+

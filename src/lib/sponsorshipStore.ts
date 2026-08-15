@@ -74,6 +74,11 @@ export function useSponsorshipStore() {
     }
   }, [receipts]);
 
+  const saveDonationReceipt = useCallback((receipt: DonationReceipt) => {
+    setReceipts((prev) => [receipt, ...prev]);
+    setActiveReceipt(receipt);
+  }, []);
+
   const createDonationReceipt = useCallback(
     (data: {
       donorName: string;
@@ -82,8 +87,11 @@ export function useSponsorshipStore() {
       tierId: SponsorshipTier["id"];
       tierName: string;
       amountMYR: number;
+      frequency?: "one_time" | "monthly";
       paymentMethod: "duitnow_qr" | "online_banking" | "card";
       targetPetName?: string;
+      taxIdOrIc?: string;
+      notes?: string;
     }): DonationReceipt => {
       const randomSeq = Math.floor(1000 + Math.random() * 9000);
       const dateStr = new Date().toISOString().slice(0, 7).replace("-", "");
@@ -104,8 +112,11 @@ export function useSponsorshipStore() {
         tierId: data.tierId,
         tierName: data.tierName,
         amountMYR: data.amountMYR,
+        frequency: data.frequency || "one_time",
         paymentMethod: data.paymentMethod,
         targetPetName: data.targetPetName,
+        taxIdOrIc: data.taxIdOrIc,
+        notes: data.notes,
         taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
         shelterRegistrationNo: "PPM-021-10-18082021",
       };
@@ -122,6 +133,7 @@ export function useSponsorshipStore() {
     receipts,
     activeReceipt,
     setActiveReceipt,
+    saveDonationReceipt,
     createDonationReceipt,
   };
 }
