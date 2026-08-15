@@ -2,15 +2,72 @@ import initialPetsData from "@/data/pets.json";
 import initialApplicationsData from "@/data/applications.json";
 import { Pet } from "@/types/pet";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
-import type {
-  Pet as PrismaPet,
-  AdoptionApplication as PrismaAdoptionApplication,
-  Prisma,
-} from "@prisma/client";
 import { validateApplicationTransition, validatePetTransition } from "./domain/stateMachine";
 import { recordAuditLog } from "./domain/auditLog";
 import { SessionUser } from "./security/session";
 import { prisma } from "./prisma";
+
+interface DbPetRecord {
+  id: string;
+  name: string;
+  species: string;
+  breed: string;
+  age: string;
+  ageCategory: string;
+  gender: string;
+  size: string;
+  weight: string;
+  status: string;
+  adoptionFee: string;
+  description: string;
+  rescueStory: string;
+  image: string;
+  galleryImages: string[];
+  tags: string[];
+  featured: boolean;
+  intakeDate: string;
+  vaccinated: boolean;
+  microchipped: boolean;
+  spayedNeutered: boolean;
+  specialNeeds: string | null;
+  goodWithDogs: boolean;
+  goodWithCats: boolean;
+  goodWithKids: boolean;
+  energyLevel: string;
+  isArchived: boolean;
+  deletedAt: Date | string | null;
+}
+
+interface DbApplicationRecord {
+  id: string;
+  petId: string | null;
+  petName: string;
+  petBreed: string | null;
+  applicantName: string;
+  email: string;
+  phone: string;
+  address: string;
+  housingType: string;
+  hasFencedYard: string;
+  currentPets: string;
+  currentPetDetails: string | null;
+  householdExperience: string;
+  applicantNotes: string | null;
+  status: string;
+  adminReviewNotes: string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+type DbTransaction = {
+  adoptionApplication: {
+    update: (args: { where: { id: string }; data: Record<string, unknown> }) => Promise<unknown>;
+    updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<unknown>;
+  };
+  pet: {
+    updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<unknown>;
+  };
+};
 
 // In-memory cache for instant reads, SSR, and offline test environments
 let serverPets: Pet[] = [...(initialPetsData as Pet[])];
@@ -28,7 +85,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
     });
     if (dbPets && dbPets.length > 0) {
-      return (dbPets as PrismaPet[]).map((p: PrismaPet) => ({
+      return (dbPets as unknown as DbPetRecord[]).map((p: DbPetRecord) => ({
         id: p.id,
         name: p.name,
         species: p.species as Pet["species"],
@@ -48,7 +105,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
         featured: p.featured,
         intakeDate: p.intakeDate,
         isArchived: p.isArchived ?? false,
-        deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
+        deletedAt: p.deletedAt ? p.deletedAt.toString() : null,
         medical: {
           vaccinated: p.vaccinated,
           microchipped: p.microchipped,
@@ -81,7 +138,7 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
       orderBy: { createdAt: "desc" },
     });
     if (dbApps && dbApps.length > 0) {
-      return (dbApps as PrismaAdoptionApplication[]).map((a: PrismaAdoptionApplication) => ({
+      return (dbApps as unknown as DbApplicationRecord[]).map((a: DbApplicationRecord) => ({
         id: a.id,
         petId: a.petId || "",
         petName: a.petName,
@@ -98,8 +155,8 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
         applicantNotes: a.applicantNotes || undefined,
         status: a.status as ApplicationStatus,
         adminReviewNotes: a.adminReviewNotes || undefined,
-        createdAt: a.createdAt.toISOString().split("T")[0],
-        updatedAt: a.updatedAt.toISOString().split("T")[0],
+        createdAt: a.createdAt.toString().split("T")[0],
+        updatedAt: a.updatedAt.toString().split("T")[0],
       }));
     }
   } catch (err) {
@@ -341,9 +398,10 @@ export async function atomicUpdateApplicationStatus(
 
   // 2. Try Prisma Interactive Transaction ($transaction)
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: unknown) => {
+      const dbTx = tx as DbTransaction;
       // Update target application
-      await tx.adoptionApplication.update({
+      await dbTx.adoptionApplication.update({
         where: { id: applicationId },
         data: {
           status: targetStatus,
@@ -353,12 +411,12 @@ export async function atomicUpdateApplicationStatus(
 
       // If APPROVED, cascade to Pet and auto-reject conflicting applications
       if (targetStatus === "APPROVED") {
-        await tx.pet.updateMany({
+        await dbTx.pet.updateMany({
           where: { id: currentApp.petId },
           data: { status: "Adopted" },
         });
 
-        await tx.adoptionApplication.updateMany({
+        await dbTx.adoptionApplication.updateMany({
           where: {
             petId: currentApp.petId,
             id: { not: applicationId },

@@ -1,5 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import type { AuditLog as PrismaAuditLog } from "@prisma/client";
+
+interface DbAuditLogRecord {
+  id: string;
+  actorId: string | null;
+  actorEmail: string;
+  actorRole: string;
+  action: string;
+  targetEntity: string;
+  targetId: string | null;
+  metadata?: unknown;
+  createdAt: Date | string;
+}
 
 export interface AuditEntry {
   id: string;
@@ -65,7 +76,7 @@ export async function getAuditLogsAsync(limit = 50): Promise<AuditEntry[]> {
     });
 
     if (dbLogs && dbLogs.length > 0) {
-      return (dbLogs as PrismaAuditLog[]).map((log: PrismaAuditLog) => ({
+      return (dbLogs as unknown as DbAuditLogRecord[]).map((log: DbAuditLogRecord) => ({
         id: log.id,
         actorId: log.actorId || "",
         actorEmail: log.actorEmail,
