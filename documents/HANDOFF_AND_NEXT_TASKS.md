@@ -53,35 +53,33 @@
 
 ## 2. Future Enhancements Backlog (Prioritized)
 
-### [PHASE-03] Shelter Analytics & Performance Metrics Dashboard
-* **Priority**: High (Recommended Next Phase)
-* **Goal**: Provide shelter administrators and adoption coordinators with a consolidated analytics dashboard at `/admin/analytics`.
-* **Specification Document**: [`tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md`](file:///c:/Users/User/pet-shelter/tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md)
+### [PHASE-01] Public Adoption Application Tracking Portal
+* **Priority**: High (Recommended Next Step)
+* **Goal**: Allow public adopters to look up their submitted application status in real time using their reference ID (e.g. `app-123456`) and email without needing an admin login.
+* **Features**:
+  * Visual progress stepper: Submitted $\rightarrow$ Under Review / Meet & Greet $\rightarrow$ Approved / Completed.
+  * Public-safe view: Displays pet name, submitted date, current milestone status, and coordinator notes for the applicant (without exposing internal staff notes).
+  * Rate limiting: Sliding-window rate limiter prevents enumeration attacks on reference IDs.
 * **Files to create/modify**:
-  * `src/actions/analytics.ts`: Server-side metrics aggregation (intakes, adoptions, avg length of stay, species distribution).
-  * `src/app/admin/analytics/page.tsx`: Responsive dashboard UI with summary KPI cards and date filters.
-  * `src/components/admin/AnalyticsCharts.tsx`: Interactive SVG/Canvas charts.
-  * `src/lib/exportReport.ts`: Automated summary export for grant applications and Malaysian DVS compliance.
-  * `tests/unit/analytics.test.ts`: Unit tests for metric calculation edge cases and RBAC.
+  * `src/app/applications/track/page.tsx`: Public lookup UI with progress timeline and guidance notes.
+  * `src/actions/applications.ts`: `lookupApplicationStatusAction(refId, email)` with rate limiting.
+  * `tests/unit/applicationTracking.test.ts`: Vitest unit tests for verification and privacy protection.
 
 ---
 
-### [PHASE-04] Public Adoption Application Tracking Portal
-* **Priority**: Medium
-* **Goal**: Allow public adopters to look up their submitted application status in real time using their reference ID (e.g. `app-123456`) and email without needing an admin account.
-* **Files to create/modify**:
-  * `src/app/applications/track/page.tsx`: Public lookup form with visual progress stepper.
-  * `src/actions/applications.ts`: Rate-limited lookup server action returning public-safe status details.
-
----
-
-### [PHASE-05] Stripe Checkout Donations & Sponsorships
+### [PHASE-02] Stripe Checkout Donations & Pet Sponsorships
 * **Priority**: Medium
 * **Goal**: Add a public donation & pet sponsorship checkout with preset tiers ($10, $25, $50, custom) to fund veterinary care and food supplies.
 * **Files to create/modify**:
   * `src/components/DonationSection.tsx`: Tier selector with recurring monthly vs one-time toggle.
   * `src/actions/donations.ts`: Server action creating Stripe Checkout Sessions.
   * `src/app/page.tsx`: Embedded donation CTA section.
+
+---
+
+### [KIV - Paused] Shelter Analytics & Performance Metrics Dashboard
+* **Status**: Keep In View (KIV) — Postponed / Not required since `@vercel/analytics` and `@vercel/speed-insights` handle general telemetry and web performance tracking.
+* **Specification Document**: [`tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md`](file:///c:/Users/User/pet-shelter/tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md)
 
 ---
 
@@ -107,6 +105,20 @@ All recent bug fixes, type safety enhancements, and feature requests are committ
 2. **Neon PostgreSQL Integration**: Synchronized cloud schema and connection pool caching across Turbopack dev cycles.
 3. **Resend Email & Deliverability**: Live verified email delivery, DMARC/SPF/DKIM guidance, and client-side test email dispatcher in `/admin/settings`.
 4. **Cloud Storage Engine**: Multi-provider storage (Local, S3/R2, Cloudinary) with client-side WebP canvas downscaling.
+5. **Analytics Board Status**: Marked as KIV (Keep In View) since Vercel Analytics / Speed Insights covers telemetry.
+
+---
+
+## Next Recommended Task: Public Adoption Application Tracking Portal
+Build a public tracking portal at `/applications/track` where adopters can check their application status without logging in:
+1. **Lookup Action (`src/actions/applications.ts`)**:
+   - `lookupApplicationStatusAction(refId: string, email: string)`: Rate-limited lookup returning public-safe status fields (pet name, current status, milestone dates, interview details if scheduled).
+2. **Tracking Page UI (`src/app/applications/track/page.tsx`)**:
+   - Clean search bar for Application Reference ID + Email.
+   - Dynamic step-by-step progress timeline: Submitted $\rightarrow$ Under Review / Interview Scheduled $\rightarrow$ Approved / Finalized.
+   - Next-step checklist and direct contact card with shelter visiting hours.
+3. **Unit Tests (`tests/unit/applicationTracking.test.ts`)**:
+   - Verify rate limiting, invalid reference handling, and strict privacy filtering (no leak of internal coordinator notes).
 
 ---
 
