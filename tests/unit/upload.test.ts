@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { POST } from "@/app/api/upload/route";
+import { POST, DELETE } from "@/app/api/upload/route";
 import { NextRequest } from "next/server";
 
 // Mock filesystem operations
 vi.mock("fs/promises", () => ({
   writeFile: vi.fn().mockResolvedValue(undefined),
   mkdir: vi.fn().mockResolvedValue(undefined),
+  unlink: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock auth to allow authorized upload tests
@@ -202,6 +203,35 @@ describe("Upload API Handler - POST /api/upload", () => {
     const urls = results.map((r) => r.url);
     const uniqueUrls = new Set(urls);
     expect(uniqueUrls.size).toBe(3);
+  });
+
+  describe("Upload API Handler - DELETE /api/upload", () => {
+    it("should reject delete request when no filename is provided", async () => {
+      const request = new NextRequest("http://localhost:3000/api/upload", {
+        method: "DELETE",
+      });
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("Filename parameter is required");
+    });
+
+    it("should successfully delete a file given a filename query parameter", async () => {
+      const request = new NextRequest(
+        "http://localhost:3000/api/upload?filename=123-abc-test.webp",
+        {
+          method: "DELETE",
+        }
+      );
+
+      const response = await DELETE(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+    });
   });
 });
 

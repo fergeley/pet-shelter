@@ -1,9 +1,7 @@
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/auth";
+import { getStorageProvider } from "@/lib/storage";
 
-const UPLOAD_DIR = "public/uploads";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
@@ -71,35 +69,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique filename
+    // Generate unique, sanitized filename
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
     const originalName = file.name.replace(/[^a-z0-9.-]/gi, "_");
     const filename = `${timestamp}-${randomStr}-${originalName}`;
 
-    // Ensure upload directory exists
-    const uploadPath = join(process.cwd(), UPLOAD_DIR);
-    try {
-      await mkdir(uploadPath, { recursive: true });
-    } catch (error) {
-      console.error("Failed to create upload directory:", error);
-      throw new Error("Upload directory creation failed");
-    }
+    // Read bytes into Buffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Write file to disk
-    const filepath = join(uploadPath, filename);
-    const bytes = await file.arrayBuffer();
-    await writeFile(filepath, Buffer.from(bytes));
-
-    // Return the URL path
-    const url = `/uploads/${filename}`;
+    // Delegate to active StorageProvider
+    const storageProvider = getStorageProvider();
+    const result = await storageProvider.uploadFile(buffer, filename, file.type);
 
     return NextResponse.json(
       {
         success: true,
-        url,
-        filename,
-        size: file.size,
+        url: result.url,
+        filename: result.filename,
+        size: result.size,
+        provider: result.provider,
       },
       { status: 200 }
     );
@@ -108,6 +98,50 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { error: "Failed to upload file" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const isAuthorized = await verifyAdminSession();
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { error: "Unauthorized: Admin access required" },
+        { status: 403 }
+      );
+    }
+
+    let filename: string | null = null;
+
+    const { searchParams } = new URL(request.url);
+    filename = searchParams.get("filename");
+
+    if (!filename) {
+      try {
+        const body = await request.json();
+        filename = body.filename || null;
+      } catch {
+        // No json body
+      }
+    }
+
+    if (!filename) {
+      return NextResponse.json(
+        { error: "Filename parameter is required" },
+        { status: 400 }
+      );
+    }
+
+    const storageProvider = getStorageProvider();
+    const ok = await storageProvider.deleteFile(filename);
+
+    return NextResponse.json({ success: ok });
+  } catch (error) {
+    console.error("Delete file error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete file" },
       { status: 500 }
     );
   }

@@ -313,7 +313,10 @@ export function PetFormDialog({
                   onImagesChange={(images) => {
                     if (images.length > 0) {
                       setPrimaryImage(images[0].url);
-                      setValue("image", images[0].url);
+                      setValue("image", images[0].url, { shouldValidate: true });
+                    } else {
+                      setPrimaryImage(null);
+                      setValue("image", "", { shouldValidate: true });
                     }
                   }}
                   initialImages={
