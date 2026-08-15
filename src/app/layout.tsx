@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,21 @@ export const metadata: Metadata = {
   title: "Hope for Strays | Animal Rescue & Adoption (Petaling Jaya, Selangor)",
   description:
     "Hope for Strays is a non-profit animal shelter in Petaling Jaya, Selangor. Adopt rescued dogs, cats, puppies, and kittens with complete veterinary care and vaccination.",
+  manifest: "/manifest.json",
+  other: {
+    "msapplication-config": "/browserconfig.xml",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: "/apple-icon-180x180.png",
+    other: {
+      rel: "apple-touch-icon-precomposed",
+      url: "/apple-icon-precomposed.png",
+    },
+  },
 };
 
 export default function RootLayout({
@@ -51,8 +67,10 @@ export default function RootLayout({
         playfairDisplayHeading.variable
       )}
     >
-      <head>
-        <script
+      <body className="min-h-full bg-zinc-200/80 dark:bg-zinc-950 text-foreground font-sans selection:bg-zinc-900 selection:text-zinc-50 dark:selection:bg-zinc-100 dark:selection:text-zinc-900 p-2.5 sm:p-5 md:p-8 lg:p-10">
+        <Script
+          id="theme-init"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -67,8 +85,6 @@ export default function RootLayout({
             `,
           }}
         />
-      </head>
-      <body className="min-h-full bg-zinc-200/80 dark:bg-zinc-950 text-foreground font-sans selection:bg-zinc-900 selection:text-zinc-50 dark:selection:bg-zinc-100 dark:selection:text-zinc-900 p-2.5 sm:p-5 md:p-8 lg:p-10">
         <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
           {/* Centered Application Frame with Softer Gray Tones */}
           <div className="mx-auto w-full max-w-6xl xl:max-w-7xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shadow-xs flex flex-col min-h-[calc(100vh-1.25rem)] sm:min-h-[calc(100vh-2.5rem)] md:min-h-[calc(100vh-4rem)]">

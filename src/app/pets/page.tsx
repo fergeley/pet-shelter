@@ -1,16 +1,38 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { PetGallery } from "@/components/PetGallery";
 import { BulletinFeed } from "@/components/BulletinFeed";
-import { getPets } from "@/actions/pets";
-import { PhoneCall } from "lucide-react";
+import { getPublicPets } from "@/actions/pets";
+import { PhoneCall, Loader2 } from "lucide-react";
+import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";
 
 export const metadata: Metadata = {
   title: "Adoptable Dogs & Cats | Hope for Strays (Petaling Jaya)",
-  description: "Browse rescue dogs and cats currently available for adoption at Hope for Strays shelter in Petaling Jaya, Selangor.",
+  description:
+    "Browse rescue dogs and cats currently available for adoption at Hope for Strays shelter in Petaling Jaya, Selangor.",
 };
 
-export default async function PetsDirectoryPage() {
-  const initialPets = await getPets();
+interface PetsDirectoryPageProps {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
+  const searchParams = props.searchParams ? await props.searchParams : {};
+
+  const species = typeof searchParams.species === "string" ? (searchParams.species as Species) : undefined;
+  const size = typeof searchParams.size === "string" ? (searchParams.size as PetSize) : undefined;
+  const ageCategory = typeof searchParams.ageCategory === "string" ? (searchParams.ageCategory as AgeCategory) : undefined;
+  const status = typeof searchParams.status === "string" ? (searchParams.status as PetStatus) : undefined;
+  const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
+
+  const initialPets = await getPublicPets({
+    species,
+    size,
+    ageCategory,
+    status,
+    search,
+  });
+
   const faqs = [
     {
       q: "What does the adoption fee cover?",
@@ -34,11 +56,20 @@ export default async function PetsDirectoryPage() {
     <div className="min-h-screen bg-card pb-20">
       {/* Directory Gallery */}
       <div className="w-full px-6 sm:px-8 lg:px-12 pt-8 sm:pt-10">
-        <PetGallery
-          initialPets={initialPets}
-          title="Adoptable Animals"
-          showFilters={true}
-        />
+        <Suspense
+          fallback={
+            <div className="flex min-h-[360px] items-center justify-center p-12 text-muted-foreground">
+              <Loader2 className="size-8 animate-spin mr-2" />
+              <span>Loading adoptable animals...</span>
+            </div>
+          }
+        >
+          <PetGallery
+            initialPets={initialPets}
+            title="Adoptable Animals"
+            showFilters={true}
+          />
+        </Suspense>
       </div>
 
       {/* Directory Bulletins / Notices */}
@@ -78,8 +109,12 @@ export default async function PetsDirectoryPage() {
         {/* Contact Banner */}
         <div className="mt-10 bg-muted/40 border border-border p-6 max-w-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <p className="text-base font-bold text-foreground">Have questions about an animal in Petaling Jaya?</p>
-            <p className="text-sm text-muted-foreground mt-0.5">Call our shelter desk Tuesday through Sunday, 10:00 AM – 5:00 PM.</p>
+            <p className="text-base font-bold text-foreground">
+              Have questions about an animal in Petaling Jaya?
+            </p>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Call our shelter desk Tuesday through Sunday, 10:00 AM – 5:00 PM.
+            </p>
           </div>
           <a
             href="tel:+60378765432"

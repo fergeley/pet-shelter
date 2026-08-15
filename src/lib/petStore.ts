@@ -68,6 +68,8 @@ export function usePetStore() {
         tags: input.tags,
         featured: input.featured,
         intakeDate: input.intakeDate,
+        isArchived: input.isArchived ?? false,
+        deletedAt: input.deletedAt || null,
         medical: {
           vaccinated: input.vaccinated ?? true,
           microchipped: input.microchipped ?? true,
@@ -78,7 +80,7 @@ export function usePetStore() {
           goodWithDogs: input.goodWithDogs ?? true,
           goodWithCats: input.goodWithCats ?? true,
           goodWithKids: input.goodWithKids ?? true,
-          energyLevel: input.energyLevel,
+          energyLevel: input.energyLevel || "Moderate",
         },
       };
 
@@ -112,6 +114,8 @@ export function usePetStore() {
         tags: input.tags,
         featured: input.featured ?? false,
         intakeDate: input.intakeDate,
+        isArchived: input.isArchived ?? pets[index].isArchived ?? false,
+        deletedAt: input.deletedAt !== undefined ? input.deletedAt : pets[index].deletedAt,
         medical: {
           vaccinated: input.vaccinated ?? true,
           microchipped: input.microchipped ?? true,
@@ -122,7 +126,7 @@ export function usePetStore() {
           goodWithDogs: input.goodWithDogs ?? true,
           goodWithCats: input.goodWithCats ?? true,
           goodWithKids: input.goodWithKids ?? true,
-          energyLevel: input.energyLevel,
+          energyLevel: input.energyLevel || "Moderate",
         },
       };
 
@@ -156,6 +160,23 @@ export function usePetStore() {
     [pets, savePets]
   );
 
+  const toggleArchivePet = useCallback(
+    (id: string, isArchived: boolean): boolean => {
+      const index = pets.findIndex((p) => p.id === id);
+      if (index === -1) return false;
+
+      const updated = [...pets];
+      updated[index] = {
+        ...updated[index],
+        isArchived,
+        deletedAt: isArchived ? new Date().toISOString() : null,
+      };
+      savePets(updated);
+      return true;
+    },
+    [pets, savePets]
+  );
+
   const resetToDefaultPets = useCallback(() => {
     savePets(initialPetsData as Pet[]);
   }, [savePets]);
@@ -167,6 +188,7 @@ export function usePetStore() {
     updatePet,
     updatePetStatus,
     deletePet,
+    toggleArchivePet,
     resetToDefaultPets,
   };
 }

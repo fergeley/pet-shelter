@@ -42,6 +42,8 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
         tags: p.tags,
         featured: p.featured,
         intakeDate: p.intakeDate,
+        isArchived: p.isArchived ?? false,
+        deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null,
         medical: {
           vaccinated: p.vaccinated,
           microchipped: p.microchipped,
@@ -76,7 +78,7 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
     if (dbApps && dbApps.length > 0) {
       return dbApps.map((a) => ({
         id: a.id,
-        petId: a.petId,
+        petId: a.petId || "",
         petName: a.petName,
         petBreed: a.petBreed || undefined,
         applicantName: a.applicantName,
@@ -135,6 +137,8 @@ export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<
         tags: newPet.tags || [],
         featured: newPet.featured || false,
         intakeDate: newPet.intakeDate,
+        isArchived: newPet.isArchived ?? false,
+        deletedAt: newPet.deletedAt ? new Date(newPet.deletedAt) : null,
         vaccinated: newPet.medical?.vaccinated ?? true,
         microchipped: newPet.medical?.microchipped ?? true,
         spayedNeutered: newPet.medical?.spayedNeutered ?? true,
@@ -192,6 +196,8 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
         tags: updated.tags || [],
         featured: updated.featured || false,
         intakeDate: updated.intakeDate,
+        isArchived: updated.isArchived ?? false,
+        deletedAt: updated.deletedAt ? new Date(updated.deletedAt) : null,
         vaccinated: updated.medical?.vaccinated ?? true,
         microchipped: updated.medical?.microchipped ?? true,
         spayedNeutered: updated.medical?.spayedNeutered ?? true,
@@ -219,32 +225,46 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
   return true;
 }
 
-export async function deleteServerPet(id: string, actor: SessionUser): Promise<boolean> {
+export async function archiveServerPet(id: string, archive: boolean, actor: SessionUser): Promise<boolean> {
   const index = serverPets.findIndex((p) => p.id === id);
   if (index === -1) return false;
 
-  const removed = serverPets[index];
-  serverPets = serverPets.filter((p) => p.id !== id);
+  const pet = serverPets[index];
+  const deletedAt = archive ? new Date().toISOString() : null;
+  serverPets[index] = {
+    ...pet,
+    isArchived: archive,
+    deletedAt,
+  };
 
   try {
-    await prisma.pet.delete({
+    await prisma.pet.update({
       where: { id },
+      data: {
+        isArchived: archive,
+        deletedAt: archive ? new Date() : null,
+      },
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma pet delete fallback notice:", err instanceof Error ? err.message : err);
+    console.warn("[Database Store] Prisma pet archive fallback notice:", err instanceof Error ? err.message : err);
   }
 
   recordAuditLog({
     actorId: actor.id,
     actorEmail: actor.email,
     actorRole: actor.role,
-    action: "PET_DELETED",
+    action: archive ? "PET_ARCHIVED" : "PET_RESTORED",
     entity: "Pet",
     entityId: id,
-    details: { petName: removed.name, breed: removed.breed },
+    details: { petName: pet.name, isArchived: archive, deletedAt },
   });
 
   return true;
+}
+
+export async function deleteServerPet(id: string, actor: SessionUser): Promise<boolean> {
+  // Perform soft delete (archival) to preserve data integrity and application histories
+  return archiveServerPet(id, true, actor);
 }
 
 export async function insertServerApplication(newApp: AdoptionApplicationRecord): Promise<void> {

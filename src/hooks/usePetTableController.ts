@@ -8,37 +8,48 @@ import { exportPetsToCsv } from "@/lib/exportCsv";
 import {
   createPet as serverCreatePet,
   updatePet as serverUpdatePet,
-  deletePet as serverDeletePet,
+  toggleArchivePet as serverToggleArchivePet,
   updatePetStatus as serverUpdatePetStatus,
 } from "@/actions/pets";
 import { SortingState } from "@tanstack/react-table";
 
-export function usePetTableController(initialPets?: Pet[]) {
+export function usePetTableController(initialPets?: (Pet & { applicationCount?: number })[]) {
   const {
     pets: storePets,
     addPet,
     updatePet,
     updatePetStatus,
-    deletePet,
+    toggleArchivePet,
     resetToDefaultPets,
   } = usePetStore();
 
-  const pets = initialPets || storePets;
+  const [localPets, setLocalPets] = useState<(Pet & { applicationCount?: number })[] | null>(null);
+  const pets = localPets || initialPets || storePets;
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [speciesFilter, setSpeciesFilter] = useState<string>("all");
+  const [archiveFilter, setArchiveFilter] = useState<string>("active"); // "all" | "active" | "archived"
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // Modals & Selection
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<Pet | null>(null);
+  const [archiveCandidate, setArchiveCandidate] = useState<{ pet: Pet; archive: boolean } | null>(null);
 
   const filteredData = useMemo(() => {
     return pets.filter((pet) => {
+      // Archive filter
+      if (archiveFilter === "active" && pet.isArchived) return false;
+      if (archiveFilter === "archived" && !pet.isArchived) return false;
+
+      // Status filter
       if (statusFilter !== "all" && pet.status !== statusFilter) return false;
+
+      // Species filter
       if (speciesFilter !== "all" && pet.species !== speciesFilter) return false;
+
+      // Global search
       if (globalFilter.trim() !== "") {
         const q = globalFilter.toLowerCase();
         const matchName = pet.name.toLowerCase().includes(q);
@@ -48,7 +59,7 @@ export function usePetTableController(initialPets?: Pet[]) {
       }
       return true;
     });
-  }, [pets, statusFilter, speciesFilter, globalFilter]);
+  }, [pets, archiveFilter, statusFilter, speciesFilter, globalFilter]);
 
   const handleOpenCreate = () => {
     setEditingPet(null);
@@ -63,11 +74,16 @@ export function usePetTableController(initialPets?: Pet[]) {
   const handleFormSubmit = async (data: PetFormInput) => {
     if (editingPet) {
       updatePet(editingPet.id, data);
+      setLocalPets((prev) => {
+        const base = prev || pets;
+        return base.map((p) => (p.id === editingPet.id ? { ...p, ...data } : p));
+      });
       serverUpdatePet(editingPet.id, data).catch((err) =>
         console.warn("Background server update sync:", err)
       );
     } else {
-      addPet(data);
+      const created = addPet(data);
+      setLocalPets((prev) => [created, ...(prev || pets)]);
       serverCreatePet(data).catch((err) =>
         console.warn("Background server create sync:", err)
       );
@@ -76,18 +92,29 @@ export function usePetTableController(initialPets?: Pet[]) {
     setEditingPet(null);
   };
 
-  const handleConfirmDelete = () => {
-    if (deleteCandidate) {
-      deletePet(deleteCandidate.id);
-      serverDeletePet(deleteCandidate.id).catch((err) =>
-        console.warn("Background server delete sync:", err)
+  const handleConfirmArchive = () => {
+    if (archiveCandidate) {
+      const { pet, archive } = archiveCandidate;
+      toggleArchivePet(pet.id, archive);
+      setLocalPets((prev) => {
+        const base = prev || pets;
+        return base.map((p) =>
+          p.id === pet.id ? { ...p, isArchived: archive, deletedAt: archive ? new Date().toISOString() : null } : p
+        );
+      });
+      serverToggleArchivePet(pet.id, archive).catch((err) =>
+        console.warn("Background server archive sync:", err)
       );
-      setDeleteCandidate(null);
+      setArchiveCandidate(null);
     }
   };
 
   const handleStatusChange = (id: string, newStatus: Pet["status"]) => {
     updatePetStatus(id, newStatus);
+    setLocalPets((prev) => {
+      const base = prev || pets;
+      return base.map((p) => (p.id === id ? { ...p, status: newStatus } : p));
+    });
     serverUpdatePetStatus(id, newStatus).catch((err) =>
       console.warn("Background server status sync:", err)
     );
@@ -104,23 +131,25 @@ export function usePetTableController(initialPets?: Pet[]) {
       globalFilter,
       statusFilter,
       speciesFilter,
+      archiveFilter,
       sorting,
       isFormOpen,
       editingPet,
-      deleteCandidate,
+      archiveCandidate,
     },
     handlers: {
       setGlobalFilter,
       setStatusFilter,
       setSpeciesFilter,
+      setArchiveFilter,
       setSorting,
       setIsFormOpen,
       setEditingPet,
-      setDeleteCandidate,
+      setArchiveCandidate,
       handleOpenCreate,
       handleOpenEdit,
       handleFormSubmit,
-      handleConfirmDelete,
+      handleConfirmArchive,
       handleStatusChange,
       handleExportCsv,
       resetToDefaultPets,

@@ -29,7 +29,11 @@ export const petFormSchema = z.object({
   goodWithDogs: z.boolean().default(true),
   goodWithCats: z.boolean().default(true),
   goodWithKids: z.boolean().default(true),
-  energyLevel: z.enum(["Low", "Moderate", "High"]),
+  energyLevel: z.enum(["Low", "Moderate", "High"]).default("Moderate"),
+
+  // Soft Delete
+  isArchived: z.boolean().optional().default(false),
+  deletedAt: z.string().nullable().optional(),
 });
 
 export type PetFormInput = z.input<typeof petFormSchema>;
@@ -41,6 +45,14 @@ export const petFilterSchema = z.object({
   ageCategory: z.enum(["all", "puppy_kitten", "young", "adult", "senior"]).optional().default("all"),
   size: z.enum(["all", "Small", "Medium", "Large"]).optional().default("all"),
   search: z.string().optional().default(""),
+  isArchived: z.boolean().optional(),
 });
 
-export type PetFilterInput = z.infer<typeof petFilterSchema>;
+export type PetFilterInput = {
+  species?: "all" | "dog" | "cat" | "other";
+  status?: "all" | "Available" | "Pending" | "Adopted";
+  ageCategory?: "all" | "puppy_kitten" | "young" | "adult" | "senior";
+  size?: "all" | "Small" | "Medium" | "Large";
+  search?: string;
+  isArchived?: boolean;
+};

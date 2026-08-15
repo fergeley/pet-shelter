@@ -40,6 +40,8 @@ export interface Pet {
   intakeDate: string;
   adoptionFee: string;
   featured?: boolean;
+  isArchived?: boolean;
+  deletedAt?: string | null;
 }
 
 export interface PetFilterState {
@@ -48,6 +50,7 @@ export interface PetFilterState {
   ageCategory: string; // 'all' | 'puppy_kitten' | 'young' | 'adult' | 'senior'
   size: string; // 'all' | 'Small' | 'Medium' | 'Large'
   status: string; // 'all' | 'Available' | 'Pending'
+  isArchived?: boolean;
 }
 
 export interface AdoptionFormData {

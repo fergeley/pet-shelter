@@ -17,6 +17,7 @@ interface PetGalleryProps {
   title?: string;
   subtitle?: string;
   showFilters?: boolean;
+  syncUrl?: boolean;
 }
 
 export function PetGallery({
@@ -25,8 +26,9 @@ export function PetGallery({
   title = "Available Pets",
   subtitle,
   showFilters = true,
+  syncUrl = true,
 }: PetGalleryProps) {
-  const { state, handlers } = usePetGalleryController({ initialPets, featuredOnly });
+  const { state, handlers } = usePetGalleryController({ initialPets, featuredOnly, syncUrl });
   const {
     pets,
     filteredPets,

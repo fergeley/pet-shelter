@@ -12,7 +12,11 @@ function createPrismaClient(): PrismaClient {
     "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
 
   try {
-    const pool = new Pool({ connectionString });
+    const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+    const pool = new Pool({
+      connectionString,
+      ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+    });
     const adapter = new PrismaPg(pool);
     return new PrismaClient({
       adapter,

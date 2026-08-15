@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { 
@@ -6,16 +7,17 @@ import {
   Users, 
   Home as HomeIcon, 
   CheckCircle2, 
-  Phone 
+  Phone,
+  Loader2,
 } from "lucide-react";
 import { Hero } from "@/components/Hero";
 import { PetGallery } from "@/components/PetGallery";
 import { BulletinFeed } from "@/components/BulletinFeed";
 import { buttonVariants } from "@/components/ui/button";
-import { getPets } from "@/actions/pets";
+import { getPublicPets } from "@/actions/pets";
 
 export default async function HomePage() {
-  const initialPets = await getPets();
+  const initialPets = await getPublicPets();
   const steps = [
     {
       num: "01",
@@ -65,12 +67,22 @@ export default async function HomePage() {
       {/* 2. Featured Pets Gallery */}
       <section className="bg-card py-12 sm:py-16">
         <div className="w-full px-6 sm:px-8 lg:px-12">
-          <PetGallery
-            initialPets={initialPets}
-            featuredOnly={true}
-            title="Featured Animals"
-            showFilters={false}
-          />
+          <Suspense
+            fallback={
+              <div className="flex min-h-[300px] items-center justify-center text-muted-foreground">
+                <Loader2 className="size-8 animate-spin mr-2" />
+                <span>Loading featured animals...</span>
+              </div>
+            }
+          >
+            <PetGallery
+              initialPets={initialPets}
+              featuredOnly={true}
+              title="Featured Animals"
+              showFilters={false}
+              syncUrl={false}
+            />
+          </Suspense>
           <div className="mt-8 text-center">
             <Link
               href="/pets"

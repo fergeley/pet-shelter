@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -16,7 +17,11 @@ async function main() {
     process.env.DATABASE_URL ||
     "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
 
-  const pool = new Pool({ connectionString });
+  const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+  const pool = new Pool({
+    connectionString,
+    ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+  });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });
 
@@ -122,6 +127,8 @@ async function main() {
         goodWithCats: pet.compatibility?.goodWithCats ?? true,
         goodWithKids: pet.compatibility?.goodWithKids ?? true,
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
+        isArchived: false,
+        deletedAt: null,
       },
       create: {
         id: pet.id,
@@ -150,6 +157,8 @@ async function main() {
         goodWithCats: pet.compatibility?.goodWithCats ?? true,
         goodWithKids: pet.compatibility?.goodWithKids ?? true,
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
+        isArchived: false,
+        deletedAt: null,
       },
     });
   }

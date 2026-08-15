@@ -12,6 +12,7 @@ import {
   insertServerApplication,
   atomicUpdateApplicationStatus,
   deleteServerApplication,
+  findServerPetById,
 } from "@/lib/serverStore";
 import {
   sendApplicationConfirmationEmail,
@@ -31,6 +32,15 @@ export async function submitApplication(
 ): Promise<{ success: boolean; data?: AdoptionApplicationRecord; error?: string }> {
   try {
     const validated = applicationFormSchema.parse(data);
+
+    // Verify target pet exists and is not archived
+    const pet = findServerPetById(validated.petId);
+    if (pet && pet.isArchived) {
+      return {
+        success: false,
+        error: "This animal is currently archived and is no longer accepting new adoption applications.",
+      };
+    }
 
     // 1. Rate Limiting on public adoption applications (10 applications per 10 minutes per email)
     const rateLimit = checkRateLimit(`submit-app:${validated.email.toLowerCase()}`, 10, 600000);

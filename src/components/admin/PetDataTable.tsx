@@ -19,15 +19,16 @@ import {
   Plus,
   Search,
   Edit2,
-  Trash2,
+  Archive,
+  RotateCcw,
   CheckCircle2,
   Clock,
   Home,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  RotateCcw,
   Sparkles,
+  FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -40,7 +41,11 @@ import {
 
 import { usePetTableController } from "@/hooks/usePetTableController";
 
-export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
+export function PetDataTable({
+  initialPets,
+}: {
+  initialPets?: (Pet & { applicationCount?: number })[];
+} = {}) {
   const { state, handlers } = usePetTableController(initialPets);
   const {
     pets,
@@ -48,27 +53,29 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
     globalFilter,
     statusFilter,
     speciesFilter,
+    archiveFilter,
     sorting,
     isFormOpen,
     editingPet,
-    deleteCandidate,
+    archiveCandidate,
   } = state;
   const {
     setGlobalFilter,
     setStatusFilter,
     setSpeciesFilter,
+    setArchiveFilter,
     setSorting,
     setIsFormOpen,
-    setDeleteCandidate,
+    setArchiveCandidate,
     handleOpenCreate,
     handleOpenEdit,
     handleFormSubmit,
-    handleConfirmDelete,
+    handleConfirmArchive,
     handleStatusChange,
     resetToDefaultPets,
   } = handlers;
 
-  const columns = useMemo<ColumnDef<Pet>[]>(
+  const columns = useMemo<ColumnDef<Pet & { applicationCount?: number }>[]>(
     () => [
       {
         accessorKey: "image",
@@ -79,7 +86,7 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
               src={row.original.image}
               alt={row.original.name}
               fill
-              className="object-cover"
+              className={`object-cover ${row.original.isArchived ? "grayscale opacity-75" : ""}`}
               sizes="48px"
             />
           </div>
@@ -93,10 +100,17 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
           return (
             <div>
               <div className="flex items-center gap-1.5 font-heading text-base font-bold text-foreground">
-                <span>{pet.name}</span>
-                {pet.featured && (
+                <span className={pet.isArchived ? "line-through text-muted-foreground" : ""}>
+                  {pet.name}
+                </span>
+                {pet.featured && !pet.isArchived && (
                   <span title="Featured on Homepage" className="inline-flex">
                     <Sparkles className="size-3.5 text-amber-500 fill-amber-500/20" />
+                  </span>
+                )}
+                {pet.isArchived && (
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">
+                    Archived
                   </span>
                 )}
               </div>
@@ -127,13 +141,23 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
         ),
       },
       {
-        accessorKey: "adoptionFee",
-        header: "Fee",
-        cell: ({ row }) => (
-          <span className="font-mono text-xs font-bold text-foreground">
-            {row.original.adoptionFee}
-          </span>
-        ),
+        accessorKey: "applications",
+        header: "Applications",
+        cell: ({ row }) => {
+          const count = row.original.applicationCount ?? 0;
+          return (
+            <span
+              className={`inline-flex items-center gap-1 text-xs font-mono font-semibold px-2 py-0.5 border ${
+                count > 0
+                  ? "bg-primary/10 text-primary border-primary/30"
+                  : "bg-muted text-muted-foreground border-border"
+              }`}
+            >
+              <FileText className="size-3" />
+              {count} {count === 1 ? "app" : "apps"}
+            </span>
+          );
+        },
       },
       {
         accessorKey: "status",
@@ -141,21 +165,26 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
         cell: ({ row }) => {
           const pet = row.original;
           const status = pet.status;
-          
-          let badgeClass = "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800";
+
+          let badgeClass =
+            "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800";
           let Icon = CheckCircle2;
 
           if (status === "Pending") {
-            badgeClass = "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800";
+            badgeClass =
+              "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800";
             Icon = Clock;
           } else if (status === "Adopted") {
-            badgeClass = "bg-zinc-700 text-white dark:bg-zinc-800 dark:text-zinc-300 dark:border dark:border-zinc-700";
+            badgeClass =
+              "bg-zinc-700 text-white dark:bg-zinc-800 dark:text-zinc-300 dark:border dark:border-zinc-700";
             Icon = Home;
           }
 
           return (
             <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeClass}`}>
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeClass}`}
+              >
                 <Icon className="size-3" />
                 {status}
               </span>
@@ -174,7 +203,8 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
               <select
                 value={pet.status}
                 onChange={(e) => handleStatusChange(pet.id, e.target.value as Pet["status"])}
-                className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground"
+                disabled={pet.isArchived}
+                className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground disabled:opacity-50"
                 aria-label={`Change status for ${pet.name}`}
               >
                 <option value="Available">Available</option>
@@ -192,21 +222,33 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
                 <Edit2 className="size-3 mr-1" /> Edit
               </Button>
 
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setDeleteCandidate(pet)}
-                className="text-xs text-destructive hover:text-destructive"
-                title="Delete pet record"
-              >
-                <Trash2 className="size-3" />
-              </Button>
+              {pet.isArchived ? (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setArchiveCandidate({ pet, archive: false })}
+                  className="text-xs text-primary hover:text-primary"
+                  title="Restore pet profile"
+                >
+                  <RotateCcw className="size-3 mr-1" /> Restore
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setArchiveCandidate({ pet, archive: true })}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  title="Archive pet (soft delete)"
+                >
+                  <Archive className="size-3 mr-1" /> Archive
+                </Button>
+              )}
             </div>
           );
         },
       },
     ],
-    [handleStatusChange, handleOpenEdit, setDeleteCandidate]
+    [handleStatusChange, handleOpenEdit, setArchiveCandidate]
   );
 
   const table = useReactTable({
@@ -227,10 +269,9 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
     <div className="space-y-6">
       {/* Top Toolbar */}
       <div className="border border-border bg-card p-4 sm:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        
         {/* Search & Filters */}
         <div className="flex flex-1 flex-wrap items-center gap-3">
-          <div className="relative min-w-[240px] flex-1 sm:flex-none">
+          <div className="relative min-w-[220px] flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               placeholder="Filter by name or breed..."
@@ -241,7 +282,10 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="filter-pet-status" className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+            <label
+              htmlFor="filter-pet-status"
+              className="text-xs font-semibold text-muted-foreground whitespace-nowrap"
+            >
               Status:
             </label>
             <select
@@ -251,14 +295,23 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
               className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
             >
               <option value="all">All Statuses ({pets.length})</option>
-              <option value="Available">Available ({pets.filter(p => p.status === "Available").length})</option>
-              <option value="Pending">Pending ({pets.filter(p => p.status === "Pending").length})</option>
-              <option value="Adopted">Adopted ({pets.filter(p => p.status === "Adopted").length})</option>
+              <option value="Available">
+                Available ({pets.filter((p) => p.status === "Available" && !p.isArchived).length})
+              </option>
+              <option value="Pending">
+                Pending ({pets.filter((p) => p.status === "Pending" && !p.isArchived).length})
+              </option>
+              <option value="Adopted">
+                Adopted ({pets.filter((p) => p.status === "Adopted" && !p.isArchived).length})
+              </option>
             </select>
           </div>
 
           <div className="flex items-center gap-2">
-            <label htmlFor="filter-pet-species" className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+            <label
+              htmlFor="filter-pet-species"
+              className="text-xs font-semibold text-muted-foreground whitespace-nowrap"
+            >
               Species:
             </label>
             <select
@@ -273,7 +326,29 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
             </select>
           </div>
 
-          {(globalFilter || statusFilter !== "all" || speciesFilter !== "all") && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="filter-pet-archive"
+              className="text-xs font-semibold text-muted-foreground whitespace-nowrap"
+            >
+              Archive:
+            </label>
+            <select
+              id="filter-pet-archive"
+              value={archiveFilter}
+              onChange={(e) => setArchiveFilter(e.target.value)}
+              className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
+            >
+              <option value="active">Active Animals ({pets.filter((p) => !p.isArchived).length})</option>
+              <option value="archived">Archived ({pets.filter((p) => p.isArchived).length})</option>
+              <option value="all">All Records ({pets.length})</option>
+            </select>
+          </div>
+
+          {(globalFilter ||
+            statusFilter !== "all" ||
+            speciesFilter !== "all" ||
+            archiveFilter !== "active") && (
             <Button
               variant="ghost"
               size="xs"
@@ -281,6 +356,7 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
                 setGlobalFilter("");
                 setStatusFilter("all");
                 setSpeciesFilter("all");
+                setArchiveFilter("active");
               }}
               className="text-xs text-muted-foreground hover:text-foreground"
             >
@@ -332,7 +408,12 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
             <tbody className="divide-y divide-border/60">
               {table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-muted/30 transition-colors ${
+                      row.original.isArchived ? "bg-muted/15 opacity-80" : ""
+                    }`}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td key={cell.id} className="p-3.5 sm:p-4 align-middle">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -393,23 +474,44 @@ export function PetDataTable({ initialPets }: { initialPets?: Pet[] } = {}) {
         onSave={handleFormSubmit}
       />
 
-      {/* Delete Confirmation Modal */}
-      <Dialog open={!!deleteCandidate} onOpenChange={(o) => !o && setDeleteCandidate(null)}>
+      {/* Soft Delete / Archive Confirmation Modal */}
+      <Dialog open={!!archiveCandidate} onOpenChange={(o) => !o && setArchiveCandidate(null)}>
         <DialogContent className="sm:max-w-md bg-card border-border p-6">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-destructive">
-              Confirm Delete Pet Record
+            <DialogTitle className="text-lg font-bold text-foreground">
+              {archiveCandidate?.archive ? "Archive Animal Record" : "Restore Animal Record"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1 leading-relaxed">
-              Are you sure you want to remove <strong>{deleteCandidate?.name}</strong> ({deleteCandidate?.breed}) from the sanctuary database? This action cannot be undone.
+              {archiveCandidate?.archive ? (
+                <>
+                  Are you sure you want to archive <strong>{archiveCandidate?.pet.name}</strong> (
+                  {archiveCandidate?.pet.breed})? Archiving will hide the profile from the public adoption
+                  catalog while <strong>preserving all adoption application records and medical histories</strong>.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to restore <strong>{archiveCandidate?.pet.name}</strong> to the active
+                  inventory? It will become visible on the public adoption directory again.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDeleteCandidate(null)} className="text-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setArchiveCandidate(null)}
+              className="text-xs"
+            >
               Cancel
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleConfirmDelete} className="text-xs font-semibold">
-              Yes, Delete Record
+            <Button
+              variant={archiveCandidate?.archive ? "destructive" : "default"}
+              size="sm"
+              onClick={handleConfirmArchive}
+              className="text-xs font-semibold"
+            >
+              {archiveCandidate?.archive ? "Yes, Archive Record" : "Yes, Restore Record"}
             </Button>
           </DialogFooter>
         </DialogContent>

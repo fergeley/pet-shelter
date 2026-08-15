@@ -61,38 +61,49 @@ model Pet {
   goodWithKids    Boolean        @default(true)
   energyLevel     String         @default("Moderate")
 
+  // Soft deletion & audit
+  isArchived      Boolean        @default(false)
+  deletedAt       DateTime?
+
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   applications    AdoptionApplication[]
 
-  @@index([status, species])
+  @@index([species, status, isArchived])
+  @@index([isArchived, status])
   @@index([featured])
   @@map("pets")
 }
 
 model AdoptionApplication {
-  id                  String   @id @default(cuid())
-  petId               String?
-  pet                 Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
-  petName             String
-  petBreed            String?
-  applicantName       String
-  email               String
-  phone               String
-  address             String
-  housingType         String
-  hasFencedYard       String
-  currentPets         String
-  currentPetDetails   String?
-  householdExperience String
-  applicantNotes      String?
-  status              String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
-  adminReviewNotes    String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  petId                 String?
+  pet                   Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  petName               String
+  petBreed              String?
+  applicantName         String
+  email                 String
+  phone                 String
+  address               String
+  housingType           String
+  livingSituation       String?
+  hasFencedYard         String   @default("yes")
+  currentPets           String   @default("none")
+  currentPetDetails     String?
+  householdExperience   String   @default("experienced")
+  experienceDescription String?  @db.Text
+  applicantNotes        String?  @db.Text
+  message               String?  @db.Text
+  status                String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
+  adminNotes            String?  @db.Text
+  adminReviewNotes      String?  @db.Text
+  reviewedBy            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   @@index([petId, status])
+  @@index([email, petId])
   @@index([email])
   @@map("adoption_applications")
 }
