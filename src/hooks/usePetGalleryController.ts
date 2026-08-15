@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/petStore";
@@ -30,28 +30,19 @@ export function usePetGalleryController({
   const initialSize = searchParams?.get("size") || "all";
   const initialStatus = searchParams?.get("status") || "all";
 
-  // Filter States
-  const [searchQuery, setSearchQueryState] = useState(initialSearch);
-  const [selectedSpecies, setSelectedSpeciesState] = useState<string>(initialSpecies);
-  const [selectedAge, setSelectedAgeState] = useState<string>(initialAge);
-  const [selectedSize, setSelectedSizeState] = useState<string>(initialSize);
-  const [selectedStatus, setSelectedStatusState] = useState<string>(initialStatus);
+  // Filter States (used when syncUrl is false)
+  const [localSearch, setLocalSearch] = useState(initialSearch);
+  const [localSpecies, setLocalSpecies] = useState<string>(initialSpecies);
+  const [localAge, setLocalAge] = useState<string>(initialAge);
+  const [localSize, setLocalSize] = useState<string>(initialSize);
+  const [localStatus, setLocalStatus] = useState<string>(initialStatus);
 
-  // Sync state if URL query params change (e.g. browser back/forward)
-  useEffect(() => {
-    if (!syncUrl || !searchParams) return;
-    const urlSearch = searchParams.get("search") || "";
-    const urlSpecies = searchParams.get("species") || "all";
-    const urlAge = searchParams.get("ageCategory") || "all";
-    const urlSize = searchParams.get("size") || "all";
-    const urlStatus = searchParams.get("status") || "all";
-
-    setSearchQueryState(urlSearch);
-    setSelectedSpeciesState(urlSpecies);
-    setSelectedAgeState(urlAge);
-    setSelectedSizeState(urlSize);
-    setSelectedStatusState(urlStatus);
-  }, [searchParams, syncUrl]);
+  // Derived active values
+  const searchQuery = syncUrl ? (searchParams?.get("search") || "") : localSearch;
+  const selectedSpecies = syncUrl ? (searchParams?.get("species") || "all") : localSpecies;
+  const selectedAge = syncUrl ? (searchParams?.get("ageCategory") || "all") : localAge;
+  const selectedSize = syncUrl ? (searchParams?.get("size") || "all") : localSize;
+  const selectedStatus = syncUrl ? (searchParams?.get("status") || "all") : localStatus;
 
   // Helper to push updated params to URL
   const updateUrlParams = useCallback(
@@ -88,45 +79,60 @@ export function usePetGalleryController({
     [syncUrl, router, pathname, searchParams]
   );
 
-  // State setters that also update URL
+  // State setters
   const setSearchQuery = useCallback(
     (value: string) => {
-      setSearchQueryState(value);
-      updateUrlParams({ search: value });
+      if (syncUrl) {
+        updateUrlParams({ search: value });
+      } else {
+        setLocalSearch(value);
+      }
     },
-    [updateUrlParams]
+    [syncUrl, updateUrlParams]
   );
 
   const setSelectedSpecies = useCallback(
     (value: string) => {
-      setSelectedSpeciesState(value);
-      updateUrlParams({ species: value });
+      if (syncUrl) {
+        updateUrlParams({ species: value });
+      } else {
+        setLocalSpecies(value);
+      }
     },
-    [updateUrlParams]
+    [syncUrl, updateUrlParams]
   );
 
   const setSelectedAge = useCallback(
     (value: string) => {
-      setSelectedAgeState(value);
-      updateUrlParams({ ageCategory: value });
+      if (syncUrl) {
+        updateUrlParams({ ageCategory: value });
+      } else {
+        setLocalAge(value);
+      }
     },
-    [updateUrlParams]
+    [syncUrl, updateUrlParams]
   );
 
   const setSelectedSize = useCallback(
     (value: string) => {
-      setSelectedSizeState(value);
-      updateUrlParams({ size: value });
+      if (syncUrl) {
+        updateUrlParams({ size: value });
+      } else {
+        setLocalSize(value);
+      }
     },
-    [updateUrlParams]
+    [syncUrl, updateUrlParams]
   );
 
   const setSelectedStatus = useCallback(
     (value: string) => {
-      setSelectedStatusState(value);
-      updateUrlParams({ status: value });
+      if (syncUrl) {
+        updateUrlParams({ status: value });
+      } else {
+        setLocalStatus(value);
+      }
     },
-    [updateUrlParams]
+    [syncUrl, updateUrlParams]
   );
 
   // Modal Dialog States
@@ -191,11 +197,11 @@ export function usePetGalleryController({
     selectedStatus !== "all";
 
   const handleResetFilters = useCallback(() => {
-    setSearchQueryState("");
-    setSelectedSpeciesState("all");
-    setSelectedAgeState("all");
-    setSelectedSizeState("all");
-    setSelectedStatusState("all");
+    setLocalSearch("");
+    setLocalSpecies("all");
+    setLocalAge("all");
+    setLocalSize("all");
+    setLocalStatus("all");
 
     if (syncUrl && router && pathname) {
       router.replace(pathname, { scroll: false });
