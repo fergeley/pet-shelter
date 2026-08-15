@@ -1,0 +1,276 @@
+[
+  {
+    "id": "pet-001",
+    "name": "Bella",
+    "species": "dog",
+    "breed": "Labrador Mix",
+    "age": "2 years",
+    "ageCategory": "young",
+    "gender": "Female",
+    "size": "Medium",
+    "weight": "22 kg",
+    "tags": ["House-Trained", "Good with Dogs", "Good with Kids"],
+    "description": "Bella is an easygoing lab mix who loves playing fetch and riding in the car. She knows basic commands and walks well on a leash.",
+    "rescueStory": "Rescued from an industrial area in Section 19, Petaling Jaya. Bella has lived in foster care with a family with two school-aged children and another dog. She is house-trained and crate trained.",
+    "image": "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Core 6-in-1 vaccination complete. Monthly NexGard Spectra given."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "Moderate"
+    },
+    "intakeDate": "2026-06-12",
+    "adoptionFee": "RM 150",
+    "featured": true
+  },
+  {
+    "id": "pet-002",
+    "name": "Milo",
+    "species": "cat",
+    "breed": "Domestic Shorthair Tabby",
+    "age": "1 year",
+    "ageCategory": "young",
+    "gender": "Male",
+    "size": "Small",
+    "weight": "4.1 kg",
+    "tags": ["Litter Box Trained", "Indoor Only", "Playful"],
+    "description": "Milo is a friendly young tabby who likes wand toys, window perches, and sleeping near people while they work.",
+    "rescueStory": "Found as a stray kitten near SS2, Petaling Jaya. He has spent the last two months in a foster home where he coexisted smoothly with other adult cats.",
+    "image": "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Tested negative for FIV/FeLV. Fully litter box reliable."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "Moderate"
+    },
+    "intakeDate": "2026-07-04",
+    "adoptionFee": "RM 95",
+    "featured": true
+  },
+  {
+    "id": "pet-003",
+    "name": "Luna",
+    "species": "dog",
+    "breed": "Husky & Shepherd Mix",
+    "age": "3 years",
+    "ageCategory": "adult",
+    "gender": "Female",
+    "size": "Large",
+    "weight": "25 kg",
+    "tags": ["High Energy", "Needs Fenced Compound", "No Cats"],
+    "description": "Luna is a smart, active dog who needs regular exercise and daily walks. Best suited for an active household with a secure compound.",
+    "rescueStory": "Surrendered by an owner relocating overseas. Luna knows basic obedience commands (sit, stay, shake). She has strong prey drive so she cannot be in a home with cats.",
+    "image": "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Healthy. Vaccinations and heartworm prevention up to date."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": false,
+      "goodWithKids": true,
+      "energyLevel": "High"
+    },
+    "intakeDate": "2026-05-18",
+    "adoptionFee": "RM 180",
+    "featured": true
+  },
+  {
+    "id": "pet-004",
+    "name": "Oliver",
+    "species": "cat",
+    "breed": "Domestic Shorthair (Ginger)",
+    "age": "4 months",
+    "ageCategory": "puppy_kitten",
+    "gender": "Male",
+    "size": "Small",
+    "weight": "1.9 kg",
+    "tags": ["Kitten", "Litter Box Trained", "Social"],
+    "description": "Oliver is an energetic ginger kitten who loves feather toys, climbing scratching posts, and curling up for afternoon naps.",
+    "rescueStory": "Rescued alongside two littermates from a back alley in Damansara Utama. Hand-raised in foster care, well socialized, and loves human company.",
+    "image": "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "FVRCP vaccine series completed. Dewormed."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "High"
+    },
+    "intakeDate": "2026-07-22",
+    "adoptionFee": "RM 100",
+    "featured": false
+  },
+  {
+    "id": "pet-005",
+    "name": "Rocky",
+    "species": "dog",
+    "breed": "Local Mixed Breed (Mongrel)",
+    "age": "4 years",
+    "ageCategory": "adult",
+    "gender": "Male",
+    "size": "Medium",
+    "weight": "24 kg",
+    "tags": ["Quiet Indoors", "House-Trained", "Leash Trained"],
+    "description": "Rocky is a gentle, calm local mixed dog who walks politely on a leash and spends most of his day relaxing.",
+    "rescueStory": "Rescued from Kelana Jaya after being abandoned. Rocky is quiet, does not bark at neighbours or passersby, and enjoys peaceful walks around the park.",
+    "image": "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Pending",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Daily omega-3 fish oil supplement for coat health."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "Moderate"
+    },
+    "intakeDate": "2026-04-10",
+    "adoptionFee": "RM 120",
+    "featured": false
+  },
+  {
+    "id": "pet-006",
+    "name": "Cleo",
+    "species": "cat",
+    "breed": "Domestic Medium Hair (Calico)",
+    "age": "5 years",
+    "ageCategory": "adult",
+    "gender": "Female",
+    "size": "Small",
+    "weight": "3.8 kg",
+    "tags": ["Quiet", "Independent", "Apartment Friendly"],
+    "description": "Cleo is a calm adult calico cat who enjoys gentle brushing and watching birds from a balcony window.",
+    "rescueStory": "Surrendered when her previous owner moved into a no-pet condominium. Cleo is low maintenance, gentle, and perfectly suited for condo or apartment living.",
+    "image": "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Routine dental check completed in May 2026."
+    },
+    "compatibility": {
+      "goodWithDogs": false,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "Low"
+    },
+    "intakeDate": "2026-06-30",
+    "adoptionFee": "RM 80",
+    "featured": false
+  },
+  {
+    "id": "pet-007",
+    "name": "Barnaby",
+    "species": "dog",
+    "breed": "Beagle Mix",
+    "age": "8 years",
+    "ageCategory": "senior",
+    "gender": "Male",
+    "size": "Medium",
+    "weight": "16 kg",
+    "tags": ["Senior", "Gentle", "House-Trained", "Low Energy"],
+    "description": "Barnaby is a sweet older beagle mix looking for a quiet home with short morning walks and a comfy bed.",
+    "rescueStory": "Surrendered after an elderly owner passed away in Petaling Jaya. Barnaby is gentle, fully house-trained, and rarely barks.",
+    "image": "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Senior blood panel clear. Takes glucosamine for mild joint stiffness."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "Low"
+    },
+    "intakeDate": "2026-03-15",
+    "adoptionFee": "RM 80",
+    "featured": false
+  },
+  {
+    "id": "pet-008",
+    "name": "Daisy",
+    "species": "dog",
+    "breed": "Local Mix Puppy",
+    "age": "5 months",
+    "ageCategory": "puppy_kitten",
+    "gender": "Female",
+    "size": "Medium",
+    "weight": "11 kg",
+    "tags": ["Puppy", "Playful", "In Foster Care"],
+    "description": "Daisy is an active puppy learning basic house manners. She is eager to please and needs a patient family committed to puppy training.",
+    "rescueStory": "Rescued from a construction site in Kota Damansara. Currently living in foster care with another dog, doing well with pee-pad and outdoor potty training.",
+    "image": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=800&q=80",
+    "galleryImages": [
+      "https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=800&q=80"
+    ],
+    "status": "Available",
+    "medical": {
+      "vaccinated": true,
+      "microchipped": true,
+      "spayedNeutered": true,
+      "specialNeeds": "Puppy vaccination series completed. Dewormed."
+    },
+    "compatibility": {
+      "goodWithDogs": true,
+      "goodWithCats": true,
+      "goodWithKids": true,
+      "energyLevel": "High"
+    },
+    "intakeDate": "2026-08-01",
+    "adoptionFee": "RM 160",
+    "featured": true
+  }
+]

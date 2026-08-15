@@ -1,0 +1,390 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  ColumnDef,
+  flexRender,
+  SortingState,
+} from "@tanstack/react-table";
+import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
+import { useApplicationStore } from "@/lib/applicationStore";
+import { ApplicationDetailDialog } from "@/components/admin/ApplicationDetailDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Search,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Eye,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  SlidersHorizontal,
+  FileText,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+export function ApplicationDataTable() {
+  const {
+    applications,
+    updateApplicationStatus,
+    deleteApplication,
+    resetToDefaultApplications,
+  } = useApplicationStore();
+
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Modals
+  const [activeAppForDetail, setActiveAppForDetail] = useState<AdoptionApplicationRecord | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<AdoptionApplicationRecord | null>(null);
+
+  const filteredData = useMemo(() => {
+    return applications.filter((app) => {
+      if (statusFilter !== "all" && app.status !== statusFilter) return false;
+      if (globalFilter.trim() !== "") {
+        const q = globalFilter.toLowerCase();
+        const matchApplicant = app.applicantName.toLowerCase().includes(q);
+        const matchPet = app.petName.toLowerCase().includes(q);
+        const matchEmail = app.email.toLowerCase().includes(q);
+        if (!matchApplicant && !matchPet && !matchEmail) return false;
+      }
+      return true;
+    });
+  }, [applications, statusFilter, globalFilter]);
+
+  const columns = useMemo<ColumnDef<AdoptionApplicationRecord>[]>(
+    () => [
+      {
+        accessorKey: "applicantName",
+        header: "Applicant",
+        cell: ({ row }) => {
+          const app = row.original;
+          return (
+            <div>
+              <p className="font-heading text-base font-bold text-foreground">{app.applicantName}</p>
+              <p className="text-xs text-muted-foreground">{app.email}</p>
+              <p className="text-xs font-mono text-muted-foreground">{app.phone}</p>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "petName",
+        header: "Animal Requested",
+        cell: ({ row }) => (
+          <div>
+            <span className="font-heading text-sm font-bold text-foreground">
+              {row.original.petName}
+            </span>
+            {row.original.petBreed && (
+              <p className="text-xs text-muted-foreground">{row.original.petBreed}</p>
+            )}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "housingType",
+        header: "Housing & Yard",
+        cell: ({ row }) => {
+          const app = row.original;
+          return (
+            <div className="text-xs text-foreground capitalize">
+              <p className="font-semibold">{app.housingType.replace("_", " ")}</p>
+              <p className="text-muted-foreground">Fenced: {app.hasFencedYard}</p>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Applied Date",
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-muted-foreground font-medium">
+            {row.original.createdAt}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          const status = row.original.status;
+          let badgeClass = "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800";
+          let Icon = FileText;
+
+          if (status === "APPROVED") {
+            badgeClass = "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800";
+            Icon = CheckCircle2;
+          } else if (status === "UNDER_REVIEW") {
+            badgeClass = "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800";
+            Icon = Clock;
+          } else if (status === "REJECTED") {
+            badgeClass = "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800";
+            Icon = XCircle;
+          }
+
+          return (
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeClass}`}>
+              <Icon className="size-3" />
+              {status.replace("_", " ")}
+            </span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Review Actions",
+        cell: ({ row }) => {
+          const app = row.original;
+          return (
+            <div className="flex items-center gap-1.5 justify-end">
+              <select
+                value={app.status}
+                onChange={(e) => {
+                  updateApplicationStatus(app.id, e.target.value as ApplicationStatus);
+                }}
+                className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground"
+                aria-label={`Change status for application from ${app.applicantName}`}
+              >
+                <option value="SUBMITTED">Submitted</option>
+                <option value="UNDER_REVIEW">Under Review</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+              </select>
+
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => {
+                  setActiveAppForDetail(app);
+                  setIsDetailOpen(true);
+                }}
+                className="text-xs font-medium gap-1"
+                title="View full questionnaire"
+              >
+                <Eye className="size-3" /> View
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setDeleteCandidate(app)}
+                className="text-xs text-destructive hover:text-destructive"
+                title="Archive / Delete application"
+              >
+                <Trash2 className="size-3" />
+              </Button>
+            </div>
+          );
+        },
+      },
+    ],
+    [updateApplicationStatus]
+  );
+
+  const table = useReactTable({
+    data: filteredData,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: { pageSize: 8 },
+    },
+  });
+
+  const confirmDelete = () => {
+    if (deleteCandidate) {
+      deleteApplication(deleteCandidate.id);
+      setDeleteCandidate(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Toolbar */}
+      <div className="border border-border bg-card p-4 sm:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        
+        {/* Search & Status Filter */}
+        <div className="flex flex-1 flex-wrap items-center gap-3">
+          <div className="relative min-w-[240px] flex-1 sm:flex-none">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search applicant or pet..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-9 text-xs sm:text-sm py-2"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="filter-app-status" className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+              Status:
+            </label>
+            <select
+              id="filter-app-status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
+            >
+              <option value="all">All Applications ({applications.length})</option>
+              <option value="SUBMITTED">Submitted ({applications.filter(a => a.status === "SUBMITTED").length})</option>
+              <option value="UNDER_REVIEW">Under Review ({applications.filter(a => a.status === "UNDER_REVIEW").length})</option>
+              <option value="APPROVED">Approved ({applications.filter(a => a.status === "APPROVED").length})</option>
+              <option value="REJECTED">Rejected ({applications.filter(a => a.status === "REJECTED").length})</option>
+            </select>
+          </div>
+
+          {(globalFilter || statusFilter !== "all") && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                setGlobalFilter("");
+                setStatusFilter("all");
+              }}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="size-3 mr-1" /> Reset
+            </Button>
+          )}
+        </div>
+
+        <div>
+          <Button
+            variant="outline"
+            size="xs"
+            onClick={resetToDefaultApplications}
+            title="Reset to sample applications"
+            className="text-xs text-muted-foreground gap-1"
+          >
+            <RotateCcw className="size-3" /> Reset Sample Data
+          </Button>
+        </div>
+      </div>
+
+      {/* TanStack Table Container */}
+      <div className="border border-border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse">
+            <thead className="border-b border-border bg-muted/40 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th key={header.id} className="p-3.5 sm:p-4">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(header.column.columnDef.header, header.getContext())}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {table.getRowModel().rows.length > 0 ? (
+                table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="hover:bg-muted/30 transition-colors">
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="p-3.5 sm:p-4 align-middle">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="p-8 text-center text-muted-foreground">
+                    <SlidersHorizontal className="size-6 mx-auto mb-2 text-muted-foreground/60" />
+                    <p className="text-sm font-medium">No adoption applications found.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Bar */}
+        <div className="border-t border-border p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground bg-background">
+          <div>
+            Showing <strong className="text-foreground">{table.getRowModel().rows.length}</strong> of{" "}
+            <strong className="text-foreground">{filteredData.length}</strong> applications
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="text-xs"
+            >
+              <ChevronLeft className="size-3.5 mr-0.5" /> Previous
+            </Button>
+            <span className="font-mono px-2">
+              Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount() || 1}
+            </span>
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="text-xs"
+            >
+              Next <ChevronRight className="size-3.5 ml-0.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Review Dialog */}
+      <ApplicationDetailDialog
+        application={activeAppForDetail}
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        onUpdateStatus={updateApplicationStatus}
+      />
+
+      {/* Delete / Archive Confirmation */}
+      <Dialog open={!!deleteCandidate} onOpenChange={(o) => !o && setDeleteCandidate(null)}>
+        <DialogContent className="sm:max-w-md bg-card border-border p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-destructive">
+              Delete Adoption Application
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Are you sure you want to remove the application for <strong>{deleteCandidate?.petName}</strong> submitted by <strong>{deleteCandidate?.applicantName}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteCandidate(null)} className="text-xs">
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete} className="text-xs font-semibold">
+              Yes, Remove Record
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

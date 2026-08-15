@@ -1,0 +1,124 @@
+// Hope for Strays - Prisma Schema for PostgreSQL
+// Multi-Tier Pet Shelter & Adoption Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Species {
+  DOG
+  CAT
+  OTHER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Size {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum AgeCategory {
+  PUPPY_KITTEN
+  YOUNG
+  ADULT
+  SENIOR
+}
+
+enum PetStatus {
+  AVAILABLE
+  PENDING
+  ADOPTED
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Pet {
+  id              String         @id @default(cuid())
+  name            String
+  species         Species
+  breed           String
+  age             String
+  ageCategory     AgeCategory
+  gender          Gender
+  size            Size
+  weight          String
+  status          PetStatus      @default(AVAILABLE)
+  adoptionFee     String
+  description     String
+  rescueStory     String
+  tags            String[]
+  images          String[]
+  featured        Boolean        @default(false)
+  intakeDate      String
+  
+  // Medical clearance
+  vaccinated      Boolean        @default(true)
+  microchipped    Boolean        @default(true)
+  spayedNeutered  Boolean        @default(true)
+  specialNeeds    String?
+
+  // Compatibility
+  goodWithDogs    Boolean        @default(true)
+  goodWithCats    Boolean        @default(true)
+  goodWithKids    Boolean        @default(true)
+  energyLevel     String         @default("Moderate")
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  applications    AdoptionApplication[]
+
+  @@map("pets")
+}
+
+model AdoptionApplication {
+  id                  String             @id @default(cuid())
+  petId               String
+  pet                 Pet                @relation(fields: [petId], references: [id], onDelete: Cascade)
+  applicantName       String
+  email               String
+  phone               String
+  address             String
+  housingType         String
+  hasFencedYard       String
+  currentPets         String
+  currentPetDetails   String?
+  householdExperience String
+  applicantNotes      String?
+  status              ApplicationStatus  @default(SUBMITTED)
+  adminReviewNotes    String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@map("adoption_applications")
+}
+
+model ShelterSettings {
+  id                 String   @id @default("default-settings")
+  shelterName        String   @default("Hope for Strays")
+  email              String   @default("info@hopeforstrays.org")
+  phone              String   @default("03-7876 5432")
+  address            String   @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
+  operatingHours     String   @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
+  announcementBanner String?
+  adoptionFeeDog     String   @default("RM 180")
+  adoptionFeeCat     String   @default("RM 95")
+  updatedAt          DateTime @updatedAt
+
+  @@map("shelter_settings")
+}

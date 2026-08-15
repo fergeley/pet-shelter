@@ -1,0 +1,249 @@
+"use client";
+
+import Image from "next/image";
+import { 
+  Heart, 
+  ShieldCheck, 
+  Check, 
+  X, 
+  Calendar, 
+  Activity, 
+  Baby, 
+  Dog, 
+  Cat 
+} from "lucide-react";
+import { Pet } from "@/types/pet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+
+interface PetDetailDialogProps {
+  pet: Pet | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onStartAdoption: (pet: Pet) => void;
+}
+
+export function PetDetailDialog({
+  pet,
+  open,
+  onOpenChange,
+  onStartAdoption,
+}: PetDetailDialogProps) {
+  if (!pet) return null;
+
+  const isAvailable = pet.status === "Available";
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto p-0 gap-0 border border-border bg-card">
+        {/* Accessible Dialog Header */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>{pet.name} ({pet.breed})</DialogTitle>
+          <DialogDescription>{pet.description}</DialogDescription>
+        </DialogHeader>
+
+        {/* Photo Banner */}
+        <div className="relative aspect-16/9 w-full bg-muted">
+          <Image
+            src={pet.image}
+            alt={`${pet.name} - ${pet.breed}`}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 700px"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent"></div>
+          
+          <div className="absolute bottom-5 left-6 right-6 flex items-end justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span
+                  className={`px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${
+                    isAvailable ? "bg-emerald-800 dark:bg-emerald-900" : "bg-amber-800 dark:bg-amber-900"
+                  }`}
+                >
+                  {pet.status}
+                </span>
+                <span className="bg-black/85 px-3 py-1 text-xs font-semibold text-white">
+                  {pet.gender} • {pet.age}
+                </span>
+              </div>
+              <h2 className="font-heading text-3xl sm:text-4xl font-bold text-white tracking-tight">
+                {pet.name}
+              </h2>
+              <p className="text-sm sm:text-base font-medium text-zinc-100 mt-0.5">
+                {pet.breed} • <span className="font-mono">{pet.weight}</span>
+              </p>
+            </div>
+
+            <div className="text-right hidden sm:block">
+              <span className="text-xs font-semibold uppercase tracking-wider text-zinc-300 block">Adoption Fee</span>
+              <p className="font-mono text-2xl font-bold text-white mt-0.5">{pet.adoptionFee}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Body Content */}
+        <div className="p-6 sm:p-7 space-y-6">
+          
+          {/* Tags */}
+          <div className="flex flex-wrap gap-2">
+            {pet.tags.map((tag, idx) => (
+              <span
+                key={idx}
+                className="bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground border border-border"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          {/* Rescue Story / Background */}
+          <div className="space-y-2 border-t border-border pt-5">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Background & Rescue Story
+            </h3>
+            <p className="text-base text-foreground/90 leading-relaxed">
+              {pet.rescueStory}
+            </p>
+          </div>
+
+          {/* Medical Records */}
+          <div className="space-y-3 border-t border-border pt-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="size-4.5 text-primary" aria-hidden="true" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                Veterinary Clearance
+              </h3>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+              <div className="flex items-center gap-3 border border-border bg-background p-3.5">
+                {pet.medical.vaccinated ? (
+                  <Check className="size-5 text-emerald-800 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <X className="size-5 text-destructive shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-foreground">Vaccinations</p>
+                  <p className="text-xs text-muted-foreground font-medium">Up to date</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 border border-border bg-background p-3.5">
+                {pet.medical.microchipped ? (
+                  <Check className="size-5 text-emerald-800 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <X className="size-5 text-destructive shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-foreground">Microchip</p>
+                  <p className="text-xs text-muted-foreground font-medium">Registered</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 border border-border bg-background p-3.5">
+                {pet.medical.spayedNeutered ? (
+                  <Check className="size-5 text-emerald-800 dark:text-emerald-400 shrink-0" />
+                ) : (
+                  <X className="size-5 text-destructive shrink-0" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-foreground">Spayed / Neutered</p>
+                  <p className="text-xs text-muted-foreground font-medium">Completed</p>
+                </div>
+              </div>
+            </div>
+
+            {pet.medical.specialNeeds && (
+              <p className="text-sm text-foreground/90 bg-muted/40 p-3.5 border border-border leading-relaxed">
+                <strong className="text-foreground font-semibold">Medical Details: </strong>
+                {pet.medical.specialNeeds}
+              </p>
+            )}
+          </div>
+
+          {/* Compatibility */}
+          <div className="space-y-3 border-t border-border pt-5">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+              Household Compatibility
+            </h3>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="border border-border bg-background p-3.5 text-center">
+                <Dog className="size-4.5 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Other Dogs</p>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithDogs ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                  {pet.compatibility.goodWithDogs ? "Good" : "Not Recommended"}
+                </p>
+              </div>
+
+              <div className="border border-border bg-background p-3.5 text-center">
+                <Cat className="size-4.5 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cats</p>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithCats ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                  {pet.compatibility.goodWithCats ? "Good" : "No Cats"}
+                </p>
+              </div>
+
+              <div className="border border-border bg-background p-3.5 text-center">
+                <Baby className="size-4.5 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Children</p>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithKids ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                  {pet.compatibility.goodWithKids ? "Good" : "Adults Only"}
+                </p>
+              </div>
+
+              <div className="border border-border bg-background p-3.5 text-center">
+                <Activity className="size-4.5 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Energy Level</p>
+                <p className="text-sm font-bold text-foreground mt-1">
+                  {pet.compatibility.energyLevel}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Intake Date & Fee for mobile */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1.5 font-medium">
+              <Calendar className="size-4" />
+              <span>Intake: {pet.intakeDate}</span>
+            </div>
+            <div className="font-bold text-foreground text-sm sm:hidden">
+              Adoption Fee: <span className="font-mono">{pet.adoptionFee}</span>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="border-t border-border pt-5 flex flex-col sm:flex-row gap-3 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              className="text-sm font-medium px-5 py-2.5 focus-visible:ring-2"
+            >
+              Close
+            </Button>
+
+            <Button
+              disabled={!isAvailable}
+              onClick={() => {
+                onOpenChange(false);
+                onStartAdoption(pet);
+              }}
+              className="text-sm font-semibold px-6 py-2.5 focus-visible:ring-2"
+            >
+              <Heart className="size-4 fill-current mr-1.5" />
+              {isAvailable ? `Start Application for ${pet.name}` : "Application Pending"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
