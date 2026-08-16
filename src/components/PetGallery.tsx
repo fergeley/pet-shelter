@@ -8,7 +8,7 @@ import { AdoptionForm } from "@/components/AdoptionForm";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
 import { Button } from "@/components/ui/button";
-import { Sparkles, HeartHandshake } from "lucide-react";
+import { Compass, HeartHandshake } from "lucide-react";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 
 interface PetGalleryProps {
@@ -84,10 +84,10 @@ export function PetGallery({
             size="sm"
             variant="outline"
             onClick={() => setIsQuizOpen(true)}
-            className="text-xs font-bold gap-1.5 border-primary/40 bg-primary/5 hover:bg-primary/10 text-foreground"
+            className="text-xs font-bold gap-1.5 text-foreground"
           >
-            <Sparkles className="size-3.5 text-primary" />
-            Find Your Match (Quiz)
+            <Compass className="size-3.5" />
+            Compatibility Quiz
           </Button>
 
           <Button

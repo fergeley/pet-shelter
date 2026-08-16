@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
-  Sparkles,
+  Compass,
   Home,
   Building2,
   Trees,
@@ -22,6 +22,7 @@ import {
   Cat,
   Footprints,
   Flame,
+  Activity,
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
@@ -43,7 +44,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
         <div className="bg-primary text-primary-foreground p-6 sm:p-8">
           <div className="flex items-center gap-2 mb-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider bg-primary-foreground/15 text-primary-foreground">
-              <Sparkles className="size-3.5" />
+              <Compass className="size-3.5" />
               Interactive Matcher
             </span>
           </div>
@@ -351,7 +352,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                           id: "active_1_2h",
                           title: "1 – 2+ Hours",
                           desc: "Jogging, hiking, dog parks, or agility training",
-                          icon: Sparkles,
+                          icon: Activity,
                         },
                       ].map((item) => {
                         const Icon = item.icon;
@@ -497,7 +498,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
 
                           {/* Match Badge */}
                           <div className="flex items-center gap-1.5 px-3 py-1 bg-primary text-primary-foreground font-heading text-xs font-bold">
-                            <Sparkles className="size-3.5" />
+                            <Compass className="size-3.5" />
                             <span>{score.matchPercentage}% Match</span>
                           </div>
                         </div>

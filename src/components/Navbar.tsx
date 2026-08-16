@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Heart, Menu, Sparkles, HeartHandshake } from "lucide-react";
+import { Heart, Menu, HeartHandshake, Compass } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
@@ -29,7 +29,7 @@ export function Navbar() {
     { href: "/applications/track", label: "Track Application" },
     { href: "/bulletins", label: "Updates & News" },
     { href: "/#how-it-works", label: "Adoption Process" },
-    { href: "/#mission", label: "About Us" },
+    { href: "/#support", label: "Volunteer & Foster" },
   ];
 
   return (
@@ -80,10 +80,10 @@ export function Navbar() {
               variant="outline"
               size="sm"
               onClick={() => setIsQuizOpen(true)}
-              className="text-xs font-semibold gap-1.5 h-8 px-2.5 border-primary/30 bg-primary/5 hover:bg-primary/10"
+              className="text-xs font-semibold gap-1.5 h-8 px-2.5"
             >
-              <Sparkles className="size-3.5 text-primary" />
-              Find Match
+              <Compass className="size-3.5" />
+              Match Quiz
             </Button>
 
             <Button
@@ -119,7 +119,7 @@ export function Navbar() {
               onClick={() => setIsQuizOpen(true)}
               className="h-8 px-2 text-xs font-bold gap-1"
             >
-              <Sparkles className="size-3" />
+              <Compass className="size-3" />
               Quiz
             </Button>
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
@@ -146,10 +146,10 @@ export function Navbar() {
                       setIsMobileOpen(false);
                       setIsQuizOpen(true);
                     }}
-                    className="w-full justify-center text-xs font-bold gap-1.5 border-primary/40 bg-primary/5"
+                    className="w-full justify-center text-xs font-bold gap-1.5"
                   >
-                    <Sparkles className="size-3.5 text-primary" />
-                    Take Match Quiz
+                    <Compass className="size-3.5" />
+                    Pet Compatibility Quiz
                   </Button>
 
                   <Button

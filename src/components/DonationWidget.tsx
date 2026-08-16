@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   ArrowRight,
   RotateCcw,
-  Sparkles,
+  RotateCw,
   Building2,
   Lock,
 } from "lucide-react";
@@ -282,7 +282,7 @@ export function DonationWidget() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Sparkles className="size-3.5" />
+              <RotateCw className="size-3.5" />
               Monthly Partner
             </button>
           </div>

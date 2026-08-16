@@ -20,7 +20,7 @@ import {
   ArrowLeft,
   HeartHandshake,
   CheckCircle2,
-  Sparkles,
+  Star,
   MapPin,
 } from "lucide-react";
 
@@ -85,8 +85,8 @@ export function PetDetailView(props: PetDetailViewProps) {
                   {pet.status}
                 </span>
                 {pet.featured && (
-                  <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-amber-500 text-white flex items-center gap-1">
-                    <Sparkles className="size-3" /> Featured
+                  <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-amber-600 text-white flex items-center gap-1">
+                    <Star className="size-3 fill-current" /> Featured
                   </span>
                 )}
               </div>

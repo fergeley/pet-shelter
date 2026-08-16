@@ -27,7 +27,7 @@ import {
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
+  Star,
   FileText,
 } from "lucide-react";
 import {
@@ -105,7 +105,7 @@ export function PetDataTable({
                 </span>
                 {pet.featured && !pet.isArchived && (
                   <span title="Featured on Homepage" className="inline-flex">
-                    <Sparkles className="size-3.5 text-amber-500 fill-amber-500/20" />
+                    <Star className="size-3.5 text-amber-500 fill-amber-500/20" />
                   </span>
                 )}
                 {pet.isArchived && (

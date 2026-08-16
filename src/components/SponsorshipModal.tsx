@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   ArrowRight,
   RotateCcw,
-  Sparkles,
+  RotateCw,
   Heart,
   Building2,
 } from "lucide-react";
@@ -130,7 +130,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    <Sparkles className="size-3" />
+                    <RotateCw className="size-3" />
                     Monthly Rescue Partner
                   </button>
                 </div>

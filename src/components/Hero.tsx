@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, ArrowRight, Sparkles, HeartHandshake } from "lucide-react";
+import { Heart, ArrowRight, HeartHandshake, ShieldCheck, Compass } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
@@ -21,7 +21,7 @@ export function Hero() {
             {/* Left Text Content */}
             <div className="space-y-6 lg:col-span-7">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-semibold border border-border">
-                <Sparkles className="size-3.5 text-primary" />
+                <ShieldCheck className="size-3.5 text-foreground" />
                 <span>Selangor Animal Welfare & Rescue Sanctuary</span>
               </div>
 
@@ -51,10 +51,10 @@ export function Hero() {
                   variant="outline"
                   size="lg"
                   onClick={() => setIsQuizOpen(true)}
-                  className="gap-2 px-6 text-sm font-semibold tracking-wide border-primary/40 bg-primary/5 hover:bg-primary/10"
+                  className="gap-2 px-6 text-sm font-semibold tracking-wide"
                 >
-                  <Sparkles className="size-4 text-primary" />
-                  Find Your Match (Quiz)
+                  <Compass className="size-4" />
+                  Pet Compatibility Quiz
                 </Button>
 
                 <Button
