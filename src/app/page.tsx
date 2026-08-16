@@ -1,11 +1,9 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Hero } from "@/components/Hero";
 import { PetGallery } from "@/components/PetGallery";
 import { BulletinFeed } from "@/components/BulletinFeed";
-import { HomeProcessSection, HomeStandardsSection, HomeCommunitySection } from "@/components/HomeSections";
-import { buttonVariants } from "@/components/ui/button";
+import { HomeProcessSection, HomeStandardsSection, HomeCommunitySection, HomeGalleryHeader } from "@/components/HomeSections";
 import { getPublicPets } from "@/actions/pets";
 
 export default async function HomePage() {
@@ -30,27 +28,7 @@ export default async function HomePage() {
       {/* 3. Adoptable Pets Gallery Showcase */}
       <section id="adopt" className="border-t border-border bg-card py-14 sm:py-18">
         <div className="w-full px-6 sm:px-8 lg:px-12">
-          <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-8">
-            <div>
-              <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                Animals Ready for Adoption
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                Health-checked, vaccinated, microchipped, and sterilized before rehoming.
-              </p>
-            </div>
-            <Link
-              href="/pets"
-              className={buttonVariants({
-                variant: "outline",
-                size: "sm",
-                className: "self-start sm:self-auto text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl",
-              })}
-            >
-              View All Animals
-              <ArrowRight className="size-4 ml-1.5" />
-            </Link>
-          </div>
+          <HomeGalleryHeader />
 
           <Suspense
             fallback={

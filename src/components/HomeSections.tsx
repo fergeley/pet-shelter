@@ -14,10 +14,39 @@ import {
   Calendar,
   Truck,
   Heart,
-  ShieldCheck
+  ShieldCheck,
+  ArrowRight
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/LanguageProvider";
+
+export function HomeGalleryHeader() {
+  const { t } = useLanguage();
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-8">
+      <div>
+        <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          {t("home.availableTitle", "Animals Ready for Adoption")}
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {t("home.availableSubtitle", "Health-checked, vaccinated, microchipped, and sterilized before rehoming.")}
+        </p>
+      </div>
+      <Link
+        href="/pets"
+        className={buttonVariants({
+          variant: "outline",
+          size: "sm",
+          className: "self-start sm:self-auto text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl",
+        })}
+      >
+        {t("home.viewAllPets", "View All Animals")}
+        <ArrowRight className="size-4 ml-1.5" />
+      </Link>
+    </div>
+  );
+}
 
 export function HomeProcessSection() {
   const { t } = useLanguage();
