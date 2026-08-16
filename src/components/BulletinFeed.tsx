@@ -25,7 +25,7 @@ interface BulletinFeedProps {
 }
 
 const CATEGORY_LABELS: Record<BulletinCategory, { label: string; badgeClass: string }> = {
-  urgent_need: { label: "Urgent Need", badgeClass: "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800 font-bold" },
+  urgent_need: { label: "Urgent Foster / Need", badgeClass: "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800 font-bold" },
   clinic: { label: "Clinic / Vaccine", badgeClass: "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800 font-bold" },
   event: { label: "Event", badgeClass: "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800 font-bold" },
   happy_tail: { label: "Adoption Update", badgeClass: "bg-purple-900 text-white dark:bg-purple-950 dark:text-purple-200 dark:border dark:border-purple-800 font-bold" },

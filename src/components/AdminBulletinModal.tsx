@@ -136,7 +136,7 @@ export function AdminBulletinModal({
                 className="w-full bg-background border border-input px-3.5 py-2.5 text-sm sm:text-base text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium"
               >
                 <option value="announcement">General Announcement</option>
-                <option value="urgent_need">Urgent Need (Fosters/Supplies)</option>
+                <option value="urgent_need">Urgent Foster / Medical Need</option>
                 <option value="clinic">Clinic / Medical Care</option>
                 <option value="event">Community Event</option>
                 <option value="happy_tail">Happy Tail Adoption Story</option>

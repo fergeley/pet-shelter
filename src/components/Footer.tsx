@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PawPrint, MapPin, Phone, Mail, Clock } from "lucide-react";
+import { PawPrint, MapPin, Phone, Mail, Clock, MessageCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Footer() {
@@ -18,7 +18,7 @@ export function Footer() {
               </span>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A registered non-profit animal rescue organisation serving Petaling Jaya and the greater Selangor area since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.
+              A registered non-profit animal rescue organisation serving Petaling Jaya and Selangor since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.
             </p>
           </div>
 
@@ -50,17 +50,12 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/#support" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Foster a Rescue Pet
+                  Volunteer & Foster Care
                 </Link>
               </li>
               <li>
                 <Link href="/donate" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   Shelter Wishlist & Donations
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin/login" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Staff & Volunteer Portal
                 </Link>
               </li>
             </ul>
@@ -100,6 +95,17 @@ export function Footer() {
                 </a>
               </li>
               <li className="flex items-center gap-2.5">
+                <MessageCircle className="size-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                <a 
+                  href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20have%20an%20enquiry%20regarding%20volunteering%20or%20fostering." 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-foreground hover:underline font-semibold"
+                >
+                  WhatsApp: +60 12-345 6789
+                </a>
+              </li>
+              <li className="flex items-center gap-2.5">
                 <Mail className="size-4 text-foreground shrink-0" />
                 <a href="mailto:info@hopeforstrays.org" className="text-foreground hover:underline font-semibold">
                   info@hopeforstrays.org
@@ -109,15 +115,27 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom */}
-        <div className="mt-10 border-t border-border pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
-          <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
-          <div className="flex items-center gap-4">
-            <Link href="/admin/login" className="text-xs font-semibold hover:text-foreground hover:underline">
-              Staff & Volunteer Login
+        {/* Bottom Legal & Staff */}
+        <div className="mt-10 border-t border-border pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-3">
+            <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
+            <span className="text-muted-foreground/40 hidden sm:inline">•</span>
+            <p className="font-mono">ROS Reg: PPM-012-10-18042016</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/privacy" className="hover:text-foreground hover:underline font-medium">
+              Privacy Notice (PDPA)
             </Link>
             <span className="text-muted-foreground/40">•</span>
-            <p className="font-mono text-xs">ROS Reg: PPM-012-10-18042016</p>
+            <Link href="/terms" className="hover:text-foreground hover:underline font-medium">
+              Adoption Terms
+            </Link>
+            <span className="text-muted-foreground/40">•</span>
+            <Link href="/admin/login" className="font-semibold hover:text-foreground hover:underline">
+              Staff Portal
+            </Link>
+            <span className="text-muted-foreground/40">•</span>
             <ThemeToggle showLabel={true} />
           </div>
         </div>
