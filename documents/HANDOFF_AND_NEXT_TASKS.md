@@ -1,6 +1,6 @@
 # Engineering Handoff & Next Steps Roadmap
 
-- **Status as of**: 2026-08-15
+- **Status as of**: 2026-08-16
 - **Stack**: Next.js 16.3.1 (App Router + Turbopack), React 19.2.8, TypeScript 5, Tailwind CSS v4, Prisma 7.9.1, Neon PostgreSQL, Vitest 4, Resend SDK.
 - **Repository Location**: `c:\Users\User\pet-shelter`
 - **Primary Operational Guide**: [`documents/OPERATIONAL_RUNBOOK.md`](file:///c:/Users/User/pet-shelter/documents/OPERATIONAL_RUNBOOK.md)
@@ -14,133 +14,111 @@
 ## 1. System Architecture & Completed Milestones
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Next.js App Router                       │
-│  Public Views (/, /pets, /applications/track) │ Admin (/admin/*) │
-└──────────────────────────────┬──────────────────────────────┘
-                               │
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Server Actions Layer                     │
-│  src/actions/{pets, applications, auth, audit, settings}.ts │
-└──────────────┬──────────────────────────────┬───────────────┘
-               │                              │
-┌──────────────▼──────────────┐ ┌─────────────▼───────────────┐
-│     Security & Domain       │ │   Resilient Storage Engine  │
-│  - HMAC-SHA256 Sessions     │ │   - PostgreSQL (Prisma 7)   │
-│  - Declarative RBAC Guards  │ │   - Multi-Provider Storage  │
-│  - Finite State Machine     │ │   - Resend Email & Auditing │
-│  - Privacy-Safe Lookups     │ │   - Sliding-Window Rate Lim │
-└─────────────────────────────┘ └─────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       Next.js App Router                        │
+│  Public Views (/, /pets, /donate, /applications/track, /terms)  │
+│  Admin Dashboard (/admin/pets, /admin/applications, /admin/audit)│
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+┌────────────────────────────────▼────────────────────────────────┐
+│                      Server Actions Layer                       │
+│  src/actions/{pets, applications, auth, audit, settings}.ts     │
+└──────────────┬──────────────────────────────────┬───────────────┘
+               │                                  │
+┌──────────────▼──────────────┐   ┌───────────────▼───────────────┐
+│     Security & Domain       │   │    Resilient Storage Engine   │
+│  - HMAC-SHA256 Sessions     │   │    - PostgreSQL (Prisma 7)    │
+│  - Declarative RBAC Guards  │   │    - RFC-4180 CSV Engine      │
+│  - Anti-Formula Injection   │   │    - Resend Email & Auditing  │
+│  - Privacy-Safe Lookups     │   │    - Sliding Rate Limiting    │
+└─────────────────────────────┘   └───────────────────────────────┘
 ```
 
 ### Completed & Production-Hardened Components
-* **Public Adoption Application Tracking Portal ([`src/app/applications/track/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/applications/track/page.tsx))**:
-  - Adopter self-service lookup by Reference ID + Email with URL deep-link auto-query (`?ref=...&email=...`).
-  - 4-stage visual progress stepper (`Received` $\rightarrow$ `Under Review` $\rightarrow$ `Meet & Greet Scheduled` $\rightarrow$ `Approved & Ready`).
-  - Dynamic interaction cards: "Join Video Meeting" for virtual sessions, "View Location on Google Maps" for in-person shelter visits in Petaling Jaya.
-  - 100% Free Adoption badges and adoption day preparation checklists.
-  - Rate-limited server action [`lookupApplicationStatusAction`](file:///c:/Users/User/pet-shelter/src/actions/applications.ts) with strict privacy filtering (internal coordinator notes stripped).
-* **Coordinator & Admin Workflow Controls ([`src/components/admin/ApplicationDetailDialog.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/ApplicationDetailDialog.tsx))**:
-  - 1-click status selection pills (`Submitted`, `Under Review`, `Approve`, `Reject`).
-  - 1-click "Copy Public Tracking Link" button with copied toast confirmation.
-  - Direct 1-click WhatsApp launcher pre-filling applicant phone, pet name, reference ID, and live tracking link.
-* **Database & ORM**: PostgreSQL schema with valid referential actions (`onDelete: SetNull`), interactive transaction cascades (`$transaction`), seed script (`prisma/seed.ts`), and optimized connection pool caching in `src/lib/prisma.ts`.
-* **Authentication & RBAC**: HMAC-SHA256 signed HTTP-only cookies, sliding-window rate limiting, cryptographic scrypt hashing, and role hierarchy (`ADMIN` $\rightarrow$ `COORDINATOR` $\rightarrow$ `STAFF` $\rightarrow$ `VOLUNTEER`).
-* **Multi-Provider Cloud Storage (`src/lib/storage/index.ts`)**:
-  - `StorageProvider` abstraction supporting `local` (`public/uploads`), `s3` (AWS S3, Cloudflare R2, MinIO, Supabase Storage), and `cloudinary`.
-  - Client-side Canvas WebP converter (`src/lib/imageOptimization.ts`) automatically downscaling photos (max 1600px) and encoding to `.webp` at 85% quality (70–90% payload reduction).
-  - Real-time `XMLHttpRequest` 0–100% progress tracking and image deletion in `src/components/admin/ImageUpload.tsx`.
-* **Transactional Email Lifecycle & Deliverability (`src/lib/email.ts`)**:
-  - Official `resend` integration with offline simulation fallback.
-  - Multi-part emails (HTML + Plain text), anti-spam compliance (`reply_to`, category tags, suppression headers).
-  - Deep links embedded across all email templates for 1-click application tracking.
-  - Production HTML templates for: Application Received, Staff Alert, Status Changes (`APPROVED`, `UNDER_REVIEW`, `REJECTED`), and Meet & Greet scheduling.
-  - Automatic immutable audit trail recording in `src/lib/domain/auditLog.ts` (`EMAIL_SENT`, `EMAIL_FAILED`, `INTERVIEW_SCHEDULED`, `TEST_EMAIL_SENT`).
-* **Client-Side Admin Settings Menu (`src/app/admin/settings/page.tsx`)**:
-  - Configurable tabs for Sanctuary Identity, Transactional Email (with live in-app test email dispatcher), and Media Storage Providers.
-* **100% Free Adoption Model**: Enforced across all pet listings, JSON-LD structured schemas, and admin UI.
-* **Test Suite**: **20 Vitest test suites (155 unit tests, 100% passing rate)**.
-* **Quality Gates**: `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), `npm run build` (22/22 routes statically compiled).
+* **1-Click CSV Tax & Audit Export Engine ([`src/lib/exportCsv.ts`](file:///c:/Users/User/pet-shelter/src/lib/exportCsv.ts))**:
+  - Malaysian Inland Revenue Board (LHDN) Subsection 44(6) Form B/BE compliance exports with donor IC/Tax ID, receipt sequence numbers, and two-decimal currency formatting (`RM 50.00`).
+  - Registrar of Societies (ROS) AGM compliance audit trail CSV exports.
+  - RFC-4180 compliant quoting, UTF-8 BOM encoding for Microsoft Excel / Apple Numbers, and formula injection protection (`=, +, -, @, \t, \r`).
+* **Admin Audit & Security Controller ([`src/components/admin/AuditLogViewer.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/AuditLogViewer.tsx))**:
+  - 4 quick-filter tabs: `All Records`, `LHDN Tax Receipts` (with live count badges & formatted ringgit amounts), `Adoptions & Pets`, `Auth & Security`.
+  - Scalable server action [`fetchAuditLogsAction`](file:///c:/Users/User/pet-shelter/src/actions/audit.ts) supporting up to 1,000 records to prevent year-end tax data truncation.
+* **Lean Community Support & Urgent Foster Hub ([`src/app/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/page.tsx), [`src/components/BulletinFeed.tsx`](file:///c:/Users/User/pet-shelter/src/components/BulletinFeed.tsx))**:
+  - Direct WhatsApp links for Volunteer Coordination and Temporary Foster Care.
+  - Walk-in sanctuary visiting hours (Tue–Sun, 10:00 AM – 5:00 PM; Closed Mondays for deep cleaning).
+  - Urgent Foster / Medical Need bulletins published via `AdminBulletinModal`.
+* **Anti-AI / Anti-"Vibecoded" Aesthetic Audit**:
+  - Completely eradicated sparkle icon tropes (`Sparkles` 100% eliminated).
+  - Replaced fake stock portrait testimonials with authentic registered society veterinary protocols (PPM-012-10-18042016).
+  - Replaced rainbow badge icon palettes and checkmark bullet lists with clean, high-contrast, editorial typography.
+* **Statutory Compliance & Legal Pages ([`src/app/privacy/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/privacy/page.tsx), [`src/app/terms/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/terms/page.tsx))**:
+  - Statutory Malaysian Personal Data Protection Act (**PDPA 2010**) Privacy Notice.
+  - Non-commercial Shelter Adoption Agreement, premise safety standards, and unconditional return policy.
+* **Public Application Tracking Portal ([`src/app/applications/track/page.tsx`](file:///c:/Users/User/pet-shelter/src/app/applications/track/page.tsx))**:
+  - Adopter self-service lookup by Reference ID + Email with 4-stage visual progress stepper and deep links.
+* **Test Suite**: **22 Vitest test files (171 unit tests, 100% passing rate, 0 unawaited promise warnings)**.
+* **Quality Gates**: `npx tsc --noEmit` (0 errors), `npm run lint` (0 errors), `npm run build` (25/25 routes statically/dynamically pre-rendered).
 
 ---
 
 ## 2. Future Enhancements Backlog (Prioritized)
 
-### [PHASE-01] Donations & Pet Sponsorships (Stripe Checkout & DuitNow QR)
-* **Priority**: High (Recommended Next Step)
-* **Goal**: Add a public donation and recurring pet sponsorship checkout to fund veterinary care, food supplies, and shelter operations.
-* **Features**:
-  * Preset contribution tiers (RM 30, RM 50, RM 100, custom) with monthly recurring vs one-time toggle.
-  * Direct animal sponsorship ("Sponsor Bella's Medical Care").
-  * Dual payment gateways: Stripe Checkout (international cards) and DuitNow QR / FPX instructions for local Malaysian supporters.
-* **Files to create/modify**:
-  * `src/components/DonationModal.tsx` & `src/components/SponsorshipModal.tsx`
-  * `src/actions/donations.ts`: Server action generating checkout sessions.
-  * `src/app/donate/page.tsx`: Dedicated donation and sponsorship page.
+### [PHASE-01] Bilingual Toggle: Bahasa Malaysia & English (`/ms` & `/en`)
+* **Priority**: High
+* **Goal**: Expand community reach across Selangor and local municipal councils with full Bahasa Malaysia localization for adoption screening, volunteer guidelines, and sanctuary notices.
 
 ---
 
-### [PHASE-02] Foster Parent & Volunteer Scheduling Portal
+### [PHASE-02] Rescue Intake & Veterinary Timeline on Pet Profile (`/pets/[id]`)
 * **Priority**: Medium
-* **Goal**: Provide a lightweight self-service form for foster volunteers to apply, log weekend shifts, and submit health updates for foster animals.
-* **Features**:
-  * Foster application form with housing checks.
-  * Volunteer shift registration calendar.
-  * Staff review and approval flow.
+* **Goal**: Display an interactive medical and rehabilitation timeline on individual pet profile pages (intake date, vaccination dates, spay/neuter surgery record, behavior milestones).
 
 ---
 
-### [KIV - Paused] Shelter Analytics & Performance Metrics Dashboard
-* **Status**: Keep In View (KIV) — Postponed / Not required since `@vercel/analytics` and `@vercel/speed-insights` handle general telemetry and web performance tracking.
-* **Specification Document**: [`tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md`](file:///c:/Users/User/pet-shelter/tasks/06_SHELTER_ANALYTICS_AND_REPORTING.md)
+### [PHASE-03] In-Kind Wishlist & Sanctuary Inventory Tracker
+* **Priority**: Low / Lean
+* **Goal**: Lightweight real-time indicator on the `#support` section showing which physical supplies are urgently needed (e.g. "Puppy Kibble: Low", "Fleece Towels: Sufficient").
 
 ---
 
 ## 3. Ready-to-Use Copy-Paste Prompt for AI Agents
 
-You can hand off the following prompt directly to your AI coding assistant:
+You can hand off the following prompt directly to your next AI coding assistant session:
 
 ```markdown
 ## Project Overview
-You are continuing development on **Hope for Strays** (`c:\Users\User\pet-shelter`), a modern Pet Shelter & Adoption Platform built with:
+You are continuing development on **Hope for Strays** (`c:\Users\User\pet-shelter`), a high-performance Pet Shelter & Adoption Platform built with:
 - **Framework**: Next.js 16.3.1 (Turbopack, App Router) & React 19.2.8
 - **Language**: TypeScript 5 (Strict Mode, 0 `any` escapes)
 - **Database & ORM**: PostgreSQL with Prisma 7.9.1 (`@prisma/adapter-pg`, connection pooling) & dual-layer in-memory fallback
 - **Styling**: Tailwind CSS v4 & Lucide React
-- **Testing**: Vitest (20 test suites, 155 tests)
-- **Telemetry**: `@vercel/analytics` and `@vercel/speed-insights`
+- **Testing**: Vitest (22 test files, 171 tests, 100% passing)
+- **Legal & Compliance**: Malaysian LHDN Subsection 44(6) Tax Exemption Ref `LHDN.01/35/42/51/179-6.4912`, ROS Reg `PPM-012-10-18042016`, PDPA 2010
 
 ---
 
 ## Current Status & Recent Accomplishments
-All recent milestones are committed and verified:
-1. **Hybrid Donation & Sponsorship Subsystem (`/donate` + Widened Modal)**: Dedicated high-conversion `/donate` page, `DonationWidget`, widened `SponsorshipModal`, custom amounts, DuitNow QR PayNet rails, Maybank transfers, and LHDN Section 44(6) tax-exempt receipt engine.
-2. **Public Application Tracking Portal (`/applications/track`)**: Self-service lookup by Reference ID + Email with 4-stage stepper, Google Maps / Video Call action buttons, and direct WhatsApp support.
-3. **Coordinator Management Enhancements**: 1-click status pills, copy tracking link, and direct WhatsApp chat generation in `ApplicationDetailDialog.tsx`.
-4. **Transactional Email Deliverability**: Full multi-part HTML/plain-text templates, Resend integration, anti-spam headers, donation receipts, and deep links.
-5. **Zero-Error Build Pipeline**: 23/23 routes statically compiled, 163/163 tests passing across 21 suites, 0 TypeScript/ESLint errors.
+All recent milestones are committed atomically and verified:
+1. **LHDN & ROS 1-Click CSV Export Engine**: Automated CSV download for Malaysian tax filing (donor IC, receipt sequences, MYR amounts) and audit trails in `src/lib/exportCsv.ts` and `src/components/admin/AuditLogViewer.tsx`.
+2. **Lean Community Action & Urgent Foster Hub**: Dedicated volunteer roles, sanctuary walk-in hours, direct WhatsApp coordination, and emergency foster bulletins on `/` and `/bulletins`.
+3. **Anti-AI Aesthetic Polish**: Removed all 30 "vibecoded" tropes (zero `Sparkles`, removed fake testimonials, replaced rainbow badge icons and checkmark lists with crisp editorial typography).
+4. **Statutory Legal Pages**: Added `/privacy` (Malaysian PDPA 2010 compliance) and `/terms` (Shelter adoption agreement & welfare standards).
+5. **Zero-Error Quality Gates**: 25/25 routes compiled in Next.js production build, 171/171 unit tests passing across 22 suites, 0 TypeScript/ESLint errors.
 
 ---
 
-## Next Recommended Task: [PHASE-02] Foster Parent & Volunteer Portal
-Build the Foster & Volunteer subsystem:
-1. **Foster Application & Intake Workflow (`/foster`)**:
-   - Multi-step interactive foster parent inquiry for temporary convalescence and medical recovery stays in Petaling Jaya / Klang Valley.
-   - Housing verification, medication administration agreement, and pet compatibility screening.
-   - Server Action `submitFosterApplicationAction` with Zod validation, audit logging, and automated Resend confirmation email.
-2. **Volunteer Registration & Shift Calendar (`/volunteer`)**:
-   - Volunteer shift selection for weekend kennel walking, shelter cleaning, adoption event coordination, and veterinary transport.
-   - Server Action `submitVolunteerRegistrationAction`.
-3. **Coordinator Admin Views (`/admin/fosters` & `/admin/volunteers`)**:
-   - Management table for approving foster homes and assigning shelter animals.
-4. **Automated Unit Tests (`tests/unit/foster.test.ts` & `tests/unit/volunteer.test.ts`)**:
-   - Schema edge cases, rate limiting, and state transitions.
+## Next Recommended Task: [PHASE-01] Bilingual Toggle (Bahasa Malaysia & English) or [PHASE-02] Vet Timeline
+Choose between:
+1. **Bilingual Localization (`/ms` & `/en`)**:
+   - Provide seamless Bahasa Malaysia / English toggle for public pages (`/`, `/pets`, `/donate`, `/applications/track`).
+   - Translate adoption application forms, shelter protocols, and FAQ sections.
+2. **Rescue Intake & Medical Care Timeline on Pet Detail (`/pets/[id]`)**:
+   - Add an interactive chronological medical care timeline (rescue intake, core vaccinations, spay/neuter surgery, recovery milestone).
 
 ---
 
 ## Quality Gates Checklist Before Finishing Any Task
-- `npm run test` (must pass 163+ tests across 21+ suites)
+- `npm test -- --run` (must pass 171+ tests across 22+ suites with 0 unawaited promise warnings)
 - `npx tsc --noEmit` (must pass with 0 errors)
 - `npm run lint` (must pass with 0 errors)
-- `npm run build` (must compile cleanly without errors)
+- `npm run build` (must compile cleanly with 25/25 routes pre-rendered)
 ```
