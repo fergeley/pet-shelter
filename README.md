@@ -1,59 +1,59 @@
 # Hope for Strays (Petaling Jaya, Selangor) — Rescue & Adoption Platform
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
-[![React](https://img.shields.io/badge/React-19.2-blue?style=flat-square&logo=react)](https://react.dev/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.3.1-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.2.8-blue?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8?style=flat-square&logo=tailwindcss)](https://tailwindcss.com/)
+[![Vitest](https://img.shields.io/badge/Vitest-3.2-green?style=flat-square&logo=vitest)](https://vitest.dev/)
+[![Prisma](https://img.shields.io/badge/Prisma-7.9.1-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A modern, accessible, and high-performance pet adoption web application built with **Next.js App Router**, **TypeScript**, **Tailwind CSS v4**, **shadcn UI / Base UI**, and **React Hook Form + Zod**. Designed to connect rescue animals with loving forever families through client-side faceted filtering, detailed pet profiles, and an adoption application workflow.
+A high-performance, accessible, and production-hardened Pet Shelter & Adoption Platform built for **Hope for Strays** (*Persatuan Harapan Haiwan Terbiar Selangor*), an animal welfare non-profit in Petaling Jaya, Selangor.
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture & Technology Stack
 
-The application follows clean architecture and component isolation principles to guarantee maintainability, high performance, and accessibility:
-
-### 1. Framework & Runtime
-- **Next.js App Router (Turbopack)**: Leverages React Server Components (RSC) for page structure and metadata generation alongside optimized Client Components for interactive workflows.
-- **Strict TypeScript Typing**: Centralized type domain (`src/types/pet.ts`) enforcing full end-to-end type safety across mock data schemas, filter states, and form submissions.
-- **Tailwind CSS v4 + OKLCH Design Tokens**: Modern inline theme system utilizing perceptual color spaces (`oklch`) for seamless light/dark theme contrast and fluid typography.
-
-### 2. Component Isolation & State Architecture
-- **Atomic UI Primitives (`src/components/ui/`)**: Decoupled, headless UI primitives powered by `@base-ui/react` and `class-variance-authority` (Dialog, Sheet, Button, Input, Card, Textarea).
-- **Business Domain Components (`src/components/`)**:
-  - `Hero.tsx`: Shelter mission, visiting hours, and call-to-action triggers.
-  - `PetGallery.tsx`: Self-contained faceted search and filtering engine.
-  - `PetCard.tsx`: Optimized visual card with hover feedback, status indicators, and quick actions.
-  - `PetDetailDialog.tsx`: Accessible modal dialog displaying rescue stories, veterinary clearance checklists, and household compatibility matrices.
-  - `AdoptionForm.tsx`: Type-safe multi-section application form with reactive state tracking via `useWatch`.
-  - `Navbar.tsx` & `Footer.tsx`: Responsive navigation shell with mobile menu drawer and emergency contact helplines.
-
-### 3. Accessibility & WAI-ARIA Standards
-- **Screen Reader Support**: Accessible hidden labels (`sr-only`), `aria-invalid` bindings, and semantic header structures (`<DialogTitle>`, `<DialogDescription>`).
-- **Keyboard Navigation**: Full focus trapping, Tab navigation, and `Escape` key dismissal on all modal dialogs and slide-over sheets.
-- **Accessible Contrast**: Carefully calibrated text-to-background contrast ratios compliant with WCAG 2.1 AA guidelines.
+- **Framework**: [Next.js 16.3.1](https://nextjs.org/) (Turbopack, App Router, React Server Actions) & [React 19.2.8](https://react.dev/).
+- **Language**: TypeScript 5 (Strict Mode, 0 `any` escapes).
+- **Database & ORM**: PostgreSQL with [Prisma 7.9.1](https://www.prisma.io/) (`@prisma/adapter-pg`, connection pooling) & dual-layer in-memory fallback for offline/development resilience.
+- **Styling & UI**: Tailwind CSS v4, Lucide React, and `@base-ui/react` primitives adhering to [`DESIGN_SYSTEM.md`](file:///c:/Users/User/pet-shelter/DESIGN_SYSTEM.md).
+- **Testing**: Vitest (`24` test suites, `183` tests, 100% passing).
+- **Legal & Compliance**:
+  - **Malaysian LHDN Tax Deductible**: Approved non-profit under Subsection 44(6) of the Income Tax Act 1967 (Ref: `LHDN.01/35/42/51/179-6.4912`).
+  - **ROS Registry of Societies**: Reg No. `PPM-012-10-18042016`.
+  - **PDPA 2010**: Malaysian Personal Data Protection Act compliance.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Platform Features
 
-### 🔍 Client-Side Faceted Search & Filtering
-- **Multi-Factor Criteria**: Filter animals simultaneously by **Species** (Dogs, Cats), **Age Stage** (Puppy/Kitten, Young, Adult, Senior), **Size** (Small, Medium, Large), and **Adoption Status** (Available, Pending).
-- **Instant Search Bar**: Sub-millisecond text search matching names, breeds, traits, and descriptions with instant clear actions.
-- **1-Click Quick Tags**: Dedicated filter chips for popular traits like *"Kid-Friendly"*, *"House-Trained"*, *"Gentle"*, and *"Playful"*.
-- **Reactive Result Counter & Empty State**: Live feedback on matching pets with 1-click filter reset.
+### 1. 🌐 Seamless Bilingual Localization (Bahasa Malaysia & English)
+- **Zero-Dependency i18n**: Type-safe dictionary system (`src/lib/i18n/translations.ts`) with 100% key parity across `nav`, `common`, `hero`, `home`, `pets`, `petDetail`, `medicalTimeline`, `adoptionForm`, `tracking`, `donations`, `bulletins`, and `footer`.
+- **Tactile Language Toggle**: Accessible `[ EN | BM ]` toggle in the desktop header navbar, mobile drawer sheet, and footer.
+- **State Persistence**: Synchronized via `localStorage` and `SameSite=Lax` cookies with zero hydration flickering.
 
-### 📋 Type-Safe Adoption Form (React Hook Form + Zod)
-- **Zod Schema Validation**: Client-side schema checking for required applicant contact info, valid email, minimum phone number digits, and agreement verification.
-- **Applicant Lifestyle & Housing Vetting**: Captures housing type (owned/rented with yard, apartment, condo), fenced yard status, current household pets, and past pet ownership experience.
-- **Dynamic Pet Association**: Pre-selects the chosen pet from any card or allows manual selection from a dropdown.
-- **Celebratory Success Confirmation**: Simulates asynchronous submission with loading spinner state and presents clear next steps for the applicant.
+### 2. 🩺 Rescue Intake & Clinical Medical Timeline
+- **Chronological Milestones**: Verified clinical timeline records (Rescue Intake, Diagnostics, Treatments, Core Vaccinations, Spay/Neuter Surgeries, ISO Microchip Clearance).
+- **Dynamic Synthetic Generator**: Deterministically synthesizes clinical timelines for dynamic pets created via the admin portal.
+- **Interactive Component**: Category filtering (*All, Intake, Diagnostics, Treatments, Vaccinations, Surgery, Clearance*), verified vet credentials, and bilingual translation. Embedded in `/pets/[id]` and quick-view modals.
 
-### ⚡ Performance & Image Optimization
-- **Next.js Image Optimization**: Configured with `images.unsplash.com` remote patterns, responsive `sizes` queries, and aspect-ratio protection against Cumulative Layout Shift (CLS).
-- **Static Page Pre-Rendering**: Optimized production bundle with pre-rendered static routes for instant page loads.
-- **Smooth Anchor Navigation**: Smooth scrolling support for internal page sections (`#how-it-works`, `#mission`, `#support`).
+### 3. 🔍 Faceted Pet Catalog & Compatibility Quiz
+- **Faceted Search**: Instant client & server filtering by Species, Age Category, Size, and Status with sub-millisecond search across traits and descriptions.
+- **Interactive Matcher (`PetMatchQuiz.tsx`)**: 4-question weighted algorithm recommending optimal companions based on housing, yard safety, and energy levels.
+
+### 4. 📄 100% Free Adoption Application & Live Tracker
+- **Zod-Validated Form (`AdoptionForm.tsx`)**: Comprehensive applicant vetting (housing compound, fenced yards, resident pets, experience).
+- **Public Self-Service Tracker (`/applications/track`)**: Real-time 4-step progress stepper (*Received, Review, Meet & Greet, Approved*), video meeting links, Google Maps shelter directions, and adoption-day checklists.
+
+### 5. 💳 Malaysian Giving Rail & LHDN Tax e-Receipts
+- **Donation Portal (`/donate` & `DonationWidget.tsx`)**: Direct DuitNow QR standard (PayNet Malaysia) and Maybank instant bank transfer.
+- **Automated e-Receipt Dossier**: Computes official tax receipts with statutory LHDN exemption numbers and instant printing.
+- **1-Click LHDN & ROS CSV Export Engine**: Automated CSV download for Malaysian tax filing and NGO audits in the Admin Portal.
+
+### 6. 🔐 Admin Management & Role-Based Access Control (RBAC)
+- **Role Permissions**: `SUPER_ADMIN`, `ADMIN`, and `COORDINATOR` with bcrypt-hashed credentials, brute-force rate limiting, and session protection.
+- **Admin Management**: Full CRUD for animals, soft-delete archiving, application review status workflows, and audit logging.
 
 ---
 
@@ -61,114 +61,66 @@ The application follows clean architecture and component isolation principles to
 
 ```plaintext
 pet-shelter/
-├── public/                     # Static assets and icons
 ├── src/
-│   ├── app/
-│   │   ├── layout.tsx          # Global root layout (Navbar, Footer, Google Fonts)
-│   │   ├── page.tsx            # Home page (Hero, Featured Pets, How It Works, Testimonials, CTA)
-│   │   ├── pets/
-│   │   │   └── page.tsx        # Searchable pet directory & adoption FAQ
-│   │   └── globals.css         # Tailwind v4 configuration and color design tokens
-│   ├── components/
-│   │   ├── ui/                 # Headless UI primitives (Button, Card, Dialog, Sheet, etc.)
-│   │   ├── Navbar.tsx          # Responsive navigation header
-│   │   ├── Footer.tsx          # Shelter footer with hours and emergency contacts
-│   │   ├── Hero.tsx            # Hero section with headline and shelter metrics
-│   │   ├── PetCard.tsx         # Pet card component with status badge & actions
-│   │   ├── PetDetailDialog.tsx # Pet profile dialog with rescue story & medical checklist
-│   │   ├── PetGallery.tsx      # Faceted search & filter gallery
-│   │   └── AdoptionForm.tsx    # Adoption application form with Zod validation
+│   ├── actions/                  # Next.js React Server Actions (auth, pets, applications, donations)
+│   ├── app/                      # Next.js App Router pages
+│   │   ├── layout.tsx            # Root layout (LanguageProvider + ThemeProvider)
+│   │   ├── page.tsx              # Homepage
+│   │   ├── pets/                 # Public pet catalog & detail view (/pets/[id])
+│   │   ├── donate/               # Donation portal & LHDN tax relief guide
+│   │   ├── applications/track/   # Public self-service tracking portal
+│   │   ├── bulletins/            # Community bulletins and announcements
+│   │   ├── admin/                # Secure staff dashboard, audit log & settings
+│   │   └── api/upload/           # Multi-provider image upload endpoint (local / S3 / Supabase)
+│   ├── components/               # Domain React components & UI primitives
+│   │   ├── Navbar.tsx            # Header with language & theme toggles
+│   │   ├── Footer.tsx            # Footer with visiting hours, address, and legal links
+│   │   ├── LanguageProvider.tsx  # React Context for bilingual i18n
+│   │   ├── LanguageToggle.tsx    # Accessible [ EN | BM ] switcher
+│   │   ├── MedicalTimeline.tsx   # Interactive vertical clinical timeline
+│   │   ├── PetGallery.tsx        # Faceted pet search & filter catalog
+│   │   ├── AdoptionForm.tsx      # Zod-validated adoption application form
+│   │   └── DonationWidget.tsx    # DuitNow QR & official LHDN tax receipting
 │   ├── data/
-│   │   └── pets.json           # Mock pet directory data with Unsplash photography
-│   ├── lib/
-│   │   └── utils.ts            # ClassName merging helper (clsx + tailwind-merge)
-│   └── types/
-│       └── pet.ts              # TypeScript interfaces for pets, filters, and adoption form
-├── next.config.ts              # Next.js configuration & remote image patterns
-├── package.json                # Project dependencies & scripts
-├── tsconfig.json               # TypeScript compiler options
-└── README.md                   # Project documentation
+│   │   └── pets.json             # Seeded pet directory with clinical timeline records
+│   ├── lib/                      # Core business logic, i18n dictionary, DB stores & validators
+│   └── types/                    # TypeScript interfaces & types (pet, match, sponsorship, rbac)
+├── tests/unit/                   # Vitest unit and integration test suites (24 files, 183 tests)
+├── next.config.ts                # Next.js configuration (images, allowedDevOrigins)
+└── package.json                  # Project dependencies and test scripts
+```
+
+---
+
+## 🧪 Quality Gates & Verification
+
+```bash
+# 1. Run all unit & integration test suites
+npm test -- --run
+
+# 2. Strict Mode TypeScript check
+npx tsc --noEmit
+
+# 3. ESLint code quality check
+npm run lint
+
+# 4. Production Turbopack build
+npm run build
 ```
 
 ---
 
 ## 🚀 Getting Started Locally
 
-### Prerequisites
-- **Node.js**: `v18.18.0` or higher (Node 20+ recommended)
-- **Package Manager**: `npm`, `yarn`, `pnpm`, or `bun`
+```bash
+# 1. Install dependencies
+npm install
 
-### Installation & Local Setup
+# 2. Generate Prisma Client
+npx prisma generate
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/your-username/pet-shelter.git
-   cd pet-shelter
-   ```
+# 3. Start development server
+npm run dev
+```
 
-2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
-
-3. **Start the local development server**:
-   ```bash
-   npm run dev
-   ```
-
-4. **Open your browser**:
-   Navigate to [http://localhost:3000](http://localhost:3000) to view the application.
-
-### Build & Lint Commands
-
-- **Run linter check**:
-  ```bash
-  npm run lint
-  ```
-- **Build production bundle**:
-  ```bash
-  npm run build
-  ```
-- **Start production server**:
-  ```bash
-  npm run start
-  ```
-
----
-
-## ☁️ Deployment
-
-### Option 1: Deploy to Vercel (Recommended)
-
-1. **Via Vercel CLI**:
-   ```bash
-   npx vercel
-   ```
-   Follow the prompts to link your account and deploy. Deploy to production using:
-   ```bash
-   npx vercel --prod
-   ```
-
-2. **Via GitHub Integration (Automatic CI/CD)**:
-   - Push your code to a GitHub repository:
-     ```bash
-     git add .
-     git commit -m "feat: complete pet shelter application"
-     git push origin main
-     ```
-   - Go to [Vercel](https://vercel.com) and click **"Add New..." > "Project"**.
-   - Select your `pet-shelter` repository.
-   - Vercel automatically detects Next.js. Click **"Deploy"**.
-
-### Option 2: Deploy to Netlify
-
-1. Push your repository to GitHub / GitLab.
-2. Log in to [Netlify](https://www.netlify.com) and select **"Add new site" > "Import an existing project"**.
-3. Select your repository. Netlify will detect Next.js with `@netlify/plugin-nextjs`.
-4. Click **"Deploy Site"**.
-
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
+Visit [http://localhost:3000](http://localhost:3000) to view the application. For local area network (LAN) mobile testing, access via `http://<your-lan-ip>:3000`.
