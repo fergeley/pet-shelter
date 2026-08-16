@@ -1,51 +1,47 @@
 # Guided Tutorial 03: Multi-Language Expansion (Adding Mandarin & Tamil)
 
-**Target Feature**: Expand the zero-dependency localization engine from bilingual (`en` & `ms`) to a 4-language Malaysian platform supporting **Simplified Chinese (`zh-MY`)** and **Tamil (`ta-MY`)** with strict compile-time key parity.  
-**Skill Focus**: TypeScript Union Types, Dictionary Namespaces, React Context State, and Multi-Language Accessible Switchers.
+**Target Feature**: Expand the zero-dependency localization engine from bilingual (`en` & `ms`) to a 4-language platform supporting **Malaysian Simplified Chinese (`zh-MY`)** and **Tamil (`ta-MY`)** with strict compile-time key parity.  
+**Skill Focus**: TypeScript Indexed Dictionaries, React Context State, and Accessible UI Switchers.
 
 ---
 
-## 🎯 Learning Objectives
+## 🎯 1. Why This Feature Earns Its Place
 
-By completing this stepped tutorial, you will master:
-1. Scaling type-safe translation dictionaries in TypeScript strict mode.
-2. Enforcing 100% key parity across all languages at compile time.
-3. Updating React Context (`LanguageProvider`) to manage multiple locale states.
-4. Designing an accessible 4-way language selector dropdown/toggle matching `DESIGN_SYSTEM.md`.
-5. Supporting diverse Asian typography line-heights and glyph sets with Google Fonts.
+The Klang Valley and Selangor community is multicultural and multilingual:
+1. **Adoption Outreach**: Many senior citizens and families in Petaling Jaya, Subang, and Klang primarily read Chinese or Tamil.
+2. **Community Inclusion**: Volunteer signups, foster programs, and DuitNow QR donations increase when legal and animal care instructions are readable in the user's native tongue.
+3. **Zero Runtime Bloat**: By maintaining typed local dictionaries, we add **0 external dependencies, 0 network API calls, and 0 latency**.
 
 ---
 
-## 📋 Step-by-Step Implementation
+## 📋 2. Step-by-Step Implementation
 
-### Step 1: Update Language Types
-📁 **Target File**: [`src/lib/i18n/translations.ts`](file:///c:/Users/User/pet-shelter/src/lib/i18n/translations.ts) (Lines 1–15)
-
-Expand the `Language` type union:
+### Step 1: Update Language Types & Metadata
+📁 **Target File**: [`src/lib/i18n/translations.ts`](file:///c:/Users/User/pet-shelter/src/lib/i18n/translations.ts) (Lines 1–25)
 
 ```typescript
 export type Language = 'en' | 'ms' | 'zh' | 'ta';
 
 export interface LanguageOption {
   code: Language;
-  label: string; // e.g. "English", "Bahasa Melayu", "中文", "தமிழ்"
-  shortLabel: string; // e.g. "EN", "BM", "华", "தமி"
+  label: string;      // e.g. "English", "Bahasa Melayu", "简体中文", "தமிழ்"
+  shortLabel: string; // e.g. "EN", "BM", "中文", "தமி"
 }
 
 export const SUPPORTED_LANGUAGES: LanguageOption[] = [
   { code: "en", label: "English", shortLabel: "EN" },
   { code: "ms", label: "Bahasa Melayu", shortLabel: "BM" },
   { code: "zh", label: "简体中文", shortLabel: "中文" },
-  { code: "ta", label: "தமிழ்", shortLabel: "தமிழ்" },
+  { code: "ta", label: "தமிழ்", shortLabel: "தமி" },
 ];
 ```
 
 ---
 
-### Step 2: Implement Mandarin (`zh`) & Tamil (`ta`) Dictionaries
+### Step 2: Implement Complete Dictionary Structure
 📁 **Target File**: [`src/lib/i18n/translations.ts`](file:///c:/Users/User/pet-shelter/src/lib/i18n/translations.ts)
 
-Add the new language dictionaries conforming strictly to `TranslationDictionary`:
+Create the `zh` and `ta` dictionaries ensuring every single key matches `TranslationDictionary`:
 
 ```typescript
 const zh: TranslationDictionary = {
@@ -64,44 +60,39 @@ const zh: TranslationDictionary = {
     freeAdoption: "100% 免费领养",
     filterBy: "筛选条件",
     clearFilters: "重置所有筛选",
+    loading: "载入中...",
+    search: "搜寻",
+    all: "全部",
+    male: "公",
+    female: "母",
+    dog: "狗",
+    cat: "猫",
+    dogs: "狗狗",
+    cats: "猫咪",
+    allSpecies: "全部物种",
+    save: "储存",
+    cancel: "取消",
+    back: "返回",
+    confirm: "确认",
+    close: "关闭",
+    viewDetails: "查看详情",
+    applyToAdopt: "申请免费领养",
+    trackStatus: "追踪申请状态",
   },
   hero: {
-    badge: "雪兰莪注册非营利动物庇护所",
-    title: "给流浪毛孩一个温暖的家。",
-    subtitle: "我们提供完整的兽医健康筛查、绝育手术与核心疫苗接种。不收取商业领养费。",
+    badge: "雪兰莪注册非营利动物庇护所 (ROS PPM-012-10-18042016)",
+    title: "给流浪毛孩一个温暖的永久家庭。",
+    subtitle: "雪兰莪八打灵再也流浪动物救援中心。提供完整的兽医健康筛查、绝育手术与核心疫苗接种。绝不收取商业领养费。",
     ctaAdopt: "寻找毛孩伙伴",
-    ctaDonate: "支持医疗基金",
+    ctaDonate: "支持医疗基金 (LHDN免税)",
+    statRescues: "850+ 成功救援",
+    statAdoptions: "720+ 成功领养",
+    statCare: "100% 兽医体检",
   },
-  // ... complete remaining namespaces (pets, adoptionForm, medicalTimeline, footer)
+  // ... continue with home, pets, petDetail, medicalTimeline, adoptionForm, tracking, donations, bulletins, footer
 };
 
-const ta: TranslationDictionary = {
-  nav: {
-    adopt: "தத்தெடுப்பு",
-    donate: "நன்கொடை",
-    track: "விண்ணப்ப கண்காணிப்பு",
-    bulletins: "அறிவிப்புகள்",
-    login: "பணியாளர் உள்நுழைவு",
-    adminDashboard: "நிர்வாக பலகை",
-  },
-  common: {
-    available: "கிடைக்கும்",
-    pending: "பரிசீலனையில்",
-    adopted: "தத்தெடுக்கப்பட்டது",
-    freeAdoption: "100% இலவச தத்தெடுப்பு",
-    filterBy: "வடிகட்டல்",
-    clearFilters: "அனைத்தையும் மீட்டமை",
-  },
-  hero: {
-    badge: "பதிவுசெய்யப்பட்ட தொண்டு சரணாலயம்",
-    title: "ஆதரவற்ற விலங்குகளுக்கு வாழ்வளிப்போம்.",
-    subtitle: "முழுமையான மருத்துவ பரிசோதனை மற்றும் தடுப்பூசி பாதுகாப்புடன்.",
-    ctaAdopt: "விலங்குகளைப் பார்க்க",
-    ctaDonate: "நன்கொடை அளியுங்கள்",
-  },
-  // ... complete remaining namespaces
-};
-
+// Export all languages mapped strictly to Record<Language, TranslationDictionary>
 export const translations: Record<Language, TranslationDictionary> = {
   en,
   ms,
@@ -112,26 +103,27 @@ export const translations: Record<Language, TranslationDictionary> = {
 
 ---
 
-### Step 3: Accessible 4-Language Toggle Component
+### Step 3: Accessible Multi-Language Toggle
 📁 **Target File**: [`src/components/LanguageToggle.tsx`](file:///c:/Users/User/pet-shelter/src/components/LanguageToggle.tsx)
-
-Transform the toggle pill into a multi-language switcher:
 
 ```tsx
 "use client";
 
 import React from "react";
 import { useLanguage } from "@/components/LanguageProvider";
-import { Language, SUPPORTED_LANGUAGES } from "@/lib/i18n/translations";
+import { SUPPORTED_LANGUAGES } from "@/lib/i18n/translations";
 import { Globe } from "lucide-react";
 
 export function LanguageToggle() {
   const { language, setLanguage } = useLanguage();
 
   return (
-    <div className="inline-flex items-center gap-1 p-1 bg-muted/60 border border-border rounded-xl">
-      <span className="sr-only">Select Language</span>
-      <Globe className="size-3.5 text-muted-foreground ml-1.5 mr-0.5" />
+    <div
+      role="group"
+      aria-label="Language Selector"
+      className="inline-flex items-center gap-1 p-1 bg-muted/50 border border-border rounded-xl"
+    >
+      <Globe className="size-3.5 text-muted-foreground ml-1.5 mr-0.5" aria-hidden="true" />
       {SUPPORTED_LANGUAGES.map((lang) => {
         const isActive = language === lang.code;
         return (
@@ -139,9 +131,10 @@ export function LanguageToggle() {
             key={lang.code}
             type="button"
             onClick={() => setLanguage(lang.code)}
+            aria-pressed={isActive}
             className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               isActive
-                ? "bg-background text-foreground shadow-xs border border-border/80"
+                ? "bg-background text-foreground shadow-xs border border-border"
                 : "text-muted-foreground hover:text-foreground hover:bg-background/40"
             }`}
             title={lang.label}
@@ -157,34 +150,43 @@ export function LanguageToggle() {
 
 ---
 
-### Step 4: Add Automated Unit Tests for Key Parity
+### Step 4: Automated Key Parity Test Suite
 📁 **Target File**: [`tests/unit/i18n.test.ts`](file:///c:/Users/User/pet-shelter/tests/unit/i18n.test.ts)
 
-Ensure test suites verify 100% parity across all 4 languages:
+Verify 100% parity across all 4 languages to prevent missing string bugs:
 
 ```typescript
-it("should maintain 100% key parity across en, ms, zh, and ta", () => {
-  const languages: Language[] = ["en", "ms", "zh", "ta"];
-  const enKeys = Object.keys(translations.en).sort();
+import { describe, it, expect } from "vitest";
+import { translations, Language } from "@/lib/i18n/translations";
 
-  for (const lang of languages) {
-    const langKeys = Object.keys(translations[lang]).sort();
-    expect(langKeys).toEqual(enKeys);
-  }
+describe("4-Language i18n Key Parity Suite", () => {
+  const languages: Language[] = ["en", "ms", "zh", "ta"];
+
+  it("should have all 4 language dictionaries defined", () => {
+    languages.forEach((lang) => {
+      expect(translations[lang]).toBeDefined();
+    });
+  });
+
+  it("should ensure 100% namespace parity with English base", () => {
+    const baseNamespaces = Object.keys(translations.en).sort();
+
+    languages.forEach((lang) => {
+      const currentNamespaces = Object.keys(translations[lang]).sort();
+      expect(currentNamespaces).toEqual(baseNamespaces);
+    });
+  });
 });
 ```
 
 ---
 
-## 🧪 Verification Commands
+## 🧪 3. Verification & Quality Gates
 
 ```bash
-# Verify All Vitest Suites
+# 1. Run Vitest Unit Tests
 npm test -- --run
 
-# Strict TypeScript Check
+# 2. Strict Type Check
 npx tsc --noEmit
-
-# Production Turbopack Build
-npm run build
 ```

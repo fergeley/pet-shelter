@@ -1,64 +1,64 @@
 # Guided Tutorial 01: Staff Medical Milestone Admin Manager
 
-**Target Feature**: Enable shelter staff to record, edit, and verify clinical medical milestones (Intake, Diagnostics, Vaccinations, Surgeries, Deworming, Clearances) directly from the `/admin/pets` dashboard.  
-**Skill Focus**: Full-Stack Next.js 16 Server Actions, Prisma 7 Database Mutation, Base UI Dialogs, and Vitest Testing.
+**Target Feature**: Enable shelter staff to record, verify, and attach clinical medical milestones (Intake, Diagnostics, Vaccinations, Surgeries, Deworming, Clearances) directly from the `/admin/pets` dashboard.  
+**Skill Focus**: Zod Form Validation, Next.js 16 Server Actions, Prisma 7 Database Mutation, Base UI Dialogs, and Vitest Testing.
 
 ---
 
-## 🎯 Learning Objectives
+## 🎯 1. Why This Feature Earns Its Place
 
-By completing this stepped tutorial, you will master:
-1. Extending domain interfaces in TypeScript strict mode.
-2. Writing resilient database mutations using the dual-layer pattern (Prisma PostgreSQL + in-memory fallback).
-3. Protecting Server Actions with Role-Based Access Control (`verifyAdminSession`).
-4. Building accessible, validated modal dialogs with `@base-ui/react` and Tailwind CSS v4.
-5. Invalidation of Next.js Server Component caches using `revalidatePath`.
-6. Writing automated Vitest unit tests to prevent regressions.
+In Malaysian animal welfare shelters (e.g. Hope for Strays, Petaling Jaya), animals cannot be released for adoption without a verified clinical record. Every rescue must have verifiable proof of:
+1. Initial intake quarantine & physical screening (Section 19 PJ).
+2. Negative infectious disease serology (Canine Parvovirus / Distemper or Feline FIV / FeLV).
+3. Broad-spectrum internal deworming & monthly parasite control.
+4. Core vaccination series (DHPPi 6-in-1 / FVRCP Tri-cat).
+5. Mandatory sterilization surgery (Spay / Neuter) under general anesthesia.
+6. ISO 11784/11785 15-digit RFID microchip implantation.
+
+Giving shelter staff a direct UI to log these events ensures data transparency for potential adopters and public trust.
 
 ---
 
-## 📋 Step-by-Step Implementation
+## 📋 2. Step-by-Step Implementation
 
-### Step 1: Type Domain Contract
-📁 **Target File**: [`src/types/pet.ts`](file:///c:/Users/User/pet-shelter/src/types/pet.ts) (Lines 22–43)
+### Step 1: Zod Schema & Domain Contract
+📁 **Target File**: [`src/lib/validations/pet.ts`](file:///c:/Users/User/pet-shelter/src/lib/validations/pet.ts)
 
-Verify that the `MedicalTimelineEvent` and `MedicalTimelineCategory` types are properly exported:
+Add the Zod validation schema for clinical milestones:
 
 ```typescript
-export type MedicalTimelineCategory =
-  | 'intake'
-  | 'diagnostic'
-  | 'treatment'
-  | 'vaccination'
-  | 'surgery'
-  | 'clearance';
+import * as z from "zod";
 
-export interface MedicalTimelineEvent {
-  id: string;
-  date: string; // Format: YYYY-MM-DD
-  title: string;
-  titleMs?: string;
-  category: MedicalTimelineCategory;
-  description: string;
-  descriptionMs?: string;
-  veterinarian?: string;
-  verified: boolean;
-  badge?: string;
-  badgeMs?: string;
-  documentUrl?: string; // Optional PDF/Image attachment (vet report, vaccination card)
-}
+export const medicalMilestoneSchema = z.object({
+  petId: z.string().min(1, "Pet ID is required"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"),
+  category: z.enum(["intake", "diagnostic", "treatment", "vaccination", "surgery", "clearance"]),
+  title: z.string().min(3, "Title must be at least 3 characters").max(100),
+  titleMs: z.string().max(100).optional(),
+  description: z.string().min(5, "Please provide clinical notes or observations"),
+  descriptionMs: z.string().optional(),
+  veterinarian: z.string().min(2, "Veterinarian or clinic name is required"),
+  badge: z.string().max(30).optional(),
+  badgeMs: z.string().max(30).optional(),
+  documentUrl: z.string().url("Please provide a valid document URL").optional().or(z.literal("")),
+});
+
+export type MedicalMilestoneInput = z.infer<typeof medicalMilestoneSchema>;
 ```
 
 ---
 
 ### Step 2: Database Store Layer (Dual-Layer Persistence)
-📁 **Target File**: [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts) (Add around Line 330)
+📁 **Target File**: [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts)
 
 Implement the store mutation that updates the in-memory array and synchronizes with PostgreSQL via Prisma:
 
 ```typescript
+import { MedicalTimelineEvent } from "@/types/pet";
+import { prisma } from "./prisma";
+
 /**
- * Appends a verified clinical milestone to a pet's medical timeline.
+ * Appends a verified clinical milestone to a pet's medical timeline and sorts chronologically.
  */
 export async function addPetMedicalMilestone(
   petId: string,
@@ -72,10 +72,10 @@ export async function addPetMedicalMilestone(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
 
-  // 1. Update in-memory state
+  // 1. Update in-memory state (guarantees zero downtime offline or in demo mode)
   pet.medicalTimeline = updatedTimeline;
 
-  // 2. Persist to Prisma PostgreSQL (if database connection is active)
+  // 2. Persist to Prisma PostgreSQL
   try {
     await prisma.pet.update({
       where: { id: petId },
@@ -94,9 +94,9 @@ export async function addPetMedicalMilestone(
 ---
 
 ### Step 3: Server Action with RBAC Authorization
-📁 **Target File**: [`src/actions/pets.ts`](file:///c:/Users/User/pet-shelter/src/actions/pets.ts) (Add around Line 240)
+📁 **Target File**: [`src/actions/pets.ts`](file:///c:/Users/User/pet-shelter/src/actions/pets.ts)
 
-Create a Server Action with RBAC verification, audit logging, and cache invalidation:
+Create the Server Action that verifies staff session, validates with Zod, writes an audit trail, and revalidates Next.js cached pages:
 
 ```typescript
 "use server";
@@ -105,51 +105,78 @@ import { revalidatePath } from "next/cache";
 import { verifyAdminSession } from "@/lib/auth";
 import { addPetMedicalMilestone } from "@/lib/serverStore";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import { medicalMilestoneSchema, MedicalMilestoneInput } from "@/lib/validations/pet";
 import { MedicalTimelineEvent } from "@/types/pet";
 
 export async function addMedicalMilestoneAction(
-  petId: string,
-  eventData: Omit<MedicalTimelineEvent, "id">
-): Promise<{ success: boolean; error?: string }> {
-  // 1. Security Guard: Verify staff session
-  const session = await verifyAdminSession();
-  if (!session) {
-    return { success: false, error: "Unauthorized. Staff credentials required." };
+  rawInput: MedicalMilestoneInput
+): Promise<{ success: boolean; data?: MedicalTimelineEvent; error?: string }> {
+  try {
+    // 1. Security Check: Ensure staff session is valid
+    const session = await verifyAdminSession();
+    if (!session) {
+      return { success: false, error: "Unauthorized. Staff login required." };
+    }
+
+    // 2. Schema Validation
+    const validated = medicalMilestoneSchema.parse(rawInput);
+
+    // 3. Construct verified milestone entity
+    const newEvent: MedicalTimelineEvent = {
+      id: `tl-${Date.now()}`,
+      date: validated.date,
+      category: validated.category,
+      title: validated.title.trim(),
+      titleMs: validated.titleMs?.trim() || undefined,
+      description: validated.description.trim(),
+      descriptionMs: validated.descriptionMs?.trim() || undefined,
+      veterinarian: validated.veterinarian.trim(),
+      verified: true,
+      badge: validated.badge?.trim() || undefined,
+      badgeMs: validated.badgeMs?.trim() || undefined,
+    };
+
+    // 4. Persist to store
+    const updatedPet = await addPetMedicalMilestone(validated.petId, newEvent);
+    if (!updatedPet) {
+      return { success: false, error: "Pet record not found." };
+    }
+
+    // 5. Audit Log Trail
+    recordAuditLog({
+      actorId: session.userId || "staff_admin",
+      actorEmail: session.email,
+      actorRole: session.role || "ADMIN",
+      action: "PET_UPDATE",
+      entity: "PetMedicalTimeline",
+      entityId: validated.petId,
+      details: {
+        petId: validated.petId,
+        milestoneId: newEvent.id,
+        category: newEvent.category,
+        title: newEvent.title,
+        date: newEvent.date,
+      },
+    });
+
+    // 6. Cache Invalidation: Re-render public pet details and admin tables instantly
+    revalidatePath(`/pets/${validated.petId}`);
+    revalidatePath("/pets");
+    revalidatePath("/admin/pets");
+
+    return { success: true, data: newEvent };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to record clinical milestone.",
+    };
   }
-
-  // 2. Build verified milestone entity
-  const newEvent: MedicalTimelineEvent = {
-    ...eventData,
-    id: `tl-${Date.now()}`,
-    verified: true,
-  };
-
-  // 3. Persist milestone
-  const updatedPet = await addPetMedicalMilestone(petId, newEvent);
-  if (!updatedPet) {
-    return { success: false, error: "Pet record not found." };
-  }
-
-  // 4. Audit Log Trail
-  recordAuditLog({
-    action: "PET_UPDATE",
-    performedBy: session.email,
-    targetId: petId,
-    details: `Added clinical medical milestone: ${newEvent.title} (${newEvent.category})`,
-  });
-
-  // 5. Cache Revalidation
-  revalidatePath(`/pets/${petId}`);
-  revalidatePath("/pets");
-  revalidatePath("/admin/pets");
-
-  return { success: true };
 }
 ```
 
 ---
 
-### Step 4: UI Modal Dialog Component
+### Step 4: UI Component — Modal Dialog Form
 📁 **Target File**: Create [`src/components/admin/AddMedicalMilestoneDialog.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/AddMedicalMilestoneDialog.tsx)
 
 ```tsx
@@ -166,25 +193,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MedicalTimelineCategory } from "@/types/pet";
+import { MedicalTimelineCategory, Pet } from "@/types/pet";
 import { addMedicalMilestoneAction } from "@/actions/pets";
 
 interface Props {
-  petId: string;
-  petName: string;
+  pet: Pet | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-export function AddMedicalMilestoneDialog({
-  petId,
-  petName,
-  open,
-  onOpenChange,
-  onSuccess,
-}: Props) {
+export function AddMedicalMilestoneDialog({ pet, open, onOpenChange, onSuccess }: Props) {
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const [category, setCategory] = useState<MedicalTimelineCategory>("vaccination");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [title, setTitle] = useState("");
@@ -193,19 +215,21 @@ export function AddMedicalMilestoneDialog({
   const [vet, setVet] = useState("Dr. Sarah Tan, DVM (PJ Animal Hospital)");
   const [badge, setBadge] = useState("");
 
+  if (!pet) return null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setErrorMessage(null);
 
-    const res = await addMedicalMilestoneAction(petId, {
+    const res = await addMedicalMilestoneAction({
+      petId: pet.id,
       date,
       category,
       title,
       titleMs: titleMs || undefined,
       description,
-      descriptionMs: undefined,
       veterinarian: vet,
-      verified: true,
       badge: badge || undefined,
     });
 
@@ -214,51 +238,70 @@ export function AddMedicalMilestoneDialog({
       onOpenChange(false);
       onSuccess();
     } else {
-      alert(res.error || "Failed to record milestone");
+      setErrorMessage(res.error || "Failed to record milestone.");
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg rounded-2xl">
+      <DialogContent className="w-full max-w-lg rounded-2xl p-6 border border-border bg-card">
         <DialogHeader>
-          <DialogTitle>Add Clinical Milestone — {petName}</DialogTitle>
+          <DialogTitle className="font-heading text-xl font-bold">
+            Add Clinical Milestone — {pet.name}
+          </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+
+        {errorMessage && (
+          <div className="p-3 text-xs bg-rose-50 border border-rose-200 text-rose-800 rounded-xl">
+            {errorMessage}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider">Milestone Category</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Milestone Category
+            </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as MedicalTimelineCategory)}
-              className="w-full mt-1 border rounded-lg p-2 bg-background text-sm"
+              className="w-full mt-1 border border-border rounded-xl p-2.5 bg-background text-sm focus:ring-1 focus:ring-primary"
             >
-              <option value="intake">Rescue Intake</option>
-              <option value="diagnostic">Diagnostic & Bloodwork</option>
+              <option value="intake">Rescue Intake & Physical Exam</option>
+              <option value="diagnostic">Diagnostic & Bloodwork Screen</option>
               <option value="treatment">Treatment & Parasite Control</option>
-              <option value="vaccination">Core Vaccination</option>
+              <option value="vaccination">Core Vaccination (6-in-1 / FVRCP)</option>
               <option value="surgery">Sterilization Surgery (Spay/Neuter)</option>
-              <option value="clearance">Adoption Health Clearance</option>
+              <option value="clearance">Health Clearance & Microchip</option>
             </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider">Date</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Date
+              </label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div>
-              <label className="text-xs font-bold uppercase tracking-wider">Badge Tag (Optional)</label>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Badge Tag (Optional)
+              </label>
               <Input value={badge} onChange={(e) => setBadge(e.target.value)} placeholder="e.g. CPV Negative" />
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider">Veterinarian Credentials</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Veterinarian Credentials
+            </label>
             <Input value={vet} onChange={(e) => setVet(e.target.value)} required />
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider">Milestone Title (English)</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Title (English)
+            </label>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -268,7 +311,9 @@ export function AddMedicalMilestoneDialog({
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider">Milestone Title (Bahasa Malaysia - Optional)</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Title (Bahasa Malaysia - Optional)
+            </label>
             <Input
               value={titleMs}
               onChange={(e) => setTitleMs(e.target.value)}
@@ -277,21 +322,23 @@ export function AddMedicalMilestoneDialog({
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase tracking-wider">Clinical Notes & Findings</label>
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Clinical Observations & Notes
+            </label>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Clinical observation, dosage, negative antigen result..."
+              placeholder="Dosage, clinical findings, incision status..."
               required
             />
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Save Milestone"}
+              {loading ? "Saving..." : "Save Clinical Record"}
             </Button>
           </DialogFooter>
         </form>
@@ -306,19 +353,19 @@ export function AddMedicalMilestoneDialog({
 ### Step 5: Table Action Integration
 📁 **Target File**: [`src/components/admin/PetDataTable.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/PetDataTable.tsx) (Around Line 350)
 
-Add a Stethoscope action button and state to the admin data table:
+Add the Stethoscope action button and state to the admin data table:
 
 ```tsx
 // Inside columns definition in PetDataTable.tsx
 <Button
   variant="ghost"
   size="sm"
-  title="Manage Medical History"
+  title="Record Medical Milestone"
   onClick={() => {
     setSelectedPet(row.original);
     setIsMedicalDialogOpen(true);
   }}
-  className="size-8 p-0 text-blue-600 hover:bg-blue-50"
+  className="size-8 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40"
 >
   <Stethoscope className="size-4" />
 </Button>
@@ -328,8 +375,6 @@ Add a Stethoscope action button and state to the admin data table:
 
 ### Step 6: Automated Vitest Test Verification
 📁 **Target File**: [`tests/unit/medicalTimeline.test.ts`](file:///c:/Users/User/pet-shelter/tests/unit/medicalTimeline.test.ts)
-
-Add a test suite verifying date-ordered insertion:
 
 ```typescript
 it("should insert a custom clinical milestone and maintain strict chronological ordering", () => {
@@ -356,15 +401,15 @@ it("should insert a custom clinical milestone and maintain strict chronological 
 
 ---
 
-## 🧪 Verification Commands
+## 🧪 3. Verification & Quality Gates
 
 ```bash
-# Run Unit Tests
+# 1. Run Vitest suites
 npm test -- --run
 
-# Strict Mode TypeScript Check
+# 2. Strict Type Check
 npx tsc --noEmit
 
-# Production Build Check
+# 3. Production Build Check
 npm run build
 ```

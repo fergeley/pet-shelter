@@ -5,18 +5,16 @@
 
 ---
 
-## 🎯 Learning Objectives
+## 🎯 1. Why This Feature Earns Its Place
 
-By completing this stepped tutorial, you will master:
-1. Writing performant server-side data aggregation algorithms in TypeScript.
-2. Generating RFC-4180 compliant CSVs with UTF-8 BOM encoding for Excel/Numbers.
-3. Protecting financial CSV downloads against Spreadsheet Formula Injection vulnerabilities.
-4. Structuring accessible metric summary cards following `DESIGN_SYSTEM.md`.
-5. Calculating key animal shelter performance indicators (Intake vs. Rehoming velocity).
+As a registered Malaysian charity (*Persatuan Harapan Haiwan Terbiar Selangor*, PPM-012-10-18042016) with approved LHDN Subsection 44(6) Tax Relief status (`LHDN.01/35/42/51/179-6.4912`), the shelter is legally mandated to:
+1. **Submit LHDN Donor Schedules**: Annual CSV/Excel schedules of all tax-deductible donations containing donor Full Name, NRIC/Passport/SSM Number, Official Receipt Number, Date, and MYR Amount.
+2. **Submit ROS Annual AGM Reports**: Annual intake vs. rehoming figures and animal mortality/health rates.
+3. **Prevent Formula Injection Exploits**: Protect shelter accountants when opening donor CSVs in Microsoft Excel or Apple Numbers against spreadsheet command injection (`=cmd|' /C ...'`).
 
 ---
 
-## 📋 Step-by-Step Implementation
+## 📋 2. Step-by-Step Implementation
 
 ### Step 1: Define Analytics Data Models
 📁 **Target File**: Create [`src/types/analytics.ts`](file:///c:/Users/User/pet-shelter/src/types/analytics.ts)
@@ -32,23 +30,23 @@ export interface ShelterMetrics {
   taxDeductibleDonationCount: number;
 }
 
-export interface SpeciesOccupancy {
-  species: 'dog' | 'cat';
-  count: number;
-  percentage: number;
-}
-
-export interface MonthlyTrend {
-  month: string; // e.g. "Jan 2026"
-  intakes: number;
-  adoptions: number;
-  donationsMyr: number;
+export interface TaxAuditExportRow {
+  receiptNumber: string;
+  date: string;
+  donorName: string;
+  donorEmail: string;
+  donorPhone: string;
+  taxIdOrIc: string;
+  tierName: string;
+  paymentMethod: string;
+  amountMyr: number;
+  taxDeductibleRef: string;
 }
 ```
 
 ---
 
-### Step 2: Server-Side Aggregation Action
+### Step 2: Server-Side Aggregation Action (Typed Aggregation)
 📁 **Target File**: Create [`src/actions/analytics.ts`](file:///c:/Users/User/pet-shelter/src/actions/analytics.ts)
 
 ```typescript
@@ -57,7 +55,7 @@ export interface MonthlyTrend {
 import { getServerPetsAsync, getServerApplicationsAsync } from "@/lib/serverStore";
 import { getAuditLogs } from "@/lib/domain/auditLog";
 import { verifyAdminSession } from "@/lib/auth";
-import { ShelterMetrics } from "@/types/analytics";
+import { ShelterMetrics, TaxAuditExportRow } from "@/types/analytics";
 
 export async function getShelterAnalyticsAction(): Promise<ShelterMetrics | null> {
   const session = await verifyAdminSession();
@@ -71,10 +69,12 @@ export async function getShelterAnalyticsAction(): Promise<ShelterMetrics | null
 
   const activePets = pets.filter((p) => !p.isArchived);
   const availableCount = activePets.filter((p) => p.status === "Available").length;
-  const pendingCount = applications.filter((a) => a.status === "submitted" || a.status === "under_review").length;
+  const pendingCount = applications.filter(
+    (a) => a.status === "submitted" || a.status === "under_review"
+  ).length;
   const adoptedPets = activePets.filter((p) => p.status === "Adopted");
 
-  // Calculate Average Days to Adoption
+  // 1. Calculate Average Days to Adoption (Length of Stay)
   let totalDays = 0;
   let adoptedWithDateCount = 0;
   for (const pet of adoptedPets) {
@@ -86,15 +86,18 @@ export async function getShelterAnalyticsAction(): Promise<ShelterMetrics | null
       adoptedWithDateCount++;
     }
   }
-  const averageDaysToAdoption = adoptedWithDateCount > 0 ? Math.round(totalDays / adoptedWithDateCount) : 14;
+  const averageDaysToAdoption =
+    adoptedWithDateCount > 0 ? Math.round(totalDays / adoptedWithDateCount) : 14;
 
-  // Calculate Donations from Audit Logs
+  // 2. Structured Financial Aggregation from Typed Audit Logs
   const donationLogs = logs.filter((l) => l.action === "DONATION_RECEIVED");
   let totalDonations = 0;
   for (const log of donationLogs) {
-    const match = log.details?.match(/RM\s*([\d,]+\.?\d*)/);
-    if (match) {
-      totalDonations += parseFloat(match[1].replace(/,/g, ""));
+    if (log.details && typeof log.details === "object" && "amountMYR" in log.details) {
+      const amount = Number((log.details as Record<string, unknown>).amountMYR);
+      if (!isNaN(amount)) {
+        totalDonations += amount;
+      }
     }
   }
 
@@ -113,9 +116,7 @@ export async function getShelterAnalyticsAction(): Promise<ShelterMetrics | null
 ---
 
 ### Step 3: Hardened LHDN & ROS CSV Export Utility
-📁 **Target File**: [`src/lib/exportCsv.ts`](file:///c:/Users/User/pet-shelter/src/lib/exportCsv.ts) (Verify lines 1–65)
-
-Ensure security measures against Formula Injection and UTF-8 BOM encoding:
+📁 **Target File**: [`src/lib/exportCsv.ts`](file:///c:/Users/User/pet-shelter/src/lib/exportCsv.ts) (Lines 1–70)
 
 ```typescript
 /**
@@ -136,10 +137,43 @@ export function sanitizeCsvCell(value: string | number | null | undefined): stri
 }
 
 /**
+ * Generates an official Malaysian LHDN Subsection 44(6) Form B/BE Donor Schedule CSV.
+ */
+export function generateLhdnTaxCsv(records: TaxAuditExportRow[]): string {
+  const headers = [
+    "Receipt Number",
+    "Receipt Date",
+    "Donor Full Name",
+    "Donor Email",
+    "Donor Phone",
+    "NRIC / Passport / SSM No.",
+    "Sponsorship Tier",
+    "Payment Rail",
+    "Amount (MYR)",
+    "LHDN Exemption Ref",
+  ];
+
+  const rows = records.map((r) => [
+    sanitizeCsvCell(r.receiptNumber),
+    sanitizeCsvCell(r.date),
+    sanitizeCsvCell(r.donorName),
+    sanitizeCsvCell(r.donorEmail),
+    sanitizeCsvCell(r.donorPhone),
+    sanitizeCsvCell(r.taxIdOrIc || "INDIVIDUAL_ANON"),
+    sanitizeCsvCell(r.tierName),
+    sanitizeCsvCell(r.paymentMethod),
+    sanitizeCsvCell(r.amountMyr.toFixed(2)),
+    sanitizeCsvCell(r.taxDeductibleRef),
+  ]);
+
+  return [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+}
+
+/**
  * Downloads a generated CSV string in the client browser with UTF-8 BOM.
  */
 export function triggerCsvDownload(csvContent: string, filename: string): void {
-  const BOM = "\uFEFF";
+  const BOM = "\uFEFF"; // Guarantees proper rendering of Chinese / Tamil characters in MS Excel
   const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -154,7 +188,7 @@ export function triggerCsvDownload(csvContent: string, filename: string): void {
 
 ---
 
-### Step 4: Analytics Metric Cards Component
+### Step 4: Analytics Metric Grid Component
 📁 **Target File**: Create [`src/components/admin/AnalyticsMetricGrid.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/AnalyticsMetricGrid.tsx)
 
 ```tsx
@@ -162,7 +196,7 @@ export function triggerCsvDownload(csvContent: string, filename: string): void {
 
 import React from "react";
 import { ShelterMetrics } from "@/types/analytics";
-import { Heart, Clock, DollarSign, FileCheck2, Users, ShieldCheck } from "lucide-react";
+import { Heart, Clock, DollarSign, Users } from "lucide-react";
 import { Card } from "@/components/ui/card";
 
 export function AnalyticsMetricGrid({ metrics }: { metrics: ShelterMetrics }) {
@@ -225,15 +259,15 @@ export function AnalyticsMetricGrid({ metrics }: { metrics: ShelterMetrics }) {
 
 ---
 
-## 🧪 Verification Commands
+## 🧪 3. Verification & Quality Gates
 
 ```bash
-# Verify Unit Tests
+# 1. Run Vitest Unit Tests
 npm test -- --run
 
-# Strict TypeScript Check
+# 2. Strict Type Check
 npx tsc --noEmit
 
-# Production Build
+# 3. Production Build
 npm run build
 ```
