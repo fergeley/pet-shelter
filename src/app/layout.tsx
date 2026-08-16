@@ -4,6 +4,7 @@ import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { LanguageProvider } from "@/components/LanguageProvider";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Analytics } from "@vercel/analytics/next";
@@ -86,16 +87,18 @@ export default function RootLayout({
             `,
           }}
         />
-        <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
-          {/* Centered Application Frame with Softer Gray Tones */}
-          <div className="mx-auto w-full max-w-6xl xl:max-w-7xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shadow-xs flex flex-col min-h-[calc(100vh-1.25rem)] sm:min-h-[calc(100vh-2.5rem)] md:min-h-[calc(100vh-4rem)]">
-            <Navbar />
-            <main className="flex-1 w-full">{children}</main>
-            <Footer />
-          </div>
-          <Analytics />
-          <SpeedInsights />
-        </ThemeProvider>
+        <LanguageProvider defaultLanguage="en">
+          <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
+            {/* Centered Application Frame with Softer Gray Tones */}
+            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shadow-xs flex flex-col min-h-[calc(100vh-1.25rem)] sm:min-h-[calc(100vh-2.5rem)] md:min-h-[calc(100vh-4rem)]">
+              <Navbar />
+              <main className="flex-1 w-full">{children}</main>
+              <Footer />
+            </div>
+            <Analytics />
+            <SpeedInsights />
+          </ThemeProvider>
+        </LanguageProvider>
       </body>
     </html>
   );
