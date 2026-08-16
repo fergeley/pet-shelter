@@ -24,6 +24,86 @@
       "spayedNeutered": true,
       "specialNeeds": "Core 6-in-1 vaccination complete. Monthly NexGard Spectra given."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-001-1",
+        "date": "2026-06-12",
+        "title": "Sanctuary Rescue & Initial Intake Screening",
+        "titleMs": "Penyelamatan & Saringan Kemasukan Awal",
+        "category": "intake",
+        "description": "Rescued safely from Section 19 Petaling Jaya industrial lot. Body weight 20.5kg, BCS 4/9. General physical examination clear.",
+        "descriptionMs": "Diselamatkan dari kawasan industri Seksyen 19 Petaling Jaya. Berat badan 20.5kg, skor keadaan badan 4/9. Pemeriksaan fizikal am normal.",
+        "veterinarian": "Dr. Sarah Tan, DVM (PJ Animal Hospital)",
+        "verified": true,
+        "badge": "Intake Clear",
+        "badgeMs": "Kemasukan Bersih"
+      },
+      {
+        "id": "tl-001-2",
+        "date": "2026-06-14",
+        "title": "Diagnostic Bloodwork & Infectious Disease Screen",
+        "titleMs": "Ujian Darah Diagnostik & Saringan Penyakit Berjangkit",
+        "category": "diagnostic",
+        "description": "Canine Parvovirus (CPV) and Canine Distemper Virus (CDV) antigen tests NEGATIVE. Complete blood count within standard reference ranges.",
+        "descriptionMs": "Ujian antigen Parvovirus dan Distemper NEGATIF. Ujian darah lengkap dalam julat normal.",
+        "veterinarian": "Dr. Sarah Tan, DVM (PJ Animal Hospital)",
+        "verified": true,
+        "badge": "CPV/CDV Negative",
+        "badgeMs": "Negatif CPV/CDV"
+      },
+      {
+        "id": "tl-001-3",
+        "date": "2026-06-16",
+        "title": "Parasite Treatment & Prophylaxis",
+        "titleMs": "Rawatan Parasit & Pencegahan",
+        "category": "treatment",
+        "description": "Broad-spectrum internal deworming with Drontal Plus administered. Monthly NexGard Spectra applied for flea, tick, and heartworm prevention.",
+        "descriptionMs": "Ubat cacing spektrum luas Drontal Plus diberikan. NexGard Spectra bulanan untuk pencegahan kutu, pinjal dan cacing jantung.",
+        "veterinarian": "Dr. Sarah Tan, DVM (PJ Animal Hospital)",
+        "verified": true,
+        "badge": "Parasite Free",
+        "badgeMs": "Bebas Parasit"
+      },
+      {
+        "id": "tl-001-4",
+        "date": "2026-06-25",
+        "title": "Core Immunization (DHPPi + Lepto 6-in-1)",
+        "titleMs": "Imunisasi Teras (DHPPi + Lepto 6-dalam-1)",
+        "category": "vaccination",
+        "description": "Administered annual booster for Distemper, Hepatitis, Parvovirus, Parainfluenza, and Leptospirosis.",
+        "descriptionMs": "Suntikan vaksin penggalak tahunan untuk Distemper, Hepatitis, Parvovirus, Parainfluenza, dan Leptospirosis.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      },
+      {
+        "id": "tl-001-5",
+        "date": "2026-07-02",
+        "title": "Elective Ovariohysterectomy (Spay Surgery)",
+        "titleMs": "Pembedahan Pemandulan (Ovariohisterektomi)",
+        "category": "surgery",
+        "description": "Routine sterilization performed under general isoflurane anesthesia. Post-op recovery uneventful, incision site healed cleanly.",
+        "descriptionMs": "Pembedahan pemandulan rutin di bawah bius umum. Pemulihan lancar, luka sembuh sempurna.",
+        "veterinarian": "Dr. Sarah Tan, DVM (PJ Animal Hospital)",
+        "verified": true,
+        "badge": "Sterilized",
+        "badgeMs": "Dimandulkan"
+      },
+      {
+        "id": "tl-001-6",
+        "date": "2026-07-16",
+        "title": "ISO Microchip & Full Adoption Clearance",
+        "titleMs": "Cip Mikro ISO & Pelepasan Adopsi Penuh",
+        "category": "clearance",
+        "description": "Implanted ISO 11784/11785 15-digit RFID microchip. Final veterinary health passport certified for unconditional adoption rehoming.",
+        "descriptionMs": "Pemasangan cip mikro RFID 15 digit piawaian ISO 11784/11785. Pasport kesihatan veterinar disahkan sedia untuk diangkat anak.",
+        "veterinarian": "Dr. Sarah Tan, DVM (PJ Animal Hospital)",
+        "verified": true,
+        "badge": "Adoption Ready",
+        "badgeMs": "Sedia Diadopsi"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,
@@ -59,6 +139,73 @@
       "spayedNeutered": true,
       "specialNeeds": "Tested negative for FIV/FeLV. Fully litter box reliable."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-002-1",
+        "date": "2026-07-04",
+        "title": "Sanctuary Rescue & Quarantine Intake",
+        "titleMs": "Penyelamatan & Kuarantin Kemasukan",
+        "category": "intake",
+        "description": "Brought in from SS2 Petaling Jaya commercial zone. Alert, responsive, clear eyes and ears. Weight 3.8kg.",
+        "descriptionMs": "Diselamatkan dari zon komersial SS2 Petaling Jaya. Cergas, mata dan telinga bersih. Berat 3.8kg.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Intake Complete",
+        "badgeMs": "Kemasukan Selesai"
+      },
+      {
+        "id": "tl-002-2",
+        "date": "2026-07-06",
+        "title": "Feline Retrovirus Serology Screening",
+        "titleMs": "Saringan Serologi Retrovirus Kucing",
+        "category": "diagnostic",
+        "description": "FIV antibody & FeLV antigen combo test NEGATIVE. Feline Coronavirus antibody screen negative.",
+        "descriptionMs": "Ujian antibodi FIV & antigen FeLV NEGATIF. Saringan Coronavirus kucing negatif.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "FIV/FeLV Negative",
+        "badgeMs": "Negatif FIV/FeLV"
+      },
+      {
+        "id": "tl-002-3",
+        "date": "2026-07-12",
+        "title": "Core FVRCP Tri-Cat Immunization",
+        "titleMs": "Imunisasi Teras FVRCP Tri-Cat",
+        "category": "vaccination",
+        "description": "Vaccinated against Feline Viral Rhinotracheitis, Calicivirus, and Panleukopenia.",
+        "descriptionMs": "Suntikan vaksin terhadap Rhinotracheitis, Calicivirus, dan Panleukopenia.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "FVRCP Up to Date",
+        "badgeMs": "Vaksin FVRCP Lengkap"
+      },
+      {
+        "id": "tl-002-4",
+        "date": "2026-07-20",
+        "title": "Castration Surgery (Neuter) & Microchipping",
+        "titleMs": "Pembedahan Pemandulan (Kembiri) & Cip Mikro",
+        "category": "surgery",
+        "description": "Standard bilateral orchiectomy completed under anesthesia. Microchip implanted subcutaneously between scapulae.",
+        "descriptionMs": "Pembedahan kembiri bilateral selesai di bawah bius. Cip mikro dipasang pada bawah kulit bahu.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Neutered & Chipped",
+        "badgeMs": "Kembiri & Cip Mikro"
+      },
+      {
+        "id": "tl-002-5",
+        "date": "2026-07-28",
+        "title": "Foster Socialization & Rehoming Sign-off",
+        "titleMs": "Sosialisasi Rumah Asuhan & Kelulusan Adopsi",
+        "category": "clearance",
+        "description": "Completed litter box reliability and cat-friendly socialization trial. 100% cleared for adoption placement.",
+        "descriptionMs": "Selesai ujian kebolehpercayaan tandas pasir dan keserasian bersama kucing lain. Lulus 100% untuk adopsi.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Ready for Home",
+        "badgeMs": "Sedia Ke Rumah Baharu"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,
@@ -93,6 +240,60 @@
       "spayedNeutered": true,
       "specialNeeds": "Healthy. Vaccinations and heartworm prevention up to date."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-003-1",
+        "date": "2026-05-18",
+        "title": "Owner Surrender Intake & Health Assessment",
+        "titleMs": "Kemasukan Serahan Pemilik & Penilaian Kesihatan",
+        "category": "intake",
+        "description": "Intake via owner relocation handover. Comprehensive physical exam, dental grading 1/4, strong musculoskeletal condition.",
+        "descriptionMs": "Kemasukan melalui penyerahan pemilik. Pemeriksaan fizikal menyeluruh, keadaan otot dan rangka sangat baik.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Healthy Intake",
+        "badgeMs": "Kemasukan Sihat"
+      },
+      {
+        "id": "tl-003-2",
+        "date": "2026-05-20",
+        "title": "IDEXX 4Dx Vector-Borne Screening",
+        "titleMs": "Saringan Penyakit Bawaan Vektor 4Dx",
+        "category": "diagnostic",
+        "description": "Screened for Heartworm, Anaplasma, Ehrlichia, and Lyme disease. All panels returned NEGATIVE.",
+        "descriptionMs": "Saringan untuk cacing jantung, Anaplasma, Ehrlichia, dan penyakit Lyme. Semua panel NEGATIF.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "4Dx Clear",
+        "badgeMs": "Bersih 4Dx"
+      },
+      {
+        "id": "tl-003-3",
+        "date": "2026-05-28",
+        "title": "Vaccination Booster & Rabies Protection",
+        "titleMs": "Suntikan Penggalak & Perlindungan Rabies",
+        "category": "vaccination",
+        "description": "Administered DHPPi 6-in-1 core booster plus Rabies vaccination certificate for municipal compliance.",
+        "descriptionMs": "Suntikan penggalak teras DHPPi 6-dalam-1 beserta sijil vaksinasi Rabies mengikut piawaian majlis bandaraya.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Fully Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      },
+      {
+        "id": "tl-003-4",
+        "date": "2026-06-10",
+        "title": "Behavioral Evaluation & Adoption Clearance",
+        "titleMs": "Penilaian Tingkah Laku & Pelepasan Adopsi",
+        "category": "clearance",
+        "description": "Demonstrated excellent leash recall and basic obedience. High prey drive towards cats noted for adopter matching.",
+        "descriptionMs": "Menunjukkan kemahiran asas mendengar arahan yang cemerlang. Naluri memburu kucing direkodkan bagi pemadanan rumah.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Adoption Approved",
+        "badgeMs": "Lulus Adopsi"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": false,
@@ -127,6 +328,60 @@
       "spayedNeutered": true,
       "specialNeeds": "FVRCP vaccine series completed. Dewormed."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-004-1",
+        "date": "2026-07-22",
+        "title": "Neonatal Rescue Intake & Foster Placement",
+        "titleMs": "Kemasukan Anak Kucing & Rumah Asuhan",
+        "category": "intake",
+        "description": "Rescued from Damansara Utama back alley with mild dehydration. Started on nutritional support and fluid therapy.",
+        "descriptionMs": "Diselamatkan dari lorong belakang Damansara Utama dengan dehidrasi ringan. Rawatan sokongan nutrisi dan cecair dimulakan.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Rescue Stabilized",
+        "badgeMs": "Reskue Stabil"
+      },
+      {
+        "id": "tl-004-2",
+        "date": "2026-07-29",
+        "title": "Pediatric Deworming & Spot-on Protocol",
+        "titleMs": "Nyahcacing Pediatrik & Protokol Ubat Kutu",
+        "category": "treatment",
+        "description": "Administered Revolution for kittens for internal worms, ear mites, and fleas.",
+        "descriptionMs": "Diberikan Revolution khas anak kucing untuk cacing dalaman, hama telinga dan pinjal.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Dewormed",
+        "badgeMs": "Nyahcacing Selesai"
+      },
+      {
+        "id": "tl-004-3",
+        "date": "2026-08-05",
+        "title": "Kitten FVRCP Vaccination Series Completed",
+        "titleMs": "Siri Vaksinasi FVRCP Anak Kucing Selesai",
+        "category": "vaccination",
+        "description": "Completed booster immunizations for feline distemper and respiratory viruses.",
+        "descriptionMs": "Selesai suntikan penggalak untuk distemper kucing dan virus pernafasan.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      },
+      {
+        "id": "tl-004-4",
+        "date": "2026-08-12",
+        "title": "Early Pediatric Neuter & Microchip Registry",
+        "titleMs": "Pemandulan Awal & Pendaftaran Cip Mikro",
+        "category": "surgery",
+        "description": "Neutered safely once body weight exceeded 1.8kg. ISO microchip implanted.",
+        "descriptionMs": "Pembedahan kembiri selamat selepas berat melebihi 1.8kg. Cip mikro ISO dipasang.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Neutered",
+        "badgeMs": "Dimandulkan"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,
@@ -161,6 +416,60 @@
       "spayedNeutered": true,
       "specialNeeds": "Daily omega-3 fish oil supplement for coat health."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-005-1",
+        "date": "2026-04-10",
+        "title": "Rescue Intake & Trauma Screening",
+        "titleMs": "Kemasukan Penyelamatan & Saringan Trauma",
+        "category": "intake",
+        "description": "Rescued from roadside in Kelana Jaya. Mild dehydration, no skeletal fractures found on X-ray.",
+        "descriptionMs": "Diselamatkan di tepi jalan Kelana Jaya. Dehidrasi ringan, tiada kepatahan tulang dikesan pada X-ray.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Intake Pass",
+        "badgeMs": "Kemasukan Lulus"
+      },
+      {
+        "id": "tl-005-2",
+        "date": "2026-04-15",
+        "title": "Bloodwork & Tick Fever Treatment Course",
+        "titleMs": "Ujian Darah & Rawatan Demam Kutu",
+        "category": "treatment",
+        "description": "Completed standard doxycycline course for mild tick fever. Full platelet recovery verified.",
+        "descriptionMs": "Selesai rawatan doxycycline untuk demam kutu ringan. Pemulihan platelet darah disahkan sepenuhnya.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Fully Recovered",
+        "badgeMs": "Pulih Sepenuhnya"
+      },
+      {
+        "id": "tl-005-3",
+        "date": "2026-05-02",
+        "title": "Core Vaccination (DHPPi 6-in-1)",
+        "titleMs": "Vaksinasi Teras (DHPPi 6-dalam-1)",
+        "category": "vaccination",
+        "description": "Booster vaccination completed with rabies clearance.",
+        "descriptionMs": "Suntikan penggalak vaksin selesai bersama pengesahan rabies.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      },
+      {
+        "id": "tl-005-4",
+        "date": "2026-05-14",
+        "title": "Castration Surgery & Microchip Registration",
+        "titleMs": "Pembedahan Kembiri & Pendaftaran Cip Mikro",
+        "category": "surgery",
+        "description": "Routine sterilization completed. Microchip registration verified in central shelter ledger.",
+        "descriptionMs": "Pembedahan kembiri rutin selesai. Pendaftaran cip mikro disahkan dalam rekod pusat perlindungan.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Sterilized",
+        "badgeMs": "Dimandulkan"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,
@@ -195,6 +504,60 @@
       "spayedNeutered": true,
       "specialNeeds": "Routine dental check completed in May 2026."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-006-1",
+        "date": "2026-06-30",
+        "title": "Surrender Intake & Comprehensive Feline Exam",
+        "titleMs": "Kemasukan Serahan & Pemeriksaan Kucing Menyeluruh",
+        "category": "intake",
+        "description": "Owner surrender health intake. BCS 5/9, beautiful calico coat, clear cardiopulmonary sounds.",
+        "descriptionMs": "Pemeriksaan kesihatan kemasukan serahan. Skor badan 5/9, bulu calico cantik, paru-paru dan jantung sihat.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Exam Clear",
+        "badgeMs": "Pemeriksaan Bersih"
+      },
+      {
+        "id": "tl-006-2",
+        "date": "2026-07-02",
+        "title": "FIV/FeLV Serology & Diagnostic Blood Panel",
+        "titleMs": "Serologi FIV/FeLV & Panel Darah Diagnostik",
+        "category": "diagnostic",
+        "description": "Snap combo test negative for FIV/FeLV. Renal and hepatic biochemistry profiles within optimal ranges.",
+        "descriptionMs": "Ujian pantas negatif FIV/FeLV. Profil buah pinggang dan fungsi hati dalam keadaan optimum.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Bloodwork Clean",
+        "badgeMs": "Ujian Darah Sihat"
+      },
+      {
+        "id": "tl-006-3",
+        "date": "2026-07-10",
+        "title": "Ultrasonic Dental Scaling & Polishing",
+        "titleMs": "Penskaleran Gigi Ultrasonik & Pengilapan",
+        "category": "treatment",
+        "description": "Prophylactic dental scale and polish performed under sedation. Gums healthy, no tooth extractions needed.",
+        "descriptionMs": "Penskaleran gigi profilaktik di bawah sedasi. Gusi sihat tanpa keperluan cabutan gigi.",
+        "veterinarian": "Dr. Faridah Noor, DVM",
+        "verified": true,
+        "badge": "Dental Clean",
+        "badgeMs": "Gigi Bersih"
+      },
+      {
+        "id": "tl-006-4",
+        "date": "2026-07-18",
+        "title": "Annual FVRCP Booster & Microchip Audit",
+        "titleMs": "Suntikan Penggalak FVRCP & Audit Cip Mikro",
+        "category": "vaccination",
+        "description": "Core 3-in-1 FVRCP booster administered. Microchip serial scanned and confirmed.",
+        "descriptionMs": "Suntikan penggalak 3-dalam-1 FVRCP diberikan. Nombor siri cip mikro diimbas dan disahkan.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": false,
       "goodWithCats": true,
@@ -229,6 +592,60 @@
       "spayedNeutered": true,
       "specialNeeds": "Senior blood panel clear. Takes glucosamine for mild joint stiffness."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-007-1",
+        "date": "2026-03-15",
+        "title": "Sanctuary Intake & Senior Geriatric Assessment",
+        "titleMs": "Kemasukan & Penilaian Geriatrik Warga Emas",
+        "category": "intake",
+        "description": "Intake following bereavement in PJ. Comprehensive senior wellness checkup. Heart rhythm normal.",
+        "descriptionMs": "Kemasukan susulan kematian pemilik di PJ. Pemeriksaan kesihatan menyeluruh warga emas. Ritma jantung normal.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Senior Intake",
+        "badgeMs": "Kemasukan Senior"
+      },
+      {
+        "id": "tl-007-2",
+        "date": "2026-03-18",
+        "title": "Full Senior Chemistry Panel & Joint Evaluation",
+        "titleMs": "Panel Kimia Lengkap Senior & Penilaian Sendi",
+        "category": "diagnostic",
+        "description": "Full blood panel (CBC, liver, kidney, electrolytes) completely clean. Mild lumbar stiffness managed with daily joint supplements.",
+        "descriptionMs": "Ujian darah lengkap (CBC, fungsi hati, buah pinggang, elektrolit) bersih. Ketegangan sendi ringan diuruskan dengan suplemen harian.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Organ Health Clear",
+        "badgeMs": "Kesihatan Organ Baik"
+      },
+      {
+        "id": "tl-007-3",
+        "date": "2026-03-25",
+        "title": "Vaccination Booster & Heartworm Prophylaxis",
+        "titleMs": "Suntikan Penggalak & Pencegahan Cacing Jantung",
+        "category": "vaccination",
+        "description": "Gentle senior booster protocol administered. Monthly NexGard Spectra recorded.",
+        "descriptionMs": "Protokol suntikan penggalak warga emas diberikan. NexGard Spectra bulanan direkodkan.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccinated",
+        "badgeMs": "Lengkap Vaksin"
+      },
+      {
+        "id": "tl-007-4",
+        "date": "2026-04-02",
+        "title": "Comfort Clearance & Adoption Authorization",
+        "titleMs": "Pelepasan Kesejahteraan & Kelulusan Adopsi",
+        "category": "clearance",
+        "description": "Barnaby has adapted wonderfully to sanctuary routine. Cleared for a peaceful, loving home.",
+        "descriptionMs": "Barnaby menyesuaikan diri dengan cemerlang. Diberi kelulusan untuk keluarga yang tenang dan penyayang.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Golden Senior Approved",
+        "badgeMs": "Lulus Senior Emas"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,
@@ -263,6 +680,60 @@
       "spayedNeutered": true,
       "specialNeeds": "Puppy vaccination series completed. Dewormed."
     },
+    "medicalTimeline": [
+      {
+        "id": "tl-008-1",
+        "date": "2026-08-01",
+        "title": "Construction Site Rescue & Puppy Health Check",
+        "titleMs": "Penyelamatan Tapak Binaan & Pemeriksaan Anak Anjing",
+        "category": "intake",
+        "description": "Safely rescued from a construction site in Kota Damansara. Cleaned, warmed, and given puppy nutritional paste.",
+        "descriptionMs": "Diselamatkan dengan selamat dari tapak pembinaan di Kota Damansara. Dibersihkan dan diberikan gel nutrisi anak anjing.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Puppy Rescue Clear",
+        "badgeMs": "Reskue Anak Anjing Selesai"
+      },
+      {
+        "id": "tl-008-2",
+        "date": "2026-08-03",
+        "title": "Canine Parvovirus & Giardia Diagnostic Panel",
+        "titleMs": "Panel Diagnostik Parvovirus & Giardia",
+        "category": "diagnostic",
+        "description": "Snap CPV and fecal Giardia test returned completely negative.",
+        "descriptionMs": "Ujian pantas CPV dan najis Giardia negatif sepenuhnya.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Infection Free",
+        "badgeMs": "Bebas Jangkitan"
+      },
+      {
+        "id": "tl-008-3",
+        "date": "2026-08-07",
+        "title": "Puppy Core 6-in-1 Vaccination Series",
+        "titleMs": "Siri Vaksinasi Teras 6-dalam-1 Anak Anjing",
+        "category": "vaccination",
+        "description": "DHPPi booster course administered with zero post-vaccine fever.",
+        "descriptionMs": "Suntikan penggalak DHPPi diberikan tanpa sebarang demam selepas suntikan.",
+        "veterinarian": "Dr. Kevin Lim, DVM",
+        "verified": true,
+        "badge": "Vaccine Series Complete",
+        "badgeMs": "Siri Vaksin Selesai"
+      },
+      {
+        "id": "tl-008-4",
+        "date": "2026-08-14",
+        "title": "Spay Surgery & ISO Microchip Implantation",
+        "titleMs": "Pembedahan Mandul & Pemasangan Cip Mikro ISO",
+        "category": "surgery",
+        "description": "Sterilization completed smoothly. Microchip registered for 100% free adoption.",
+        "descriptionMs": "Pembedahan pemandulan selesai dengan lancar. Cip mikro didaftarkan untuk adopsi 100% percuma.",
+        "veterinarian": "Dr. Sarah Tan, DVM",
+        "verified": true,
+        "badge": "Spayed & Chipped",
+        "badgeMs": "Mandul & Cip Mikro"
+      }
+    ],
     "compatibility": {
       "goodWithDogs": true,
       "goodWithCats": true,

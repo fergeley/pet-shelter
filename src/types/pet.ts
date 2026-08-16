@@ -19,6 +19,28 @@ export interface PetCompatibility {
   energyLevel: EnergyLevel;
 }
 
+export type MedicalTimelineCategory =
+  | 'intake'
+  | 'diagnostic'
+  | 'treatment'
+  | 'vaccination'
+  | 'surgery'
+  | 'clearance';
+
+export interface MedicalTimelineEvent {
+  id: string;
+  date: string; // ISO format: YYYY-MM-DD
+  title: string;
+  titleMs?: string;
+  category: MedicalTimelineCategory;
+  description: string;
+  descriptionMs?: string;
+  veterinarian?: string;
+  verified: boolean;
+  badge?: string;
+  badgeMs?: string;
+}
+
 export interface Pet {
   id: string;
   name: string;
@@ -36,6 +58,7 @@ export interface Pet {
   galleryImages?: string[];
   status: PetStatus;
   medical: PetMedicalInfo;
+  medicalTimeline?: MedicalTimelineEvent[];
   compatibility: PetCompatibility;
   intakeDate: string;
   adoptionFee: string;
