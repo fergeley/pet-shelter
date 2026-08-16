@@ -20,13 +20,13 @@ describe("Upload Endpoint Security Enhancements", () => {
       mockVerifyAdminSession.mockResolvedValue(false);
 
       // In actual route, this would check verifyAdminSession()
-      expect(mockVerifyAdminSession()).resolves.toBe(false);
+      await expect(mockVerifyAdminSession()).resolves.toBe(false);
     });
 
     it("should allow upload when user is authenticated admin", async () => {
       mockVerifyAdminSession.mockResolvedValue(true);
 
-      expect(mockVerifyAdminSession()).resolves.toBe(true);
+      await expect(mockVerifyAdminSession()).resolves.toBe(true);
     });
   });
 
@@ -81,7 +81,7 @@ describe("Upload Endpoint Security Enhancements", () => {
       mockMkdir.mockRejectedValueOnce(new Error("Permission denied"));
 
       // Should throw when mkdir fails
-      expect(mockMkdir({ recursive: true })).rejects.toThrow("Permission denied");
+      await expect(mockMkdir({ recursive: true })).rejects.toThrow("Permission denied");
     });
 
     it("should provide meaningful error messages", () => {
