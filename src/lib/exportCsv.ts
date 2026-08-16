@@ -1,4 +1,7 @@
 import { AdoptionApplicationRecord } from "@/types/application";
+import { DonationReceipt } from "@/types/sponsorship";
+import { AuditEntry } from "@/lib/domain/auditLog";
+import { Pet } from "@/types/pet";
 
 /**
  * Escapes a single CSV field following RFC-4180:
@@ -6,19 +9,30 @@ import { AdoptionApplicationRecord } from "@/types/application";
  * - Escape internal double quotes with two double quotes ("").
  * - Mitigate CSV Formula Injection by prepending single quote to formula trigger characters (=, +, -, @, \t, \r).
  */
-function formatCsvField(value: string | number | boolean | null | undefined): string {
+export function formatCsvField(value: string | number | boolean | null | undefined): string {
   if (value === null || value === undefined) {
     return '""';
   }
 
-  let str = String(value).trim();
+  // Pure numbers and booleans are not prone to formula injection
+  if (typeof value === "number" || typeof value === "boolean") {
+    return `"${value}"`;
+  }
 
-  // CSV injection mitigation
+  let str = String(value);
+
+  // CSV injection mitigation for string formula characters
   if (/^[=+\-@\t\r]/.test(str)) {
     str = `'${str}`;
   }
 
-  if (str.includes('"') || str.includes(",") || str.includes("\n") || str.includes("\r")) {
+  if (
+    str.includes('"') ||
+    str.includes(",") ||
+    str.includes("\n") ||
+    str.includes("\r") ||
+    str.includes("\t")
+  ) {
     return `"${str.replace(/"/g, '""')}"`;
   }
 
@@ -26,9 +40,29 @@ function formatCsvField(value: string | number | boolean | null | undefined): st
 }
 
 /**
- * Exports adoption application records to a formatted CSV string and triggers browser download.
+ * Helper to trigger browser file download from a CSV string.
  */
-export function exportApplicationsToCsv(applications: AdoptionApplicationRecord[], filenamePrefix = "hope-for-strays-applications"): void {
+function triggerCsvDownload(csvContent: string, filename: string): void {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return;
+  }
+  // UTF-8 BOM for Excel / Numbers compatibility
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Generates an RFC-4180 formatted CSV string of adoption application records.
+ */
+export function generateApplicationsCsvString(applications: AdoptionApplicationRecord[]): string {
   const headers = [
     "Application ID",
     "Submitted Date",
@@ -67,30 +101,28 @@ export function exportApplicationsToCsv(applications: AdoptionApplicationRecord[
     app.adminReviewNotes || "",
   ]);
 
-  const csvContent = [
+  return [
     headers.map(formatCsvField).join(","),
     ...rows.map((row) => row.map(formatCsvField).join(",")),
   ].join("\r\n");
-
-  // UTF-8 BOM for Excel compatibility
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  const timestamp = new Date().toISOString().slice(0, 10);
-  
-  link.setAttribute("href", url);
-  link.setAttribute("download", `${filenamePrefix}-${timestamp}.csv`);
-  link.style.visibility = "hidden";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 /**
- * Exports pet inventory records to formatted RFC-4180 CSV string and triggers download.
+ * Exports adoption application records to a formatted CSV file and triggers download.
  */
-export function exportPetsToCsv(pets: import("@/types/pet").Pet[], filenamePrefix = "hope-for-strays-pets"): void {
+export function exportApplicationsToCsv(
+  applications: AdoptionApplicationRecord[],
+  filenamePrefix = "hope-for-strays-applications"
+): void {
+  const csvContent = generateApplicationsCsvString(applications);
+  const timestamp = new Date().toISOString().slice(0, 10);
+  triggerCsvDownload(csvContent, `${filenamePrefix}-${timestamp}.csv`);
+}
+
+/**
+ * Generates an RFC-4180 formatted CSV string of pet inventory records.
+ */
+export function generatePetsCsvString(pets: Pet[]): string {
   const headers = [
     "Pet ID",
     "Name",
@@ -129,21 +161,164 @@ export function exportPetsToCsv(pets: import("@/types/pet").Pet[], filenamePrefi
     p.tags.join("; "),
   ]);
 
-  const csvContent = [
+  return [
     headers.map(formatCsvField).join(","),
     ...rows.map((row) => row.map(formatCsvField).join(",")),
   ].join("\r\n");
+}
 
-  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
+/**
+ * Exports pet inventory records to formatted RFC-4180 CSV string and triggers download.
+ */
+export function exportPetsToCsv(pets: Pet[], filenamePrefix = "hope-for-strays-pets"): void {
+  const csvContent = generatePetsCsvString(pets);
   const timestamp = new Date().toISOString().slice(0, 10);
-  
-  link.setAttribute("href", url);
-  link.setAttribute("download", `${filenamePrefix}-${timestamp}.csv`);
-  link.style.visibility = "hidden";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  triggerCsvDownload(csvContent, `${filenamePrefix}-${timestamp}.csv`);
+}
+
+/**
+ * Generates an RFC-4180 formatted CSV string of official donation receipts
+ * tailored for Malaysian LHDN Section 44(6) tax reporting and internal accounting.
+ */
+export function generateReceiptsCsvString(
+  items: (DonationReceipt | AuditEntry)[]
+): string {
+  const headers = [
+    "Official Receipt No",
+    "Date & Time",
+    "Donor Name",
+    "Donor Email",
+    "Donor Phone",
+    "Tax ID / IC / Passport",
+    "Amount (MYR)",
+    "Sponsorship Tier",
+    "Payment Method",
+    "Frequency",
+    "Dedicated Pet",
+    "LHDN Exemption Ref",
+    "Shelter Reg No (ROS)",
+  ];
+
+  const rows: (string | number | boolean | null | undefined)[][] = [];
+
+  for (const item of items) {
+    if ("receiptNumber" in item && "donorName" in item) {
+      // Standard DonationReceipt object
+      const r = item as DonationReceipt;
+      const formattedAmount =
+        typeof r.amountMYR === "number" ? r.amountMYR.toFixed(2) : String(r.amountMYR);
+
+      rows.push([
+        r.receiptNumber,
+        r.date,
+        r.donorName,
+        r.donorEmail,
+        r.donorPhone || "",
+        r.taxIdOrIc || "",
+        formattedAmount,
+        r.tierName || r.tierId,
+        r.paymentMethod,
+        r.frequency || "one_time",
+        r.targetPetName || "",
+        r.taxDeductibleRef || "LHDN.01/35/42/51/179-6.4912",
+        r.shelterRegistrationNo || "PPM-021-10-18082021",
+      ]);
+    } else if ("action" in item) {
+      // AuditEntry representing a donation
+      const entry = item as AuditEntry;
+      const d = (entry.details || {}) as Record<string, unknown>;
+      const isDonation =
+        entry.action === "DONATION_RECEIVED" ||
+        entry.entity === "DonationReceipt" ||
+        Boolean(d.receiptNumber);
+
+      if (isDonation) {
+        const rawAmount = (d.amountMYR as number | string | undefined) ?? 0;
+        const formattedAmount =
+          typeof rawAmount === "number" ? rawAmount.toFixed(2) : String(rawAmount);
+
+        const formattedDate = entry.createdAt.includes("T")
+          ? entry.createdAt.replace("T", " ").slice(0, 19)
+          : entry.createdAt;
+
+        rows.push([
+          (d.receiptNumber as string) || entry.entityId || "N/A",
+          formattedDate,
+          (d.donorName as string) || "Anonymous Donor",
+          entry.actorEmail || (d.donorEmail as string) || "",
+          (d.donorPhone as string) || "",
+          (d.taxIdOrIc as string) || "",
+          formattedAmount,
+          (d.tierName as string) || (d.tierId as string) || "Rescue Donation",
+          (d.paymentMethod as string) || "DuitNow QR",
+          (d.frequency as string) || "one_time",
+          (d.targetPetName as string) || "",
+          "LHDN.01/35/42/51/179-6.4912",
+          "PPM-021-10-18082021",
+        ]);
+      }
+    }
+  }
+
+  return [
+    headers.map(formatCsvField).join(","),
+    ...rows.map((row) => row.map(formatCsvField).join(",")),
+  ].join("\r\n");
+}
+
+/**
+ * Exports donation receipts / tax records to CSV and triggers download.
+ */
+export function exportReceiptsToCsv(
+  items: (DonationReceipt | AuditEntry)[],
+  filenamePrefix = "hope-for-strays-lhdn-receipts"
+): void {
+  const csvContent = generateReceiptsCsvString(items);
+  const timestamp = new Date().toISOString().slice(0, 10);
+  triggerCsvDownload(csvContent, `${filenamePrefix}-${timestamp}.csv`);
+}
+
+/**
+ * Generates an RFC-4180 formatted CSV string of immutable audit logs
+ * for Registrar of Societies (ROS) AGM compliance and security verification.
+ */
+export function generateAuditLogsCsvString(logs: AuditEntry[]): string {
+  const headers = [
+    "Audit Log ID",
+    "Timestamp (UTC)",
+    "Actor Email",
+    "Actor Role",
+    "Action Event",
+    "Target Entity",
+    "Entity ID",
+    "Details Snapshot",
+  ];
+
+  const rows = logs.map((log) => [
+    log.id,
+    log.createdAt,
+    log.actorEmail,
+    log.actorRole,
+    log.action,
+    log.entity,
+    log.entityId,
+    log.details ? JSON.stringify(log.details) : "",
+  ]);
+
+  return [
+    headers.map(formatCsvField).join(","),
+    ...rows.map((row) => row.map(formatCsvField).join(",")),
+  ].join("\r\n");
+}
+
+/**
+ * Exports full audit logs to CSV and triggers download.
+ */
+export function exportAuditLogsToCsv(
+  logs: AuditEntry[],
+  filenamePrefix = "hope-for-strays-audit-trail"
+): void {
+  const csvContent = generateAuditLogsCsvString(logs);
+  const timestamp = new Date().toISOString().slice(0, 10);
+  triggerCsvDownload(csvContent, `${filenamePrefix}-${timestamp}.csv`);
 }
