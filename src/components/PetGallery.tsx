@@ -10,6 +10,7 @@ import { SponsorshipModal } from "@/components/SponsorshipModal";
 import { Button } from "@/components/ui/button";
 import { Compass, HeartHandshake } from "lucide-react";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface PetGalleryProps {
   initialPets?: Pet[];
@@ -23,11 +24,12 @@ interface PetGalleryProps {
 export function PetGallery({
   initialPets,
   featuredOnly = false,
-  title = "Available Pets",
+  title,
   subtitle,
   showFilters = true,
   syncUrl = true,
 }: PetGalleryProps) {
+  const { t, isMs } = useLanguage();
   const { state, handlers } = usePetGalleryController({ initialPets, featuredOnly, syncUrl });
   const {
     pets,
@@ -63,17 +65,20 @@ export function PetGallery({
     setActivePetForAdoption,
   } = handlers;
 
+  const displayTitle = title || t("pets.title", "Adoptable Animals in Selangor");
+  const displaySubtitle = subtitle || t("pets.subtitle", "Browse rescued dogs, cats, puppies, and kittens awaiting their forever homes in Petaling Jaya.");
+
   return (
     <section className="w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6">
         <div>
           <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {title}
+            {displayTitle}
           </h2>
-          {subtitle && (
+          {displaySubtitle && (
             <p className="text-base text-muted-foreground mt-1">
-              {subtitle}
+              {displaySubtitle}
             </p>
           )}
         </div>
@@ -84,31 +89,31 @@ export function PetGallery({
             size="sm"
             variant="outline"
             onClick={() => setIsQuizOpen(true)}
-            className="text-xs font-bold gap-1.5 text-foreground"
+            className="text-xs font-bold gap-1.5 text-foreground cursor-pointer"
           >
             <Compass className="size-3.5" />
-            Compatibility Quiz
+            {t("nav.matchQuiz", "Compatibility Quiz")}
           </Button>
 
           <Button
             size="sm"
             variant="outline"
             onClick={() => handleOpenSponsor()}
-            className="text-xs font-bold gap-1.5"
+            className="text-xs font-bold gap-1.5 cursor-pointer"
           >
             <HeartHandshake className="size-3.5" />
-            Sponsor
+            {t("common.sponsor", "Sponsor")}
           </Button>
 
-          <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted">
-            {filteredPets.length} of {pets.length} animals
+          <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
+            {filteredPets.length} / {pets.length} {isMs ? "haiwan" : "animals"}
           </div>
         </div>
       </div>
 
       {/* Filter Controls Bar */}
       {showFilters && (
-        <div className="mb-8 space-y-4 border border-border bg-card p-4 sm:p-6">
+        <div className="mb-8 space-y-4 border border-border bg-card p-4 sm:p-6 rounded-2xl">
           
           {/* Top Bar: Search & Species Toggle */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-center">
@@ -117,17 +122,17 @@ export function PetGallery({
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4.5 text-muted-foreground" aria-hidden="true" />
               <input
                 type="text"
-                placeholder="Search by name, breed, or trait (e.g. 'Labrador', 'Kitten', 'House-Trained')..."
+                placeholder={t("common.searchPlaceholder", "Search by name, breed, or personality tag...")}
                 value={searchQuery}
-                aria-label="Search adoptable pets"
+                aria-label={t("common.search", "Search adoptable pets")}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-background border border-input pl-11 pr-10 py-2.5 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground focus:border-transparent"
+                className="w-full bg-background border border-input pl-11 pr-10 py-2.5 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground focus:border-transparent rounded-xl"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1.5 focus-visible:ring-2"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1.5 focus-visible:ring-2 cursor-pointer"
                   aria-label="Clear search"
                 >
                   <X className="size-4" />
@@ -137,41 +142,41 @@ export function PetGallery({
 
             {/* Species Toggle */}
             <div className="lg:col-span-4 flex items-center justify-between sm:justify-end gap-2.5">
-              <div className="flex border border-border bg-muted/50 p-1 w-full sm:w-auto" role="group" aria-label="Filter by species">
+              <div className="flex border border-border bg-muted/50 p-1 w-full sm:w-auto rounded-xl" role="group" aria-label="Filter by species">
                 <button
                   type="button"
                   onClick={() => setSelectedSpecies("all")}
-                  className={`flex-1 sm:flex-none px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 ${
+                  className={`flex-1 sm:flex-none px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 rounded-lg cursor-pointer ${
                     selectedSpecies === "all"
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  All
+                  {t("common.all", "All")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedSpecies("dog")}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 rounded-lg cursor-pointer ${
                     selectedSpecies === "dog"
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Dog className="size-4" aria-hidden="true" />
-                  Dogs
+                  {t("common.dogs", "Dogs")}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedSpecies("cat")}
-                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 ${
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors focus-visible:ring-2 rounded-lg cursor-pointer ${
                     selectedSpecies === "cat"
-                      ? "bg-foreground text-background"
+                      ? "bg-foreground text-background shadow-xs"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Cat className="size-4" aria-hidden="true" />
-                  Cats
+                  {t("common.cats", "Cats")}
                 </button>
               </div>
 
@@ -180,10 +185,10 @@ export function PetGallery({
                   variant="ghost"
                   size="sm"
                   onClick={handleResetFilters}
-                  className="text-sm font-semibold text-muted-foreground hover:text-foreground"
+                  className="text-sm font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
                 >
                   <RotateCcw className="size-3.5 mr-1" aria-hidden="true" />
-                  Reset
+                  {t("common.resetFilters", "Reset")}
                 </Button>
               )}
             </div>
@@ -193,52 +198,52 @@ export function PetGallery({
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-3 border-t border-border/60">
             <div>
               <label htmlFor="filter-age" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
-                Age Stage
+                {t("pets.ageFilter", "Age Group")}
               </label>
               <select
                 id="filter-age"
                 value={selectedAge}
                 onChange={(e) => setSelectedAge(e.target.value)}
-                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium"
+                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
-                <option value="all">All Ages</option>
-                <option value="puppy_kitten">Puppy / Kitten (&lt; 1 yr)</option>
-                <option value="young">Young (1 – 3 yrs)</option>
-                <option value="adult">Adult (3 – 7 yrs)</option>
-                <option value="senior">Senior (7+ yrs)</option>
+                <option value="all">{isMs ? "Semua Umur" : "All Ages"}</option>
+                <option value="puppy_kitten">{isMs ? "Anak Haiwan (< 1 thn)" : "Puppy / Kitten (< 1 yr)"}</option>
+                <option value="young">{isMs ? "Muda (1 – 3 thn)" : "Young (1 – 3 yrs)"}</option>
+                <option value="adult">{isMs ? "Dewasa (3 – 7 thn)" : "Adult (3 – 7 yrs)"}</option>
+                <option value="senior">{isMs ? "Warga Emas (7+ thn)" : "Senior (7+ yrs)"}</option>
               </select>
             </div>
 
             <div>
               <label htmlFor="filter-size" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
-                Size
+                {t("pets.sizeFilter", "Size")}
               </label>
               <select
                 id="filter-size"
                 value={selectedSize}
                 onChange={(e) => setSelectedSize(e.target.value)}
-                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium"
+                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
-                <option value="all">All Sizes</option>
-                <option value="Small">Small (&lt; 10 kg)</option>
-                <option value="Medium">Medium (10 – 25 kg)</option>
-                <option value="Large">Large (25+ kg)</option>
+                <option value="all">{isMs ? "Semua Saiz" : "All Sizes"}</option>
+                <option value="Small">{isMs ? "Kecil (< 10 kg)" : "Small (< 10 kg)"}</option>
+                <option value="Medium">{isMs ? "Sederhana (10 – 25 kg)" : "Medium (10 – 25 kg)"}</option>
+                <option value="Large">{isMs ? "Besar (25+ kg)" : "Large (25+ kg)"}</option>
               </select>
             </div>
 
             <div>
               <label htmlFor="filter-status" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
-                Status
+                {t("pets.statusFilter", "Status")}
               </label>
               <select
                 id="filter-status"
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium"
+                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
-                <option value="all">All Statuses</option>
-                <option value="Available">Available for Adoption</option>
-                <option value="Pending">Application Pending</option>
+                <option value="all">{isMs ? "Semua Status" : "All Statuses"}</option>
+                <option value="Available">{isMs ? "Tersedia untuk Adopsi" : "Available for Adoption"}</option>
+                <option value="Pending">{isMs ? "Sedang Diproses" : "Application Pending"}</option>
               </select>
             </div>
 
@@ -250,9 +255,9 @@ export function PetGallery({
                   setActivePetForAdoption(filteredPets[0] || pets[0]);
                   setIsAdoptionOpen(true);
                 }}
-                className="w-full text-sm font-semibold py-2 focus-visible:ring-2"
+                className="w-full text-sm font-semibold py-2 focus-visible:ring-2 cursor-pointer"
               >
-                Adoption Form
+                {t("common.apply", "Adoption Form")}
               </Button>
             </div>
           </div>
@@ -273,18 +278,18 @@ export function PetGallery({
         </div>
       ) : (
         /* Empty State */
-        <div className="text-center py-12 border border-border bg-muted/20 p-8 space-y-3">
-          <div className="mx-auto flex size-12 items-center justify-center bg-muted text-muted-foreground">
+        <div className="text-center py-12 border border-border bg-muted/20 p-8 space-y-3 rounded-2xl">
+          <div className="mx-auto flex size-12 items-center justify-center bg-muted text-muted-foreground rounded-full">
             <SlidersHorizontal className="size-6" />
           </div>
           <h3 className="font-heading text-xl font-bold text-foreground">
-            No pets match your criteria
+            {t("pets.noResultsTitle", "No animals match your search filters")}
           </h3>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
-            Try adjusting your search terms or resetting filters to view all available animals.
+            {t("pets.noResultsDesc", "Try adjusting your filter criteria or clear all filters to see all adoptable rescues.")}
           </p>
-          <Button onClick={handleResetFilters} variant="outline" size="sm" className="text-sm font-semibold">
-            Reset Filters
+          <Button onClick={handleResetFilters} variant="outline" size="sm" className="text-sm font-semibold cursor-pointer">
+            {t("common.resetFilters", "Reset Filters")}
           </Button>
         </div>
       )}

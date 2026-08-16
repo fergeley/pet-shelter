@@ -1,4 +1,5 @@
-import { Metadata } from "next";
+"use client";
+
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -15,62 +16,55 @@ import {
 } from "lucide-react";
 import { DonationWidget } from "@/components/DonationWidget";
 import { buttonVariants } from "@/components/ui/button";
-
-export const metadata: Metadata = {
-  title: "Donate & Sponsor Rescues | Hope for Strays Sanctuary Selangor",
-  description:
-    "Support lifesaving veterinary surgeries, core vaccinations, and daily nutrition for homeless animals in Petaling Jaya. 100% tax-deductible under LHDN Section 44(6).",
-  openGraph: {
-    title: "Donate & Sponsor Rescue Animals | Hope for Strays Selangor",
-    description:
-      "Support lifesaving veterinary surgeries, core vaccinations, and daily nutrition for homeless animals in Petaling Jaya. 100% tax-deductible under LHDN Section 44(6).",
-    url: "https://hopeforstrays.org/donate",
-    siteName: "Hope for Strays Sanctuary",
-    locale: "en_MY",
-    type: "website",
-  },
-  keywords: [
-    "pet shelter donation Malaysia",
-    "sponsor rescue dog Selangor",
-    "animal welfare tax deductible LHDN",
-    "Hope for Strays Petaling Jaya",
-    "stray dog medical fund Malaysia",
-    "DuitNow animal shelter donation",
-  ],
-};
+import { useLanguage } from "@/components/LanguageProvider";
 
 export default function DonatePage() {
+  const { t, isMs } = useLanguage();
+
   const transparencyItems = [
     {
       percentage: "45%",
-      title: "Veterinary Care & Surgeries",
-      desc: "Emergency trauma surgeries, compulsory spay/neuter operations, 6-in-1 / FVRCP vaccinations, and specialized diagnostic tests.",
+      title: isMs ? "Rawatan Veterinar & Pembedahan" : "Veterinary Care & Surgeries",
+      desc: isMs
+        ? "Pembedahan trauma kecemasan, pemandulan wajib, vaksinasi teras 6-dalam-1 / FVRCP, dan ujian makmal diagnostik khas."
+        : "Emergency trauma surgeries, compulsory spay/neuter operations, 6-in-1 / FVRCP vaccinations, and specialized diagnostic tests.",
       color: "bg-emerald-600",
     },
     {
       percentage: "30%",
-      title: "Daily Nutrition & Diets",
-      desc: "Balanced high-protein kibbles, newborn puppy/kitten replacement formulas, and veterinary gastrointestinal recovery foods.",
+      title: isMs ? "Nutrisi Harian & Diet Khas" : "Daily Nutrition & Diets",
+      desc: isMs
+        ? "Kibble berkualiti tinggi dan berprotein seimbang, formula susu anak anjing/kucing baru lahir, serta makanan pemulihan gastrousus."
+        : "Balanced high-protein kibbles, newborn puppy/kitten replacement formulas, and veterinary gastrointestinal recovery foods.",
       color: "bg-primary",
     },
     {
       percentage: "20%",
-      title: "Sanctuary Boarding & Hygiene",
-      desc: "Daily shelter sanitation, veterinary-grade disinfectants, clean bedding, utilities, and dedicated caretaker staff.",
+      title: isMs ? "Kebersihan & Sanitasi Pusat Perlindungan" : "Sanctuary Boarding & Hygiene",
+      desc: isMs
+        ? "Sanitasi harian fasiliti, disinfektan gred hospital veterinar, alas tidur bersih, utiliti, dan pasukan penjaga berdedikasi."
+        : "Daily shelter sanitation, veterinary-grade disinfectants, clean bedding, utilities, and dedicated caretaker staff.",
       color: "bg-amber-600",
     },
     {
       percentage: "5%",
-      title: "Stray Rescue Logistics",
-      desc: "Humane trapping operations, urgent roadside rescue transport, and transit carriers across Selangor and Klang Valley.",
+      title: isMs ? "Logistik Menyelamat Haiwan Terbiar" : "Stray Rescue Logistics",
+      desc: isMs
+        ? "Operasi perangkap berperikemanusiaan, pengangkutan kecemasan jalan raya, dan sangkar transit di seluruh Selangor dan Lembah Klang."
+        : "Humane trapping operations, urgent roadside rescue transport, and transit carriers across Selangor and Klang Valley.",
       color: "bg-blue-600",
     },
   ];
 
   const wishlistCategories = [
     {
-      category: "Food & Nutritional Support",
-      items: [
+      category: isMs ? "Makanan & Nutrisi Haiwan" : "Food & Nutritional Support",
+      items: isMs ? [
+        "Kibble Kering Anak Anjing & Anak Kucing (Beg belum dibuka)",
+        "Kibble Dewasa Anjing & Kucing (Jenama protein tinggi)",
+        "Susu tepung anak anjing/kucing (KMR / Esbilac)",
+        "Makanan basah pemulihan (Royal Canin / Hills)",
+      ] : [
         "Dry Puppy & Kitten Kibble (Unopened bags)",
         "Adult Dog & Cat Kibbles (High protein brands)",
         "KMR or Esbilac powdered puppy/kitten milk",
@@ -78,8 +72,13 @@ export default function DonatePage() {
       ],
     },
     {
-      category: "Sanitation & Medical Supplies",
-      items: [
+      category: isMs ? "Sanitasi & Bekalan Perubatan" : "Sanitation & Medical Supplies",
+      items: isMs ? [
+        "Kloroks & disinfektan veterinar (F10)",
+        "Pelapik kencing serap cecair pakai buang (Pee pads)",
+        "Kasa steril, pembalut luka & sarung tangan pembedahan",
+        "Ubat kutu & sengkenit (Frontline / Bravecto)",
+      ] : [
         "Clorox & veterinary hospital disinfectants (F10)",
         "Disposable heavy-duty absorbent pee pads",
         "Sterile medical gauze, bandages & surgical gloves",
@@ -87,8 +86,13 @@ export default function DonatePage() {
       ],
     },
     {
-      category: "Bedding, Enrichment & Comfort",
-      items: [
+      category: isMs ? "Alas Tidur & Keselesaan" : "Bedding, Enrichment & Comfort",
+      items: isMs ? [
+        "Tuala mandi bersih dan selimut 'fleece'",
+        "Mangkuk makanan tahan karat (Stainless steel)",
+        "Mainan getah tahan lasak (Kongs) untuk stimulasi minda",
+        "Tali cawak nilon 6 kaki & kolar anjing kukuh",
+      ] : [
         "Clean bath towels and fleece blankets",
         "Heavy-duty stainless steel dog & cat food bowls",
         "Durable rubber chew toys (Kongs) for kennel enrichment",
@@ -99,28 +103,40 @@ export default function DonatePage() {
 
   const faqs = [
     {
-      q: "Is my contribution tax-deductible in Malaysia?",
-      a: "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: LHDN.01/35/42/51/179-6.4912). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
+      q: isMs ? "Adakah sumbangan saya layak mendapat potongan cukai di Malaysia?" : "Is my contribution tax-deductible in Malaysia?",
+      a: isMs
+        ? "Ya! Pertubuhan Kebajikan Hope for Strays merupakan organisasi kebajikan yang diluluskan pengecualian cukai di bawah Seksyen 44(6) Akta Cukai Pendapatan 1967 (No. Rujukan Kelulusan: LHDN.01/35/42/51/179-6.4912). Semua sumbangan tunai layak untuk potongan cukai rasmi individu dan korporat."
+        : "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: LHDN.01/35/42/51/179-6.4912). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
     },
     {
-      q: "How do I receive my official tax receipt?",
-      a: "Upon completing your donation through our secure portal, your computer-generated official e-Receipt with full LHDN reference numbers is rendered instantly on-screen and automatically dispatched to your provided email address.",
+      q: isMs ? "Bagaimanakah saya menerima resit rasmi potongan cukai?" : "How do I receive my official tax receipt?",
+      a: isMs
+        ? "Sebaik sahaja sumbangan selesai melalui portal kami, e-Resit rasmi berkomputer dengan nombor rujukan LHDN lengkap akan dijana serta-merta di skrin dan dihantar ke alamat e-mel anda."
+        : "Upon completing your donation through our secure portal, your computer-generated official e-Receipt with full LHDN reference numbers is rendered instantly on-screen and automatically dispatched to your provided email address.",
     },
     {
-      q: "Can corporate organizations donate and claim tax relief?",
-      a: "Yes! Corporate donors can provide their official Company Name and SSM Registration Number in the donor form to generate a valid corporate tax-exemption receipt.",
+      q: isMs ? "Bolehkah syarikat korporat menderma dan menuntut pelepasan cukai?" : "Can corporate organizations donate and claim tax relief?",
+      a: isMs
+        ? "Ya! Penderma korporat boleh memasukkan Nama Syarikat Rasmi dan Nombor Pendaftaran SSM dalam borang penderma untuk menjana resit pengecualian cukai korporat yang sah."
+        : "Yes! Corporate donors can provide their official Company Name and SSM Registration Number in the donor form to generate a valid corporate tax-exemption receipt.",
     },
     {
-      q: "How do I make a direct bank transfer or scan DuitNow QR?",
-      a: "You can scan our national DuitNow QR code using any Malaysian banking app (Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, etc.) or transfer directly to our Maybank Account: 5140 1234 5678 (Pertubuhan Kebajikan Hope for Strays).",
+      q: isMs ? "Bagaimanakah cara membuat pindahan bank terus atau imbas DuitNow QR?" : "How do I make a direct bank transfer or scan DuitNow QR?",
+      a: isMs
+        ? "Anda boleh mengimbas kod DuitNow QR nasional kami menggunakan sebarang aplikasi perbankan Malaysia (Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, dll.) atau pindahan terus ke Akaun Maybank kami: 5140 1234 5678 (Pertubuhan Kebajikan Hope for Strays)."
+        : "You can scan our national DuitNow QR code using any Malaysian banking app (Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, etc.) or transfer directly to our Maybank Account: 5140 1234 5678 (Pertubuhan Kebajikan Hope for Strays).",
     },
     {
-      q: "Can I sponsor a specific rescue pet?",
-      a: "Absolutely! You can enter the name of any rescue pet in our 'Dedicate Donation' field, or click 'Sponsor Care' directly from any pet's profile page.",
+      q: isMs ? "Bolehkah saya menaja haiwan reskue yang khusus?" : "Can I sponsor a specific rescue pet?",
+      a: isMs
+        ? "Sudah tentu! Anda boleh memasukkan nama mana-mana haiwan reskue dalam ruangan 'Dedikasi Haiwan', atau klik 'Taja Rawatan' terus dari halaman profil haiwan tersebut."
+        : "Absolutely! You can enter the name of any rescue pet in our 'Dedicate Donation' field, or click 'Sponsor Care' directly from any pet's profile page.",
     },
     {
-      q: "Can I drop off physical supplies at the shelter?",
-      a: "Yes! We welcome physical supply drop-offs at our Petaling Jaya sanctuary (No. 18, Jalan SS 2/72) from Tuesday to Sunday, 10:00 AM – 5:00 PM (Closed Mondays).",
+      q: isMs ? "Bolehkah saya menghantar bekalan fizikal terus ke pusat perlindungan?" : "Can I drop off physical supplies at the shelter?",
+      a: isMs
+        ? "Ya! Kami mengalu-alukan penghantaran barangan keperluan ke pusat perlindungan kami di Petaling Jaya (No. 18, Jalan SS 2/72) dari Selasa hingga Ahad, 10:00 pagi – 5:00 petang (Tutup pada hari Isnin)."
+        : "Yes! We welcome physical supply drop-offs at our Petaling Jaya sanctuary (No. 18, Jalan SS 2/72) from Tuesday to Sunday, 10:00 AM – 5:00 PM (Closed Mondays).",
     },
   ];
 
@@ -132,30 +148,32 @@ export default function DonatePage() {
           <div className="text-center space-y-4 max-w-3xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-xs font-bold uppercase tracking-wider">
               <HeartHandshake className="size-4" />
-              Direct Rescue Giving & Sponsorship
+              {isMs ? "Sumbangan Terus & Penajaan Reskue" : "Direct Rescue Giving & Sponsorship"}
             </div>
 
             <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
-              Fuel Lifesaving Medical Care & Nutrition for Rescued Strays
+              {isMs ? "Bantu Selamatkan Nyawa & Biayai Rawatan Haiwan Terbiar" : "Fuel Lifesaving Medical Care & Nutrition for Rescued Strays"}
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
-              Every ringgit directly supports emergency surgeries, core vaccinations, and wholesome meals at our Petaling Jaya sanctuary. Because of your generosity, 100% of our rescued animals are rehomed through our Free Adoption policy.
+              {isMs
+                ? "Setiap ringgit disalurkan terus bagi membiayai pembedahan kecemasan, vaksinasi lengkap, dan makanan berkhasiat di pusat perlindungan Petaling Jaya kami. Berkat keprihatinan anda, 100% haiwan reskue kami diserahkan kepada keluarga angkat secara percuma."
+                : "Every ringgit directly supports emergency surgeries, core vaccinations, and wholesome meals at our Petaling Jaya sanctuary. Because of your generosity, 100% of our rescued animals are rehomed through our Free Adoption policy."}
             </p>
 
             {/* Official Credentials Banner */}
             <div className="pt-3 flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm font-semibold">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
                 <ShieldCheck className="size-4 text-emerald-600" />
-                ROS Reg: PPM-021-10-18082021
+                {t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950/10 dark:bg-emerald-950/40 border border-emerald-600/30 rounded-lg text-emerald-800 dark:text-emerald-300">
                 <Award className="size-4 text-emerald-600" />
-                LHDN Tax Deductible: Sec 44(6) ITA 1967
+                {t("donations.lhdnBadge", "LHDN Tax Deductible: Sec 44(6) ITA 1967")}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
                 <Heart className="size-4 text-primary" />
-                100% Free Adoption Guarantee
+                {isMs ? "Jaminan Adopsi 100% Percuma" : "100% Free Adoption Guarantee"}
               </span>
             </div>
           </div>
@@ -174,13 +192,15 @@ export default function DonatePage() {
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto space-y-10">
           <div className="max-w-2xl">
             <span className="text-xs font-bold uppercase tracking-wider text-primary block mb-1">
-              Financial Accountability
+              {isMs ? "Ketelusan Kewangan" : "Financial Accountability"}
             </span>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Where Your Donation Goes
+              {isMs ? "Ke Mana Sumbangan Anda Disalurkan" : "Where Your Donation Goes"}
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground mt-2 leading-relaxed">
-              We operate with strict financial transparency. Direct public donations are allocated entirely to animal medical treatment, high-protein sustenance, and sanitary shelter housing in Selangor.
+              {isMs
+                ? "Kami beroperasi dengan ketelusan kewangan yang teliti. Sumbangan orang awam diperuntukkan sepenuhnya untuk rawatan perubatan, makanan berprotein tinggi, dan sanitasi fasiliti perlindungan di Selangor."
+                : "We operate with strict financial transparency. Direct public donations are allocated entirely to animal medical treatment, high-protein sustenance, and sanitary shelter housing in Selangor."}
             </p>
           </div>
 
@@ -219,7 +239,7 @@ export default function DonatePage() {
                 420+
               </div>
               <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                Animals Rescued & Treated in 2026
+                {isMs ? "Haiwan Diselamatkan & Dirawat pada 2026" : "Animals Rescued & Treated in 2026"}
               </div>
             </div>
 
@@ -228,7 +248,7 @@ export default function DonatePage() {
                 100%
               </div>
               <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                Spayed & Vaccinated Before Adoption
+                {isMs ? "Dimandulkan & Divaksin Sebelum Diadopsi" : "Spayed & Vaccinated Before Adoption"}
               </div>
             </div>
 
@@ -237,7 +257,7 @@ export default function DonatePage() {
                 RM 0
               </div>
               <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                Adoption Fee Charged to Families
+                {isMs ? "Yuran Adopsi Dikenakan Kepada Keluarga" : "Adoption Fee Charged to Families"}
               </div>
             </div>
           </div>
@@ -249,13 +269,15 @@ export default function DonatePage() {
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-6xl mx-auto space-y-10">
           <div className="max-w-2xl">
             <span className="text-xs font-bold uppercase tracking-wider text-primary block mb-1">
-              In-Kind Giving
+              {isMs ? "Sumbangan Barangan Keperluan" : "In-Kind Giving"}
             </span>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Shelter Supplies Wishlist
+              {isMs ? "Senarai Keperluan Pusat Perlindungan" : "Shelter Supplies Wishlist"}
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground mt-2 leading-relaxed">
-              Prefer to donate items directly? We gladly accept physical drop-offs of unopened food, medical supplies, and shelter bedding at our Petaling Jaya sanctuary.
+              {isMs
+                ? "Ingin menyumbang barangan secara terus? Kami menerima penghantaran makanan yang belum dibuka, bekalan perubatan, dan alas tidur di pusat perlindungan Petaling Jaya kami."
+                : "Prefer to donate items directly? We gladly accept physical drop-offs of unopened food, medical supplies, and shelter bedding at our Petaling Jaya sanctuary."}
             </p>
           </div>
 
@@ -288,31 +310,31 @@ export default function DonatePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-                  <MapPin className="size-4" /> Drop-off Location
+                  <MapPin className="size-4" /> {isMs ? "Lokasi Penghantaran" : "Drop-off Location"}
                 </div>
                 <div className="font-bold text-foreground text-sm sm:text-base">
                   Hope for Strays Sanctuary
                 </div>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
+                  {t("footer.address", "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-                  <Clock className="size-4" /> Visiting & Drop-off Hours
+                  <Clock className="size-4" /> {isMs ? "Waktu Lawatan & Penghantaran" : "Visiting & Drop-off Hours"}
                 </div>
                 <div className="font-bold text-foreground text-sm">
-                  Tuesday – Sunday: 10:00 AM – 5:00 PM
+                  {isMs ? "Selasa – Ahad: 10:00 Pagi – 5:00 Petang" : "Tuesday – Sunday: 10:00 AM – 5:00 PM"}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Closed on Mondays for deep sanitisation
+                  {t("footer.closedMondays", "Closed on Mondays for deep sanitisation")}
                 </p>
               </div>
 
               <div className="space-y-3 md:text-right">
                 <div className="flex items-center md:justify-end gap-2 text-primary font-bold text-xs uppercase tracking-wider">
-                  <Phone className="size-4" /> Direct Contact
+                  <Phone className="size-4" /> {isMs ? "Hubungi Terus" : "Direct Contact"}
                 </div>
                 <div>
                   <a
@@ -334,13 +356,13 @@ export default function DonatePage() {
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-4xl mx-auto space-y-8">
           <div className="text-center space-y-2 max-w-2xl mx-auto">
             <span className="text-xs font-bold uppercase tracking-wider text-primary block">
-              Clear Answers
+              {isMs ? "Soalan Lazim" : "Clear Answers"}
             </span>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              Frequently Asked Questions About Donations
+              {isMs ? "Soalan Lazim Mengenai Sumbangan & Pelepasan Cukai" : "Frequently Asked Questions About Donations"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              Have questions about your contribution, tax deductions, or payment methods?
+              {isMs ? "Ada soalan mengenai sumbangan anda, potongan cukai, atau kaedah pembayaran?" : "Have questions about your contribution, tax deductions, or payment methods?"}
             </p>
           </div>
 
@@ -366,17 +388,17 @@ export default function DonatePage() {
           {/* Bottom CTA to browse pets */}
           <div className="text-center pt-8 border-t border-border space-y-3">
             <p className="text-sm text-muted-foreground">
-              Want to see the animals whose lives you are changing today?
+              {isMs ? "Ingin melihat haiwan-haiwan yang sedang anda bantu hari ini?" : "Want to see the animals whose lives you are changing today?"}
             </p>
             <Link
               href="/pets"
               className={buttonVariants({
                 size: "lg",
-                className: "gap-2 px-8 font-bold text-sm uppercase tracking-wider shadow-xs",
+                className: "gap-2 px-8 font-bold text-sm uppercase tracking-wider shadow-xs rounded-xl",
               })}
             >
               <Heart className="size-4.5 fill-current" />
-              Meet Our Adoptable Animals
+              {isMs ? "Lihat Haiwan Sedia Diadopsi" : "Meet Our Adoptable Animals"}
               <ArrowRight className="size-4" />
             </Link>
           </div>

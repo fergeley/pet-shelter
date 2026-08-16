@@ -1,8 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { PawPrint, MapPin, Phone, Mail, Clock, MessageCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export function Footer() {
+  const { t, isMs } = useLanguage();
+
   return (
     <footer className="border-t border-border bg-zinc-100 dark:bg-zinc-950 text-foreground">
       <div className="w-full px-6 py-12 sm:px-8 sm:py-14 lg:px-12">
@@ -10,7 +16,7 @@ export function Footer() {
           {/* Column 1: Organization */}
           <div className="space-y-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-9 items-center justify-center bg-primary text-primary-foreground">
+              <div className="flex size-9 items-center justify-center bg-primary text-primary-foreground rounded-lg">
                 <PawPrint className="size-4.5" />
               </div>
               <span className="font-heading text-xl font-bold tracking-tight">
@@ -18,44 +24,44 @@ export function Footer() {
               </span>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              A registered non-profit animal rescue organisation serving Petaling Jaya and Selangor since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.
+              {t("footer.orgDesc", "A registered non-profit animal rescue organisation serving Petaling Jaya and Selangor since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.")}
             </p>
           </div>
 
           {/* Column 2: Navigation Links */}
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">
-              Quick Links
+              {t("footer.quickLinksTitle", "Quick Links")}
             </h3>
             <ul className="space-y-2.5 text-sm">
               <li>
                 <Link href="/pets" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Adoptable Dogs & Cats
+                  {t("nav.adoptablePets", "Adoptable Dogs & Cats")}
                 </Link>
               </li>
               <li>
                 <Link href="/applications/track" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Track Adoption Application
+                  {t("nav.trackApplication", "Track Adoption Application")}
                 </Link>
               </li>
               <li>
                 <Link href="/bulletins" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Shelter Updates & Bulletins
+                  {t("nav.bulletins", "Shelter Updates & Bulletins")}
                 </Link>
               </li>
               <li>
                 <Link href="/#how-it-works" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Adoption Process & Fees
+                  {t("nav.adoptionProcess", "Adoption Process & Fees")}
                 </Link>
               </li>
               <li>
                 <Link href="/#support" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Volunteer & Foster Care
+                  {t("nav.volunteerFoster", "Volunteer & Foster Care")}
                 </Link>
               </li>
               <li>
                 <Link href="/donate" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  Shelter Wishlist & Donations
+                  {t("nav.donate", "Shelter Wishlist & Donations")}
                 </Link>
               </li>
             </ul>
@@ -64,15 +70,15 @@ export function Footer() {
           {/* Column 3: Hours */}
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">
-              Visiting Hours
+              {t("footer.visitingHoursTitle", "Visiting Hours")}
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex items-start gap-2.5">
                 <Clock className="size-4 text-foreground shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-bold text-foreground">Tuesday – Sunday</p>
-                  <p className="font-medium">10:00 AM – 5:00 PM</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Closed Mondays for sanctuary deep cleaning</p>
+                  <p className="font-bold text-foreground">{isMs ? "Selasa – Ahad" : "Tuesday – Sunday"}</p>
+                  <p className="font-medium">{isMs ? "10:00 Pagi – 5:00 Petang" : "10:00 AM – 5:00 PM"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("footer.closedMondays", "Closed Mondays for sanctuary deep cleaning")}</p>
                 </div>
               </div>
             </div>
@@ -81,12 +87,12 @@ export function Footer() {
           {/* Column 4: Location & Contact */}
           <div>
             <h3 className="text-sm font-bold uppercase tracking-wider text-foreground mb-3">
-              Location & Contact
+              {t("footer.locationContactTitle", "Location & Contact")}
             </h3>
             <ul className="space-y-2.5 text-sm text-muted-foreground">
               <li className="flex items-start gap-2.5">
                 <MapPin className="size-4 text-foreground shrink-0 mt-0.5" />
-                <span className="leading-relaxed">No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia</span>
+                <span className="leading-relaxed">{t("footer.address", "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")}</span>
               </li>
               <li className="flex items-center gap-2.5">
                 <Phone className="size-4 text-foreground shrink-0" />
@@ -120,21 +126,23 @@ export function Footer() {
           <div className="flex flex-wrap items-center gap-3">
             <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
             <span className="text-muted-foreground/40 hidden sm:inline">•</span>
-            <p className="font-mono">ROS Reg: PPM-012-10-18042016</p>
+            <p className="font-mono">{t("footer.rosReg", "ROS Reg: PPM-012-10-18042016")}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
             <Link href="/privacy" className="hover:text-foreground hover:underline font-medium">
-              Privacy Notice (PDPA)
+              {t("footer.privacyNotice", "Privacy Notice (PDPA)")}
             </Link>
             <span className="text-muted-foreground/40">•</span>
             <Link href="/terms" className="hover:text-foreground hover:underline font-medium">
-              Adoption Terms
+              {t("footer.adoptionTerms", "Adoption Terms")}
             </Link>
             <span className="text-muted-foreground/40">•</span>
             <Link href="/admin/login" className="font-semibold hover:text-foreground hover:underline">
-              Staff Portal
+              {t("footer.staffPortal", "Staff Portal")}
             </Link>
+            <span className="text-muted-foreground/40">•</span>
+            <LanguageToggle />
             <span className="text-muted-foreground/40">•</span>
             <ThemeToggle showLabel={true} />
           </div>

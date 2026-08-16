@@ -20,8 +20,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/sponsorshipStore";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export function DonationWidget() {
+  const { t, isMs } = useLanguage();
   const { saveDonationReceipt, createDonationReceipt } = useSponsorshipStore();
 
   const [selectedTier, setSelectedTier] = useState<SponsorshipTier>(SPONSORSHIP_TIERS[1]); // Default RM 50 Vaccine
@@ -65,12 +67,12 @@ export function DonationWidget() {
     setErrorMessage(null);
 
     if (!donorName.trim() || !donorEmail.trim()) {
-      setErrorMessage("Please enter your name and email address to receive your official tax receipt.");
+      setErrorMessage(isMs ? "Sila masukkan nama dan alamat emel anda untuk menerima resit rasmi." : "Please enter your name and email address to receive your official tax receipt.");
       return;
     }
 
     if (finalAmount < 5) {
-      setErrorMessage("Minimum donation amount is RM 5.00.");
+      setErrorMessage(isMs ? "Jumlah sumbangan minimum ialah RM 5.00." : "Minimum donation amount is RM 5.00.");
       return;
     }
 
@@ -82,7 +84,7 @@ export function DonationWidget() {
         donorEmail: donorEmail.trim().toLowerCase(),
         donorPhone: donorPhone.trim() || undefined,
         tierId: isCustomTier ? "custom" : selectedTier.id,
-        tierName: isCustomTier ? "Custom Rescue Donation" : selectedTier.name,
+        tierName: isCustomTier ? (isMs ? "Sumbangan Reskue Tersuai" : "Custom Rescue Donation") : selectedTier.name,
         amountMYR: finalAmount,
         frequency,
         targetPetName: targetPetName.trim() || undefined,
@@ -100,7 +102,7 @@ export function DonationWidget() {
           donorEmail: donorEmail.trim().toLowerCase(),
           donorPhone: donorPhone.trim() || undefined,
           tierId: isCustomTier ? "custom" : selectedTier.id,
-          tierName: isCustomTier ? "Custom Rescue Donation" : selectedTier.name,
+          tierName: isCustomTier ? (isMs ? "Sumbangan Reskue Tersuai" : "Custom Rescue Donation") : selectedTier.name,
           amountMYR: finalAmount,
           frequency,
           targetPetName: targetPetName.trim() || undefined,
@@ -116,7 +118,7 @@ export function DonationWidget() {
         donorEmail: donorEmail.trim().toLowerCase(),
         donorPhone: donorPhone.trim() || undefined,
         tierId: isCustomTier ? "custom" : selectedTier.id,
-        tierName: isCustomTier ? "Custom Rescue Donation" : selectedTier.name,
+        tierName: isCustomTier ? (isMs ? "Sumbangan Reskue Tersuai" : "Custom Rescue Donation") : selectedTier.name,
         amountMYR: finalAmount,
         frequency,
         targetPetName: targetPetName.trim() || undefined,
@@ -154,10 +156,12 @@ export function DonationWidget() {
           <CheckCircle2 className="size-6 text-emerald-600 shrink-0 mt-0.5" />
           <div>
             <h3 className="font-heading text-lg font-bold text-foreground">
-              Thank You! Your Donation Has Been Received.
+              {isMs ? "Terima Kasih! Sumbangan Anda Telah Diterima." : "Thank You! Your Donation Has Been Received."}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              An official tax-exempt e-Receipt for <strong className="text-foreground">RM {completedReceipt.amountMYR}.00</strong> has been generated and dispatched to <strong>{completedReceipt.donorEmail}</strong>.
+              {isMs
+                ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
+                : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`}
             </p>
           </div>
         </div>
@@ -179,7 +183,7 @@ export function DonationWidget() {
 
             <div className="text-left sm:text-right">
               <span className="inline-block px-2.5 py-1 bg-zinc-900 text-white font-mono text-xs font-bold uppercase rounded-sm">
-                Official e-Receipt
+                {t("donations.receiptTitle", "Official e-Receipt")}
               </span>
               <div className="font-mono text-xs font-bold text-zinc-800 mt-1">
                 {completedReceipt.receiptNumber}
@@ -190,7 +194,7 @@ export function DonationWidget() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
-              <div className="text-[10px] uppercase font-bold text-zinc-500">Issued To</div>
+              <div className="text-[10px] uppercase font-bold text-zinc-500">{isMs ? "Dikeluarkan Kepada" : "Issued To"}</div>
               <div className="font-bold text-zinc-900 text-sm">{completedReceipt.donorName}</div>
               <div className="text-zinc-600">{completedReceipt.donorEmail}</div>
               {completedReceipt.donorPhone && <div className="text-zinc-600">{completedReceipt.donorPhone}</div>}
@@ -198,10 +202,10 @@ export function DonationWidget() {
             </div>
 
             <div>
-              <div className="text-[10px] uppercase font-bold text-zinc-500">Sponsorship Allocation</div>
+              <div className="text-[10px] uppercase font-bold text-zinc-500">{isMs ? "Peruntukan Penajaan" : "Sponsorship Allocation"}</div>
               <div className="font-bold text-zinc-900 text-sm">{completedReceipt.tierName}</div>
               {completedReceipt.targetPetName && (
-                <div className="text-zinc-700 font-medium">🐾 Dedicated Pet: {completedReceipt.targetPetName}</div>
+                <div className="text-zinc-700 font-medium">🐾 {isMs ? "Dedikasi Haiwan" : "Dedicated Pet"}: {completedReceipt.targetPetName}</div>
               )}
               <div className="text-zinc-500">Payment: DuitNow National Instant Rail</div>
               {completedReceipt.frequency && (
@@ -217,24 +221,24 @@ export function DonationWidget() {
           )}
 
           <div className="border-t border-b border-zinc-200 py-3 flex items-center justify-between font-heading">
-            <span className="text-sm font-bold text-zinc-900">Total Contribution Received</span>
+            <span className="text-sm font-bold text-zinc-900">{isMs ? "Jumlah Sumbangan Diterima" : "Total Contribution Received"}</span>
             <span className="text-2xl font-extrabold text-emerald-700">RM {completedReceipt.amountMYR}.00</span>
           </div>
 
           <div className="text-[10px] text-zinc-500 leading-relaxed italic">
-            * This receipt is computer-generated and valid for income tax deduction under Subsection 44(6) of the Malaysian Income Tax Act 1967.
+            * {t("donations.receiptSubtitle", "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: LHDN.01/35/42/51/179-6.4912")}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-          <Button variant="outline" size="sm" onClick={handleReset} className="gap-1.5">
+          <Button variant="outline" size="sm" onClick={handleReset} className="gap-1.5 cursor-pointer">
             <RotateCcw className="size-3.5" />
-            Make Another Donation
+            {isMs ? "Buat Sumbangan Lain" : "Make Another Donation"}
           </Button>
 
-          <Button size="sm" onClick={handlePrintReceipt} className="gap-1.5">
+          <Button size="sm" onClick={handlePrintReceipt} className="gap-1.5 cursor-pointer">
             <Printer className="size-3.5" />
-            Print Official e-Receipt
+            {t("donations.printReceiptBtn", "Print Official e-Receipt")}
           </Button>
         </div>
       </div>
@@ -244,7 +248,7 @@ export function DonationWidget() {
   return (
     <div className="border border-border bg-card p-6 sm:p-8 lg:p-10 rounded-2xl shadow-sm space-y-8">
       {errorMessage && (
-        <div className="bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive font-medium rounded-lg flex items-center gap-2">
+        <div className="bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive font-medium rounded-xl flex items-center gap-2">
           <span>⚠️ {errorMessage}</span>
         </div>
       )}
@@ -254,10 +258,10 @@ export function DonationWidget() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
           <div>
             <h3 className="font-heading text-lg font-bold text-foreground">
-              1. Choose Giving Frequency
+              1. {isMs ? "Pilih Kekerapan Sumbangan" : "Choose Giving Frequency"}
             </h3>
             <p className="text-xs text-muted-foreground">
-              Select one-time support or join our monthly recurring rescue circle.
+              {isMs ? "Pilih sumbangan sekali sahaja atau sertai keluarga penaja bulanan kami." : "Select one-time support or join our monthly recurring rescue circle."}
             </p>
           </div>
 
@@ -265,25 +269,25 @@ export function DonationWidget() {
             <button
               type="button"
               onClick={() => setFrequency("one_time")}
-              className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${
+              className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
                 frequency === "one_time"
                   ? "bg-card text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              One-Time Gift
+              {t("donations.frequencyOneTime", "One-Time Gift")}
             </button>
             <button
               type="button"
               onClick={() => setFrequency("monthly")}
-              className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 frequency === "monthly"
                   ? "bg-primary text-primary-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <RotateCw className="size-3.5" />
-              Monthly Partner
+              {t("donations.frequencyMonthly", "Monthly Rescue Hero")}
             </button>
           </div>
         </div>
@@ -293,10 +297,10 @@ export function DonationWidget() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-heading text-lg font-bold text-foreground">
-            2. Choose Sponsorship Tier or Amount
+            2. {t("donations.selectTierLabel", "Choose Sponsorship Tier or Amount")}
           </h3>
           <span className="text-xs font-semibold text-muted-foreground">
-            Selected: <strong className="text-primary font-mono text-sm">RM {finalAmount}.00 {frequency === "monthly" ? "/ mo" : ""}</strong>
+            {isMs ? "Dipilih:" : "Selected:"} <strong className="text-primary font-mono text-sm">RM {finalAmount}.00 {frequency === "monthly" ? (isMs ? "/ bln" : "/ mo") : ""}</strong>
           </span>
         </div>
 
@@ -353,13 +357,15 @@ export function DonationWidget() {
                 name="widgetTierOption"
                 checked={isCustomTier}
                 onChange={handleSelectCustom}
-                className="size-4.5 accent-primary"
+                className="size-4.5 accent-primary cursor-pointer"
               />
               <div>
                 <label htmlFor="widgetCustomRadio" className="text-sm font-bold text-foreground cursor-pointer">
-                  Enter Custom Contribution Amount
+                  {t("donations.customAmountLabel", "Or Enter Custom Amount (MYR)")}
                 </label>
-                <p className="text-xs text-muted-foreground">Specify any amount above RM 5.00</p>
+                <p className="text-xs text-muted-foreground">
+                  {isMs ? "Tentukan sebarang jumlah melebihi RM 5.00" : "Specify any amount above RM 5.00"}
+                </p>
               </div>
             </div>
 
@@ -376,7 +382,7 @@ export function DonationWidget() {
                   handleSelectCustom();
                   setCustomAmount(e.target.value);
                 }}
-                className="w-36 font-bold font-mono h-10 bg-background text-base"
+                className="w-36 font-bold font-mono h-10 bg-background text-base rounded-lg"
               />
             </div>
           </div>
@@ -389,11 +395,11 @@ export function DonationWidget() {
           <div className="flex items-center gap-2">
             <QrCode className="size-5 text-primary" />
             <h3 className="font-heading text-base font-bold text-foreground">
-              3. Malaysian Payment Rail: DuitNow National QR / Maybank Transfer
+              3. {isMs ? "Kaedah Pembayaran Malaysia: DuitNow QR / Pindahan Bank" : "Malaysian Payment Rail: DuitNow National QR / Maybank Transfer"}
             </h3>
           </div>
           <span className="text-xs font-bold font-mono text-primary bg-primary/10 px-3 py-1 rounded-md">
-            Pay: RM {finalAmount}.00 {frequency === "monthly" ? "/ month" : ""}
+            Pay: RM {finalAmount}.00 {frequency === "monthly" ? (isMs ? "/ bulan" : "/ month") : ""}
           </span>
         </div>
 
@@ -436,7 +442,7 @@ export function DonationWidget() {
               Hope for Strays Shelter Selangor
             </div>
             <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
-              Scan with Maybank MAE, CIMB, TNG eWallet, etc.
+              {t("donations.duitNowInstructions", "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app.")}
             </div>
           </div>
 
@@ -444,35 +450,35 @@ export function DonationWidget() {
           <div className="md:col-span-7 space-y-3.5 text-xs">
             <div className="p-4 border border-border bg-card rounded-xl space-y-1">
               <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
-                <Building2 className="size-3.5" /> Beneficiary Organization Name
+                <Building2 className="size-3.5" /> {isMs ? "Nama Organisasi Penerima" : "Beneficiary Organization Name"}
               </div>
-              <div className="font-bold text-foreground text-sm sm:text-base">Pertubuhan Kebajikan Hope for Strays</div>
-              <div className="text-xs text-muted-foreground">ROS Registrar of Societies Reg: PPM-021-10-18082021</div>
+              <div className="font-bold text-foreground text-sm sm:text-base">{t("donations.accountHolder", "Pertubuhan Kebajikan Hope for Strays")}</div>
+              <div className="text-xs text-muted-foreground">{t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}</div>
             </div>
 
             <div className="p-4 border border-border bg-card rounded-xl space-y-1">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold">Maybank Direct Account</div>
+              <div className="text-[10px] text-muted-foreground uppercase font-bold">{t("donations.bankTransferTitle", "Direct Bank Transfer (Maybank)")}</div>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <span className="font-mono font-bold text-foreground text-lg tracking-wider block">5140 1234 5678</span>
-                  <span className="text-xs text-muted-foreground">Malayan Banking Berhad (PJ SS2 Branch)</span>
+                  <span className="font-mono font-bold text-foreground text-lg tracking-wider block">{t("donations.accountNumber", "5140 1234 5678")}</span>
+                  <span className="text-xs text-muted-foreground">{t("donations.bankName", "Maybank Berhad")} (PJ SS2 Branch)</span>
                 </div>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={handleCopyMaybank}
-                  className="h-9 px-3.5 text-xs font-bold gap-1.5"
+                  className="h-9 px-3.5 text-xs font-bold gap-1.5 cursor-pointer"
                 >
                   {copiedBank ? <CheckCircle2 className="size-4 text-emerald-600" /> : <Copy className="size-4" />}
-                  {copiedBank ? "Copied!" : "Copy"}
+                  {copiedBank ? t("donations.copiedBtn", "Copied!") : t("donations.copyAccountBtn", "Copy Bank Account")}
                 </Button>
               </div>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-muted-foreground bg-emerald-950/10 dark:bg-emerald-950/40 p-3 rounded-lg border border-emerald-600/20">
               <ShieldCheck className="size-4.5 text-emerald-600 shrink-0" />
-              <span>Official Tax-Exempt Status: <strong>LHDN.01/35/42/51/179-6.4912</strong> (Sub-sec 44(6) ITA 1967)</span>
+              <span>{t("donations.lhdnBadge", "LHDN Tax Deductible: Sec 44(6) ITA 1967")} (Ref: <strong>LHDN.01/35/42/51/179-6.4912</strong>)</span>
             </div>
           </div>
         </div>
@@ -482,17 +488,17 @@ export function DonationWidget() {
       <form onSubmit={handleFormSubmit} className="space-y-6">
         <div>
           <h3 className="font-heading text-lg font-bold text-foreground">
-            4. Donor Information & E-Receipt Generation
+            4. {isMs ? "Maklumat Penderma & Penjanaan e-Resit" : "Donor Information & E-Receipt Generation"}
           </h3>
           <p className="text-xs text-muted-foreground">
-            Your official tax-deductible receipt will be generated instantly and dispatched to your email.
+            {t("donations.taxReliefNoticeDesc", "Provide your Full Name and Malaysian IC / Passport / SSM number to receive an official e-Receipt valid for tax deductions.")}
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label htmlFor="wDonorName" className="text-xs font-semibold">
-              Full Name / Company Name <span className="text-destructive">*</span>
+              {t("donations.donorNameLabel", "Donor Full Name (for tax receipt) *")}
             </Label>
             <Input
               id="wDonorName"
@@ -500,12 +506,13 @@ export function DonationWidget() {
               placeholder="e.g. Jason Lim / ABC Corporation"
               value={donorName}
               onChange={(e) => setDonorName(e.target.value)}
+              className="rounded-lg"
             />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="wDonorEmail" className="text-xs font-semibold">
-              Email Address (For e-Receipt) <span className="text-destructive">*</span>
+              {t("donations.donorEmailLabel", "Email Address (to receive e-Receipt) *")}
             </Label>
             <Input
               id="wDonorEmail"
@@ -514,48 +521,52 @@ export function DonationWidget() {
               placeholder="jason.lim@example.com"
               value={donorEmail}
               onChange={(e) => setDonorEmail(e.target.value)}
+              className="rounded-lg"
             />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="wDonorPhone" className="text-xs font-semibold">
-              WhatsApp / Mobile Phone (Optional)
+              {t("donations.donorPhoneLabel", "Phone Number (WhatsApp receipt updates)")}
             </Label>
             <Input
               id="wDonorPhone"
               placeholder="012-345 6789"
               value={donorPhone}
               onChange={(e) => setDonorPhone(e.target.value)}
+              className="rounded-lg"
             />
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="wTaxId" className="text-xs font-semibold">
-              NRIC / Passport / SSM No. (Optional - for LHDN tax filing)
+              {t("donations.donorIcLabel", "Malaysian IC / Passport / SSM Company No. *")}
             </Label>
             <Input
               id="wTaxId"
               placeholder="e.g. 900215-10-5566"
               value={taxIdOrIc}
               onChange={(e) => setTaxIdOrIc(e.target.value)}
+              className="rounded-lg"
             />
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="wPetName" className="text-xs font-semibold">
-              Dedicate Donation in Honor of a Pet (Optional)
+              {t("donations.dedicateLabel", "Dedicate or Sponsor a Specific Pet (Optional)")}
             </Label>
             <Input
               id="wPetName"
-              placeholder="e.g. In memory of Luna / For Milo's medical fund"
+              placeholder={t("donations.dedicatePlaceholder", "e.g. For Bella's surgery recovery / Milo's care")}
               value={targetPetName}
               onChange={(e) => setTargetPetName(e.target.value)}
+              className="rounded-lg"
             />
           </div>
 
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="wNotes" className="text-xs font-semibold">
-              Message of Encouragement to Caregivers (Optional)
+              {t("donations.donorNotesLabel", "Special Message / Donor Wishes (Optional)")}
             </Label>
             <Textarea
               id="wNotes"
@@ -563,6 +574,7 @@ export function DonationWidget() {
               placeholder="Keep up the incredible rescue work..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              className="rounded-lg"
             />
           </div>
         </div>
@@ -570,11 +582,11 @@ export function DonationWidget() {
         <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Lock className="size-3.5 text-primary" />
-            <span>Secure 256-bit encrypted submission & instant LHDN receipting.</span>
+            <span>{isMs ? "Penyerahan disulitkan 256-bit & pengeluaran resit LHDN segera." : "Secure 256-bit encrypted submission & instant LHDN receipting."}</span>
           </div>
 
-          <Button type="submit" disabled={isProcessing} size="lg" className="font-bold px-8 gap-2">
-            {isProcessing ? "Processing Contribution..." : `Complete Donation of RM ${finalAmount}`}
+          <Button type="submit" disabled={isProcessing} size="lg" className="font-bold px-8 gap-2 cursor-pointer">
+            {isProcessing ? t("donations.pledgeProcessing", "Recording Tax-Deductible Pledge...") : `${t("donations.pledgeBtn", "Complete Donation Pledge & Generate e-Receipt")} (RM ${finalAmount})`}
             <ArrowRight className="size-4.5" />
           </Button>
         </div>

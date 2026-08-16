@@ -7,8 +7,10 @@ import { usePathname } from "next/navigation";
 import { Heart, Menu, HeartHandshake, Compass } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
+import { useLanguage } from "@/components/LanguageProvider";
 import {
   Sheet,
   SheetContent,
@@ -19,17 +21,18 @@ import {
 
 export function Navbar() {
   const pathname = usePathname();
+  const { t } = useLanguage();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
 
   const navLinks = [
-    { href: "/pets", label: "Adoptable Pets" },
-    { href: "/donate", label: "Donate" },
-    { href: "/applications/track", label: "Track Application" },
-    { href: "/bulletins", label: "Updates & News" },
-    { href: "/#how-it-works", label: "Adoption Process" },
-    { href: "/#support", label: "Volunteer & Foster" },
+    { href: "/pets", label: t("nav.adoptablePets", "Adoptable Pets") },
+    { href: "/donate", label: t("nav.donate", "Donate") },
+    { href: "/applications/track", label: t("nav.trackApplication", "Track Application") },
+    { href: "/bulletins", label: t("nav.bulletins", "Updates & News") },
+    { href: "/#how-it-works", label: t("nav.adoptionProcess", "Adoption Process") },
+    { href: "/#support", label: t("nav.volunteerFoster", "Volunteer & Foster") },
   ];
 
   return (
@@ -46,7 +49,7 @@ export function Navbar() {
                 Hope for Strays
               </span>
               <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                Petaling Jaya, Selangor
+                {t("nav.sanctuaryLocation", "Petaling Jaya, Selangor")}
               </span>
             </div>
           </Link>
@@ -80,22 +83,23 @@ export function Navbar() {
               variant="outline"
               size="sm"
               onClick={() => setIsQuizOpen(true)}
-              className="text-xs font-semibold gap-1.5 h-8 px-2.5"
+              className="text-xs font-semibold gap-1.5 h-8 px-2.5 cursor-pointer"
             >
               <Compass className="size-3.5" />
-              Match Quiz
+              {t("nav.matchQuiz", "Match Quiz")}
             </Button>
 
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsSponsorshipOpen(true)}
-              className="text-xs font-semibold gap-1.5 h-8 px-2.5"
+              className="text-xs font-semibold gap-1.5 h-8 px-2.5 cursor-pointer"
             >
               <HeartHandshake className="size-3.5" />
-              Sponsor
+              {t("nav.sponsor", "Sponsor")}
             </Button>
 
+            <LanguageToggle />
             <ThemeToggle />
 
             <Link
@@ -106,21 +110,22 @@ export function Navbar() {
               })}
             >
               <Heart className="size-3.5 fill-current" />
-              Adopt
+              {t("nav.adopt", "Adopt")}
             </Link>
           </div>
 
           {/* Mobile Menu */}
           <div className="flex items-center gap-2 md:hidden">
+            <LanguageToggle showIcon={false} />
             <ThemeToggle />
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsQuizOpen(true)}
-              className="h-8 px-2 text-xs font-bold gap-1"
+              className="h-8 px-2 text-xs font-bold gap-1 cursor-pointer"
             >
               <Compass className="size-3" />
-              Quiz
+              {t("nav.matchQuiz", "Quiz")}
             </Button>
             <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
               <SheetTrigger
@@ -139,6 +144,11 @@ export function Navbar() {
                   </div>
                 </SheetHeader>
                 <div className="flex flex-col gap-3 px-6 py-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-border">
+                    <span className="text-xs font-medium text-muted-foreground">Bahasa / Language</span>
+                    <LanguageToggle />
+                  </div>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -146,10 +156,10 @@ export function Navbar() {
                       setIsMobileOpen(false);
                       setIsQuizOpen(true);
                     }}
-                    className="w-full justify-center text-xs font-bold gap-1.5"
+                    className="w-full justify-center text-xs font-bold gap-1.5 cursor-pointer"
                   >
                     <Compass className="size-3.5" />
-                    Pet Compatibility Quiz
+                    {t("nav.matchQuiz", "Pet Compatibility Quiz")}
                   </Button>
 
                   <Button
@@ -159,10 +169,10 @@ export function Navbar() {
                       setIsMobileOpen(false);
                       setIsSponsorshipOpen(true);
                     }}
-                    className="w-full justify-center text-xs font-bold gap-1.5"
+                    className="w-full justify-center text-xs font-bold gap-1.5 cursor-pointer"
                   >
                     <HeartHandshake className="size-3.5" />
-                    Sponsor Rescue Care
+                    {t("nav.sponsor", "Sponsor Rescue Care")}
                   </Button>
 
                   {navLinks.map((link) => (
@@ -176,9 +186,9 @@ export function Navbar() {
                     </Link>
                   ))}
                   <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2.5 text-xs text-muted-foreground">
-                    <p className="font-medium text-foreground">Phone: 03-7876 5432</p>
-                    <p>Tue–Sun: 10:00 AM – 5:00 PM</p>
-                    <p>Petaling Jaya, Selangor</p>
+                    <p className="font-medium text-foreground">Phone: {t("nav.phone", "03-7876 5432")}</p>
+                    <p>{t("nav.visitingHours", "Tue–Sun: 10:00 AM – 5:00 PM")}</p>
+                    <p>{t("nav.sanctuaryLocation", "Petaling Jaya, Selangor")}</p>
                     <Link
                       href="/pets"
                       onClick={() => setIsMobileOpen(false)}
@@ -186,7 +196,7 @@ export function Navbar() {
                         className: "w-full mt-2 justify-center text-xs font-semibold uppercase tracking-wider",
                       })}
                     >
-                      Browse Pets
+                      {t("nav.browsePets", "Browse Pets")}
                     </Link>
                   </div>
                 </div>

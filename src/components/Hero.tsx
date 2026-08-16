@@ -7,8 +7,10 @@ import { Heart, ArrowRight, HeartHandshake, ShieldCheck, Compass } from "lucide-
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PetMatchQuiz } from "@/components/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/SponsorshipModal";
+import { useLanguage } from "@/components/LanguageProvider";
 
 export function Hero() {
+  const { t } = useLanguage();
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
 
@@ -20,17 +22,17 @@ export function Hero() {
             
             {/* Left Text Content */}
             <div className="space-y-6 lg:col-span-7">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-semibold border border-border">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-semibold border border-border rounded-md">
                 <ShieldCheck className="size-3.5 text-foreground" />
-                <span>Selangor Animal Welfare & Rescue Sanctuary</span>
+                <span>{t("hero.badge", "Selangor Animal Welfare & Rescue Sanctuary")}</span>
               </div>
 
               <h1 className="font-heading text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl leading-[1.15]">
-                Adopt a dog or cat from your local shelter.
+                {t("hero.title", "Adopt a dog or cat from your local shelter.")}
               </h1>
 
               <p className="max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
-                We take in strays, owner surrenders, and transfers across Petaling Jaya. Every rescue animal receives full veterinary care, core vaccinations, microchip registration, and spay/neuter surgery before finding their forever family.
+                {t("hero.subtitle", "We take in strays, owner surrenders, and transfers across Petaling Jaya. Every rescue animal receives full veterinary care, core vaccinations, microchip registration, and spay/neuter surgery before finding their forever family.")}
               </p>
 
               {/* Action Buttons */}
@@ -43,7 +45,7 @@ export function Hero() {
                   })}
                 >
                   <Heart className="size-4 fill-current" />
-                  Browse Adoptable Pets
+                  {t("hero.browseBtn", "Browse Adoptable Pets")}
                   <ArrowRight className="size-4 ml-0.5" />
                 </Link>
 
@@ -51,40 +53,40 @@ export function Hero() {
                   variant="outline"
                   size="lg"
                   onClick={() => setIsQuizOpen(true)}
-                  className="gap-2 px-6 text-sm font-semibold tracking-wide"
+                  className="gap-2 px-6 text-sm font-semibold tracking-wide cursor-pointer"
                 >
                   <Compass className="size-4" />
-                  Pet Compatibility Quiz
+                  {t("hero.quizBtn", "Pet Compatibility Quiz")}
                 </Button>
 
                 <Button
                   variant="outline"
                   size="lg"
                   onClick={() => setIsSponsorshipOpen(true)}
-                  className="gap-2 px-6 text-sm font-semibold tracking-wide"
+                  className="gap-2 px-6 text-sm font-semibold tracking-wide cursor-pointer"
                 >
                   <HeartHandshake className="size-4" />
-                  Sponsor Care
+                  {t("hero.sponsorBtn", "Sponsor Care")}
                 </Button>
               </div>
 
               <div className="border-t border-border pt-4 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <span className="font-semibold text-foreground">Sanctuary Visiting Hours: </span>
-                  Tuesday through Sunday, 10:00 AM – 5:00 PM. Walk-ins welcome.
+                  <span className="font-semibold text-foreground">{t("hero.visitingHoursLabel", "Sanctuary Visiting Hours:")} </span>
+                  {t("hero.visitingHoursText", "Tuesday through Sunday, 10:00 AM – 5:00 PM. Walk-ins welcome.")}
                 </div>
                 <div className="font-mono font-semibold text-foreground">
-                  Petaling Jaya, Selangor
+                  {t("hero.locationText", "Petaling Jaya, Selangor")}
                 </div>
               </div>
             </div>
 
             {/* Right Image */}
             <div className="lg:col-span-5">
-              <div className="relative aspect-4/3 w-full overflow-hidden border border-border bg-muted shadow-sm">
+              <div className="relative aspect-4/3 w-full overflow-hidden border border-border bg-muted shadow-sm rounded-2xl">
                 <Image
                   src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1000&q=80"
-                  alt="Two rescued shelter dogs playing together outdoors in the exercise yard"
+                  alt="Rescued shelter animals enjoying sanctuary grounds"
                   fill
                   priority
                   className="object-cover"

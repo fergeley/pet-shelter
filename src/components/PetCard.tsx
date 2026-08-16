@@ -6,6 +6,7 @@ import { Info, Heart } from "lucide-react";
 import { Pet } from "@/types/pet";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/components/LanguageProvider";
 
 interface PetCardProps {
   pet: Pet;
@@ -16,11 +17,12 @@ interface PetCardProps {
 const FALLBACK_PET_IMAGE = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80";
 
 export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
+  const { t } = useLanguage();
   const [imgSrc, setImgSrc] = useState(pet.image || FALLBACK_PET_IMAGE);
   const isAvailable = pet.status === "Available";
 
   return (
-    <Card className="group flex h-full flex-col justify-between overflow-hidden border border-border bg-card transition-all duration-200 hover:border-foreground/40 hover:shadow-xs">
+    <Card className="group flex h-full flex-col justify-between overflow-hidden border border-border bg-card transition-all duration-200 hover:border-foreground/40 hover:shadow-xs rounded-2xl">
       <div>
         {/* Pet Image Container */}
         <div className="relative aspect-4/3 w-full overflow-hidden bg-muted">
@@ -42,16 +44,16 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
                   : "bg-amber-800 dark:bg-amber-900"
               }`}
             >
-              {pet.status}
+              {isAvailable ? t("common.available", "Available") : t("common.pending", "Pending")}
             </span>
-            <span className="bg-primary/95 text-primary-foreground font-bold px-2.5 py-1 text-xs tracking-tight">
-              Free Adoption
+            <span className="bg-primary/95 text-primary-foreground font-bold px-2.5 py-1 text-xs tracking-tight rounded-sm">
+              {t("common.freeAdoption", "Free Adoption")}
             </span>
           </div>
 
           {/* Gender & Age Pill */}
           <div className="absolute top-3 right-3 bg-black/85 px-3 py-1 text-xs font-semibold text-white">
-            {pet.gender} • {pet.age}
+            {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
           </div>
         </div>
 
@@ -80,7 +82,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
             {pet.tags.map((tag, idx) => (
               <span
                 key={idx}
-                className="bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground border border-border"
+                className="bg-secondary px-2.5 py-1 text-xs font-semibold text-secondary-foreground border border-border rounded-md"
               >
                 {tag}
               </span>
@@ -95,10 +97,10 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
           variant="outline"
           size="sm"
           onClick={() => onSelectPet(pet)}
-          className="w-full text-sm font-semibold py-2 focus-visible:ring-2"
+          className="w-full text-sm font-semibold py-2 focus-visible:ring-2 cursor-pointer"
         >
           <Info className="size-4 mr-1" />
-          Details
+          {t("common.details", "Details")}
         </Button>
 
         <Button
@@ -111,10 +113,10 @@ export function PetCard({ pet, onSelectPet, onAdoptPet }: PetCardProps) {
               onSelectPet(pet);
             }
           }}
-          className="w-full text-sm font-semibold py-2 focus-visible:ring-2"
+          className="w-full text-sm font-semibold py-2 focus-visible:ring-2 cursor-pointer"
         >
           <Heart className="size-4 fill-current mr-1" />
-          {isAvailable ? "Adopt" : "Pending"}
+          {isAvailable ? t("common.apply", "Adopt") : t("common.pending", "Pending")}
         </Button>
       </CardFooter>
     </Card>
