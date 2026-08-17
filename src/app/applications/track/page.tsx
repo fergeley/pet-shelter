@@ -9,7 +9,7 @@ import { PublicApplicationTrackingDTO } from "@/lib/validations/applicationTrack
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   Search,
   CheckCircle2,

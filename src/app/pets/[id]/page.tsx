@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPets, getPetById } from "@/actions/pets";
-import { PetDetailView } from "@/components/PetDetailView";
+import { PetDetailView } from "@/components/features/pets/PetDetailView";
 
 interface PetPageProps {
   params: Promise<{ id: string }>;

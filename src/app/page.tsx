@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { Hero } from "@/components/Hero";
-import { PetGallery } from "@/components/PetGallery";
-import { BulletinFeed } from "@/components/BulletinFeed";
-import { HomeProcessSection, HomeStandardsSection, HomeCommunitySection, HomeGalleryHeader } from "@/components/HomeSections";
+import { Hero } from "@/components/layout/Hero";
+import { PetGallery } from "@/components/features/pets/PetGallery";
+import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
+import { HomeProcessSection, HomeStandardsSection, HomeCommunitySection, HomeGalleryHeader } from "@/components/layout/HomeSections";
 import { getPublicPets } from "@/actions/pets";
 
 export default async function HomePage() {

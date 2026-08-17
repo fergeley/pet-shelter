@@ -3,11 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Pet } from "@/types/pet";
-import { AdoptionForm } from "@/components/AdoptionForm";
-import { SponsorshipModal } from "@/components/SponsorshipModal";
-import { MedicalTimeline } from "@/components/MedicalTimeline";
+import { AdoptionForm } from "@/components/features/adoptions/AdoptionForm";
+import { SponsorshipModal } from "./SponsorshipModal";
+import { MedicalTimeline } from "./MedicalTimeline";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   Heart,
   ShieldCheck,

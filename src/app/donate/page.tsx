@@ -14,9 +14,9 @@ import {
   ArrowRight,
   HeartHandshake,
 } from "lucide-react";
-import { DonationWidget } from "@/components/DonationWidget";
+import { DonationWidget } from "@/components/features/donations/DonationWidget";
 import { buttonVariants } from "@/components/ui/button";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export default function DonatePage() {
   const { t, isMs } = useLanguage();

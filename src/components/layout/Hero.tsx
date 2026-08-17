@@ -5,9 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { Heart, ArrowRight, HeartHandshake, ShieldCheck, Compass } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { PetMatchQuiz } from "@/components/PetMatchQuiz";
-import { SponsorshipModal } from "@/components/SponsorshipModal";
-import { useLanguage } from "@/components/LanguageProvider";
+import { PetMatchQuiz } from "@/components/features/pets/PetMatchQuiz";
+import { SponsorshipModal } from "@/components/features/pets/SponsorshipModal";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function Hero() {
   const { t } = useLanguage();

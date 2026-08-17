@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/sponsorshipStore";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function DonationWidget() {
   const { t, isMs } = useLanguage();

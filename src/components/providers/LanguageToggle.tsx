@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "./LanguageProvider";
 import { Globe } from "lucide-react";
 
 interface LanguageToggleProps {

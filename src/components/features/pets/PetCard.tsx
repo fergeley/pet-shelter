@@ -6,7 +6,7 @@ import { Info, Heart } from "lucide-react";
 import { Pet } from "@/types/pet";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 interface PetCardProps {
   pet: Pet;

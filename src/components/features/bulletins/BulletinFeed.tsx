@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Bulletin, BulletinCategory, BulletinFormData, BulletinTargetPage } from "@/types/bulletin";
 import { useBulletins } from "@/lib/bulletinStore";
-import { AdminBulletinModal } from "@/components/AdminBulletinModal";
+import { AdminBulletinModal } from "./AdminBulletinModal";
 import { Button } from "@/components/ui/button";
 
 interface BulletinFeedProps {

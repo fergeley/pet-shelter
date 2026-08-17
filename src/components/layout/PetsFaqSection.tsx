@@ -2,7 +2,7 @@
 
 import React from "react";
 import { PhoneCall } from "lucide-react";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function PetsFaqSection() {
   const { isMs } = useLanguage();

@@ -19,8 +19,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MedicalTimeline } from "@/components/MedicalTimeline";
-import { useLanguage } from "@/components/LanguageProvider";
+import { MedicalTimeline } from "./MedicalTimeline";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 interface PetDetailDialogProps {
   pet: Pet | null;

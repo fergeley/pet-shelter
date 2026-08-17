@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { Pet, MedicalTimelineCategory } from "@/types/pet";
 import { getPetMedicalTimeline, getCategoryBadgeClasses } from "@/lib/medicalTimeline";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   ShieldCheck,
   Stethoscope,

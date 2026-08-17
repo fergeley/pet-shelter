@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
-import { PetGallery } from "@/components/PetGallery";
-import { BulletinFeed } from "@/components/BulletinFeed";
-import { PetsFaqSection } from "@/components/PetsFaqSection";
+import { PetGallery } from "@/components/features/pets/PetGallery";
+import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
+import { PetsFaqSection } from "@/components/layout/PetsFaqSection";
 import { getPublicPets } from "@/actions/pets";
 import { Loader2 } from "lucide-react";
 import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";

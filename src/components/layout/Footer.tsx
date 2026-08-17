@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { PawPrint, MapPin, Phone, Mail, Clock, MessageCircle } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { useLanguage } from "@/components/LanguageProvider";
+import { ThemeToggle } from "@/components/providers/ThemeToggle";
+import { LanguageToggle } from "@/components/providers/LanguageToggle";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function Footer() {
   const { t, isMs } = useLanguage();

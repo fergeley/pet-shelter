@@ -2,15 +2,15 @@
 
 import { Search, RotateCcw, Dog, Cat, SlidersHorizontal, X } from "lucide-react";
 import { Pet } from "@/types/pet";
-import { PetCard } from "@/components/PetCard";
-import { PetDetailDialog } from "@/components/PetDetailDialog";
-import { AdoptionForm } from "@/components/AdoptionForm";
-import { PetMatchQuiz } from "@/components/PetMatchQuiz";
-import { SponsorshipModal } from "@/components/SponsorshipModal";
+import { PetCard } from "./PetCard";
+import { PetDetailDialog } from "./PetDetailDialog";
+import { AdoptionForm } from "@/components/features/adoptions/AdoptionForm";
+import { PetMatchQuiz } from "./PetMatchQuiz";
+import { SponsorshipModal } from "./SponsorshipModal";
 import { Button } from "@/components/ui/button";
 import { Compass, HeartHandshake } from "lucide-react";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 interface PetGalleryProps {
   initialPets?: Pet[];

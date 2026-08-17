@@ -6,11 +6,11 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Heart, Menu, HeartHandshake, Compass } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import { LanguageToggle } from "@/components/LanguageToggle";
-import { PetMatchQuiz } from "@/components/PetMatchQuiz";
-import { SponsorshipModal } from "@/components/SponsorshipModal";
-import { useLanguage } from "@/components/LanguageProvider";
+import { ThemeToggle } from "@/components/providers/ThemeToggle";
+import { LanguageToggle } from "@/components/providers/LanguageToggle";
+import { PetMatchQuiz } from "@/components/features/pets/PetMatchQuiz";
+import { SponsorshipModal } from "@/components/features/pets/SponsorshipModal";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   Sheet,
   SheetContent,

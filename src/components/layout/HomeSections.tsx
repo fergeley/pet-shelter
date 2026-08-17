@@ -18,7 +18,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { useLanguage } from "@/components/LanguageProvider";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function HomeGalleryHeader() {
   const { t } = useLanguage();
