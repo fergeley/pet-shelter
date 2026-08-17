@@ -55,13 +55,13 @@ Use descriptive branch names:
 
 ### Writing Code
 
-1. **Follow the architecture patterns** in [`documents/ARCHITECTURE_BLUEPRINT.md`](documents/ARCHITECTURE_BLUEPRINT.md):
+1. **Follow the architecture patterns** in [`docs/architecture/ARCHITECTURE_BLUEPRINT.md`](../docs/architecture/ARCHITECTURE_BLUEPRINT.md):
    - Use server actions for data mutations
    - Validate all inputs with Zod
    - Use the FSM pattern for state transitions
    - Implement RBAC guards for authorization
 
-2. **Match the design system** in [`documents/DESIGN_SYSTEM.md`](documents/DESIGN_SYSTEM.md):
+2. **Match the design system** in [`docs/design-system.md`](../docs/design-system.md):
    - Use theme tokens from CSS variables
    - Apply consistent border radius (squircle style)
    - Keep the warm, approachable brand palette
@@ -302,11 +302,11 @@ npx playwright test
 
 If your change affects:
 
-- **Architecture**: Update [`documents/ARCHITECTURE_BLUEPRINT.md`](documents/ARCHITECTURE_BLUEPRINT.md)
-- **Operations**: Update [`documents/OPERATIONAL_RUNBOOK.md`](documents/OPERATIONAL_RUNBOOK.md)
-- **UI/Design**: Update [`documents/DESIGN_SYSTEM.md`](documents/DESIGN_SYSTEM.md)
-- **Onboarding**: Update [`SETUP_AND_INSTALL.md`](SETUP_AND_INSTALL.md)
-- **Roadmap**: Update [`documents/HANDOFF_AND_NEXT_TASKS.md`](documents/HANDOFF_AND_NEXT_TASKS.md)
+- **Architecture**: Update [`docs/architecture/ARCHITECTURE_BLUEPRINT.md`](../docs/architecture/ARCHITECTURE_BLUEPRINT.md)
+- **Operations**: Update [`docs/runbooks/OPERATIONAL_RUNBOOK.md`](../docs/runbooks/OPERATIONAL_RUNBOOK.md)
+- **UI/Design**: Update [`docs/design-system.md`](../docs/design-system.md)
+- **Onboarding**: Update [`docs/setup.md`](../docs/setup.md)
+- **Roadmap**: Update [`docs/archives/HANDOFF_AND_NEXT_TASKS.md`](../docs/archives/HANDOFF_AND_NEXT_TASKS.md)
 
 Include documentation changes in the same PR.
 
@@ -327,10 +327,10 @@ Found a bug or have a feature request?
 
 ## Questions?
 
-- **Architecture**: See [`documents/ARCHITECTURE_BLUEPRINT.md`](documents/ARCHITECTURE_BLUEPRINT.md)
-- **Operations**: See [`documents/OPERATIONAL_RUNBOOK.md`](documents/OPERATIONAL_RUNBOOK.md)
-- **Setup Issues**: See [`SETUP_AND_INSTALL.md`](SETUP_AND_INSTALL.md)
-- **Design Questions**: See [`documents/DESIGN_SYSTEM.md`](documents/DESIGN_SYSTEM.md)
+- **Architecture**: See [`docs/architecture/ARCHITECTURE_BLUEPRINT.md`](../docs/architecture/ARCHITECTURE_BLUEPRINT.md)
+- **Operations**: See [`docs/runbooks/OPERATIONAL_RUNBOOK.md`](../docs/runbooks/OPERATIONAL_RUNBOOK.md)
+- **Setup Issues**: See [`docs/setup.md`](../docs/setup.md)
+- **Design Questions**: See [`docs/design-system.md`](../docs/design-system.md)
 
 ---
 

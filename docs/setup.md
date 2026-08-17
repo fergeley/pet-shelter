@@ -181,11 +181,14 @@ prisma/
 tests/
 └── unit/             # Vitest unit test suites
 
-documents/
-├── ARCHITECTURE_BLUEPRINT.md       # System design & patterns
-├── OPERATIONAL_RUNBOOK.md          # Day-to-day operations
-├── HANDOFF_AND_NEXT_TASKS.md       # Feature roadmap
-└── DESIGN_SYSTEM.md                # UI/UX guidelines (this file)
+docs/
+├── README.md                      # Documentation Navigation Portal
+├── setup.md                       # Installation & setup guide
+├── design-system.md               # UI tokens and design guidelines
+├── architecture/                  # Architecture blueprints
+├── runbooks/                      # Operational & database runbooks
+├── tutorials/                     # Step-by-step developer tutorials
+└── archives/                      # Historical handoffs & archives
 ```
 
 ---
@@ -302,10 +305,10 @@ npm run build
 
 ## Next Steps
 
-1. Read [`documents/ARCHITECTURE_BLUEPRINT.md`](documents/ARCHITECTURE_BLUEPRINT.md) to understand system design
-2. Read [`documents/OPERATIONAL_RUNBOOK.md`](documents/OPERATIONAL_RUNBOOK.md) for day-to-day operations
-3. Review [`documents/DESIGN_SYSTEM.md`](documents/DESIGN_SYSTEM.md) for UI guidelines
-4. Check out the feature roadmap in [`documents/HANDOFF_AND_NEXT_TASKS.md`](documents/HANDOFF_AND_NEXT_TASKS.md)
+1. Read [`docs/architecture/ARCHITECTURE_BLUEPRINT.md`](architecture/ARCHITECTURE_BLUEPRINT.md) to understand system design
+2. Read [`docs/runbooks/OPERATIONAL_RUNBOOK.md`](runbooks/OPERATIONAL_RUNBOOK.md) for day-to-day operations
+3. Review [`docs/design-system.md`](design-system.md) for UI guidelines
+4. Check out the feature roadmap in [`docs/archives/HANDOFF_AND_NEXT_TASKS.md`](archives/HANDOFF_AND_NEXT_TASKS.md)
 
 ---
 
