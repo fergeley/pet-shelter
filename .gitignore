@@ -40,6 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# tooling / setup metadata
+*-setup.json
+.neon-setup.json
+
 # uploads
 /public/uploads/
 *.jpg
