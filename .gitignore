@@ -51,3 +51,12 @@ next-env.d.ts
 *.png
 *.gif
 *.webp
+
+# local agent / editor config (may contain credentials)
+.mcp.json
+.vscode/
+.claude/settings.local.json
+
+# scratch work & local API probes
+/scratch/
+obsidian-api.http
