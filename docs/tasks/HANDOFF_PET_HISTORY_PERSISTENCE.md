@@ -5,6 +5,12 @@
 **Baseline**: 26 test files / 223 tests green · `npx tsc --noEmit` clean · `npm run build` passing
 **Predecessor commit**: `317c333 feat(rehab): propagate In Rehabilitation status through every layer`
 
+> **Scope**: this document resolves open item **P3** in the
+> [TNRM & Rehabilitation Sprint handoff](HANDOFF_TNRM_REHABILITATION_SPRINT.md), which left the
+> nested-collection modeling choice open. That document remains the authority on overall branch
+> state, shipped work, and the full prioritized backlog; this one covers only the decision, the
+> reasoning behind it, and the plan that follows from it.
+
 ---
 
 ## 1. Where things stand
@@ -139,31 +145,20 @@ npm run build
 
 ---
 
-## 5. Open items and risks
+## 5. Blockers and scope
 
-### Security — needs attention
+Repository-wide open items — the `AGENTS.md` token exposure, the stray `claude@^0.1.1`
+dependency, and the unwired `faqs.json` / `rehabNeeds.json` readers — are tracked in the
+[sprint handoff](HANDOFF_TNRM_REHABILITATION_SPRINT.md) and are not restated here. Two items
+bear directly on this task:
 
-`AGENTS.md` is modified in the working tree with an **Obsidian Local REST API bearer token in
-plaintext**. The token has *not* been committed (`git log -S` finds no occurrence in history),
-and the file was deliberately left unstaged for that reason.
+- **`npm run db:push` is still outstanding.** The three rehabilitation columns from `317c333`
+  exist in `prisma/schema.prisma` but not in any live database, and the two new tables will
+  extend that gap. Tests pass regardless, because every read falls back to in-memory fixtures —
+  which means **the test suite cannot tell you whether the migration has been applied**. Applying
+  it needs a live `DATABASE_URL` and is a deliberate human decision.
+- **Scope is persistence only.** Whether the admin portal also gains an editor for timeline
+  events is undecided. If it does, the Zod schemas from step 4 are the natural contract for it.
 
-The same token also appears in three untracked files: `.mcp.json`, `obsidian-api.http`, and
-`scratch/sync-obsidian.mjs`. `.gitignore` now covers those, but `AGENTS.md` is tracked and
-cannot be ignored — move the token to an environment variable, or rotate it, before staging
-that file. Note that `next dev` rewrites `AGENTS.md`, so the block will reappear.
-
-### Not done, by design
-
-- **`npm run db:push` has not been run.** The three rehabilitation columns from `317c333` exist
-  in `prisma/schema.prisma` but not in any live database. Tests pass regardless because every
-  read falls back to in-memory fixtures. Applying it needs a live `DATABASE_URL` and is a
-  deliberate human decision.
-
-### Loose ends
-
-- `package.json` has an uncommitted dependency on `claude@^0.1.1`. Nothing in `src/` imports it.
-  It looks like an accidental `npm install` — verify and remove if so.
-- `src/data/rehabNeeds.json` and `src/data/faqs.json` shipped in `3caa738` but still have no
-  reader or server action wired up.
-- Scope question for the next task: this handoff covers **persistence only**. Whether the admin
-  portal also gains an editor for timeline events is undecided.
+Since `06f7a26`, `.gitignore` covers `.mcp.json`, `.vscode/`, `.claude/settings.local.json`,
+`/scratch/`, and `obsidian-api.http`. `AGENTS.md` is tracked and therefore still exposed.
