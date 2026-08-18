@@ -8,7 +8,7 @@ import {
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { sendDonationReceiptEmail } from "@/lib/email";
-import { SPONSORSHIP_TIERS } from "@/lib/sponsorshipStore";
+import { findSponsorshipTier } from "@/lib/domain/sponsorshipTiers";
 
 const SHELTER_REG_NO = "PPM-021-10-18082021";
 const LHDN_TAX_REF = "LHDN.01/35/42/51/179-6.4912";
@@ -40,7 +40,7 @@ export async function submitDonationPledgeAction(
     // 2. Resolve Tier Name
     let tierName = validated.tierName;
     if (!tierName) {
-      const matched = SPONSORSHIP_TIERS.find((t) => t.id === validated.tierId);
+      const matched = findSponsorshipTier(validated.tierId);
       tierName = matched ? matched.name : "Custom Rescue Donation";
     }
 
