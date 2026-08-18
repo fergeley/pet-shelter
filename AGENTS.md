@@ -7,3 +7,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Obsidian Vault Integration
+
+The workspace is connected to an active Obsidian vault via the Local REST API and MCP server:
+- **Base Endpoint**: `https://127.0.0.1:27124`
+- **MCP Endpoint**: `https://127.0.0.1:27124/mcp/`
+- **Auth Header**: `Authorization: Bearer <OBSIDIAN_API_KEY>` — the real key is local-only;
+  read it from `obsidian-api.http` (gitignored) or the Obsidian Local REST API plugin settings.
+  Never commit the literal value.
+- **Target Project Folder in Vault**: `Areas/Pet Shelter/`
+- **Quick Test File**: `obsidian-api.http`
+
