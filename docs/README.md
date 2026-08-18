@@ -23,6 +23,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 ### 📋 Sprint Tasks & Collaboration Backlogs
 - **[Sprint Plan & Task Division (Backend vs Frontend)](tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md)**: Master task breakdown, domain assignments, acceptance criteria, and DoD.
 - **[Handoff: TNRM & Rehabilitation Sprint](tasks/HANDOFF_TNRM_REHABILITATION_SPRINT.md)**: Current branch state, shipped work, design decisions, and the prioritized open items with their file references.
+- **[🔴 Target: Authentication Secret Hardening](tasks/TARGET_SECRET_HARDENING.md)**: Resolves P1 — committed secret fallbacks, the unconditional invite-code bypass, and the anonymous path to applicant PII. **Do this first.**
 - **[Handoff: Pet History Persistence](tasks/HANDOFF_PET_HISTORY_PERSISTENCE.md)**: Resolves open item P3 — the nested-collection modeling decision for `updates[]` and `medicalTimeline[]`, with the step plan and required test coverage.
 - **[Cross-Team Architecture Contract](architecture/ARCHITECTURE_CONTRACT_BACKEND_FRONTEND.md)**: TypeScript data contracts, Server Action signatures, and deep-link standards.
 
