@@ -29,15 +29,18 @@ A high-performance, accessible, and production-hardened Pet Shelter & Adoption P
 
 ## 📚 Documentation & Runbooks
 
-Comprehensive guides are organized in the [`docs/`](docs/) directory:
+Comprehensive guides are organized in the [`docs/`](docs/) directory and synchronized with the **Obsidian Knowledge Hub** (`Areas/Pet Shelter/`):
 
+- 📋 **[Sprint Plan & Task Division](docs/tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md)**: 16-task sprint plan divided between Backend Server and Frontend UI engineers.
+- 🤝 **[Cross-Team Architecture Contract](docs/architecture/ARCHITECTURE_CONTRACT_BACKEND_FRONTEND.md)**: TypeScript data contracts, Server Action signatures, and deep-link standards.
 - 🚀 **[Setup & Installation Guide](docs/setup.md)**: Local prerequisites, Postgres/Neon configuration, and environment setup.
 - 🎨 **[Design System & UI Tokens](docs/design-system.md)**: UI philosophy, Tailwind tokens, color variables, and accessible patterns.
 - 🏗️ **[System Architecture Blueprint](docs/architecture/ARCHITECTURE_BLUEPRINT.md)**: High-level architectural topology and server-action contracts.
 - 🗄️ **[Database & ORM Guide](docs/architecture/GUIDE_PRISMA_AND_NEON_ARCHITECTURE.md)**: Prisma, Neon serverless branching, and in-memory dual-layer storage pattern.
+- 📘 **[TNRM & Sponsorship Operations Runbook](docs/runbooks/RUNBOOK_TNRM_AND_SPONSORSHIP_OPERATIONS.md)**: Campus TNRM tracking, Rehabilitation House updates, and sponsor dispatches.
 - 📘 **[Operational Runbook](docs/runbooks/OPERATIONAL_RUNBOOK.md)**: Operations, incident management, rate-limiting, and RBAC administration.
 - 💳 **[Donations & Tax e-Receipts](docs/runbooks/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md)**: DuitNow QR, LHDN Section 44(6) tax receipts, and ROS CSV exports.
-- 🎓 **[Developer Tutorials](docs/tutorials/)**: Step-by-step guides for clinical medical admin, notifications, and analytics.
+- 🎓 **[Developer Tutorials & Modules](docs/tutorials/)**: Step-by-step masterclasses for Backend, Frontend, and Full-Stack development.
 
 ---
 
