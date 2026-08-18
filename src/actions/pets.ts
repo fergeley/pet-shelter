@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { petFormSchema, PetFormInput, PetFilterInput } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { getCurrentSession, SessionUser } from "@/lib/security/session";
+import { normalizePetStatus } from "@/lib/domain/stateMachine";
 import { verifyAdminSession } from "@/lib/auth";
 import {
   getServerPetsAsync,
@@ -26,7 +27,9 @@ export async function getPublicPets(filters?: PetFilterInput): Promise<Pet[]> {
   }
 
   if (filters?.status && filters.status !== "all") {
-    filtered = filtered.filter((p) => p.status === filters.status);
+    // Compare canonically so "Rehabilitation" and "In Rehabilitation" match each other.
+    const wantedStatus = normalizePetStatus(filters.status);
+    filtered = filtered.filter((p) => normalizePetStatus(p.status) === wantedStatus);
   }
 
   if (filters?.ageCategory && filters.ageCategory !== "all") {
@@ -124,6 +127,9 @@ export async function createPet(
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
+      rehabStage: validated.rehabStage,
+      rehabStageMs: validated.rehabStageMs,
+      rehabProgressPercent: validated.rehabProgressPercent,
       isArchived: validated.isArchived ?? false,
       deletedAt: validated.deletedAt ?? null,
       medical: {
@@ -169,6 +175,11 @@ export async function updatePet(
     const updated: Pet = {
       ...existing,
       ...validated,
+      // The submitted form is authoritative for rehabilitation progress: omitting the
+      // fields clears them, so a cleared animal cannot keep a stale progress bar.
+      rehabStage: validated.rehabStage,
+      rehabStageMs: validated.rehabStageMs,
+      rehabProgressPercent: validated.rehabProgressPercent,
       galleryImages: validated.galleryImages || existing.galleryImages || [],
       isArchived: validated.isArchived ?? existing.isArchived ?? false,
       deletedAt: validated.deletedAt !== undefined ? validated.deletedAt : existing.deletedAt,

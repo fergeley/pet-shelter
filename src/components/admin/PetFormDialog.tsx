@@ -42,6 +42,7 @@ export function PetFormDialog({
     handleSubmit,
     setValue,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<PetFormInput>({
     resolver: zodResolver(petFormSchema),
@@ -96,6 +97,9 @@ export function PetFormDialog({
         tags: editingPet.tags,
         featured: editingPet.featured || false,
         intakeDate: editingPet.intakeDate,
+        rehabStage: editingPet.rehabStage,
+        rehabStageMs: editingPet.rehabStageMs,
+        rehabProgressPercent: editingPet.rehabProgressPercent,
         isArchived: editingPet.isArchived ?? false,
         deletedAt: editingPet.deletedAt || null,
         vaccinated: editingPet.medical.vaccinated,
@@ -135,6 +139,9 @@ export function PetFormDialog({
         tags: ["Vaccinated", "Friendly"],
         featured: false,
         intakeDate: new Date().toISOString().split("T")[0],
+        rehabStage: undefined,
+        rehabStageMs: undefined,
+        rehabProgressPercent: undefined,
         isArchived: false,
         deletedAt: null,
         vaccinated: true,
@@ -165,6 +172,22 @@ export function PetFormDialog({
     const newTags = tags.filter((t) => t !== tagToRemove);
     setTags(newTags);
     setValue("tags", newTags, { shouldValidate: true });
+  };
+
+  // Rehabilitation details are only collected — and only valid — while the pet is under care.
+  const statusField = register("status");
+  const watchedStatus = watch("status");
+  const isUnderRehabilitation =
+    watchedStatus === "In Rehabilitation" || watchedStatus === "Rehabilitation";
+
+  const handleStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    statusField.onChange(event);
+    const next = event.target.value;
+    if (next !== "In Rehabilitation" && next !== "Rehabilitation") {
+      setValue("rehabStage", undefined, { shouldValidate: true });
+      setValue("rehabStageMs", undefined, { shouldValidate: true });
+      setValue("rehabProgressPercent", undefined, { shouldValidate: true });
+    }
   };
 
   const onSubmit = async (data: PetFormInput) => {
@@ -282,12 +305,14 @@ export function PetFormDialog({
                 <Label htmlFor="status" className="text-sm font-semibold">Adoption Status *</Label>
                 <select
                   id="status"
-                  {...register("status")}
+                  {...statusField}
+                  onChange={handleStatusChange}
                   className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground font-semibold"
                 >
                   <option value="Available">Available</option>
                   <option value="Pending">Pending Application</option>
                   <option value="Adopted">Adopted (Happy Tail)</option>
+                  <option value="In Rehabilitation">In Rehabilitation (Under Care)</option>
                 </select>
               </div>
 
@@ -296,6 +321,55 @@ export function PetFormDialog({
                 <Input id="adoptionFee" placeholder="e.g. Free" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
               </div>
             </div>
+
+            {isUnderRehabilitation && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border border-dashed border-border p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabStage" className="text-sm font-semibold">Rehabilitation Stage</Label>
+                  <Input
+                    id="rehabStage"
+                    placeholder="e.g. Post-operative physiotherapy"
+                    className="text-sm py-2"
+                    {...register("rehabStage")}
+                  />
+                  {errors.rehabStage && (
+                    <p className="text-xs text-destructive">{errors.rehabStage.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabStageMs" className="text-sm font-semibold">Peringkat Pemulihan (BM)</Label>
+                  <Input
+                    id="rehabStageMs"
+                    placeholder="cth. Fisioterapi selepas pembedahan"
+                    className="text-sm py-2"
+                    {...register("rehabStageMs")}
+                  />
+                  {errors.rehabStageMs && (
+                    <p className="text-xs text-destructive">{errors.rehabStageMs.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabProgressPercent" className="text-sm font-semibold">Progress (%)</Label>
+                  <Input
+                    id="rehabProgressPercent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    placeholder="0-100"
+                    className="text-sm py-2 font-mono"
+                    {...register("rehabProgressPercent", {
+                      setValueAs: (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+                    })}
+                  />
+                  {errors.rehabProgressPercent && (
+                    <p className="text-xs text-destructive">{errors.rehabProgressPercent.message}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. Photo & Visuals */}

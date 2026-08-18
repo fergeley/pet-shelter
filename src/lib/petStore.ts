@@ -68,6 +68,9 @@ export function usePetStore() {
         tags: input.tags,
         featured: input.featured,
         intakeDate: input.intakeDate,
+        rehabStage: input.rehabStage,
+        rehabStageMs: input.rehabStageMs,
+        rehabProgressPercent: input.rehabProgressPercent,
         isArchived: input.isArchived ?? false,
         deletedAt: input.deletedAt || null,
         medical: {
@@ -114,6 +117,9 @@ export function usePetStore() {
         tags: input.tags,
         featured: input.featured ?? false,
         intakeDate: input.intakeDate,
+        rehabStage: input.rehabStage,
+        rehabStageMs: input.rehabStageMs,
+        rehabProgressPercent: input.rehabProgressPercent,
         isArchived: input.isArchived ?? pets[index].isArchived ?? false,
         deletedAt: input.deletedAt !== undefined ? input.deletedAt : pets[index].deletedAt,
         medical: {

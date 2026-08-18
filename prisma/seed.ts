@@ -99,6 +99,13 @@ async function main() {
 
   // 3. Seed Pets
   for (const pet of petsData) {
+    // Rehabilitation details exist only on animals currently under care.
+    const rehab = pet as {
+      rehabStage?: string;
+      rehabStageMs?: string;
+      rehabProgressPercent?: number;
+    };
+
     await prisma.pet.upsert({
       where: { id: pet.id },
       update: {
@@ -119,6 +126,9 @@ async function main() {
         tags: pet.tags || [],
         featured: pet.featured || false,
         intakeDate: pet.intakeDate,
+        rehabStage: rehab.rehabStage ?? null,
+        rehabStageMs: rehab.rehabStageMs ?? null,
+        rehabProgressPercent: rehab.rehabProgressPercent ?? null,
         vaccinated: pet.medical?.vaccinated ?? true,
         microchipped: pet.medical?.microchipped ?? true,
         spayedNeutered: pet.medical?.spayedNeutered ?? true,
@@ -149,6 +159,9 @@ async function main() {
         tags: pet.tags || [],
         featured: pet.featured || false,
         intakeDate: pet.intakeDate,
+        rehabStage: rehab.rehabStage ?? null,
+        rehabStageMs: rehab.rehabStageMs ?? null,
+        rehabProgressPercent: rehab.rehabProgressPercent ?? null,
         vaccinated: pet.medical?.vaccinated ?? true,
         microchipped: pet.medical?.microchipped ?? true,
         spayedNeutered: pet.medical?.spayedNeutered ?? true,

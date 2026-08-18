@@ -7,7 +7,7 @@ import { recordAuditLog } from "./domain/auditLog";
 import { SessionUser } from "./security/session";
 import { prisma } from "./prisma";
 
-interface DbPetRecord {
+export interface DbPetRecord {
   id: string;
   name: string;
   species: string;
@@ -26,6 +26,9 @@ interface DbPetRecord {
   tags: string[];
   featured: boolean;
   intakeDate: string;
+  rehabStage: string | null;
+  rehabStageMs: string | null;
+  rehabProgressPercent: number | null;
   vaccinated: boolean;
   microchipped: boolean;
   spayedNeutered: boolean;
@@ -36,6 +39,127 @@ interface DbPetRecord {
   energyLevel: string;
   isArchived: boolean;
   deletedAt: Date | string | null;
+}
+
+/**
+ * Columns written to the `pets` table. Kept as a named shape so the insert and
+ * update paths cannot drift apart when a new column is added.
+ */
+export interface PetPersistencePayload {
+  name: string;
+  species: string;
+  breed: string;
+  age: string;
+  ageCategory: string;
+  gender: string;
+  size: string;
+  weight: string;
+  status: string;
+  adoptionFee: string;
+  description: string;
+  rescueStory: string;
+  image: string;
+  galleryImages: string[];
+  tags: string[];
+  featured: boolean;
+  intakeDate: string;
+  rehabStage: string | null;
+  rehabStageMs: string | null;
+  rehabProgressPercent: number | null;
+  isArchived: boolean;
+  deletedAt: Date | null;
+  vaccinated: boolean;
+  microchipped: boolean;
+  spayedNeutered: boolean;
+  specialNeeds: string | null;
+  goodWithDogs: boolean;
+  goodWithCats: boolean;
+  goodWithKids: boolean;
+  energyLevel: string;
+}
+
+/**
+ * Maps a persisted `pets` row onto the domain `Pet` shape. Nullable columns
+ * become `undefined` so optional domain fields stay absent rather than null.
+ */
+export function mapDbPetToPet(p: DbPetRecord): Pet {
+  return {
+    id: p.id,
+    name: p.name,
+    species: p.species as Pet["species"],
+    breed: p.breed,
+    age: p.age,
+    ageCategory: p.ageCategory as Pet["ageCategory"],
+    gender: p.gender as Pet["gender"],
+    size: p.size as Pet["size"],
+    weight: p.weight,
+    status: p.status as Pet["status"],
+    adoptionFee: p.adoptionFee,
+    description: p.description,
+    rescueStory: p.rescueStory,
+    image: p.image,
+    galleryImages: p.galleryImages,
+    tags: p.tags,
+    featured: p.featured,
+    intakeDate: p.intakeDate,
+    rehabStage: p.rehabStage ?? undefined,
+    rehabStageMs: p.rehabStageMs ?? undefined,
+    rehabProgressPercent: p.rehabProgressPercent ?? undefined,
+    isArchived: p.isArchived ?? false,
+    deletedAt: p.deletedAt ? p.deletedAt.toString() : null,
+    medical: {
+      vaccinated: p.vaccinated,
+      microchipped: p.microchipped,
+      spayedNeutered: p.spayedNeutered,
+      specialNeeds: p.specialNeeds || undefined,
+    },
+    compatibility: {
+      goodWithDogs: p.goodWithDogs,
+      goodWithCats: p.goodWithCats,
+      goodWithKids: p.goodWithKids,
+      energyLevel: p.energyLevel as Pet["compatibility"]["energyLevel"],
+    },
+  };
+}
+
+/**
+ * Flattens a domain `Pet` into the column set written by both create and update.
+ * The caller's status spelling is preserved verbatim — normalization is a read
+ * and comparison concern, not a storage one.
+ */
+export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
+  return {
+    name: pet.name,
+    species: pet.species,
+    breed: pet.breed,
+    age: pet.age,
+    ageCategory: pet.ageCategory,
+    gender: pet.gender,
+    size: pet.size,
+    weight: pet.weight,
+    status: pet.status,
+    adoptionFee: pet.adoptionFee,
+    description: pet.description,
+    rescueStory: pet.rescueStory,
+    image: pet.image,
+    galleryImages: pet.galleryImages || [],
+    tags: pet.tags || [],
+    featured: pet.featured || false,
+    intakeDate: pet.intakeDate,
+    rehabStage: pet.rehabStage ?? null,
+    rehabStageMs: pet.rehabStageMs ?? null,
+    rehabProgressPercent: pet.rehabProgressPercent ?? null,
+    isArchived: pet.isArchived ?? false,
+    deletedAt: pet.deletedAt ? new Date(pet.deletedAt) : null,
+    vaccinated: pet.medical?.vaccinated ?? true,
+    microchipped: pet.medical?.microchipped ?? true,
+    spayedNeutered: pet.medical?.spayedNeutered ?? true,
+    specialNeeds: pet.medical?.specialNeeds || null,
+    goodWithDogs: pet.compatibility?.goodWithDogs ?? true,
+    goodWithCats: pet.compatibility?.goodWithCats ?? true,
+    goodWithKids: pet.compatibility?.goodWithKids ?? true,
+    energyLevel: pet.compatibility?.energyLevel || "Moderate",
+  };
 }
 
 interface DbApplicationRecord {
@@ -85,40 +209,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
     });
     if (dbPets && dbPets.length > 0) {
-      return (dbPets as unknown as DbPetRecord[]).map((p: DbPetRecord) => ({
-        id: p.id,
-        name: p.name,
-        species: p.species as Pet["species"],
-        breed: p.breed,
-        age: p.age,
-        ageCategory: p.ageCategory as Pet["ageCategory"],
-        gender: p.gender as Pet["gender"],
-        size: p.size as Pet["size"],
-        weight: p.weight,
-        status: p.status as Pet["status"],
-        adoptionFee: p.adoptionFee,
-        description: p.description,
-        rescueStory: p.rescueStory,
-        image: p.image,
-        galleryImages: p.galleryImages,
-        tags: p.tags,
-        featured: p.featured,
-        intakeDate: p.intakeDate,
-        isArchived: p.isArchived ?? false,
-        deletedAt: p.deletedAt ? p.deletedAt.toString() : null,
-        medical: {
-          vaccinated: p.vaccinated,
-          microchipped: p.microchipped,
-          spayedNeutered: p.spayedNeutered,
-          specialNeeds: p.specialNeeds || undefined,
-        },
-        compatibility: {
-          goodWithDogs: p.goodWithDogs,
-          goodWithCats: p.goodWithCats,
-          goodWithKids: p.goodWithKids,
-          energyLevel: p.energyLevel as Pet["compatibility"]["energyLevel"],
-        },
-      }));
+      return (dbPets as unknown as DbPetRecord[]).map(mapDbPetToPet);
     }
   } catch (err) {
     if (process.env.NODE_ENV === "development") {
@@ -184,33 +275,7 @@ export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<
     await prisma.pet.create({
       data: {
         id: newPet.id,
-        name: newPet.name,
-        species: newPet.species,
-        breed: newPet.breed,
-        age: newPet.age,
-        ageCategory: newPet.ageCategory,
-        gender: newPet.gender,
-        size: newPet.size,
-        weight: newPet.weight,
-        status: newPet.status,
-        adoptionFee: newPet.adoptionFee,
-        description: newPet.description,
-        rescueStory: newPet.rescueStory,
-        image: newPet.image,
-        galleryImages: newPet.galleryImages || [],
-        tags: newPet.tags || [],
-        featured: newPet.featured || false,
-        intakeDate: newPet.intakeDate,
-        isArchived: newPet.isArchived ?? false,
-        deletedAt: newPet.deletedAt ? new Date(newPet.deletedAt) : null,
-        vaccinated: newPet.medical?.vaccinated ?? true,
-        microchipped: newPet.medical?.microchipped ?? true,
-        spayedNeutered: newPet.medical?.spayedNeutered ?? true,
-        specialNeeds: newPet.medical?.specialNeeds || null,
-        goodWithDogs: newPet.compatibility?.goodWithDogs ?? true,
-        goodWithCats: newPet.compatibility?.goodWithCats ?? true,
-        goodWithKids: newPet.compatibility?.goodWithKids ?? true,
-        energyLevel: newPet.compatibility?.energyLevel || "Moderate",
+        ...buildPetPersistencePayload(newPet),
       },
     });
   } catch (err) {
@@ -242,35 +307,7 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
   try {
     await prisma.pet.update({
       where: { id },
-      data: {
-        name: updated.name,
-        species: updated.species,
-        breed: updated.breed,
-        age: updated.age,
-        ageCategory: updated.ageCategory,
-        gender: updated.gender,
-        size: updated.size,
-        weight: updated.weight,
-        status: updated.status,
-        adoptionFee: updated.adoptionFee,
-        description: updated.description,
-        rescueStory: updated.rescueStory,
-        image: updated.image,
-        galleryImages: updated.galleryImages || [],
-        tags: updated.tags || [],
-        featured: updated.featured || false,
-        intakeDate: updated.intakeDate,
-        isArchived: updated.isArchived ?? false,
-        deletedAt: updated.deletedAt ? new Date(updated.deletedAt) : null,
-        vaccinated: updated.medical?.vaccinated ?? true,
-        microchipped: updated.medical?.microchipped ?? true,
-        spayedNeutered: updated.medical?.spayedNeutered ?? true,
-        specialNeeds: updated.medical?.specialNeeds || null,
-        goodWithDogs: updated.compatibility?.goodWithDogs ?? true,
-        goodWithCats: updated.compatibility?.goodWithCats ?? true,
-        goodWithKids: updated.compatibility?.goodWithKids ?? true,
-        energyLevel: updated.compatibility?.energyLevel || "Moderate",
-      },
+      data: buildPetPersistencePayload(updated),
     });
   } catch (err) {
     console.warn("[Database Store] Prisma pet update fallback notice:", err instanceof Error ? err.message : err);

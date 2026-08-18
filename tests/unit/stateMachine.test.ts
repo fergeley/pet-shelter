@@ -5,6 +5,7 @@ import {
   DomainValidationError,
   validateApplicationTransition,
   validatePetTransition,
+  normalizePetStatus,
 } from "@/lib/domain/stateMachine";
 import { ApplicationStatus } from "@/types/application";
 import { PetStatus } from "@/types/pet";
@@ -133,6 +134,36 @@ describe("State Machine Domain Logic", () => {
 
       it("should allow Adopted -> Available (pet returned to shelter)", () => {
         expect(() => validatePetTransition("Adopted", "Available")).not.toThrow();
+      });
+    });
+
+    describe("Rehabilitation Transitions", () => {
+      it("should allow an animal to enter rehabilitation from Available or Pending", () => {
+        expect(() => validatePetTransition("Available", "In Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("Pending", "In Rehabilitation")).not.toThrow();
+      });
+
+      it("should allow In Rehabilitation -> Available on veterinary clearance", () => {
+        expect(() => validatePetTransition("In Rehabilitation", "Available")).not.toThrow();
+      });
+
+      it("should reject adopting or reserving an animal still in rehabilitation", () => {
+        expect(() => validatePetTransition("In Rehabilitation", "Adopted")).toThrow(
+          DomainValidationError
+        );
+        expect(() => validatePetTransition("In Rehabilitation", "Pending")).toThrow(
+          DomainValidationError
+        );
+      });
+
+      it("should treat 'Rehabilitation' as an alias of 'In Rehabilitation'", () => {
+        expect(normalizePetStatus("Rehabilitation")).toBe("In Rehabilitation");
+        expect(() => validatePetTransition("Rehabilitation", "In Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("In Rehabilitation", "Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("Rehabilitation", "Available")).not.toThrow();
+        expect(() => validatePetTransition("Rehabilitation", "Adopted")).toThrow(
+          DomainValidationError
+        );
       });
     });
 

@@ -1,7 +1,7 @@
 export type Species = 'dog' | 'cat' | 'other';
 export type Gender = 'Male' | 'Female';
 export type PetSize = 'Small' | 'Medium' | 'Large';
-export type PetStatus = 'Available' | 'Pending' | 'Adopted';
+export type PetStatus = 'Available' | 'Pending' | 'Adopted' | 'In Rehabilitation' | 'Rehabilitation';
 export type AgeCategory = 'puppy_kitten' | 'young' | 'adult' | 'senior';
 export type EnergyLevel = 'Low' | 'Moderate' | 'High';
 
@@ -41,6 +41,17 @@ export interface MedicalTimelineEvent {
   badgeMs?: string;
 }
 
+export interface PetUpdate {
+  id: string;
+  date: string;
+  title: string;
+  titleMs?: string;
+  content: string;
+  contentMs?: string;
+  image?: string;
+  category?: 'medical' | 'rehabilitation' | 'milestone' | 'socialization';
+}
+
 export interface Pet {
   id: string;
   name: string;
@@ -57,6 +68,10 @@ export interface Pet {
   image: string;
   galleryImages?: string[];
   status: PetStatus;
+  rehabStage?: string;
+  rehabStageMs?: string;
+  rehabProgressPercent?: number;
+  updates?: PetUpdate[];
   medical: PetMedicalInfo;
   medicalTimeline?: MedicalTimelineEvent[];
   compatibility: PetCompatibility;

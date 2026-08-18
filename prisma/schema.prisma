@@ -39,7 +39,7 @@ model Pet {
   gender          String         // Male, Female
   size            String         // Small, Medium, Large
   weight          String
-  status          String         @default("Available") // Available, Pending, Adopted
+  status          String         @default("Available") // Available, Pending, Adopted, In Rehabilitation ("Rehabilitation" is a legacy alias)
   adoptionFee     String
   description     String
   rescueStory     String
@@ -54,6 +54,11 @@ model Pet {
   microchipped    Boolean        @default(true)
   spayedNeutered  Boolean        @default(true)
   specialNeeds    String?
+
+  // Rehabilitation / TNRM progress (only populated while status is "In Rehabilitation")
+  rehabStage            String?
+  rehabStageMs          String?
+  rehabProgressPercent  Int?
 
   // Compatibility
   goodWithDogs    Boolean        @default(true)
