@@ -8,7 +8,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7.9.1-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A high-performance, accessible, and production-hardened Pet Shelter & Adoption Platform built for **Hope for Strays** (*Persatuan Harapan Haiwan Terbiar Selangor*), an animal welfare non-profit in Petaling Jaya, Selangor.
+HFS website serves as a platform as well as a repository of past news for first-time and returning visitors to interact with. This is able to be abstracted for all kinds of news like videos, blogs, bulletins, pictures etc. This project is meant to be as generic and universal as possible in order to reach the most amount of pets, their owners and volunteers/sponsors.
 
 ---
 
