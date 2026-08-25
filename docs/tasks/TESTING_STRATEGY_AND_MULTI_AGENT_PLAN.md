@@ -77,7 +77,7 @@ flowchart TD
 
 | Task File | Primary Focus | Key Deliverables |
 |---|---|---|
-| **[TEST_TASK_01_INFRASTRUCTURE_AND_MOCKS.md](TEST_TASK_01_INFRASTRUCTURE_AND_MOCKS.md)** | Infrastructure & Foundation | `STRICT_PERSISTENCE` toggle, `tests/setup/nextMocks.ts`, Vitest workspace, `package.json` test scripts |
+| **[TEST_TASK_01_INFRASTRUCTURE_AND_MOCKS.md](TEST_TASK_01_INFRASTRUCTURE_AND_MOCKS.md)** | Infrastructure & Foundation | `STRICT_PERSISTENCE` across repository trio (`serverStore`, `userStore`, `auditLog`), hermetic cache resets, overload-aware `nextMocks.ts`, Vitest setup |
 | **[TEST_TASK_02_COMPONENT_AND_UI_SUITE.md](TEST_TASK_02_COMPONENT_AND_UI_SUITE.md)** | Client UI / DOM Testing | `@testing-library/react` + `jsdom`, `AdoptionModal`, `PetMatchQuiz`, `LanguageProvider`, `AdminPetTable` |
 | **[TEST_TASK_03_DATABASE_AND_ACTIONS_INTEGRATION.md](TEST_TASK_03_DATABASE_AND_ACTIONS_INTEGRATION.md)** | Server Actions & Persistence | Strict persistence tests, Pet mutations & soft deletes, atomic application status transitions, RBAC |
 | **[TEST_TASK_04_PLAYWRIGHT_E2E_AND_CI.md](TEST_TASK_04_PLAYWRIGHT_E2E_AND_CI.md)** | E2E & GitHub Actions CI | `playwright.config.ts`, Page Object Models, 5 Golden Path E2E specs, `.github/workflows/ci.yml` |
