@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Pet } from "@/types/pet";
 import initialPetsData from "@/data/pets.json";
-import { PetFormInput } from "@/lib/validations/pet";
+import {
+  PetFormInput,
+  sortHistoryByDate,
+} from "@/lib/validations/pet";
 
 const STORAGE_KEY = "hope_for_strays_pets_v1";
 
@@ -71,6 +74,8 @@ export function usePetStore() {
         rehabStage: input.rehabStage,
         rehabStageMs: input.rehabStageMs,
         rehabProgressPercent: input.rehabProgressPercent,
+        updates: sortHistoryByDate(input.updates),
+        medicalTimeline: sortHistoryByDate(input.medicalTimeline),
         isArchived: input.isArchived ?? false,
         deletedAt: input.deletedAt || null,
         medical: {
@@ -120,6 +125,10 @@ export function usePetStore() {
         rehabStage: input.rehabStage,
         rehabStageMs: input.rehabStageMs,
         rehabProgressPercent: input.rehabProgressPercent,
+        // The submitted form is authoritative for history, matching the server
+        // action: an event left out of the payload is removed, not preserved.
+        updates: sortHistoryByDate(input.updates),
+        medicalTimeline: sortHistoryByDate(input.medicalTimeline),
         isArchived: input.isArchived ?? pets[index].isArchived ?? false,
         deletedAt: input.deletedAt !== undefined ? input.deletedAt : pets[index].deletedAt,
         medical: {

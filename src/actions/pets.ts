@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { petFormSchema, PetFormInput, PetFilterInput } from "@/lib/validations/pet";
+import {
+  petFormSchema,
+  PetFormInput,
+  PetFilterInput,
+  sortHistoryByDate,
+} from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { getCurrentSession, SessionUser } from "@/lib/security/session";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
@@ -130,6 +135,8 @@ export async function createPet(
       rehabStage: validated.rehabStage,
       rehabStageMs: validated.rehabStageMs,
       rehabProgressPercent: validated.rehabProgressPercent,
+      updates: sortHistoryByDate(validated.updates),
+      medicalTimeline: sortHistoryByDate(validated.medicalTimeline),
       isArchived: validated.isArchived ?? false,
       deletedAt: validated.deletedAt ?? null,
       medical: {
@@ -180,6 +187,12 @@ export async function updatePet(
       rehabStage: validated.rehabStage,
       rehabStageMs: validated.rehabStageMs,
       rehabProgressPercent: validated.rehabProgressPercent,
+      // Same rule for nested history, and the same reason. Zod drops absent
+      // optional keys, so `{...existing, ...validated}` would silently keep an
+      // event the submitter deleted. Assigning unconditionally makes removal by
+      // omission — not just by an explicit empty array — actually delete rows.
+      updates: sortHistoryByDate(validated.updates),
+      medicalTimeline: sortHistoryByDate(validated.medicalTimeline),
       galleryImages: validated.galleryImages || existing.galleryImages || [],
       isArchived: validated.isArchived ?? existing.isArchived ?? false,
       deletedAt: validated.deletedAt !== undefined ? validated.deletedAt : existing.deletedAt,

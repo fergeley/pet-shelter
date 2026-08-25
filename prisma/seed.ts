@@ -106,6 +106,64 @@ async function main() {
       rehabProgressPercent?: number;
     };
 
+    // Nested history is present on only some fixtures, so the JSON's inferred
+    // type does not carry these keys on every entry.
+    const history = pet as unknown as {
+      updates?: {
+        id: string;
+        date: string;
+        title: string;
+        titleMs?: string;
+        content: string;
+        contentMs?: string;
+        image?: string;
+        category?: string;
+      }[];
+      medicalTimeline?: {
+        id: string;
+        date: string;
+        title: string;
+        titleMs?: string;
+        category: string;
+        description: string;
+        descriptionMs?: string;
+        veterinarian?: string;
+        verified?: boolean;
+        badge?: string;
+        badgeMs?: string;
+      }[];
+    };
+
+    const petUpdates = (history.updates || []).map((u) => ({
+      id: u.id,
+      date: u.date,
+      title: u.title,
+      titleMs: u.titleMs ?? null,
+      content: u.content,
+      contentMs: u.contentMs ?? null,
+      image: u.image ?? null,
+      category: u.category ?? null,
+    }));
+
+    const timelineEvents = (history.medicalTimeline || []).map((e) => ({
+      id: e.id,
+      date: e.date,
+      title: e.title,
+      titleMs: e.titleMs ?? null,
+      category: e.category,
+      description: e.description,
+      descriptionMs: e.descriptionMs ?? null,
+      veterinarian: e.veterinarian ?? null,
+      verified: e.verified ?? false,
+      badge: e.badge ?? null,
+      badgeMs: e.badgeMs ?? null,
+    }));
+
+    // History rows keep their fixture ids, so re-seeding has to clear them
+    // before re-creating rather than relying on an upsert per event.
+    await prisma.petUpdate.deleteMany({ where: { petId: pet.id } });
+    await prisma.medicalTimelineEvent.deleteMany({ where: { petId: pet.id } });
+
     await prisma.pet.upsert({
       where: { id: pet.id },
       update: {
@@ -139,6 +197,8 @@ async function main() {
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
         isArchived: false,
         deletedAt: null,
+        updates: { create: petUpdates },
+        medicalTimeline: { create: timelineEvents },
       },
       create: {
         id: pet.id,
@@ -172,6 +232,8 @@ async function main() {
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
         isArchived: false,
         deletedAt: null,
+        updates: { create: petUpdates },
+        medicalTimeline: { create: timelineEvents },
       },
     });
   }
