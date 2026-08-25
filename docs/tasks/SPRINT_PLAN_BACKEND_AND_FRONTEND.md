@@ -1,6 +1,14 @@
 # Sprint Plan & Task Division: Hope For Strays UM Overhaul
 
-This document defines the complete development roadmap and task assignments for **Hope For Strays UM** (*Coexistence through TNRM & Education*). Tasks are strictly segmented between the **Backend Server Engineer** and the **Frontend UI Engineer**, along with shared contract definitions.
+> [!NOTE]
+> **Sprint Status: Mostly Completed / Superseded by Active Handoffs**  
+> Backend tasks `BE-01` through `BE-06` and foundational frontend structures have **shipped** (commits `317c333`, `b268b66`, `3caa738`).  
+> - For active status and prioritized open items, refer to **[Handoff: TNRM & Rehabilitation Sprint](HANDOFF_TNRM_REHABILITATION_SPRINT.md)**.  
+> - For authentication secret hardening, see **[Target: Secret Hardening](TARGET_SECRET_HARDENING.md)**.  
+> - For nested updates and medical timeline persistence, see **[Handoff: Pet History Persistence](HANDOFF_PET_HISTORY_PERSISTENCE.md)**.  
+> - For the multi-agent testing suite, see **[Testing Strategy & Multi-Agent Plan](TESTING_STRATEGY_AND_MULTI_AGENT_PLAN.md)**.
+
+This document defines the original development roadmap and task assignments for **Hope For Strays UM** (*Coexistence through TNRM & Education*). Tasks are segmented between the **Backend Server Engineer** and the **Frontend UI Engineer**, along with shared contract definitions.
 
 ---
 

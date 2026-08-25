@@ -22,6 +22,11 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 ---
 
 ### 📋 Sprint Tasks & Collaboration Backlogs
+- **[Testing Strategy & Multi-Agent Plan](tasks/TESTING_STRATEGY_AND_MULTI_AGENT_PLAN.md)**: Master 5-tier testing architecture, critique, and multi-agent dispatch plan.
+  - **[Test Task 01: Infrastructure & Mocks](tasks/TEST_TASK_01_INFRASTRUCTURE_AND_MOCKS.md)**: Strict DB mode, `tests/setup/nextMocks.ts`, Vitest setup.
+  - **[Test Task 02: Client Component & UI Suite](tasks/TEST_TASK_02_COMPONENT_AND_UI_SUITE.md)**: `@testing-library/react` + `jsdom` testing for forms, quiz, modals.
+  - **[Test Task 03: Strict Database & Server Actions](tasks/TEST_TASK_03_DATABASE_AND_ACTIONS_INTEGRATION.md)**: Server actions integration, transactions, RBAC, soft-delete.
+  - **[Test Task 04: Playwright E2E & GitHub Actions CI](tasks/TEST_TASK_04_PLAYWRIGHT_E2E_AND_CI.md)**: 5 Golden Path E2E specs, Page Object Models, CI workflow.
 - **[Sprint Plan & Task Division (Backend vs Frontend)](tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md)**: Master task breakdown, domain assignments, acceptance criteria, and DoD.
 - **[Handoff: TNRM & Rehabilitation Sprint](tasks/HANDOFF_TNRM_REHABILITATION_SPRINT.md)**: Current branch state, shipped work, design decisions, and the prioritized open items with their file references.
 - **[🔴 Target: Authentication Secret Hardening](tasks/TARGET_SECRET_HARDENING.md)**: Resolves P1 — committed secret fallbacks, the unconditional invite-code bypass, and the anonymous path to applicant PII. **Do this first.**
