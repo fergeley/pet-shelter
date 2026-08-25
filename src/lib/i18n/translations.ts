@@ -21,6 +21,10 @@ export interface TranslationDictionary {
     available: string;
     pending: string;
     adopted: string;
+    inRehabilitation: string;
+    rehabStage: string;
+    rehabProgress: string;
+    sponsorMe: string;
     dog: string;
     cat: string;
     other: string;
@@ -142,6 +146,9 @@ export interface TranslationDictionary {
     sanctuaryAddress: string;
     applyToAdopt: string;
     adoptionPending: string;
+    underCareNotice: string;
+    updatesTitle: string;
+    noUpdates: string;
     whatsAppUs: string;
     sponsorCare: string;
   };
@@ -347,6 +354,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       available: "Available",
       pending: "Pending",
       adopted: "Adopted",
+      inRehabilitation: "In Rehabilitation",
+      rehabStage: "Rehabilitation Stage",
+      rehabProgress: "Recovery Progress",
+      sponsorMe: "Sponsor Me",
       dog: "Dog",
       cat: "Cat",
       other: "Other",
@@ -468,6 +479,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       sanctuaryAddress: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor • Open Tue–Sun: 10:00 AM – 5:00 PM",
       applyToAdopt: "Apply to Adopt",
       adoptionPending: "Adoption Pending",
+      underCareNotice:
+        "Under veterinary care — not yet available for adoption. Sponsorship funds this animal's treatment.",
+      updatesTitle: "Progress Updates",
+      noUpdates: "No progress updates have been recorded yet.",
       whatsAppUs: "WhatsApp Us",
       sponsorCare: "Sponsor Care",
     },
@@ -671,6 +686,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       available: "Tersedia",
       pending: "Sedang Diproses",
       adopted: "Telah Diadopsi",
+      inRehabilitation: "Dalam Pemulihan",
+      rehabStage: "Peringkat Pemulihan",
+      rehabProgress: "Kemajuan Pemulihan",
+      sponsorMe: "Tajai Saya",
       dog: "Anjing",
       cat: "Kucing",
       other: "Lain-lain",
@@ -792,6 +811,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       sanctuaryAddress: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor • Buka Sel–Ahad: 10:00 PG – 5:00 PTG",
       applyToAdopt: "Mohon untuk Mengangkat Anak",
       adoptionPending: "Adopsi Sedang Diproses",
+      underCareNotice:
+        "Dalam rawatan veterinar — belum tersedia untuk adopsi. Tajaan membiayai rawatan haiwan ini.",
+      updatesTitle: "Kemas Kini Kemajuan",
+      noUpdates: "Tiada kemas kini kemajuan direkodkan setakat ini.",
       whatsAppUs: "Hubungi WhatsApp",
       sponsorCare: "Taja Rawatan",
     },

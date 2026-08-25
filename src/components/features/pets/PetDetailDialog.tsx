@@ -11,6 +11,8 @@ import {
   Cat 
 } from "lucide-react";
 import { Pet } from "@/types/pet";
+import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
+import { PetStatusIcon } from "./PetStatusIcon";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +43,8 @@ export function PetDetailDialog({
   const [imgSrc, setImgSrc] = useState(pet?.image || FALLBACK_PET_IMAGE);
   if (!pet) return null;
 
-  const isAvailable = pet.status === "Available";
+  const status = getPetStatusPresentation(pet.status);
+  const isAvailable = status.isAdoptable;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,11 +71,10 @@ export function PetDetailDialog({
             <div>
               <div className="flex items-center gap-2.5 mb-2">
                 <span
-                  className={`px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${
-                    isAvailable ? "bg-emerald-800 dark:bg-emerald-900" : "bg-amber-800 dark:bg-amber-900"
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${status.badgeClass}`}
                 >
-                  {isAvailable ? t("common.available", "Available") : t("common.pending", "Pending")}
+                  <PetStatusIcon tone={status.tone} className="size-3.5" />
+                  {t(status.labelKey, status.labelFallback)}
                 </span>
                 <span className="bg-black/85 px-3 py-1 text-xs font-semibold text-white">
                   {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
@@ -206,7 +208,9 @@ export function PetDetailDialog({
               className="text-sm font-semibold px-6 py-2.5 focus-visible:ring-2 cursor-pointer"
             >
               <Heart className="size-4 fill-current mr-1.5" />
-              {isAvailable ? `${t("petDetail.applyToAdopt", "Apply to Adopt")} (${pet.name})` : t("petDetail.adoptionPending", "Adoption Pending")}
+              {isAvailable
+                ? `${t("petDetail.applyToAdopt", "Apply to Adopt")} (${pet.name})`
+                : t(status.labelKey, status.labelFallback)}
             </Button>
           </div>
         </div>

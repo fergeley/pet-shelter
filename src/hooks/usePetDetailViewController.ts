@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/petStore";
+import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
 
 export interface UsePetDetailViewControllerProps {
   initialPet: Pet;
@@ -13,7 +14,8 @@ export function usePetDetailViewController({ initialPet }: UsePetDetailViewContr
 
   // Hydrate with client store version if available
   const pet = pets.find((p) => p.id === initialPet.id) || initialPet;
-  const isAvailable = pet.status === "Available";
+  const statusPresentation = getPetStatusPresentation(pet.status);
+  const isAvailable = statusPresentation.isAdoptable;
 
   // Modals & Links
   const [isAdoptionOpen, setIsAdoptionOpen] = useState(false);
@@ -54,6 +56,7 @@ export function usePetDetailViewController({ initialPet }: UsePetDetailViewContr
       pet,
       pets,
       isAvailable,
+      statusPresentation,
       isAdoptionOpen,
       isSponsorshipOpen,
       copiedLink,

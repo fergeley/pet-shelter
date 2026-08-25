@@ -1,6 +1,15 @@
 "use client";
 
-import { Search, RotateCcw, Dog, Cat, SlidersHorizontal, X } from "lucide-react";
+import {
+  Search,
+  RotateCcw,
+  Dog,
+  Cat,
+  SlidersHorizontal,
+  X,
+  Compass,
+  HeartHandshake,
+} from "lucide-react";
 import { Pet } from "@/types/pet";
 import { PetCard } from "./PetCard";
 import { PetDetailDialog } from "./PetDetailDialog";
@@ -8,7 +17,6 @@ import { AdoptionForm } from "@/components/features/adoptions/AdoptionForm";
 import { PetMatchQuiz } from "./PetMatchQuiz";
 import { SponsorshipModal } from "./SponsorshipModal";
 import { Button } from "@/components/ui/button";
-import { Compass, HeartHandshake } from "lucide-react";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
@@ -243,6 +251,7 @@ export function PetGallery({
               >
                 <option value="all">{isMs ? "Semua Status" : "All Statuses"}</option>
                 <option value="Available">{isMs ? "Tersedia untuk Adopsi" : "Available for Adoption"}</option>
+                <option value="In Rehabilitation">{isMs ? "Dalam Pemulihan" : "In Rehabilitation"}</option>
                 <option value="Pending">{isMs ? "Sedang Diproses" : "Application Pending"}</option>
               </select>
             </div>
@@ -273,6 +282,7 @@ export function PetGallery({
               pet={pet}
               onSelectPet={handleOpenDetail}
               onAdoptPet={handleOpenAdoption}
+              onSponsorPet={handleOpenSponsor}
             />
           ))}
         </div>

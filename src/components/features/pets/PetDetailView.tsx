@@ -24,7 +24,10 @@ import {
   CheckCircle2,
   Star,
   MapPin,
+  CalendarDays,
 } from "lucide-react";
+import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/petStatusPresentation";
+import { PetStatusIcon } from "./PetStatusIcon";
 
 import { usePetDetailViewController } from "@/hooks/usePetDetailViewController";
 
@@ -35,8 +38,14 @@ interface PetDetailViewProps {
 export function PetDetailView(props: PetDetailViewProps) {
   const { t, isMs } = useLanguage();
   const { state, handlers } = usePetDetailViewController(props);
-  const { pet, pets, isAvailable, isAdoptionOpen, isSponsorshipOpen, copiedLink, waUrl } = state;
+  const { pet, pets, isAvailable, statusPresentation, isAdoptionOpen, isSponsorshipOpen, copiedLink, waUrl } = state;
   const { setIsAdoptionOpen, setIsSponsorshipOpen, handleShare } = handlers;
+
+  const isInRehabilitation = statusPresentation.isInRehabilitation;
+  const rehabStage = isInRehabilitation ? getRehabStageLabel(pet, isMs) : undefined;
+  const rehabProgress = isInRehabilitation ? getRehabProgressPercent(pet) : undefined;
+  // Newest first, and never mutate the array the store handed us.
+  const updates = [...(pet.updates ?? [])].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <div className="min-h-screen bg-card pb-20">
@@ -81,11 +90,10 @@ export function PetDetailView(props: PetDetailViewProps) {
               />
               <div className="absolute top-4 left-4 flex gap-2">
                 <span
-                  className={`px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${
-                    isAvailable ? "bg-emerald-800" : "bg-amber-800"
-                  }`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${statusPresentation.badgeClass}`}
                 >
-                  {isAvailable ? t("common.available", "Available") : t("common.pending", "Pending")}
+                  <PetStatusIcon tone={statusPresentation.tone} className="size-3.5" />
+                  {t(statusPresentation.labelKey, statusPresentation.labelFallback)}
                 </span>
                 {pet.featured && (
                   <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-amber-600 text-white flex items-center gap-1">
@@ -113,6 +121,46 @@ export function PetDetailView(props: PetDetailViewProps) {
             <div className="border border-border bg-card p-5 sm:p-6 rounded-2xl shadow-xs space-y-3">
               <MedicalTimeline pet={pet} compact={false} />
             </div>
+
+            {/* Caregiver progress updates — newest first. Rendered whenever updates exist,
+                not only during rehabilitation, so an adopted animal keeps its history. */}
+            {updates.length > 0 && (
+              <div className="border border-border bg-card p-5 sm:p-6 rounded-2xl shadow-xs space-y-4">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <CalendarDays className="size-4" />
+                  {t("petDetail.updatesTitle", "Progress Updates")}
+                </h2>
+
+                <ol className="space-y-4">
+                  {updates.map((update) => (
+                    <li
+                      key={update.id}
+                      className="border-l-2 border-indigo-700/40 pl-4 space-y-1"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <time
+                          dateTime={update.date}
+                          className="font-mono text-[11px] font-semibold text-muted-foreground"
+                        >
+                          {update.date}
+                        </time>
+                        {update.category && (
+                          <span className="bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-secondary-foreground border border-border rounded-sm">
+                            {update.category}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-bold text-foreground leading-snug">
+                        {(isMs && update.titleMs) || update.title}
+                      </h3>
+                      <p className="text-sm text-foreground/85 leading-relaxed">
+                        {(isMs && update.contentMs) || update.content}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
           </div>
 
           {/* Right: Pet Narrative, Medical & Compatibility */}
@@ -148,16 +196,78 @@ export function PetDetailView(props: PetDetailViewProps) {
               ))}
             </div>
 
-            {/* Action Bar (Apply, WhatsApp, Sponsor) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-y border-border py-4">
-              <Button
-                disabled={!isAvailable}
-                onClick={() => setIsAdoptionOpen(true)}
-                className="w-full text-xs sm:text-sm font-bold uppercase tracking-wider gap-1.5 py-3 cursor-pointer"
-              >
-                <Heart className="size-4 fill-current" />
-                {isAvailable ? t("petDetail.applyToAdopt", "Apply to Adopt") : t("petDetail.adoptionPending", "Adoption Pending")}
-              </Button>
+            {/* Rehabilitation status — an animal under care is not adoptable, so the page
+                leads with treatment stage and recovery progress instead of an adoption CTA. */}
+            {isInRehabilitation && (
+              <div className="border border-indigo-700/30 bg-indigo-500/5 p-4 space-y-3 rounded-xl">
+                <div className="flex items-start gap-2">
+                  <PetStatusIcon tone={statusPresentation.tone} className="size-5 shrink-0 text-indigo-800 dark:text-indigo-300" />
+                  <div className="min-w-0 space-y-1">
+                    <span
+                      className={`inline-block px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white rounded-sm ${statusPresentation.badgeClass}`}
+                    >
+                      {t(statusPresentation.labelKey, statusPresentation.labelFallback)}
+                    </span>
+                    {rehabStage && (
+                      <p className="font-heading text-lg font-bold text-foreground leading-snug">
+                        {rehabStage}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      {t(
+                        "petDetail.underCareNotice",
+                        "Under veterinary care — not yet available for adoption. Sponsorship funds this animal's treatment."
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {rehabProgress !== undefined && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold">
+                      <span className="uppercase tracking-wider text-muted-foreground">
+                        {t("common.rehabProgress", "Recovery Progress")}
+                      </span>
+                      <span className="font-mono text-foreground">{rehabProgress}%</span>
+                    </div>
+                    <div
+                      className="h-2 w-full overflow-hidden bg-muted rounded-full"
+                      role="progressbar"
+                      aria-valuenow={rehabProgress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`${pet.name} — ${t("common.rehabProgress", "Recovery Progress")}`}
+                    >
+                      <div
+                        className="h-full bg-indigo-700 dark:bg-indigo-500 transition-all duration-300"
+                        style={{ width: `${rehabProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Action Bar (Apply, WhatsApp, Sponsor). Rehabilitating animals cannot be adopted
+                out directly, so the adoption call to action is omitted rather than shown dead —
+                the status panel above already explains why, and sponsorship is the live path. */}
+            <div
+              className={`grid grid-cols-1 gap-3 border-y border-border py-4 ${
+                isInRehabilitation ? "sm:grid-cols-2" : "sm:grid-cols-3"
+              }`}
+            >
+              {!isInRehabilitation && (
+                <Button
+                  disabled={!isAvailable}
+                  onClick={() => setIsAdoptionOpen(true)}
+                  className="w-full text-xs sm:text-sm font-bold uppercase tracking-wider gap-1.5 py-3 cursor-pointer"
+                >
+                  <Heart className="size-4 fill-current" />
+                  {isAvailable
+                    ? t("petDetail.applyToAdopt", "Apply to Adopt")
+                    : t("petDetail.adoptionPending", "Adoption Pending")}
+                </Button>
+              )}
 
               <a
                 href={waUrl}
