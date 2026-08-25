@@ -125,10 +125,7 @@ half-added key fails CI. User-facing copy belongs in the dictionary, never inlin
 
 ## Conventions
 
-- Imports use the `@/` alias, always to a concrete file path. The four barrels (`@/lib/stores`,
-  `@/lib/security`, `@/lib/services`, `@/components`) have **zero importers**, and
-  `@/lib/security` re-exports a `"use client"` module — don't reach for them from server code
-  without reading `docs/architecture/LAYERS.md` §5.
+- Imports use the `@/` alias to concrete file paths (no barrels).
 - Strict TypeScript, no `any`. Validate all external input with Zod schemas in `src/lib/validations/`.
 - Commits: Conventional Commits with a scope — `feat(ui):`, `refactor(lib):`, `docs:`, `build:`.
 - Tests are node-environment only (no jsdom) — test logic in `lib/`, not React rendering.

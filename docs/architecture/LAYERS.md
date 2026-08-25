@@ -255,22 +255,18 @@ Computed from the full import graph, not by inspection.
 
 > A guard that has never failed proves nothing. If you extend this test, break it on purpose once before trusting it.
 
-### 5.2 — Latent: hazardous barrels that nobody imports
+### 5.2 — Resolved: hazardous barrels pruned
 
-`src/lib/security/index.ts` re-exports `adminAuth.ts`, which is `"use client"` — so a server-side `@/lib/security` import would drag client code in. `src/lib/stores/index.ts` mixes the server repository with five client `localStorage` stores under one name.
-
-**But all four barrels have zero importers.** `@/lib/stores`, `@/lib/security`, `@/lib/services`, and `@/components` are imported by nothing; every module imports the concrete file path instead.
-
-That makes these hazards inert today, and reveals the more useful finding: **`CLAUDE.md` documents "prefer the barrels for cross-module imports" as a convention with 0% adoption.** Either adopt them (fixing `security/index.ts` first, or the first server-side adopter breaks the build) or delete them and drop the convention. Leaving a loaded, unused barrel in place is the worst of the three options.
+All unused barrels (`@/lib/stores`, `@/lib/security`, `@/lib/services`, and `@/components/**`) have been removed. The codebase strictly enforces direct, concrete file imports, eliminating any latent server-action-to-client-component boundary leakage from re-exports.
 
 ### 5.3 — Misfiled
 
-`imageOptimization.ts` is browser-only (canvas) but sits in `lib/` and is exported from the services barrel. It belongs in `src/lib/client/` or next to the upload component.
+`imageOptimization.ts` is browser-only (canvas) but sits in `lib/`. It belongs in `src/lib/client/` or next to the upload component.
 
-### 5.4 — Dead code
+### 5.4 — Pruned dead code
 
-- `src/hooks/useLanguage.ts` is a **re-export shim with no importers** — every consumer imports `useLanguage` from `@/components/providers/LanguageProvider` directly.
-- `src/components/ui/{badge,carousel,select}.tsx` have no importers.
+- `src/hooks/useLanguage.ts` (re-export shim) was removed — every consumer imports `useLanguage` from `@/components/providers/LanguageProvider` directly.
+- `src/components/ui/{badge,carousel,select}.tsx` remain available as baseline shadcn design system primitives.
 
 ---
 

@@ -39,7 +39,7 @@ function toRepoPath(abs: string): string {
 function resolveSpecifier(fromFile: string, spec: string): string | null {
   let base: string;
   if (spec.startsWith("@/")) base = join(SRC, spec.slice(2));
-  else if (spec.startsWith(".")) base = resolve(join(ROOT, fromFile, ".."), spec);
+  else if (spec.startsWith(".")) base = resolve(resolve(ROOT, fromFile, ".."), spec);
   else return null; // bare package specifier
 
   for (const candidate of [

@@ -38,7 +38,7 @@ for (const f of files) {
 function resolveSpec(fromFile, spec) {
   let base;
   if (spec.startsWith("@/")) base = join(ROOT, "src", spec.slice(2));
-  else if (spec.startsWith(".")) base = resolve(join(ROOT, fromFile, ".."), spec);
+  else if (spec.startsWith(".")) base = resolve(resolve(ROOT, fromFile, ".."), spec);
   else return null; // package
   const cands = [
     base + ".ts", base + ".tsx",
@@ -102,11 +102,8 @@ for (const f of files)
     P(`  ${f}  (${meta[f].loc} L)`);
 
 P("");
-P("## E. Fan-in: who imports each src/lib barrel");
-for (const barrel of ["src/lib/stores/index.ts", "src/lib/security/index.ts", "src/lib/services/index.ts", "src/components/index.ts"]) {
-  const importers = edges.filter(([, b]) => b === barrel).map(([a]) => a);
-  P(`  ${barrel}: ${importers.length ? importers.join(", ") : "(no importers)"}`);
-}
+P("## E. Barrels Status");
+P("  All unused/hazardous barrels pruned. Direct file imports enforced.");
 
 P("");
 P("## F. Layer fan-in counts (how many modules import each file)");
@@ -117,9 +114,27 @@ Object.entries(fanin).filter(([f]) => f.startsWith("src/lib/") || f.startsWith("
   .forEach(([f, n]) => P(`  ${String(n).padStart(3)}  ${f}`));
 
 P("");
-P("## G. Orphans: files nothing imports (excluding app/ routes + barrels)");
+// Next.js loads these by filename and calls their exports; nothing imports
+// them and nothing ever should. Listing them as orphans reads as a finding
+// when it is an artifact of the convention -- and `instrumentation.ts` is the
+// production secret fail-fast, so inviting a reader to prune it as dead code
+// is actively dangerous.
+const FRAMEWORK_ENTRY_POINTS = new Set([
+  "src/instrumentation.ts",
+  "src/instrumentation-client.ts",
+  "src/middleware.ts",
+]);
+
+P("## G. Orphans: files nothing imports (excluding app/ routes, barrels, and framework entry points)");
 for (const f of files) {
-  if (!fanin[f] && !f.startsWith("src/app/") && !f.endsWith("/index.ts")) P(`  ${f}`);
+  if (
+    !fanin[f] &&
+    !f.startsWith("src/app/") &&
+    !f.endsWith("/index.ts") &&
+    !FRAMEWORK_ENTRY_POINTS.has(f)
+  ) {
+    P(`  ${f}`);
+  }
 }
 
 console.log(out.join("\n"));
