@@ -16,8 +16,12 @@ Tailwind CSS v4 + shadcn (`base-sera` style) + `@base-ui/react` · Prisma 7.9.1 
 ```bash
 npm run dev            # next dev (Turbopack)
 npm run build          # prisma generate && next build
-npm test               # vitest run  — 25 files / 221 tests, all green
+npm test               # vitest run --project unit  — 30 files / 357 tests, all green
 npm run test:watch     # vitest
+npm run test:unit      # Tiers 1-2: domain logic + architectural guards (node)
+npm run test:components # Tier 4: client components (jsdom)
+npm run test:integration # Tier 3: Server Actions under STRICT_PERSISTENCE=true
+npm run test:all       # every tier
 npm run lint           # eslint (flat config, eslint-config-next)
 npx tsc --noEmit       # strict typecheck — clean; scratch/ is included, see below
 npm run db:push        # prisma db push
@@ -27,7 +31,33 @@ docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/p
 
 - `prisma generate` runs automatically on `postinstall` and `prebuild`.
 - Vitest 4 removed the `basic` reporter — `vitest run --reporter=basic` crashes. Use the default.
+  It also removed `environmentMatchGlobs`; `vitest.config.mts` routes environments through
+  `test.projects` (`unit`/`integration` = node, `components` = jsdom) instead.
 - No `DATABASE_URL` is required to run or test: every DB read falls back to in-memory fixtures.
+
+### Testing harness
+
+`tests/setup/nextMocks.ts` loads before every test file (`setupFiles`) and provides:
+
+- Overload-aware `next/headers` (`cookies()` accepts both `set(name, value, opts)` and
+  `set({ name, value, ...opts })`; `maxAge: 0` expires rather than writes), `next/cache`
+  (`revalidatePath`/`revalidateTag`/`updateTag` spies plus `getRevalidatedPaths()`), and
+  `next/navigation` (`redirect`/`notFound` **throw**, as the real ones do).
+- A global `beforeEach` that resets every module-level cache: `resetServerStore()`,
+  `resetUserStore()`, `resetAuditLogs()`, `resetRateLimitStore()`, `resetIdempotencyStore()`.
+  New suites are order-independent by default; don't re-implement this per file.
+- Those stores are imported **dynamically inside the hook**. A static import would instantiate
+  `serverStore` — and the real `@/lib/prisma` — before a test file's own
+  `vi.mock("@/lib/prisma")` registers, so Prisma spies would silently observe zero calls.
+
+A test file's own `vi.mock("next/headers", ...)` still wins over the harness for that file; five
+suites predate the harness and rely on that.
+
+**`STRICT_PERSISTENCE=true`** (`src/lib/persistenceMode.ts`) turns off the fallback so a failing
+query throws instead of quietly serving fixtures. It is declared on the `integration` project in
+`vitest.config.mts`, not just via `cross-env`, so `npm run test:all` can't run Tier 3 against the
+forgiving path and report green. `recordAuditLog` is fire-and-forget, so its failures surface
+through `await flushAuditLogWrites()` rather than a throw at the call site.
 
 ## Architecture
 
@@ -55,8 +85,9 @@ Server Component page → `await someAction(...)` from `src/actions/*` → `src/
 empty — it returns module-level arrays seeded from `src/data/*.json`. Consequences:
 
 - The app, admin portal, and tests work with no database at all.
-- **DB errors are swallowed** (a `console.warn` in development only). If a write "succeeds" but
-  doesn't persist, suspect the fallback path, not the caller.
+- **DB errors are swallowed** — reads warn in development only, writes warn always (a lost write is
+  data loss). If a write "succeeds" but doesn't persist, suspect the fallback path, not the caller.
+  Set `STRICT_PERSISTENCE=true` to make them throw instead; see "Testing harness" above.
 - Writes mutate both the DB and the in-memory array, so behaviour stays consistent within a process.
 
 Do not confuse `serverStore.ts` with the *client* stores (`petStore`, `applicationStore`,
