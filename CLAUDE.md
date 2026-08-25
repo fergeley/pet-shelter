@@ -23,7 +23,7 @@ npm run test:components # Tier 4: client components (jsdom)
 npm run test:integration # Tier 3: Server Actions under STRICT_PERSISTENCE=true
 npm run test:all       # every tier
 npm run lint           # eslint (flat config, eslint-config-next)
-npx tsc --noEmit       # strict typecheck — clean; scratch/ is included, see below
+npx tsc --noEmit       # strict typecheck — clean; scratch/ is excluded
 npm run db:push        # prisma db push
 npm run db:seed        # tsx prisma/seed.ts
 docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/pet_shelter)
@@ -156,8 +156,8 @@ what remains is data-layer propagation, not type errors.
   `src/lib/medicalTimeline.ts` when absent.)
 - `src/data/faqs.json` and `src/data/rehabNeeds.json` are bilingual fixtures with no reader or
   action wired up yet; the donate page and `PetsFaqSection` still hardcode FAQ arrays inline.
-- `scratch/` is scratch work but is type-checked (tsconfig includes `**/*.ts`), so errors there
-  break `tsc` for the whole project. Keep it compiling or exclude it.
+- `scratch/` is excluded from both `tsconfig.json` and `eslint.config.mjs`. It used to fall inside
+  tsconfig's `**/*.ts` include, so a stray error there broke `tsc` for the whole project.
 
 ## Environment
 
