@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   HeartHandshake,
   Settings,
-  Layers
+  Layers,
+  type LucideIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuditLogController, AuditTabFilter } from "@/hooks/useAuditLogController";
@@ -24,7 +25,7 @@ export function AuditLogViewer() {
   const { filteredLogs, counts, activeTab, isLoading, error, filter, exportNotice } = state;
   const { setFilter, setActiveTab, loadLogs, handleExportReceiptsCsv, handleExportAuditTrailCsv } = handlers;
 
-  const tabs: { id: AuditTabFilter; label: string; icon: typeof Layers; count: number }[] = [
+  const tabs: { id: AuditTabFilter; label: string; icon: LucideIcon; count: number }[] = [
     { id: "all", label: "All Audit Records", icon: Layers, count: counts.all },
     { id: "receipts", label: "LHDN Tax Receipts", icon: Receipt, count: counts.receipts },
     { id: "adoptions", label: "Adoptions & Pets", icon: HeartHandshake, count: counts.adoptions },

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   FileText, 
   Users, 
-  Home as HomeIcon, 
+  HomeIcon, 
   Phone,
   HeartHandshake,
   Clock,
