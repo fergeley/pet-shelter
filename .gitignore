@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template, which holds placeholders only and is the documented
+# onboarding step ("copy .env.example -> .env.local"). Without this a fresh
+# clone never receives it, and the required-secret documentation is invisible.
+!.env.example
 
 # vercel
 .vercel

@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { getCurrentSession, SessionUser } from "@/lib/security/session";
 import { ROLES } from "@/lib/security/rbac";
+import { timingSafeCompare } from "@/lib/security/crypto";
+import { getAdminSecretKey } from "@/lib/security/secrets";
 
 /**
  * Verifies whether the incoming request is authorized for Admin operations.
@@ -15,12 +17,15 @@ export async function verifyAdminSession(): Promise<boolean> {
       return true;
     }
 
-    // 2. Validate admin_session cookie token
+    // 2. Validate admin_session cookie token.
+    // NOTE: this shared-secret branch is a static bearer token with no expiry,
+    // subject, or revocation. Hardening the secret makes it harder to guess,
+    // not sound; removing it in favour of the signed session is tracked as a
+    // follow-on (docs/tasks/TARGET_SECRET_HARDENING.md §3.5).
     const cookieStore = await cookies();
     const token = cookieStore.get("admin_session")?.value;
-    const adminSecret = process.env.ADMIN_SECRET_KEY || "hope_shelter_admin_secret_key_2026";
 
-    if (token && token === adminSecret) {
+    if (token && timingSafeCompare(token, getAdminSecretKey())) {
       return true;
     }
 

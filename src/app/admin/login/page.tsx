@@ -129,7 +129,6 @@ export default function AdminLoginPage() {
     }
   };
 
-  const isElevatedRole = regData.role === ROLES.ADMIN || regData.role === ROLES.COORDINATOR;
 
   return (
     <div className="min-h-screen bg-card flex flex-col justify-center py-10 px-6 sm:px-8 lg:px-10">
@@ -352,26 +351,28 @@ export default function AdminLoginPage() {
                     </select>
                   </div>
 
-                  {isElevatedRole && (
-                    <div className="space-y-1 bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
-                        <KeyRound className="size-3.5" />
-                        <span>Security Invite PIN Required</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Elevated roles require verification. (Demo PIN: <code className="bg-background px-1 border font-mono">1234</code>)
-                      </p>
-                      <Input
-                        id="reg-invite-code"
-                        type="password"
-                        required
-                        value={regData.inviteCode}
-                        onChange={(e) => setRegData((prev) => ({ ...prev, inviteCode: e.target.value }))}
-                        placeholder="Security PIN (e.g. 1234)"
-                        className="text-xs py-1.5 bg-background font-mono mt-1"
-                      />
+                  {/* Every role now requires an invite code — the shelter has no anonymous-staff
+                      use case, and STAFF can read applicant PII. Rendering this only for elevated
+                      roles would leave STAFF/VOLUNTEER sign-up rejected with no field to fill. */}
+                  <div className="space-y-1 bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                      <KeyRound className="size-3.5" />
+                      <span>Staff Invite Code Required</span>
                     </div>
-                  )}
+                    <p className="text-[11px] text-muted-foreground">
+                      All shelter accounts require an invite code. Request one from a shelter
+                      administrator — it is distributed out-of-band and is never shown here.
+                    </p>
+                    <Input
+                      id="reg-invite-code"
+                      type="password"
+                      required
+                      value={regData.inviteCode}
+                      onChange={(e) => setRegData((prev) => ({ ...prev, inviteCode: e.target.value }))}
+                      placeholder="Staff invite code"
+                      className="text-xs py-1.5 bg-background font-mono mt-1"
+                    />
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div className="space-y-1">
