@@ -1,6 +1,7 @@
 import { hashPassword } from "@/lib/security/crypto";
 import { Role, ROLES } from "@/lib/security/rbac";
 import { prisma } from "@/lib/prisma";
+import { handlePersistenceError } from "@/lib/persistenceMode";
 
 interface DbUserRecord {
   id: string;
@@ -67,21 +68,46 @@ const usersStore: Map<string, UserRecord> = new Map();
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
+/**
+ * The seeded staff records, hashed once per process.
+ *
+ * `hashPassword` is scrypt, which is expensive on purpose. The seed passwords
+ * are compile-time constants, so re-deriving them is pure waste — and it is
+ * waste the test lifecycle pays repeatedly, since `resetUserStore()` runs
+ * before every test in the suite. Hashing once and re-cloning the records keeps
+ * a full reset effectively free while leaving the hashes byte-identical to what
+ * a fresh derivation would produce.
+ *
+ * Deliberately *not* cleared by `resetUserStore()`: these are derived from
+ * constants, so they can never go stale.
+ */
+let seededStaffPromise: Promise<UserRecord[]> | null = null;
+
+function getSeededStaff(): Promise<UserRecord[]> {
+  if (!seededStaffPromise) {
+    seededStaffPromise = Promise.all(
+      INITIAL_STAFF_USERS.map(async (staff) => ({
+        id: staff.id,
+        email: staff.email.toLowerCase(),
+        name: staff.name,
+        passwordHash: await hashPassword(staff.initialPassword),
+        role: staff.role,
+        createdAt: staff.createdAt,
+        updatedAt: staff.updatedAt,
+      }))
+    );
+  }
+  return seededStaffPromise;
+}
+
 function ensureInitialized(): Promise<void> {
   if (isInitialized) return Promise.resolve();
   if (!initPromise) {
     initPromise = (async () => {
-      for (const staff of INITIAL_STAFF_USERS) {
-        const passwordHash = await hashPassword(staff.initialPassword);
-        usersStore.set(staff.email.toLowerCase(), {
-          id: staff.id,
-          email: staff.email.toLowerCase(),
-          name: staff.name,
-          passwordHash,
-          role: staff.role,
-          createdAt: staff.createdAt,
-          updatedAt: staff.updatedAt,
-        });
+      for (const staff of await getSeededStaff()) {
+        // Copied per seed so a caller mutating a returned record cannot write
+        // back into the cached template.
+        usersStore.set(staff.email, { ...staff });
       }
       isInitialized = true;
     })();
@@ -109,8 +135,8 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
         updatedAt: dbUser.updatedAt.toISOString(),
       };
     }
-  } catch {
-    // Fallback to in-memory store if DB is offline or mock mode
+  } catch (err) {
+    handlePersistenceError("Prisma user lookup by email", err, "read");
   }
 
   await ensureInitialized();
@@ -136,8 +162,8 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
         updatedAt: dbUser.updatedAt.toISOString(),
       };
     }
-  } catch {
-    // Fallback
+  } catch (err) {
+    handlePersistenceError("Prisma user lookup by id", err, "read");
   }
 
   await ensureInitialized();
@@ -192,8 +218,11 @@ export async function createUser(data: {
       createdAt: dbCreated.createdAt.toISOString(),
       updatedAt: dbCreated.updatedAt.toISOString(),
     };
-  } catch {
-    // Retain in-memory copy
+  } catch (err) {
+    // Deliberately ahead of the `usersStore.set` below: under strict persistence
+    // this rethrows, and a user that failed to reach the database must not be
+    // left behind in memory pretending the write succeeded.
+    handlePersistenceError("Prisma user creation", err, "write");
   }
 
   usersStore.set(normalizedEmail, createdUser);
@@ -218,8 +247,8 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
         updatedAt: typeof u.updatedAt === "string" ? u.updatedAt : new Date(u.updatedAt).toISOString(),
       }));
     }
-  } catch {
-    // Fallback
+  } catch (err) {
+    handlePersistenceError("Prisma user list query", err, "read");
   }
 
   await ensureInitialized();

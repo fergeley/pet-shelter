@@ -74,6 +74,8 @@ model Pet {
   updatedAt       DateTime       @updatedAt
 
   applications    AdoptionApplication[]
+  updates         PetUpdate[]
+  medicalTimeline MedicalTimelineEvent[]
 
   @@index([species, status, isArchived])
   @@index([isArchived, status])
@@ -111,6 +113,59 @@ model AdoptionApplication {
   @@index([email, petId])
   @@index([email])
   @@map("adoption_applications")
+}
+
+/// Narrative progress notes published on a pet's public profile.
+///
+/// Ids are supplied by the caller (e.g. "up-009-1") rather than generated, so the
+/// committed fixtures in src/data/pets.json round-trip through `npm run db:seed`
+/// unchanged. `date` is a String in YYYY-MM-DD form on purpose: it matches the
+/// domain type and the bilingual formatting in src/lib/medicalTimeline.ts, and a
+/// DateTime would introduce timezone drift on a value that has no time component.
+model PetUpdate {
+  id        String   @id
+  petId     String
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  date      String
+  title     String
+  titleMs   String?
+  content   String   @db.Text
+  contentMs String?  @db.Text
+  image     String?
+  // medical, rehabilitation, milestone, socialization
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([petId, date])
+  @@map("pet_updates")
+}
+
+/// Clinical history for a pet. This is compliance data — `verified` and
+/// `veterinarian` back the ROS AGM exports — so it lives in rows that can be
+/// queried across pets, not in a JSON blob. Id and date conventions match
+/// PetUpdate above.
+model MedicalTimelineEvent {
+  id            String   @id
+  petId         String
+  pet           Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  date          String
+  title         String
+  titleMs       String?
+  // intake, diagnostic, treatment, vaccination, surgery, clearance
+  category      String
+  description   String   @db.Text
+  descriptionMs String?  @db.Text
+  veterinarian  String?
+  verified      Boolean  @default(false)
+  badge         String?
+  badgeMs       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([petId, date])
+  @@index([category, date])
+  @@map("medical_timeline_events")
 }
 
 model AuditLog {

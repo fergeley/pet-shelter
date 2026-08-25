@@ -1,11 +1,12 @@
 import initialPetsData from "@/data/pets.json";
 import initialApplicationsData from "@/data/applications.json";
-import { Pet } from "@/types/pet";
+import { MedicalTimelineEvent, Pet, PetUpdate } from "@/types/pet";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
 import { validateApplicationTransition, validatePetTransition } from "./domain/stateMachine";
 import { recordAuditLog } from "./domain/auditLog";
 import { SessionUser } from "./security/session";
 import { prisma } from "./prisma";
+import { handlePersistenceError } from "./persistenceMode";
 
 export interface DbPetRecord {
   id: string;
@@ -39,11 +40,46 @@ export interface DbPetRecord {
   energyLevel: string;
   isArchived: boolean;
   deletedAt: Date | string | null;
+  // Nested history. Absent unless the read asked for it via `include`.
+  updates?: DbPetUpdateRecord[];
+  medicalTimeline?: DbMedicalTimelineEventRecord[];
+}
+
+/** A persisted `pet_updates` row. */
+export interface DbPetUpdateRecord {
+  id: string;
+  petId: string;
+  date: string;
+  title: string;
+  titleMs: string | null;
+  content: string;
+  contentMs: string | null;
+  image: string | null;
+  category: string | null;
+}
+
+/** A persisted `medical_timeline_events` row. */
+export interface DbMedicalTimelineEventRecord {
+  id: string;
+  petId: string;
+  date: string;
+  title: string;
+  titleMs: string | null;
+  category: string;
+  description: string;
+  descriptionMs: string | null;
+  veterinarian: string | null;
+  verified: boolean;
+  badge: string | null;
+  badgeMs: string | null;
 }
 
 /**
  * Columns written to the `pets` table. Kept as a named shape so the insert and
  * update paths cannot drift apart when a new column is added.
+ *
+ * Scalars only. Nested history cannot travel in a flat column set — see
+ * `buildPetHistoryNestedCreate` and the two payload builders below it.
  */
 export interface PetPersistencePayload {
   name: string;
@@ -79,6 +115,58 @@ export interface PetPersistencePayload {
 }
 
 /**
+ * Ascending comparison on a `YYYY-MM-DD` string. Lexical order and calendar
+ * order coincide for that format, so no `Date` parsing is needed.
+ */
+function byDateAscending(a: { date: string }, b: { date: string }): number {
+  return a.date.localeCompare(b.date);
+}
+
+/**
+ * Maps a history relation onto its domain shape, ordered by date.
+ *
+ * Returns `undefined` rather than `[]` for a pet with no rows, so a pet without
+ * stored history is indistinguishable from a fixture that never had any — which
+ * is what keeps `getPetMedicalTimeline`'s synthetic fallback firing.
+ */
+function mapHistoryRows<TRow extends { date: string }, TEvent>(
+  rows: TRow[] | undefined,
+  map: (row: TRow) => TEvent
+): TEvent[] | undefined {
+  if (!rows || rows.length === 0) return undefined;
+  return [...rows].sort(byDateAscending).map(map);
+}
+
+function mapDbPetUpdate(row: DbPetUpdateRecord): PetUpdate {
+  return {
+    id: row.id,
+    date: row.date,
+    title: row.title,
+    titleMs: row.titleMs ?? undefined,
+    content: row.content,
+    contentMs: row.contentMs ?? undefined,
+    image: row.image ?? undefined,
+    category: (row.category ?? undefined) as PetUpdate["category"],
+  };
+}
+
+function mapDbMedicalTimelineEvent(row: DbMedicalTimelineEventRecord): MedicalTimelineEvent {
+  return {
+    id: row.id,
+    date: row.date,
+    title: row.title,
+    titleMs: row.titleMs ?? undefined,
+    category: row.category as MedicalTimelineEvent["category"],
+    description: row.description,
+    descriptionMs: row.descriptionMs ?? undefined,
+    veterinarian: row.veterinarian ?? undefined,
+    verified: row.verified,
+    badge: row.badge ?? undefined,
+    badgeMs: row.badgeMs ?? undefined,
+  };
+}
+
+/**
  * Maps a persisted `pets` row onto the domain `Pet` shape. Nullable columns
  * become `undefined` so optional domain fields stay absent rather than null.
  */
@@ -107,6 +195,8 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
     rehabProgressPercent: p.rehabProgressPercent ?? undefined,
     isArchived: p.isArchived ?? false,
     deletedAt: p.deletedAt ? p.deletedAt.toString() : null,
+    updates: mapHistoryRows(p.updates, mapDbPetUpdate),
+    medicalTimeline: mapHistoryRows(p.medicalTimeline, mapDbMedicalTimelineEvent),
     medical: {
       vaccinated: p.vaccinated,
       microchipped: p.microchipped,
@@ -162,6 +252,103 @@ export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
   };
 }
 
+/** A row written to `pet_updates`. `petId` comes from the nesting parent. */
+export interface PetUpdatePersistenceRow {
+  id: string;
+  date: string;
+  title: string;
+  titleMs: string | null;
+  content: string;
+  contentMs: string | null;
+  image: string | null;
+  category: string | null;
+}
+
+/** A row written to `medical_timeline_events`. `petId` comes from the nesting parent. */
+export interface MedicalTimelineEventPersistenceRow {
+  id: string;
+  date: string;
+  title: string;
+  titleMs: string | null;
+  category: string;
+  description: string;
+  descriptionMs: string | null;
+  veterinarian: string | null;
+  verified: boolean;
+  badge: string | null;
+  badgeMs: string | null;
+}
+
+/** The nested-relation half of a pet write. */
+export interface PetHistoryNestedCreate {
+  updates: { create: PetUpdatePersistenceRow[] };
+  medicalTimeline: { create: MedicalTimelineEventPersistenceRow[] };
+}
+
+export type PetCreatePayload = PetPersistencePayload & PetHistoryNestedCreate & { id: string };
+export type PetUpdatePayload = PetPersistencePayload & PetHistoryNestedCreate;
+
+/**
+ * Flattens the two nested history collections into Prisma nested `create`s.
+ *
+ * Shared by both write paths so the column mapping cannot drift between them,
+ * exactly as `buildPetPersistencePayload` does for the scalars. What the two
+ * paths genuinely differ on is *clearing*: create starts from nothing, update
+ * must delete the previous rows first — see `updateServerPet`.
+ */
+export function buildPetHistoryNestedCreate(pet: Pet): PetHistoryNestedCreate {
+  return {
+    updates: {
+      create: (pet.updates ?? []).map((u) => ({
+        id: u.id,
+        date: u.date,
+        title: u.title,
+        titleMs: u.titleMs ?? null,
+        content: u.content,
+        contentMs: u.contentMs ?? null,
+        image: u.image ?? null,
+        category: u.category ?? null,
+      })),
+    },
+    medicalTimeline: {
+      create: (pet.medicalTimeline ?? []).map((e) => ({
+        id: e.id,
+        date: e.date,
+        title: e.title,
+        titleMs: e.titleMs ?? null,
+        category: e.category,
+        description: e.description,
+        descriptionMs: e.descriptionMs ?? null,
+        veterinarian: e.veterinarian ?? null,
+        verified: e.verified,
+        badge: e.badge ?? null,
+        badgeMs: e.badgeMs ?? null,
+      })),
+    },
+  };
+}
+
+/** Everything `prisma.pet.create` needs: the id, the scalars, and nested history. */
+export function buildPetCreatePayload(pet: Pet): PetCreatePayload {
+  return {
+    id: pet.id,
+    ...buildPetPersistencePayload(pet),
+    ...buildPetHistoryNestedCreate(pet),
+  };
+}
+
+/**
+ * Everything `prisma.pet.update` needs. The id is not written — it addresses
+ * the row — and the previous history rows are removed by the surrounding
+ * transaction rather than here, so this stays a pure projection of the pet.
+ */
+export function buildPetUpdatePayload(pet: Pet): PetUpdatePayload {
+  return {
+    ...buildPetPersistencePayload(pet),
+    ...buildPetHistoryNestedCreate(pet),
+  };
+}
+
 interface DbApplicationRecord {
   id: string;
   petId: string | null;
@@ -193,11 +380,36 @@ type DbTransaction = {
   };
 };
 
-// In-memory cache for instant reads, SSR, and offline test environments
-let serverPets: Pet[] = [...(initialPetsData as Pet[])];
-let serverApplications: AdoptionApplicationRecord[] = [
-  ...(initialApplicationsData as AdoptionApplicationRecord[]),
-];
+// In-memory cache for instant reads, SSR, and offline test environments.
+//
+// Seeded through `structuredClone` rather than a spread: a spread copies the
+// array but shares every element with the imported JSON module, so a single
+// in-place edit to a pet would corrupt the fixture for the rest of the process
+// and survive any reset. Deep-cloning makes `resetServerStore()` genuinely
+// restorative, which is what the hermetic test lifecycle depends on.
+function freshPets(): Pet[] {
+  return structuredClone(initialPetsData) as Pet[];
+}
+
+function freshApplications(): AdoptionApplicationRecord[] {
+  return structuredClone(initialApplicationsData) as AdoptionApplicationRecord[];
+}
+
+let serverPets: Pet[] = freshPets();
+let serverApplications: AdoptionApplicationRecord[] = freshApplications();
+
+/**
+ * Restores both in-memory collections to the committed JSON fixtures.
+ *
+ * Test-only, mirroring `resetUserStore()`. Wired into the global `beforeEach`
+ * in `tests/setup/nextMocks.ts` so a mutation made by one test — an inserted
+ * pet, an approved application, an archived record — cannot leak into the next
+ * and make the suite order-dependent.
+ */
+export function resetServerStore(): void {
+  serverPets = freshPets();
+  serverApplications = freshApplications();
+}
 
 export function getServerPets(): Pet[] {
   return serverPets;
@@ -207,14 +419,17 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
   try {
     const dbPets = await prisma.pet.findMany({
       orderBy: { createdAt: "desc" },
+      // Ordered explicitly: row order is otherwise whatever the planner returns.
+      include: {
+        updates: { orderBy: { date: "asc" } },
+        medicalTimeline: { orderBy: { date: "asc" } },
+      },
     });
     if (dbPets && dbPets.length > 0) {
       return (dbPets as unknown as DbPetRecord[]).map(mapDbPetToPet);
     }
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn("[Database Store] Prisma pet query falling back to memory store:", err instanceof Error ? err.message : err);
-    }
+    handlePersistenceError("Prisma pet query", err, "read");
   }
   return serverPets;
 }
@@ -251,9 +466,7 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
       }));
     }
   } catch (err) {
-    if (process.env.NODE_ENV === "development") {
-      console.warn("[Database Store] Prisma applications query falling back to memory store:", err instanceof Error ? err.message : err);
-    }
+    handlePersistenceError("Prisma applications query", err, "read");
   }
   return serverApplications;
 }
@@ -273,13 +486,10 @@ export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<
 
   try {
     await prisma.pet.create({
-      data: {
-        id: newPet.id,
-        ...buildPetPersistencePayload(newPet),
-      },
+      data: buildPetCreatePayload(newPet),
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma pet creation fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma pet creation", err, "write");
   }
 
   recordAuditLog({
@@ -305,12 +515,21 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
   serverPets[index] = updated;
 
   try {
-    await prisma.pet.update({
-      where: { id },
-      data: buildPetPersistencePayload(updated),
-    });
+    // Clear-then-write, in one transaction. The submitted pet is authoritative
+    // for its history: an event that is no longer listed must have its row
+    // deleted, not merely left unwritten. Sequencing the deletes ahead of the
+    // nested creates also avoids re-inserting an id that still exists, since
+    // history rows keep their caller-supplied primary keys.
+    await prisma.$transaction([
+      prisma.petUpdate.deleteMany({ where: { petId: id } }),
+      prisma.medicalTimelineEvent.deleteMany({ where: { petId: id } }),
+      prisma.pet.update({
+        where: { id },
+        data: buildPetUpdatePayload(updated),
+      }),
+    ]);
   } catch (err) {
-    console.warn("[Database Store] Prisma pet update fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma pet update", err, "write");
   }
 
   recordAuditLog({
@@ -347,7 +566,7 @@ export async function archiveServerPet(id: string, archive: boolean, actor: Sess
       },
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma pet archive fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma pet archive", err, "write");
   }
 
   recordAuditLog({
@@ -393,7 +612,7 @@ export async function insertServerApplication(newApp: AdoptionApplicationRecord)
       },
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma application creation fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma application creation", err, "write");
   }
 
   recordAuditLog({
@@ -469,7 +688,7 @@ export async function atomicUpdateApplicationStatus(
       }
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma transaction fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma application status transaction", err, "write");
   }
 
   // 3. Apply Multi-Entity Update to Cache
@@ -558,7 +777,7 @@ export async function deleteServerApplication(id: string, actor: SessionUser): P
       where: { id },
     });
   } catch (err) {
-    console.warn("[Database Store] Prisma application delete fallback notice:", err instanceof Error ? err.message : err);
+    handlePersistenceError("Prisma application delete", err, "write");
   }
 
   recordAuditLog({
