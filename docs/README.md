@@ -31,6 +31,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 - **[Handoff: TNRM & Rehabilitation Sprint](tasks/HANDOFF_TNRM_REHABILITATION_SPRINT.md)**: Current branch state, shipped work, design decisions, and the prioritized open items with their file references.
 - **[🔴 Target: Authentication Secret Hardening](tasks/TARGET_SECRET_HARDENING.md)**: Resolves P1 — committed secret fallbacks, the unconditional invite-code bypass, and the anonymous path to applicant PII. **Do this first.**
 - **[Handoff: Pet History Persistence](tasks/HANDOFF_PET_HISTORY_PERSISTENCE.md)**: Resolves open item P3 — the nested-collection modeling decision for `updates[]` and `medicalTimeline[]`, with the step plan and required test coverage.
+- **[✅ Handoff: Auth Hardening, Rehabilitation UI & Pet History](tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md)**: **Start here.** Closes P1, P3 and P5 — what shipped, why `src/instrumentation.ts` must never be deleted, why green tests could not see a missing migration, and the remaining P2/P4 backlog.
 - **[Cross-Team Architecture Contract](architecture/ARCHITECTURE_CONTRACT_BACKEND_FRONTEND.md)**: TypeScript data contracts, Server Action signatures, and deep-link standards.
 
 ---
