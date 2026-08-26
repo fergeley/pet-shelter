@@ -87,7 +87,7 @@ inside `tsconfig`'s `**/*.ts` include and its errors break the project typecheck
 
 ## 4. 🎯 Open Items, Prioritized
 
-### P1 — Authentication secrets fall back to literals
+### P1 — Authentication secrets fall back to literals ✅ RESOLVED
 
 | Secret | Location | Fallback |
 |---|---|---|
@@ -99,6 +99,15 @@ Worse, `registerAction` (`src/actions/auth.ts:137`) accepts `"HOPE2026"` or `"12
 **regardless** of the environment variable. A deploy that forgets these env vars lets anyone
 self-register a staff account, and signs session cookies with a key that is in the public repository.
 Fail startup on missing secrets in production instead of defaulting.
+
+> **Status sync, 2026-08-27.** The four items above were re-read against source, not against this
+> document. P1 is closed by `src/lib/security/secrets.ts` (`resolveSecret`, dev-only defaults,
+> minimum lengths); no `HOPE2026` / `1234` bypass remains in `src/actions/auth.ts`. P3 is closed by
+> `model PetUpdate` plus `mapDbPetUpdate` / `buildPetUpdatePayload` in `serverStore.ts`. P5 is closed
+> by `4e9bdf4` and the P5 fee fix in `68b1981`. **P4 is only partly closed**: `src/actions/faqs.ts`
+> and `src/lib/rehabNeedsStore.ts` exist and `PetsFaqSection` / `RehabNeedsSection` consume them,
+> but `src/app/donate/page.tsx:107` still owns an inline `const faqs = [...]` array. That remnant is
+> the whole of what is left of P4.
 
 ### P2 — The ROS registration number is inconsistent
 
@@ -113,7 +122,7 @@ The second set feeds **LHDN Section 44(6) tax e-receipts and ROS CSV exports**. 
 certificate and make one of them authoritative — ideally sourced from `ShelterSettings` rather than
 duplicated across six files.
 
-### P3 — Nested collections: a modeling decision, not an oversight
+### P3 — Nested collections: a modeling decision, not an oversight ✅ RESOLVED
 
 `Pet.updates[]` and `Pet.medicalTimeline[]` are typed but have no columns and no mapper, so they are
 **fixture-only**. Porting them means choosing between a `Json` column (cheap, unqueryable, no
@@ -123,12 +132,12 @@ referential integrity) and a related table (queryable, indexable, migration cost
 returns `undefined` forever once a real database is serving, while the JSON fallback hides it
 completely in development.
 
-### P4 — `faqs.json` and `rehabNeeds.json` have no reader
+### P4 — `faqs.json` and `rehabNeeds.json` have no reader ⚠️ PARTIAL
 
 Both fixtures are committed and bilingual; neither has a Server Action or store reading it
 (Backend Module 03). The donate page and `PetsFaqSection` still hardcode their FAQ arrays inline.
 
-### P5 — No UI presents rehabilitating animals
+### P5 — No UI presents rehabilitating animals ✅ RESOLVED
 
 `getPublicPets()` now returns 10 pets including the two in rehab, but `PetCard` only branches on
 `isAvailable = status === "Available"`, so they render as ordinary unavailable cards, and the
@@ -152,6 +161,35 @@ animals belong to no bucket and the counts do not sum to the total. See
 [Target: Admin Status Parity](TARGET_ADMIN_STATUS_PARITY.md) §7 for what shipped, including three
 further defects of the same family found while fixing it (the filter predicate in the controller, the
 row quick-status select, and the edit form seeding an aliased status).
+
+### P8 — `shelterIdentity.ts` was written but not adopted ✅ RESOLVED 2026-08-27
+
+The adoption half of P2. `src/lib/domain/shelterIdentity.ts` declared the statutory identifiers and
+documented how to close P2 in one edit, but only `src/actions/donations.ts` imported it — 24 literals
+remained across 11 files, including a **second receipt issuer** (`sponsorshipStore.ts`) that
+`ROS_REGISTRATION_NO` could not reach. Setting that variable would therefore have emitted two
+different registration numbers from one deployment.
+
+Closed by `c783760`: all sites adopted, a source scan in `tests/unit/shelterIdentity.test.ts` now
+fails on any `PPM-` or `LHDN.` literal under `src/` outside the module, and `.env.example` documents
+the variable **and its server-only scope** — `"use client"` surfaces read the module default,
+because Next.js inlines only `NEXT_PUBLIC_*` into the browser bundle. See
+[Target: Shelter Identity Adoption](TARGET_SHELTER_IDENTITY_ADOPTION.md) §7.1.
+
+**P2 itself is unchanged** — the two constants are still deliberately divergent, and one test says so
+on purpose. It remains blocked on someone reading the physical ROS certificate.
+
+### P9 — The admin pet table keeps a status the server rejected
+
+`handleStatusChange` (`src/hooks/usePetTableController.ts`) applies its optimistic update and then
+calls `updatePetStatus`, which **returns** `{ success: false }` rather than throwing when
+`serverStore.ts` refuses an illegal transition. The `.catch` never fires, the return value is
+discarded, and the row goes on displaying a state the database refused.
+
+Constraining the quick-status select to legal moves (P7) closed the only route that reached this from
+that table, so it is latent rather than live — but `PetFormDialog` still offers every status
+unconditionally. `useApplicationTableController` already does this correctly: it inspects the result
+and surfaces `statusError`. Copy that shape.
 
 ---
 
