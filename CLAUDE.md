@@ -49,7 +49,7 @@ docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/p
   New suites are order-independent by default; don't re-implement this per file.
 - Those stores are imported **dynamically inside the hook**. A static import would instantiate
   the repositories — and the real `@/lib/server/prisma` — before a test file's own
-  `vi.mock("@/lib/prisma")` registers, so Prisma spies would silently observe zero calls.
+  `vi.mock("@/lib/server/prisma")` registers, so Prisma spies would silently observe zero calls.
   `resetServerStore()` now lives in `@/lib/server/fallbackState`, which is the only module that
   knows all four caches exist.
 
@@ -95,6 +95,7 @@ Six modules, split out of the former 883-line `serverStore.ts`:
 | `petMappers.ts` | pure row ↔ domain projection. **No Prisma, no cache** |
 | `rehabNeedsCatalog.ts` · `faqCatalog.ts` | fixture-only readers. **No Prisma model exists** — they are catalogs, not repositories |
 | `fallbackState.ts` | composition root; exports the single `resetServerStore()` |
+| `prisma.ts` · `userStore.ts` · `donationLedger.ts` | the Prisma client and the two non-pet repositories |
 
 Approving an application cascades to the pet, so `applicationRepository` imports
 `markCachedPetAdopted` from `petRepository`. That dependency is **one-way and must stay so** — pet

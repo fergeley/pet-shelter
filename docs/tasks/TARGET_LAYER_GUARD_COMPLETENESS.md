@@ -2,9 +2,9 @@
 
 **Found**: 2026-08-27, by accident, while verifying a newly added rule in
 `tests/unit/layerBoundaries.test.ts`.
-**Severity**: low today, structural. Nothing in `src/` currently exploits any gap below — but every
-one of them fails **silently**, and this file is the only thing standing between the layer contract
-and convention.
+**Status**: ✅ **all three closed** the same day — see §6. Kept as the record of what was wrong and
+how each fix was verified, because the failure mode (a guard that passes while enforcing nothing) is
+the kind that returns quietly.
 
 ---
 
@@ -141,15 +141,41 @@ re-run the injection checks, since a regex change is exactly what could make a r
 
 ## 5. Related: the restructure is not finished
 
-Tracked in [`PLAN_LIB_RESTRUCTURE.md`](PLAN_LIB_RESTRUCTURE.md) §9–§10, and blocked on other
-sessions' uncommitted files rather than on design:
+Tracked in [`PLAN_LIB_RESTRUCTURE.md`](PLAN_LIB_RESTRUCTURE.md) §9–§11. One item remains, blocked on
+another session's uncommitted files rather than on design:
 
 - `petStatusPresentation.ts` and `applicationStatusPresentation.ts` → `src/lib/presentation/`
   (blocked: `PetStatusIcon.tsx` and `ApplicationStatusIcon.tsx` carry another session's work)
-- `prisma.ts`, `userStore.ts`, `donationLedger.ts` → `src/lib/server/` (needs the four
-  `vi.mock("@/lib/prisma")` specifiers moved in the same commit — a mock whose specifier stops
-  resolving fails silently, which is the same class of problem as §1)
 
-When those land, `src/lib/` has no loose module left that belongs in a guarded directory, and the
-Prisma allowlist can be expressed as a path rule (`src/lib/server/*` plus `domain/auditLog.ts`)
-instead of a hand-maintained list of five filenames.
+`prisma.ts`, `userStore.ts` and `donationLedger.ts` have **landed** in `src/lib/server/`. Moving
+them meant relocating four `vi.mock("@/lib/prisma")` specifiers in the same commit — a mock whose
+specifier stops resolving fails silently, the same class of problem as §1.
+
+---
+
+## 6. Resolution — 2026-08-27
+
+All three closed in `tests/unit/layerBoundaries.test.ts`.
+
+| § | Fix | Verified by |
+|---|---|---|
+| 1 | `import\s+` added last in the alternation | Re-injected the bare `import "@/lib/client/petStore";` into a non-client module — now **fails** with the exact file pair, where before it passed |
+| 3 | `stripComments()` blanks block and line comments before the specifier scan | Put the same import inside a JSDoc block — correctly **not** flagged |
+| 2 | `hasDirective()` replaces the 400-byte window: skip leading whitespace and test the first statement | The graph's own census test (`isServer >= 6`, `isClient >= 10`) still passes, so no module was reclassified |
+
+Comments are blanked rather than deleted, so the directive check still sees the file's true leading
+run — deleting them would let a comment above `"use client"` close the gap between the directive and
+the start of the file and change what counts as first.
+
+The Prisma rule was also converted from a filename allow-list to a **path rule** in the same pass:
+any module under `src/lib/server/` may import the client, plus `src/lib/domain/auditLog.ts`, which
+every repository calls and so cannot live inside the layer it instruments without a cycle. A list
+had to be edited whenever a repository was added, and editing it is indistinguishable from widening
+it deliberately.
+
+### What is left
+
+Only `petStatusPresentation.ts` and `applicationStatusPresentation.ts` → `src/lib/presentation/`,
+still blocked on `PetStatusIcon.tsx` and `ApplicationStatusIcon.tsx` carrying another session's
+uncommitted work. `prisma.ts`, `userStore.ts` and `donationLedger.ts` have landed in
+`src/lib/server/`.

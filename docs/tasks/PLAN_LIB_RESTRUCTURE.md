@@ -395,3 +395,27 @@ this file will see it.
 Low severity today (nothing in `src/` uses the bare form for a first-party module) but it is a
 silent hole in every guard here, present since the file was written. See
 `docs/tasks/TARGET_LAYER_GUARD_COMPLETENESS.md`.
+
+---
+
+## 11. Execution record — third pass, 2026-08-27
+
+### Landed
+
+`prisma.ts`, `userStore.ts` and `donationLedger.ts` → `src/lib/server/`. Four
+`vi.mock("@/lib/prisma")` specifiers moved in the same commit; a mock whose specifier no longer
+resolves fails silently, so these could not lag behind the move by even one commit.
+
+The Prisma rule in `tests/unit/layerBoundaries.test.ts` is now a **path rule** rather than a
+filename allow-list: anything under `src/lib/server/` may import the client, plus
+`src/lib/domain/auditLog.ts`. That exception is structural — every repository calls it, so it cannot
+sit inside the layer it instruments without a cycle. A list had to be edited whenever a repository
+was added, and editing a list is indistinguishable from widening it on purpose.
+
+The three guard-harness gaps from `TARGET_LAYER_GUARD_COMPLETENESS.md` were closed in the same pass.
+
+### Remaining
+
+`petStatusPresentation.ts` and `applicationStatusPresentation.ts` → `src/lib/presentation/`. Both
+modules are clean; `PetStatusIcon.tsx` and `ApplicationStatusIcon.tsx` are not. That is the whole
+blocker — 21 importers and no design questions left.
