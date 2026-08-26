@@ -48,7 +48,7 @@ docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/p
   `resetDonationLedger()`.
   New suites are order-independent by default; don't re-implement this per file.
 - Those stores are imported **dynamically inside the hook**. A static import would instantiate
-  the repositories — and the real `@/lib/prisma` — before a test file's own
+  the repositories — and the real `@/lib/server/prisma` — before a test file's own
   `vi.mock("@/lib/prisma")` registers, so Prisma spies would silently observe zero calls.
   `resetServerStore()` now lives in `@/lib/server/fallbackState`, which is the only module that
   knows all four caches exist.
@@ -117,7 +117,7 @@ Do not confuse `src/lib/server/` with the *client* stores in `src/lib/client/` (
 `bulletinStore`, `settingsStore`, `sponsorshipStore`, `adminAuth`). Those are `"use client"` React
 hooks persisting to `localStorage` under `hope_for_strays_*` keys — used by admin/demo UI only.
 
-### The ledger exception (`src/lib/donationLedger.ts`)
+### The ledger exception (`src/lib/server/donationLedger.ts`)
 
 Donation receipts deliberately **do not** use the dual-layer fallback. The fallback is coherent for
 *reference data* (pets, FAQs, needs) because each has an authoritative committed fixture; a donation

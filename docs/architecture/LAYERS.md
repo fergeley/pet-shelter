@@ -67,7 +67,7 @@ Blueprint **Tenet 3** ("fail-fast boundaries — validate all external inputs at
 
 |  |  |
 |---|---|
-| **Files** | `prisma/schema.prisma` · `src/lib/prisma.ts` · `prisma/seed.ts` · `prisma.config.ts` · `docker-compose.yml` · `neon.ts` |
+| **Files** | `prisma/schema.prisma` · `src/lib/server/prisma.ts` · `prisma/seed.ts` · `prisma.config.ts` · `docker-compose.yml` · `neon.ts` |
 | **Owns** | Physical schema, connection pooling, seeding |
 | **May import** | Nothing in `src/` |
 
@@ -84,7 +84,7 @@ Models: `User`, `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings`, plu
 | **Owns** | Every SQL call; row → domain mapping; the in-memory fallback |
 | **May import** | L-B1, L-B3, L-B4, and L-B5 for the `SessionUser` actor type |
 
-**Verified**: these five files are the *only* importers of `@/lib/prisma` in the entire `src/` tree. That property is what makes persistence swappable and lets the test suite run with no database. Adding another importer is a design decision, not a detail — `tests/unit/layerBoundaries.test.ts` fails until the list here and the allow-list there agree.
+**Verified**: every importer of `@/lib/server/prisma` in `src/` lives inside `src/lib/server/`, with exactly one exception — `src/lib/domain/auditLog.ts`, which every repository calls and so cannot sit inside the layer it instruments without a cycle. That property is what makes persistence swappable and lets the test suite run with no database. `tests/unit/layerBoundaries.test.ts` now enforces this as a **path rule** rather than a filename list, so adding a repository needs no test edit — but adding a *second* exception outside the directory fails until this document is updated too.
 
 Row mappers (`DbPetRecord` → `Pet`, `DbApplicationRecord` → `AdoptionApplicationRecord`, `DbUserRecord` → `UserRecord`) live here and nowhere else.
 
@@ -339,7 +339,7 @@ Every structural claim above came from [`layer-graph.mjs`](layer-graph.mjs) — 
 |---|---|
 | **A** | Which non-client modules import a `"use client"` module? |
 | **B** | Which client modules are *transitively* reachable from each `"use server"` file? ← the one that matters |
-| **C** | Who imports `@/lib/prisma`? (must stay at 3) |
+| **C** | Who imports `@/lib/server/prisma`? (must be inside `src/lib/server/`, plus `domain/auditLog.ts`) |
 | **D** | Which `lib/` modules touch browser APIs? |
 | **E** | Who imports each barrel? |
 | **F** | Fan-in ranking — what is load-bearing |
@@ -350,7 +350,7 @@ Every structural claim above came from [`layer-graph.mjs`](layer-graph.mjs) — 
 | Assertion | Enforces |
 |---|---|
 | No `"use server"` module transitively reaches a `"use client"` module | §5.1 |
-| `@/lib/prisma` is imported by exactly the three repository files | L-B2 |
+| `@/lib/server/prisma` is imported only from `src/lib/server/` plus `domain/auditLog.ts` | L-B2 |
 
 It carries a third case — a sanity check that the walker actually found the modules — because a broken resolver would make the other two pass vacuously. Changing the repository trio deliberately means updating both the `allowed` list in that test and L-B2 above, which is the intended friction.
 
@@ -379,7 +379,7 @@ Recorded rather than silently fixed; amending `CLAUDE.md` is the maintainer's ca
 
 | `CLAUDE.md` says | Verified reality |
 |---|---|
-| `userStore` is one of the *client* stores | It has no `"use client"` directive, imports `@/lib/prisma`, and is server-side L-B2. Only the six modules in `src/lib/client/` are client stores. |
+| `userStore` is one of the *client* stores | It has no `"use client"` directive, imports `@/lib/server/prisma`, and is server-side L-B2 — it now lives at `src/lib/server/userStore.ts`. Only the six modules in `src/lib/client/` are client stores. |
 | The Zod enums in `validations/pet.ts` "still only know the three original statuses" | `PET_STATUS_VALUES` contains all five, including both rehab spellings. |
 | `PET_TRANSITION_GRAPH` "still only knows the three original statuses" | It has all five plus a `normalizePetStatus` alias resolver. |
 | "`npx tsc --noEmit` currently fails" — the whole *Work in progress / known broken* section | That propagation was completed. `tsc` is clean outside `scratch/`; the suite is green. The section is stale. |
