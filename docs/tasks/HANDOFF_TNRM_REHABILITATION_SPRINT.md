@@ -181,15 +181,17 @@ on purpose. It remains blocked on someone reading the physical ROS certificate.
 
 ### P9 — The admin pet table keeps a status the server rejected
 
-`handleStatusChange` (`src/hooks/usePetTableController.ts`) applies its optimistic update and then
-calls `updatePetStatus`, which **returns** `{ success: false }` rather than throwing when
-`serverStore.ts` refuses an illegal transition. The `.catch` never fires, the return value is
-discarded, and the row goes on displaying a state the database refused.
+`handleStatusChange` (`src/hooks/usePetTableController.ts:123-132`) applies its optimistic update and
+then calls `updatePetStatus`, which **returns** `{ success: false }` rather than throwing when
+`src/lib/server/petRepository.ts:117` refuses an illegal transition. The `.catch` never fires, the
+return value is discarded, and the row goes on displaying a state the database refused — one that
+`src/lib/client/petStore.ts:163` has already written to `localStorage`, so it survives a reload.
 
-Constraining the quick-status select to legal moves (P7) closed the only route that reached this from
-that table, so it is latent rather than live — but `PetFormDialog` still offers every status
-unconditionally. `useApplicationTableController` already does this correctly: it inspects the result
-and surfaces `statusError`. Copy that shape.
+**Live, not latent.** Constraining the quick-status select to legal moves (P7) closed one of two
+routes. `PetFormDialog.tsx:316-318` still offers every status unconditionally, so `Adopted → Pending`
+is reachable in two clicks and fails silently. `useApplicationTableController` already handles this
+correctly — it inspects the result and surfaces `statusError`. Full write-up:
+[Target: Admin Status Write-back](TARGET_ADMIN_STATUS_WRITEBACK.md).
 
 ---
 
@@ -200,7 +202,7 @@ npm install
 npx prisma generate      # REQUIRED — see gotcha below
 npm run dev
 
-npm test                 # 26 suites, 223 tests
+npm test                 # 39 suites, 518 tests (measured 2026-08-27)
 npx tsc --noEmit         # includes scratch/
 npm run lint
 
@@ -208,10 +210,33 @@ npm run db:push          # apply the rehab columns to Postgres
 npm run db:seed          # writes pet-009 / pet-010 with rehab detail
 ```
 
+### What to pick up next — 2026-08-27
+
+Ranked, with the reasoning rather than the ranking:
+
+1. **[Test Task 02 — Component & UI Suite](TEST_TASK_02_COMPONENT_AND_UI_SUITE.md).** `tests/components/`
+   does not exist — not empty, absent. Three separate debts now point at that one missing tier:
+   `2f1257e` shipped roving-tabindex keyboard navigation with no test that can press a key;
+   [P7](TARGET_ADMIN_STATUS_PARITY.md) explicitly deferred admin badge and filter render coverage
+   there; and the design-system rollout rewrote every badge's classes behind nothing but
+   string-equality assertions in a node test. The spec is dispatch-ready and correctly warns not to
+   rebuild Task 01's `components` project. Budget for `@testing-library/react` — `package.json` still
+   has no testing-library dependency.
+2. **[P9 — Admin Status Write-back](TARGET_ADMIN_STATUS_WRITEBACK.md).** Small, live, and has a
+   working pattern to copy from the application table. Pick this if you want something *closed*
+   rather than started.
+3. **The P4 remnant.** `src/app/donate/page.tsx:107` still owns an inline `const faqs = [...]` while
+   `PetsFaqSection` reads `getFaqsAction`. Ten minutes, and it closes a P-item outright.
+
+**Not** P2: still blocked on someone reading the physical ROS certificate. Its adoption half is done
+([P8](TARGET_SHELTER_IDENTITY_ADOPTION.md)), so closing it is now a one-constant edit plus deleting
+one deliberately-failing test.
+
 ### Gotchas that cost time
 
 1. **Regenerate the Prisma client after pulling.** The schema gained three columns. A stale client
-   rejects writes carrying them — and `serverStore` catches the error, falls back to memory, and
+   rejects writes carrying them — and the repository layer (`src/lib/server/*`) catches the error,
+   falls back to memory, and
    reports success. A save that silently does not persist is almost always this.
 2. **The dual-layer store swallows database errors** by design (`console.warn` in development only).
    When data looks wrong, check which layer answered before debugging the caller.
