@@ -3,7 +3,7 @@ import { donationPledgeSchema } from "@/lib/validations/donation";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
-import { findDonationByReceiptNumber, listDonations } from "@/lib/donationLedger";
+import { findDonationByReceiptNumber, listDonations } from "@/lib/server/donationLedger";
 import {
   LHDN_TAX_DEDUCTIBLE_REF,
   STATUTORY_ROS_REGISTRATION_NO,

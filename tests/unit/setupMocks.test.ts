@@ -18,7 +18,7 @@ import {
   insertServerPet,
 } from "@/lib/server/petRepository";
 import { resetServerStore } from "@/lib/server/fallbackState";
-import { findUserByEmail, createUser, listUsers } from "@/lib/userStore";
+import { findUserByEmail, createUser, listUsers } from "@/lib/server/userStore";
 import {
   recordAuditLog,
   getAuditLogs,
@@ -52,7 +52,7 @@ import petsFixture from "@/data/pets.json";
  */
 const PRISMA_FAILURE = new Error("simulated database failure");
 
-vi.mock("@/lib/prisma", () => {
+vi.mock("@/lib/server/prisma", () => {
   const reject = () => Promise.reject(PRISMA_FAILURE);
   const delegate = () => ({
     findMany: reject,

@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError, isStrictPersistence } from "@/lib/persistenceMode";
 
 interface DbAuditLogRecord {

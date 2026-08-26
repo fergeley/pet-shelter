@@ -9,7 +9,7 @@ import {
   SessionUser,
 } from "@/lib/security/session";
 import { recordAuditLog } from "@/lib/domain/auditLog";
-import { findUserByEmail, createUser, UserRecord } from "@/lib/userStore";
+import { findUserByEmail, createUser, UserRecord } from "@/lib/server/userStore";
 import { Role, ROLES } from "@/lib/security/rbac";
 import { getStaffInviteSecret } from "@/lib/security/secrets";
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { loginAction, registerAction, logoutAction, getCurrentUserAction } from "@/actions/auth";
-import { resetUserStore } from "@/lib/userStore";
+import { resetUserStore } from "@/lib/server/userStore";
 import { ROLES } from "@/lib/security/rbac";
 import { SecretConfigurationError } from "@/lib/security/secrets";
 

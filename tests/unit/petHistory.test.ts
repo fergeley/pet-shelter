@@ -89,7 +89,7 @@ const prismaSpies = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/prisma", () => {
+vi.mock("@/lib/server/prisma", () => {
   const client = {
     pet: {
       findMany: prismaSpies.petFindMany,

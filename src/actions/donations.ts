@@ -15,7 +15,7 @@ import {
   DonationRecord,
   ReceiptIssuanceError,
   issueDonationReceipt,
-} from "@/lib/donationLedger";
+} from "@/lib/server/donationLedger";
 
 /**
  * Renders an issued receipt for the donor-facing confirmation and the emailed PDF.

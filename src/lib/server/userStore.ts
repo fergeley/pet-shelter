@@ -1,6 +1,6 @@
 import { hashPassword } from "@/lib/security/crypto";
 import { Role, ROLES } from "@/lib/security/rbac";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError } from "@/lib/persistenceMode";
 
 interface DbUserRecord {

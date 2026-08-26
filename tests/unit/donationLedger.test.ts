@@ -113,7 +113,7 @@ function createFakeDb(): FakeDb {
 
 const fakeDb = createFakeDb();
 
-vi.mock("@/lib/prisma", () => ({
+vi.mock("@/lib/server/prisma", () => ({
   prisma: {
     $transaction: (fn: (tx: unknown) => Promise<unknown>) => fakeDb.transaction(fn),
     donation: {
@@ -133,7 +133,7 @@ import {
   issueDonationReceipt,
   receiptScopeFor,
   resetDonationLedger,
-} from "@/lib/donationLedger";
+} from "@/lib/server/donationLedger";
 import { senFromRinggit } from "@/lib/domain/money";
 
 const AUGUST = new Date("2026-08-15T04:00:00Z"); // 12:00 MYT, 15 Aug 2026

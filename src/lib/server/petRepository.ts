@@ -3,7 +3,7 @@ import { Pet } from "@/types/pet";
 import { validatePetTransition } from "@/lib/domain/stateMachine";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { SessionUser } from "@/lib/security/session";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError } from "@/lib/persistenceMode";
 import {
   DbPetRecord,
