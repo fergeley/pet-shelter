@@ -160,7 +160,7 @@ export function PetsFaqSection({ initialFaqs }: { initialFaqs?: FaqItem[] } = {}
               href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20have%20a%20question%20regarding%20the%20shelter."
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-[#25D366] text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-[#20bd5a] transition-colors rounded-xl"
+              className="inline-flex items-center gap-2 bg-brand-whatsapp text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-brand-whatsapp-hover transition-colors rounded-xl"
             >
               <MessageCircle className="size-3.5" />
               WhatsApp

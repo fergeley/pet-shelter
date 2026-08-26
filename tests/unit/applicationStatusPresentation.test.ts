@@ -28,6 +28,25 @@ describe("getApplicationStatusPresentation", () => {
     expect(new Set(ALL.map((s) => getApplicationStatusPresentation(s).pillClass)).size).toBe(4);
   });
 
+  // Both shells come from `globals.css` and carry their own metrics and per-theme text
+  // colour, so a raw palette utility or a hand-written `dark:` override here means the
+  // status colours have started drifting from the design system again.
+  it("builds both treatments from design-system tone classes, not raw hues", () => {
+    for (const status of ALL) {
+      const { toneClass, chipClass, pillClass } =
+        getApplicationStatusPresentation(status);
+      expect(toneClass).toMatch(/^tone-[a-z]+$/);
+      expect(chipClass).toBe(`tone-chip ${toneClass}`);
+      expect(pillClass).toBe(`tone-pill ${toneClass}`);
+      for (const classes of [chipClass, pillClass]) {
+        expect(classes).not.toMatch(/\bdark:/);
+        expect(classes).not.toMatch(
+          /\b(bg|text|border|ring)-(emerald|amber|sky|blue|red|rose|zinc)-\d{2,3}\b/
+        );
+      }
+    }
+  });
+
   // The decision buttons read as verbs ("Approve"), the badges as states ("Approved").
   it("carries a verb for the decision buttons alongside the state label", () => {
     expect(getApplicationStatusPresentation("APPROVED").actionLabel).toBe("Approve");

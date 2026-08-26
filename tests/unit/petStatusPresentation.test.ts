@@ -134,27 +134,66 @@ describe("matchesStatusFilter", () => {
 });
 
 describe("chipClass", () => {
-  // The admin tables use a tinted, bordered chip in dark mode where the public badge is a
-  // solid fill. Both must come from this module, or the two surfaces drift apart again.
-  it("gives every tone an admin chip distinct from the public solid badge", () => {
+  // The admin tables use a squarer chip where the public surfaces use a pill, but both
+  // are the same fill from the same tone. Both must come from this module, or the two
+  // surfaces drift apart again.
+  it("gives every tone an admin chip distinct from the public pill badge", () => {
     const statuses: PetStatus[] = ["Available", "In Rehabilitation", "Pending", "Adopted"];
     for (const status of statuses) {
-      const { badgeClass, chipClass } = getPetStatusPresentation(status);
+      const { badgeClass, chipClass, toneClass } = getPetStatusPresentation(status);
       expect(chipClass).not.toBe(badgeClass);
-      expect(chipClass).toContain("dark:border");
+      expect(chipClass).toContain("tone-chip");
+      expect(chipClass).toContain(toneClass);
+      expect(badgeClass).toContain("tone-chip-pill");
     }
   });
 
-  // The chip carries its own text colour per theme, so unlike badgeClass the call site
-  // must not add `text-white` itself.
-  it("carries its own light-mode text colour", () => {
-    expect(getPetStatusPresentation("Available").chipClass).toContain("text-white");
+  // Both shells are self-contained: `.tone-chip` in globals.css owns the padding, type
+  // scale and the on-solid text colour, so a call site adding `text-white` would break
+  // the dark theme it already handles.
+  it("carries its own metrics and text colour rather than leaving them to the caller", () => {
+    const { chipClass, badgeClass } = getPetStatusPresentation("Available");
+    for (const classes of [chipClass, badgeClass]) {
+      expect(classes).not.toMatch(/\btext-white\b/);
+      expect(classes).not.toMatch(/\bdark:/);
+      expect(classes).not.toMatch(/\bpx-/);
+    }
   });
 
   it("returns a distinct chip treatment per tone", () => {
     const statuses: PetStatus[] = ["Available", "In Rehabilitation", "Pending", "Adopted"];
     const chips = statuses.map((s) => getPetStatusPresentation(s).chipClass);
     expect(new Set(chips).size).toBe(statuses.length);
+  });
+});
+
+describe("toneClass", () => {
+  // The design system owns the colour; this module only says which meaning applies. A
+  // raw palette utility appearing here is the regression to catch — it is how the badge
+  // and the rehab progress bar ended up on different indigos.
+  it("maps every status onto a design-system tone, never a raw hue", () => {
+    const statuses: PetStatus[] = [
+      "Available",
+      "In Rehabilitation",
+      "Rehabilitation",
+      "Pending",
+      "Adopted",
+    ];
+    for (const status of statuses) {
+      const { toneClass, badgeClass, chipClass } = getPetStatusPresentation(status);
+      expect(toneClass).toMatch(/^tone-[a-z]+$/);
+      for (const classes of [badgeClass, chipClass]) {
+        expect(classes).not.toMatch(
+          /\b(bg|text|border|ring)-(emerald|indigo|amber|slate|zinc|red|rose|sky|blue|purple)-\d{2,3}\b/
+        );
+      }
+    }
+  });
+
+  it("gives the legacy Rehabilitation alias the same tone as the canonical spelling", () => {
+    expect(getPetStatusPresentation("Rehabilitation").toneClass).toBe(
+      getPetStatusPresentation("In Rehabilitation").toneClass
+    );
   });
 });
 

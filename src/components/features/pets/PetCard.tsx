@@ -48,7 +48,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
           {/* Status Badge & Free Adoption Badge - WCAG AAA Compliant */}
           <div className="absolute top-3 left-3 flex items-center gap-1.5">
             <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${status.badgeClass}`}
+              className={`${status.badgeClass} gap-1.5 px-3 py-1 text-xs`}
             >
               <PetStatusIcon tone={status.tone} className="size-3.5" />
               {t(status.labelKey, status.labelFallback)}
@@ -87,11 +87,11 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
         <CardContent className="p-5 pt-1 space-y-3">
           {/* Rehabilitation stage & recovery progress — only meaningful while under care. */}
           {rehabStage && (
-            <div className="border border-indigo-700/30 bg-indigo-500/5 p-3 space-y-2 rounded-lg">
+            <div className="border border-care-accent/30 bg-care-surface p-3 space-y-2 rounded-lg">
               <div className="flex items-start gap-1.5">
-                <PetStatusIcon tone={status.tone} className="size-3.5 mt-0.5 shrink-0 text-indigo-800 dark:text-indigo-300" />
+                <PetStatusIcon tone={status.tone} className="size-3.5 mt-0.5 shrink-0 text-care-text " />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-care-text ">
                     {t("common.rehabStage", "Rehabilitation Stage")}
                   </p>
                   <p className="text-xs font-semibold text-foreground leading-snug mt-0.5">
@@ -115,7 +115,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
                     aria-label={`${pet.name} — ${t("common.rehabProgress", "Recovery Progress")}`}
                   >
                     <div
-                      className="h-full bg-indigo-700 dark:bg-indigo-500 transition-all duration-300"
+                      className="h-full bg-care-accent transition-all duration-300"
                       style={{ width: `${rehabProgress}%` }}
                     />
                   </div>

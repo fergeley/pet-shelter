@@ -95,7 +95,7 @@ export function Navbar() {
         <div className="flex h-16 w-full items-center justify-between px-6 sm:px-8 lg:px-10">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 focus-visible:ring-2">
-            <div className="flex size-9 items-center justify-center overflow-hidden rounded-[1rem] bg-[#f8dfd7] text-primary-foreground shadow-[0_8px_16px_rgba(214,122,111,0.18)] ring-1 ring-[#edc9c0] dark:bg-[#382d2d] dark:ring-[#5b4040]">
+            <div className="flex size-9 items-center justify-center overflow-hidden rounded-mark bg-brand-mark text-primary-foreground shadow-brand-sm ring-1 ring-brand-mark-ring">
               <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" priority />
             </div>
             <div className="flex flex-col">

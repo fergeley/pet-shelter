@@ -265,7 +265,7 @@ export function ImageUpload({
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         {savingsInfo && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success-text bg-success-surface border border-success-border px-2 py-0.5 rounded">
             <CheckCircle2 className="w-3 h-3" />
             {savingsInfo}
           </span>

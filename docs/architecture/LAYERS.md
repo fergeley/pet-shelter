@@ -79,11 +79,11 @@ Models: `User`, `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings`, plu
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/serverStore.ts` · `src/lib/userStore.ts` · `src/lib/domain/auditLog.ts` |
+| **Files** | `src/lib/serverStore.ts` · `src/lib/userStore.ts` · `src/lib/domain/auditLog.ts` · `src/lib/donationLedger.ts` |
 | **Owns** | Every SQL call; row → domain mapping; the in-memory fallback |
 | **May import** | L-B1, L-B3, L-B4, and L-B5 for the `SessionUser` actor type |
 
-**Verified**: these three files are the *only* importers of `@/lib/prisma` in the entire `src/` tree. That property is what makes persistence swappable and lets the test suite run with no database. Adding a fourth importer is a design decision, not a detail.
+**Verified**: these four files are the *only* importers of `@/lib/prisma` in the entire `src/` tree. That property is what makes persistence swappable and lets the test suite run with no database. Adding another importer is a design decision, not a detail — `tests/unit/layerBoundaries.test.ts` fails until the list here and the allow-list there agree.
 
 Row mappers (`DbPetRecord` → `Pet`, `DbApplicationRecord` → `AdoptionApplicationRecord`, `DbUserRecord` → `UserRecord`) live here and nowhere else.
 
@@ -93,6 +93,28 @@ Row mappers (`DbPetRecord` → `Pet`, `DbApplicationRecord` → `AdoptionApplica
 - **DB errors are swallowed** (a development-only `console.warn`). If a write reports success but does not persist, suspect the fallback path before suspecting the caller.
 
 `atomicUpdateApplicationStatus` is the one transactional path; treat it as the template for any future multi-row mutation.
+
+#### The ledger exception — `donationLedger.ts`
+
+`donationLedger.ts` sits in L-B2 but **does not use the dual-layer fallback**, and the difference is a deliberate design boundary rather than an inconsistency to tidy away.
+
+The fallback is coherent for **reference data** — pets, applications, FAQs, rehab needs — because each has an authoritative committed fixture in `src/data/`. Serving that fixture when the database is unreachable is degraded but truthful.
+
+A donation is **not** reference data. It records that an external event occurred: money moved. There cannot be a fixture for an event that has not happened yet, so "fall back to the fixture" is meaningless, and swallowing the write would hand a donor an official LHDN Section 44(6) receipt number for a record that exists nowhere durable.
+
+So the ledger replaces the implicit fallback with a **declared mode**, selected by configuration rather than by whether an exception happened to be thrown:
+
+| `DATABASE_URL` | Authority | A failing write |
+|---|---|---|
+| set | Postgres | propagates — the Server Action reports failure and **no receipt is issued** |
+| unset | in-memory ledger | cannot occur; this is the documented offline mode, still gapless per process |
+
+Reads keep the familiar read/write asymmetry — a failed listing returns `[]` and warns, because an unavailable admin report is an inconvenience while an unrecorded donation is data loss.
+
+Two further properties are enforced structurally rather than by convention:
+
+- **Gapless numbering.** `ReceiptSequence` is a counter row incremented inside the same transaction as the `Donation` insert, so a number is consumed if and only if the receipt exists. A Postgres `SEQUENCE` cannot do this — a rolled-back transaction burns its value permanently, and a hole in a statutory receipt series reads to an auditor as a destroyed receipt. `@@unique([sequenceScope, sequenceValue])` is the guarantee; the transaction is only the mechanism.
+- **Append-only.** No update or delete is exported, and `Donation` has no `updatedAt`. Corrections are issued as new offsetting records, as in any accounting ledger.
 
 ### L-B3 — Domain rules
 

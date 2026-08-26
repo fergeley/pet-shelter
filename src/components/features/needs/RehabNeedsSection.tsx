@@ -71,7 +71,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
     const norm = level.toLowerCase();
     if (norm === "critical") {
       return (
-        <span className="inline-flex items-center gap-1 bg-red-800 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+        <span className="inline-flex items-center gap-1 bg-danger-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
           <AlertCircle className="size-3" />
           {isMs ? "Kritikal" : "Critical"}
         </span>
@@ -79,14 +79,14 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
     }
     if (norm === "high") {
       return (
-        <span className="inline-flex items-center gap-1 bg-amber-700 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+        <span className="inline-flex items-center gap-1 bg-warning-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
           <AlertCircle className="size-3" />
           {isMs ? "Tinggi" : "High Priority"}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 bg-emerald-800 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+      <span className="inline-flex items-center gap-1 bg-success-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
         <ShieldCheck className="size-3" />
         {isMs ? "Biasa" : "Normal"}
       </span>
@@ -194,7 +194,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
                   {item.estimatedCostMYR && (
                     <div className="flex items-center gap-2 text-xs">
                       <span className="font-bold text-foreground">{isMs ? "Anggaran Kos:" : "Estimated Cost:"}</span>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="font-mono font-bold text-success-accent ">
                         RM {item.estimatedCostMYR.toLocaleString()}
                       </span>
                     </div>
@@ -212,7 +212,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
                 >
                   {copiedId === item.id ? (
                     <>
-                      <Check className="size-3.5 text-emerald-600" />
+                      <Check className="size-3.5 text-success-accent" />
                       {isMs ? "Disalin!" : "Copied Spec!"}
                     </>
                   ) : (

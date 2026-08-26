@@ -310,7 +310,7 @@ export function AdoptionForm(props: AdoptionFormProps) {
         ) : (
           /* Confirmation */
           <div className="py-6 px-2 text-center space-y-4">
-            <div className="mx-auto flex size-14 items-center justify-center bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full">
+            <div className="mx-auto flex size-14 items-center justify-center bg-success-surface-strong text-success-text border border-success-border rounded-full">
               <CheckCircle2 className="size-8" />
             </div>
 

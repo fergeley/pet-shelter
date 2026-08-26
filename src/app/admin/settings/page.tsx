@@ -111,7 +111,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {savedSuccess && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
+        <div className="bg-success-surface border border-success-border text-success-text p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
           <CheckCircle2 className="size-4 shrink-0" />
           <span>Shelter settings and service parameters updated successfully! Changes are active immediately.</span>
         </div>
@@ -205,19 +205,19 @@ export default function AdminSettingsPage() {
             {/* Standard Adoption Fees */}
             <div className="space-y-4 border-t border-border pt-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-foreground border-b border-border pb-1 flex items-center gap-1.5">
-                <DollarSign className="size-4 text-emerald-600" />
+                <DollarSign className="size-4 text-success-accent" />
                 2. Adoption Fee Model
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="adoptionFeeDog" className="text-xs font-semibold">Dog Adoption Fee *</Label>
-                  <Input id="adoptionFeeDog" {...register("adoptionFeeDog")} className="text-sm py-2.5 font-semibold text-emerald-700 dark:text-emerald-400" />
+                  <Input id="adoptionFeeDog" {...register("adoptionFeeDog")} className="text-sm py-2.5 font-semibold text-success-text " />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="adoptionFeeCat" className="text-xs font-semibold">Cat Adoption Fee *</Label>
-                  <Input id="adoptionFeeCat" {...register("adoptionFeeCat")} className="text-sm py-2.5 font-semibold text-emerald-700 dark:text-emerald-400" />
+                  <Input id="adoptionFeeCat" {...register("adoptionFeeCat")} className="text-sm py-2.5 font-semibold text-success-text " />
                 </div>
               </div>
             </div>
@@ -256,7 +256,7 @@ export default function AdminSettingsPage() {
                     Automate application confirmations, coordinator alerts, status updates, and interview invitations.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 px-2.5 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success-text bg-success-surface border border-success-border px-2.5 py-1 rounded-full">
                   <ShieldCheck className="size-3.5" />
                   Service Connected
                 </span>
@@ -362,12 +362,12 @@ export default function AdminSettingsPage() {
                 <div
                   className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 border ${
                     testResult.success
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300"
+                      ? "bg-success-surface border-success-border text-success-text "
                       : "bg-destructive/10 border-destructive/30 text-destructive"
                   }`}
                 >
                   {testResult.success ? (
-                    <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600" />
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-success-accent" />
                   ) : (
                     <AlertTriangle className="size-4 shrink-0 mt-0.5" />
                   )}

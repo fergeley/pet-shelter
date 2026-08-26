@@ -198,7 +198,7 @@ export function ApplicationDetailDialog({
               >
                 {copiedLink ? (
                   <>
-                    <Check className="size-3.5 text-emerald-600" /> Copied Link
+                    <Check className="size-3.5 text-success-accent" /> Copied Link
                   </>
                 ) : (
                   <>
@@ -211,7 +211,7 @@ export function ApplicationDetailDialog({
                 href={waUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-2.5 h-8 rounded-md transition shadow-xs"
+                className="inline-flex items-center gap-1.5 bg-success-solid hover:bg-success-solid text-white text-xs font-semibold px-2.5 h-8 rounded-md transition shadow-xs"
               >
                 <MessageCircle className="size-3.5" /> WhatsApp
               </a>
@@ -227,7 +227,7 @@ export function ApplicationDetailDialog({
         )}
 
         {successMessage && (
-          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 p-3 text-xs text-emerald-800 dark:text-emerald-400 flex items-center gap-2 rounded-md">
+          <div className="bg-success-surface border border-success-border p-3 text-xs text-success-text flex items-center gap-2 rounded-md">
             <CheckCircle2 className="size-4 shrink-0" />
             <span>{successMessage}</span>
           </div>
@@ -403,7 +403,7 @@ export function ApplicationDetailDialog({
           {/* Tab 2: Schedule Meet & Greet */}
           {activeTab === "interview" && (
             <form onSubmit={handleScheduleInterview} className="space-y-4">
-              <div className="p-3 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 rounded-lg text-xs text-sky-900 dark:text-sky-300">
+              <div className="p-3 bg-info-surface border border-info-border rounded-lg text-xs text-info-text ">
                 Scheduling a Meet & Greet transitions the application to <strong>Under Review</strong>, dispatches a formal invitation email, and adds the session to the applicant&apos;s live tracking dashboard.
               </div>
 

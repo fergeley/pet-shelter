@@ -1,0 +1,358 @@
+import { prisma } from "./prisma";
+import { Sen, senFromInteger } from "./domain/money";
+import type { SponsorshipTierId } from "@/types/sponsorship";
+
+/**
+ * Persistence for issued LHDN tax receipts.
+ *
+ * ## Why this is not `serverStore.ts`
+ *
+ * `serverStore` wraps every Prisma call in try/catch and falls back to the JSON
+ * fixtures in `src/data/`. That is the right design for **reference data** — pets,
+ * FAQs, rehab needs — because such data has an authoritative committed fixture, so
+ * serving it from memory is degraded but truthful.
+ *
+ * A donation is not reference data. It is a record that an external event occurred:
+ * money moved. There cannot be a fixture for an event that has not happened yet, so
+ * "fall back to the fixture" has no meaning here, and swallowing a failed write
+ * would hand a donor an official, tax-deductible receipt number for a record that
+ * exists nowhere durable. That is the failure this module refuses to have.
+ *
+ * The fallback is therefore replaced by an explicitly **declared mode**, chosen by
+ * configuration rather than by whether an error happened to be thrown:
+ *
+ * - `DATABASE_URL` set — Postgres is authoritative. A failed write propagates, the
+ *   Server Action reports failure, and no receipt is issued. Losing a donation
+ *   record silently is strictly worse than telling the donor to retry.
+ * - `DATABASE_URL` unset — the in-memory ledger is authoritative. This is the
+ *   documented offline mode the whole project runs and tests in, and it stays fully
+ *   functional: numbering is still gapless, just per-process.
+ *
+ * The distinction matters because those two situations are not the same event. A
+ * missing `DATABASE_URL` is a deliberate configuration. A configured database that
+ * rejects a write is a fault, and faults on statutory records must be loud.
+ *
+ * ## Append-only
+ *
+ * There is no update or delete export, by design. See the `Donation` model comment
+ * in `prisma/schema.prisma`; corrections are issued as new offsetting records.
+ */
+
+/** A receipt as issued and persisted. Amounts are exact integer sen. */
+export interface DonationRecord {
+  id: string;
+  receiptNumber: string;
+  sequenceScope: string;
+  sequenceValue: number;
+  donorName: string;
+  donorEmail: string;
+  donorPhone?: string;
+  taxIdOrIc?: string;
+  tierId: SponsorshipTierId;
+  tierName: string;
+  amountSen: Sen;
+  currency: string;
+  frequency: "one_time" | "monthly";
+  paymentMethod: "duitnow_qr" | "online_banking" | "card";
+  targetPetName?: string;
+  notes?: string;
+  taxDeductibleRef: string;
+  shelterRegistrationNo: string;
+  /** ISO-8601 instant. Always UTC; render in Asia/Kuala_Lumpur at the edges. */
+  issuedAt: string;
+}
+
+/** Everything a caller supplies. The ledger owns id, numbering, and timestamp. */
+export type DonationDraft = Omit<
+  DonationRecord,
+  "id" | "receiptNumber" | "sequenceScope" | "sequenceValue" | "issuedAt"
+>;
+
+export class ReceiptIssuanceError extends Error {
+  readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "ReceiptIssuanceError";
+    this.cause = cause;
+  }
+}
+
+const RECEIPT_PREFIX = "HFS-DON";
+
+/** Minimum width of the serial. Wider numbers are allowed; see `formatReceiptNumber`. */
+const SERIAL_WIDTH = 4;
+
+/**
+ * True when a real database is configured. Mirrors the offline detection already
+ * used by `src/lib/prisma.ts`, so the two cannot disagree about which mode we are in.
+ */
+export function isLedgerPersistent(): boolean {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+/**
+ * The numbering scope a receipt issued at `when` belongs to, e.g. "HFS-DON-202608".
+ *
+ * Computed in **Asia/Kuala_Lumpur**, not UTC. Which month a receipt falls in is a
+ * local-calendar question with tax consequences, and `toISOString().slice(0, 7)`
+ * gets it wrong for eight hours of every day: a donation at 07:00 MYT on 1 September
+ * is 23:00 UTC on 31 August, and would be filed into the previous month's series.
+ */
+export function receiptScopeFor(when: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kuala_Lumpur",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(when);
+
+  const year = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const month = parts.find((p) => p.type === "month")?.value ?? "00";
+  return `${RECEIPT_PREFIX}-${year}${month}`;
+}
+
+/**
+ * Renders a scope and serial as a receipt number.
+ *
+ * Pads to four digits but does **not** truncate past them: a shelter that issues
+ * more than 9,999 receipts in one month gets a wider number rather than a wrapped
+ * one. A wrap would mint a duplicate receipt number, which is the single worst
+ * thing this module could do.
+ */
+export function formatReceiptNumber(scope: string, serial: number): string {
+  return `${scope}-${String(serial).padStart(SERIAL_WIDTH, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// In-memory ledger (offline mode)
+// ---------------------------------------------------------------------------
+
+const memoryCounters = new Map<string, number>();
+let memoryDonations: DonationRecord[] = [];
+let memorySeq = 0;
+
+/**
+ * Clears the in-memory ledger. Test-only, and wired into the global `beforeEach`
+ * in `tests/setup/nextMocks.ts` alongside `resetServerStore()` so receipt serials
+ * do not leak between suites and make assertions order-dependent.
+ */
+export function resetDonationLedger(): void {
+  memoryCounters.clear();
+  memoryDonations = [];
+  memorySeq = 0;
+}
+
+function issueInMemory(draft: DonationDraft, when: Date): DonationRecord {
+  const scope = receiptScopeFor(when);
+  const serial = (memoryCounters.get(scope) ?? 0) + 1;
+  memoryCounters.set(scope, serial);
+  memorySeq += 1;
+
+  const record: DonationRecord = {
+    ...draft,
+    id: `mem-don-${String(memorySeq).padStart(6, "0")}`,
+    receiptNumber: formatReceiptNumber(scope, serial),
+    sequenceScope: scope,
+    sequenceValue: serial,
+    issuedAt: when.toISOString(),
+  };
+
+  memoryDonations = [record, ...memoryDonations];
+  return record;
+}
+
+// ---------------------------------------------------------------------------
+// Postgres ledger
+// ---------------------------------------------------------------------------
+
+/** Prisma's unique-constraint violation code. */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
+interface DonationRow {
+  id: string;
+  receiptNumber: string;
+  sequenceScope: string;
+  sequenceValue: number;
+  donorName: string;
+  donorEmail: string;
+  donorPhone: string | null;
+  taxIdOrIc: string | null;
+  tierId: string;
+  tierName: string;
+  amountSen: number;
+  currency: string;
+  frequency: string;
+  paymentMethod: string;
+  targetPetName: string | null;
+  notes: string | null;
+  taxDeductibleRef: string;
+  shelterRegistrationNo: string;
+  issuedAt: Date;
+}
+
+function toRecord(row: DonationRow): DonationRecord {
+  return {
+    id: row.id,
+    receiptNumber: row.receiptNumber,
+    sequenceScope: row.sequenceScope,
+    sequenceValue: row.sequenceValue,
+    donorName: row.donorName,
+    donorEmail: row.donorEmail,
+    donorPhone: row.donorPhone ?? undefined,
+    taxIdOrIc: row.taxIdOrIc ?? undefined,
+    tierId: row.tierId as SponsorshipTierId,
+    tierName: row.tierName,
+    amountSen: senFromInteger(row.amountSen),
+    currency: row.currency,
+    frequency: row.frequency as DonationRecord["frequency"],
+    paymentMethod: row.paymentMethod as DonationRecord["paymentMethod"],
+    targetPetName: row.targetPetName ?? undefined,
+    notes: row.notes ?? undefined,
+    taxDeductibleRef: row.taxDeductibleRef,
+    shelterRegistrationNo: row.shelterRegistrationNo,
+    issuedAt: row.issuedAt.toISOString(),
+  };
+}
+
+/**
+ * Draws the next serial and writes the receipt in one transaction.
+ *
+ * The `upsert` takes a row-level write lock on the scope's counter, so concurrent
+ * donors queue rather than race. Because the increment and the insert share a
+ * transaction, an insert that fails rolls the counter back too — which is precisely
+ * what a bare `SEQUENCE` cannot do, and what makes the series gapless.
+ */
+async function issueInPostgres(draft: DonationDraft, when: Date): Promise<DonationRecord> {
+  const scope = receiptScopeFor(when);
+
+  const row = await prisma.$transaction(async (tx) => {
+    const counter = await tx.receiptSequence.upsert({
+      where: { scope },
+      create: { scope, lastValue: 1 },
+      update: { lastValue: { increment: 1 } },
+    });
+
+    return tx.donation.create({
+      data: {
+        receiptNumber: formatReceiptNumber(scope, counter.lastValue),
+        sequenceScope: scope,
+        sequenceValue: counter.lastValue,
+        donorName: draft.donorName,
+        donorEmail: draft.donorEmail,
+        donorPhone: draft.donorPhone ?? null,
+        taxIdOrIc: draft.taxIdOrIc ?? null,
+        tierId: draft.tierId,
+        tierName: draft.tierName,
+        amountSen: draft.amountSen,
+        currency: draft.currency,
+        frequency: draft.frequency,
+        paymentMethod: draft.paymentMethod,
+        targetPetName: draft.targetPetName ?? null,
+        notes: draft.notes ?? null,
+        taxDeductibleRef: draft.taxDeductibleRef,
+        shelterRegistrationNo: draft.shelterRegistrationNo,
+        issuedAt: when,
+      },
+    });
+  });
+
+  return toRecord(row);
+}
+
+/**
+ * Issues a receipt, allocating the next gapless number in its month's series.
+ *
+ * @param draft The donation to record.
+ * @param options.now Injectable clock. Defaults to the current instant; tests pass
+ *   a fixed date so receipt numbers and month scoping are deterministic.
+ * @throws {ReceiptIssuanceError} when a configured database rejects the write. The
+ *   caller must surface this to the donor rather than pretending success — see the
+ *   module comment on why this path deliberately does not fall back to memory.
+ */
+export async function issueDonationReceipt(
+  draft: DonationDraft,
+  options?: { now?: Date }
+): Promise<DonationRecord> {
+  const when = options?.now ?? new Date();
+
+  if (!isLedgerPersistent()) {
+    return issueInMemory(draft, when);
+  }
+
+  try {
+    return await issueInPostgres(draft, when);
+  } catch (err) {
+    // Two writers created the same scope row concurrently, or drew the same serial.
+    // The unique index caught it; one retry re-reads the now-existing counter and
+    // draws a fresh number. A second failure is not a race, so it propagates.
+    if (isUniqueViolation(err)) {
+      try {
+        return await issueInPostgres(draft, when);
+      } catch (retryErr) {
+        throw new ReceiptIssuanceError(
+          "Could not allocate a receipt number after a concurrent-issuance retry.",
+          retryErr
+        );
+      }
+    }
+    throw new ReceiptIssuanceError(
+      "Donation could not be recorded, so no receipt was issued.",
+      err
+    );
+  }
+}
+
+/**
+ * Lists issued receipts, newest first.
+ *
+ * Reads follow the same declared-mode rule as writes, but a failed *read* against a
+ * configured database returns nothing rather than throwing: an unavailable admin
+ * report is an inconvenience, whereas an unrecorded donation is data loss. The
+ * asymmetry is deliberate and mirrors the read/write split in `handlePersistenceError`.
+ */
+export async function listDonations(limit = 200): Promise<DonationRecord[]> {
+  if (!isLedgerPersistent()) {
+    return memoryDonations.slice(0, limit);
+  }
+
+  try {
+    const rows = await prisma.donation.findMany({
+      orderBy: { issuedAt: "desc" },
+      take: limit,
+    });
+    return rows.map(toRecord);
+  } catch (err) {
+    console.warn(
+      "[Donation Ledger] Receipt listing failed:",
+      err instanceof Error ? err.message : err
+    );
+    return [];
+  }
+}
+
+/** Looks up a single receipt by its human-facing number. */
+export async function findDonationByReceiptNumber(
+  receiptNumber: string
+): Promise<DonationRecord | null> {
+  if (!isLedgerPersistent()) {
+    return memoryDonations.find((d) => d.receiptNumber === receiptNumber) ?? null;
+  }
+
+  try {
+    const row = await prisma.donation.findUnique({ where: { receiptNumber } });
+    return row ? toRecord(row) : null;
+  } catch (err) {
+    console.warn(
+      "[Donation Ledger] Receipt lookup failed:",
+      err instanceof Error ? err.message : err
+    );
+    return null;
+  }
+}

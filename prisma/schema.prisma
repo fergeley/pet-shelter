@@ -30,48 +30,48 @@ model User {
 }
 
 model Pet {
-  id              String         @id @default(cuid())
-  name            String
-  species         String         // dog, cat, other
-  breed           String
-  age             String
-  ageCategory     String         // puppy_kitten, young, adult, senior
-  gender          String         // Male, Female
-  size            String         // Small, Medium, Large
-  weight          String
-  status          String         @default("Available") // Available, Pending, Adopted, In Rehabilitation ("Rehabilitation" is a legacy alias)
-  adoptionFee     String
-  description     String
-  rescueStory     String
-  image           String
-  galleryImages   String[]
-  tags            String[]
-  featured        Boolean        @default(false)
-  intakeDate      String
-  
+  id            String   @id @default(cuid())
+  name          String
+  species       String // dog, cat, other
+  breed         String
+  age           String
+  ageCategory   String // puppy_kitten, young, adult, senior
+  gender        String // Male, Female
+  size          String // Small, Medium, Large
+  weight        String
+  status        String   @default("Available") // Available, Pending, Adopted, In Rehabilitation ("Rehabilitation" is a legacy alias)
+  adoptionFee   String
+  description   String
+  rescueStory   String
+  image         String
+  galleryImages String[]
+  tags          String[]
+  featured      Boolean  @default(false)
+  intakeDate    String
+
   // Medical clearance
-  vaccinated      Boolean        @default(true)
-  microchipped    Boolean        @default(true)
-  spayedNeutered  Boolean        @default(true)
-  specialNeeds    String?
+  vaccinated     Boolean @default(true)
+  microchipped   Boolean @default(true)
+  spayedNeutered Boolean @default(true)
+  specialNeeds   String?
 
   // Rehabilitation / TNRM progress (only populated while status is "In Rehabilitation")
-  rehabStage            String?
-  rehabStageMs          String?
-  rehabProgressPercent  Int?
+  rehabStage           String?
+  rehabStageMs         String?
+  rehabProgressPercent Int?
 
   // Compatibility
-  goodWithDogs    Boolean        @default(true)
-  goodWithCats    Boolean        @default(true)
-  goodWithKids    Boolean        @default(true)
-  energyLevel     String         @default("Moderate")
+  goodWithDogs Boolean @default(true)
+  goodWithCats Boolean @default(true)
+  goodWithKids Boolean @default(true)
+  energyLevel  String  @default("Moderate")
 
   // Soft deletion & audit
-  isArchived      Boolean        @default(false)
-  deletedAt       DateTime?
+  isArchived Boolean   @default(false)
+  deletedAt  DateTime?
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   applications    AdoptionApplication[]
   updates         PetUpdate[]
@@ -198,4 +198,95 @@ model ShelterSettings {
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")
+}
+
+/// Allocator backing gapless receipt numbering. One row per numbering scope
+/// (currently one per calendar month, e.g. "HFS-DON-202608").
+///
+/// ## Why a counter row and not a Postgres SEQUENCE
+///
+/// A `SEQUENCE` is faster and lock-free, but it is explicitly **not gapless**: a
+/// rolled-back transaction consumes its drawn value permanently. For an ordinary
+/// surrogate key that is fine. For a statutory receipt series it is not — an
+/// auditor reconciling an ROS annual return reads a missing number as a destroyed
+/// or concealed receipt, and "our sequence had a gap" is not a defence.
+///
+/// Incrementing a row inside the same transaction that inserts the `Donation`
+/// makes the two atomic: the number is consumed if and only if the receipt exists.
+/// Concurrent donors serialise on this row's write lock, which for an NGO's volume
+/// costs nothing measurable and is the standard gapless-invoice pattern.
+model ReceiptSequence {
+  /// The receipt-number prefix this counter serves, e.g. "HFS-DON-202608".
+  scope     String   @id
+  /// Highest value issued in this scope. The next receipt is `lastValue + 1`.
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("receipt_sequences")
+}
+
+/// An issued LHDN Section 44(6) tax-deductible donation receipt.
+///
+/// ## Append-only by construction
+///
+/// This is a statutory document, not application state. There is deliberately no
+/// `updatedAt` column and no update or delete path in `src/lib/donationLedger.ts`:
+/// a receipt that can be edited after issue is not evidence of anything. A
+/// correction is issued as a new offsetting record, the way an accounting ledger
+/// handles one. `prisma/sql/donation_append_only.sql` adds the matching database
+/// trigger for deployments that want the guarantee enforced below the ORM too.
+///
+/// ## Why the issuer identity is copied onto every row
+///
+/// `taxDeductibleRef` and `shelterRegistrationNo` duplicate constants that live in
+/// `src/lib/domain/shelterIdentity.ts`, which a normalisation pass would flag as
+/// redundant. It is intentional, and it is the same point-in-time capture pattern
+/// as `AdoptionApplication.petName`: a receipt must forever show the identifiers it
+/// was *issued* under. Resolving the ROS registration discrepancy (P2) must not
+/// retroactively rewrite receipts already in donors' hands and in LHDN filings.
+///
+/// ## Money
+///
+/// `amountSen` is an integer count of sen (1/100 MYR) — never a float, never a
+/// string. See the rationale in `src/lib/domain/money.ts`.
+model Donation {
+  id            String @id @default(cuid())
+  /// Human-facing receipt identifier, e.g. "HFS-DON-202608-0001".
+  receiptNumber String @unique
+  /// The `ReceiptSequence.scope` this number was drawn from.
+  sequenceScope String
+  /// The value drawn from that scope. Unique per scope, contiguous from 1.
+  sequenceValue Int
+
+  donorName  String
+  donorEmail String
+  donorPhone String?
+  /// Malaysian IC, tax file, or SSM number the donor will claim the relief against.
+  taxIdOrIc  String?
+
+  tierId        String
+  /// Tier name as displayed at donation time. Snapshot, for the same reason as the
+  /// issuer identity above: renaming a sponsorship tier must not alter old receipts.
+  tierName      String
+  /// Integer sen. RM 250.00 is stored as 25000.
+  amountSen     Int
+  currency      String  @default("MYR")
+  frequency     String  @default("one_time")
+  paymentMethod String
+  /// Free-text dedication ("in honour of Barnaby"), not a foreign key — the pledge
+  /// form collects a name, and the dedication should survive the pet being archived.
+  targetPetName String?
+  notes         String? @db.Text
+
+  taxDeductibleRef      String
+  shelterRegistrationNo String
+
+  issuedAt DateTime @default(now())
+
+  /// Makes a double-allocation a database error rather than two receipts sharing a
+  /// number. The unique index is the real guarantee; the transaction is the mechanism.
+  @@unique([sequenceScope, sequenceValue])
+  @@index([issuedAt])
+  @@index([donorEmail])
+  @@map("donations")
 }

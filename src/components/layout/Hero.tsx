@@ -29,35 +29,35 @@ export function Hero() {
       labelEn: "Neutered via TNRM",
       labelMs: "Dimandulkan (TNRM)",
       icon: ShieldCheck,
-      color: "text-emerald-600 dark:text-emerald-400",
+      color: "text-success-accent ",
     },
     {
       metric: "380+",
       labelEn: "Animals Rehabilitated",
       labelMs: "Haiwan Dipulihkan",
       icon: Stethoscope,
-      color: "text-indigo-600 dark:text-indigo-400",
+      color: "text-care-accent ",
     },
     {
       metric: "290+",
       labelEn: "Adopted into Homes",
       labelMs: "Berjaya Diadopsi",
       icon: Heart,
-      color: "text-rose-600 dark:text-rose-400",
+      color: "text-danger-accent ",
     },
     {
       metric: "150+",
       labelEn: "Active Volunteers",
       labelMs: "Sukarelawan Aktif",
       icon: Users2,
-      color: "text-amber-600 dark:text-amber-400",
+      color: "text-warning-accent ",
     },
     {
       metric: "25+",
       labelEn: "Partnerships & Vets",
       labelMs: "Rakan Kolaborasi & Vet",
       icon: Award,
-      color: "text-cyan-600 dark:text-cyan-400",
+      color: "text-info-accent ",
     },
   ];
 
@@ -129,7 +129,7 @@ export function Hero() {
                   onClick={() => setIsSponsorshipOpen(true)}
                   className="gap-2 px-5 text-sm font-bold tracking-wide rounded-xl cursor-pointer"
                 >
-                  <HeartHandshake className="size-4 text-indigo-600" />
+                  <HeartHandshake className="size-4 text-care-accent" />
                   {isMs ? "Taja Haiwan (RM30)" : "Sponsor Care"}
                 </Button>
               </div>

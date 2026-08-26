@@ -131,21 +131,35 @@ function addDays(dateStr: string, days: number): string {
   return parsed.toISOString().split("T")[0];
 }
 
+/**
+ * Timeline category → design tone class from `globals.css`.
+ *
+ * Surgery reads as `danger` and shares red with a rejected application: the two used
+ * different-but-adjacent hues (rose vs red) purely by accident, and one tone per meaning
+ * is what keeps the legend learnable. `clearance` is a vaccination that outranks it, so
+ * it takes the same tone with the emphasised surface rather than a seventh colour.
+ */
+const CATEGORY_TONE: Record<MedicalTimelineCategory, string> = {
+  intake: "tone-info",
+  diagnostic: "tone-clinical",
+  treatment: "tone-warning",
+  vaccination: "tone-success",
+  surgery: "tone-danger",
+  clearance: "tone-success",
+};
+
+/** The tone class alone, for icons and rules that need the colour without the panel. */
+export function getCategoryToneClass(category: MedicalTimelineCategory): string {
+  return CATEGORY_TONE[category] ?? "tone-neutral";
+}
+
+/**
+ * Colour classes only — the call site owns the badge's padding, radius and type scale,
+ * so this returns `tone-soft` rather than the full `tone-panel` shell.
+ */
 export function getCategoryBadgeClasses(category: MedicalTimelineCategory): string {
-  switch (category) {
-    case "intake":
-      return "bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800";
-    case "diagnostic":
-      return "bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800";
-    case "treatment":
-      return "bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800";
-    case "vaccination":
-      return "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800";
-    case "surgery":
-      return "bg-rose-50 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800";
-    case "clearance":
-      return "bg-emerald-100 text-emerald-900 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-700";
-    default:
-      return "bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700";
-  }
+  const tone = getCategoryToneClass(category);
+  return category === "clearance"
+    ? `tone-soft tone-panel-strong ${tone}`
+    : `tone-soft ${tone}`;
 }

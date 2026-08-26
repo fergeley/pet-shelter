@@ -9,7 +9,13 @@ export interface ApplicationStatusPresentation {
   label: string;
   /** Verb form for the decision buttons: you *approve* an application that becomes *Approved*. */
   actionLabel: string;
-  /** Table badge: solid fill in light mode, tinted bordered chip in dark. */
+  /**
+   * The design-system tone class from `globals.css`. Composes with any tone-aware shell
+   * (`tone-panel`, `tone-ink`, `eyebrow-tone`) so surfaces beyond the two below can pick
+   * up the status colour without restating it.
+   */
+  toneClass: string;
+  /** Table badge. Self-contained: do not add padding or a text colour. */
   chipClass: string;
   /** Selected state of the review dialog's decision pills. */
   pillClass: string;
@@ -23,43 +29,50 @@ export interface ApplicationStatusPresentation {
  * Admin copy is English-only (no dictionary keys exist for these states), so labels are
  * literals here rather than `labelKey`/`labelFallback` pairs.
  */
+/** Review tone → design tone, mirroring `TONE_CLASS` in `@/lib/petStatusPresentation`. */
+const TONE_CLASS: Record<ApplicationStatusTone, string> = {
+  submitted: "tone-info",
+  underReview: "tone-warning",
+  approved: "tone-success",
+  rejected: "tone-danger",
+};
+
 const PRESENTATIONS: Record<ApplicationStatus, ApplicationStatusPresentation> = {
   SUBMITTED: {
     status: "SUBMITTED",
     tone: "submitted",
     label: "Submitted",
     actionLabel: "Submitted",
-    chipClass: "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800",
-    pillClass:
-      "bg-sky-100 dark:bg-sky-950/60 border-sky-500 text-sky-800 dark:text-sky-300 ring-2 ring-sky-500/20",
+    toneClass: TONE_CLASS.submitted,
+    chipClass: `tone-chip ${TONE_CLASS.submitted}`,
+    pillClass: `tone-pill ${TONE_CLASS.submitted}`,
   },
   UNDER_REVIEW: {
     status: "UNDER_REVIEW",
     tone: "underReview",
     label: "Under Review",
     actionLabel: "Under Review",
-    chipClass: "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800",
-    pillClass:
-      "bg-amber-100 dark:bg-amber-950/60 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/20",
+    toneClass: TONE_CLASS.underReview,
+    chipClass: `tone-chip ${TONE_CLASS.underReview}`,
+    pillClass: `tone-pill ${TONE_CLASS.underReview}`,
   },
   APPROVED: {
     status: "APPROVED",
     tone: "approved",
     label: "Approved",
     actionLabel: "Approve",
-    chipClass:
-      "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800",
-    pillClass:
-      "bg-emerald-100 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/20",
+    toneClass: TONE_CLASS.approved,
+    chipClass: `tone-chip ${TONE_CLASS.approved}`,
+    pillClass: `tone-pill ${TONE_CLASS.approved}`,
   },
   REJECTED: {
     status: "REJECTED",
     tone: "rejected",
     label: "Rejected",
     actionLabel: "Reject",
-    chipClass: "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800",
-    pillClass:
-      "bg-red-100 dark:bg-red-950/60 border-red-500 text-red-800 dark:text-red-300 ring-2 ring-red-500/20",
+    toneClass: TONE_CLASS.rejected,
+    chipClass: `tone-chip ${TONE_CLASS.rejected}`,
+    pillClass: `tone-pill ${TONE_CLASS.rejected}`,
   },
 };
 

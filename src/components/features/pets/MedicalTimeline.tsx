@@ -46,17 +46,17 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
   const getCategoryIcon = (category: MedicalTimelineCategory) => {
     switch (category) {
       case "intake":
-        return <Activity className="size-3.5 sm:size-4 text-blue-700 dark:text-blue-300" />;
+        return <Activity className="size-3.5 sm:size-4 text-info-text " />;
       case "diagnostic":
-        return <Stethoscope className="size-3.5 sm:size-4 text-purple-700 dark:text-purple-300" />;
+        return <Stethoscope className="size-3.5 sm:size-4 text-clinical-text " />;
       case "treatment":
-        return <CheckCircle2 className="size-3.5 sm:size-4 text-amber-700 dark:text-amber-300" />;
+        return <CheckCircle2 className="size-3.5 sm:size-4 text-warning-text " />;
       case "vaccination":
-        return <Syringe className="size-3.5 sm:size-4 text-emerald-700 dark:text-emerald-300" />;
+        return <Syringe className="size-3.5 sm:size-4 text-success-text " />;
       case "surgery":
-        return <Scissors className="size-3.5 sm:size-4 text-rose-700 dark:text-rose-300" />;
+        return <Scissors className="size-3.5 sm:size-4 text-danger-text " />;
       case "clearance":
-        return <FileCheck2 className="size-3.5 sm:size-4 text-emerald-700 dark:text-emerald-300" />;
+        return <FileCheck2 className="size-3.5 sm:size-4 text-success-text " />;
       default:
         return <ShieldCheck className="size-3.5 sm:size-4 text-foreground" />;
     }
@@ -82,7 +82,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-border pb-2.5">
         <div>
           <h3 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ShieldCheck className="size-5 text-emerald-700 dark:text-emerald-400" />
+            <ShieldCheck className="size-5 text-success-text " />
             {t("medicalTimeline.title", "Rescue & Veterinary Care Timeline")}
           </h3>
           {!compact && (
@@ -93,8 +93,8 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         </div>
 
         {/* Verification Tag */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 rounded-full shrink-0">
-          <Check className="size-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-surface border border-success-border text-[11px] font-bold text-success-text rounded-full shrink-0">
+          <Check className="size-3 text-success-accent stroke-[3]" />
           <span>{isMs ? "Rekod Sahih Veterinar" : "Shelter Vet Certified"}</span>
         </div>
       </div>
@@ -128,7 +128,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         <div className="relative pl-6 sm:pl-8 space-y-4 pt-2">
           {/* Vertical Connecting Guide */}
           <div
-            className="absolute left-2.75 sm:left-3.75 top-3 bottom-3 w-0.5 bg-zinc-300 dark:bg-zinc-700"
+            className="absolute left-2.75 sm:left-3.75 top-3 bottom-3 w-0.5 bg-neutral-border "
             aria-hidden="true"
           />
 
@@ -162,7 +162,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
 
                   {event.verified && (
                     <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Check className="size-3 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                      <Check className="size-3 text-success-accent stroke-[2.5]" />
                       {t("common.verified", "Verified")}
                     </span>
                   )}

@@ -25,11 +25,11 @@ interface BulletinFeedProps {
 }
 
 const CATEGORY_LABELS: Record<BulletinCategory, { label: string; badgeClass: string }> = {
-  urgent_need: { label: "Urgent Foster / Need", badgeClass: "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800 font-bold" },
-  clinic: { label: "Clinic / Vaccine", badgeClass: "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800 font-bold" },
-  event: { label: "Event", badgeClass: "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800 font-bold" },
-  happy_tail: { label: "Adoption Update", badgeClass: "bg-purple-900 text-white dark:bg-purple-950 dark:text-purple-200 dark:border dark:border-purple-800 font-bold" },
-  announcement: { label: "Notice", badgeClass: "bg-zinc-800 text-white dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700 font-bold" },
+  urgent_need: { label: "Urgent Foster / Need", badgeClass: "bg-danger-solid text-white dark:border font-bold" },
+  clinic: { label: "Clinic / Vaccine", badgeClass: "bg-success-solid text-white dark:border font-bold" },
+  event: { label: "Event", badgeClass: "bg-info-solid text-white dark:border font-bold" },
+  happy_tail: { label: "Adoption Update", badgeClass: "bg-clinical-solid text-white dark:border font-bold" },
+  announcement: { label: "Notice", badgeClass: "bg-neutral-solid text-white dark:border font-bold" },
 };
 
 export function BulletinFeed({
@@ -124,7 +124,7 @@ export function BulletinFeed({
       {isAdminMode && (
         <div className="mb-6 bg-muted/50 border border-border p-4 text-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <span className="size-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span className="size-2.5 rounded-full bg-success-accent animate-pulse"></span>
             <span className="font-semibold text-foreground">
               Admin Editing Mode: You can publish announcements with photos/videos, edit content, and pin high-priority notices.
             </span>
@@ -179,7 +179,7 @@ export function BulletinFeed({
                         </span>
 
                         {bulletin.isPinned && (
-                          <span className="inline-flex items-center gap-1 bg-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800 text-white px-3 py-1 text-xs font-bold uppercase">
+                          <span className="inline-flex items-center gap-1 bg-warning-solid dark:border text-white px-3 py-1 text-xs font-bold uppercase">
                             <Pin className="size-3" /> Pinned
                           </span>
                         )}

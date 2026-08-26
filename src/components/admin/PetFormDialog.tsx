@@ -556,7 +556,7 @@ export function PetFormDialog({
             <div className="flex items-center gap-2.5 pt-2 border-t border-border/60">
               <input type="checkbox" id="featured" {...register("featured")} className="size-4.5 accent-foreground" />
               <Label htmlFor="featured" className="text-sm font-semibold cursor-pointer flex items-center gap-1.5">
-                <Star className="size-4 text-amber-500 fill-amber-500/20" />
+                <Star className="size-4 text-warning-accent fill-warning-accent/20" />
                 Feature on Homepage Showcase
               </Label>
             </div>

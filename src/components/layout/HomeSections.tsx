@@ -85,8 +85,8 @@ export function HomeOurWorkSection() {
         "Stesen makanan berjadual di sekitar kampus UM",
         "Vaksinasi teras & pencegahan rabies semasa mandul",
       ],
-      accent: "border-emerald-700/30 bg-emerald-500/5",
-      badgeColor: "text-emerald-700 dark:text-emerald-300 bg-emerald-500/10",
+      accent: "border-success-accent/30 bg-success-surface",
+      badgeColor: "text-success-text bg-success-surface",
     },
     {
       icon: GraduationCap,
@@ -108,8 +108,8 @@ export function HomeOurWorkSection() {
         "Kempen anti-pembuangan haiwan peliharaan",
         "Rangkaian skuad sukarelawan & warden pelajar",
       ],
-      accent: "border-amber-700/30 bg-amber-500/5",
-      badgeColor: "text-amber-700 dark:text-amber-300 bg-amber-500/10",
+      accent: "border-warning-accent/30 bg-warning-surface",
+      badgeColor: "text-warning-text bg-warning-surface",
     },
     {
       icon: Stethoscope,
@@ -131,8 +131,8 @@ export function HomeOurWorkSection() {
         "Mandian berubat kurap & pemulihan bulu",
         "Adopsi percuma 100% setelah sembuh sepenuhnya",
       ],
-      accent: "border-indigo-700/30 bg-indigo-500/5",
-      badgeColor: "text-indigo-700 dark:text-indigo-300 bg-indigo-500/10",
+      accent: "border-care-accent/30 bg-care-surface",
+      badgeColor: "text-care-text bg-care-surface",
     },
   ];
 
@@ -466,7 +466,7 @@ export function HomeCommunitySection() {
                   rel="noopener noreferrer"
                   className={buttonVariants({
                     size: "sm",
-                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 bg-emerald-800 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 rounded-xl",
+                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 bg-success-solid text-white hover:bg-success-solid dark:hover:bg-success-solid rounded-xl",
                   })}
                 >
                   <MessageCircle className="size-4" />

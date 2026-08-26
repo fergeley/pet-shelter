@@ -106,7 +106,7 @@ export default function GetInvolvedPage() {
               target="_blank"
               rel="noopener noreferrer"
               className={buttonVariants({
-                className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-emerald-800 text-white hover:bg-emerald-700",
+                className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-success-solid text-white hover:bg-success-solid",
               })}
             >
               <MessageCircle className="size-4" />
@@ -118,18 +118,18 @@ export default function GetInvolvedPage() {
         {/* Pathway 2: Foster Care */}
         <section id="foster" className="border-t border-border pt-14 space-y-6 scroll-mt-24">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center bg-indigo-800 text-white rounded-xl">
+            <div className="flex size-10 items-center justify-center bg-care-solid text-white rounded-xl">
               <HandHeart className="size-5" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Pathway 02</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-care-accent ">Pathway 02</span>
               <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                 Temporary Foster & Post-Op Recovery Care
               </h2>
             </div>
           </div>
 
-          <div className="border border-indigo-700/30 bg-indigo-500/5 p-6 sm:p-8 rounded-3xl space-y-6">
+          <div className="border border-care-accent/30 bg-care-surface p-6 sm:p-8 rounded-3xl space-y-6">
             <p className="text-base text-foreground/90 max-w-3xl leading-relaxed">
               Fostering provides a calm home environment for vulnerable animals who cannot thrive in a shelter kennel. We provide <strong>100% of food, crates, medication, and veterinary bills</strong> — you provide love, safety, and observation.
             </p>
@@ -157,7 +157,7 @@ export default function GetInvolvedPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={buttonVariants({
-                  className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-indigo-800 text-white hover:bg-indigo-700",
+                  className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-care-solid text-white hover:bg-care-solid",
                 })}
               >
                 <MessageCircle className="size-4" />
@@ -170,11 +170,11 @@ export default function GetInvolvedPage() {
         {/* Pathway 3: Corporate CSR */}
         <section id="corporate" className="border-t border-border pt-14 space-y-6 scroll-mt-24">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center bg-amber-800 text-white rounded-xl">
+            <div className="flex size-10 items-center justify-center bg-warning-solid text-white rounded-xl">
               <Building2 className="size-5" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">Pathway 03</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-warning-text ">Pathway 03</span>
               <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                 Corporate CSR, University Clubs & Group Days
               </h2>
@@ -223,7 +223,7 @@ export default function GetInvolvedPage() {
               target="_blank"
               rel="noopener noreferrer"
               className={buttonVariants({
-                className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-amber-800 text-white hover:bg-amber-700",
+                className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-warning-solid text-white hover:bg-warning-solid",
               })}
             >
               <MessageCircle className="size-4" />
@@ -235,11 +235,11 @@ export default function GetInvolvedPage() {
         {/* Pathway 4: Clinical & Community Partnerships */}
         <section id="partnerships" className="border-t border-border pt-14 space-y-6 scroll-mt-24">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center bg-cyan-800 text-white rounded-xl">
+            <div className="flex size-10 items-center justify-center bg-info-solid text-white rounded-xl">
               <Stethoscope className="size-5" />
             </div>
             <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400">Pathway 04</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-info-text ">Pathway 04</span>
               <h2 className="font-heading text-2xl sm:text-3xl font-bold text-foreground">
                 Veterinary Clinics & Academic Partnerships
               </h2>
@@ -275,7 +275,7 @@ export default function GetInvolvedPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={buttonVariants({
-                  className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-cyan-800 text-white hover:bg-cyan-700",
+                  className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-info-solid text-white hover:bg-info-solid",
                 })}
               >
                 <MessageCircle className="size-4" />

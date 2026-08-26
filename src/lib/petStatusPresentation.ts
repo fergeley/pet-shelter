@@ -9,13 +9,16 @@ export interface PetStatusPresentation {
   labelKey: string;
   /** English text used until the key is looked up. */
   labelFallback: string;
-  /** Badge surface classes — white text sits on all four at WCAG AAA. */
-  badgeClass: string;
   /**
-   * Admin-table variant of `badgeClass`: a solid fill in light mode, a tinted bordered
-   * chip in dark mode. Unlike `badgeClass` it carries its own text colour, because the
-   * dark treatment overrides it — call sites must not add `text-white` themselves.
+   * The design-system tone class (`tone-success`, `tone-care`, …) declared in
+   * `globals.css`. On its own it only remaps the local `--tone-*` group, so it composes
+   * with any tone-aware shell — `tone-panel`, `tone-ink`, `eyebrow-tone` — without this
+   * module having to know which one the call site picked.
    */
+   toneClass: string;
+  /** Public solid pill badge. Self-contained: do not add padding or a text colour. */
+  badgeClass: string;
+  /** Admin-table variant — the same fill in a squarer chip. Also self-contained. */
   chipClass: string;
   /** Only adoptable animals accept an adoption application. */
   isAdoptable: boolean;
@@ -23,14 +26,27 @@ export interface PetStatusPresentation {
   isInRehabilitation: boolean;
 }
 
+/**
+ * Domain tone → design tone. The left side is what the shelter calls the state; the
+ * right side is what the design system calls the colour group. Keeping the mapping
+ * explicit is what lets `globals.css` restyle every status surface at once — and stops
+ * a new status from reaching for a raw `bg-success-solid` because it "looks available".
+ */
+const TONE_CLASS: Record<PetStatusTone, string> = {
+  available: "tone-success",
+  rehabilitation: "tone-care",
+  pending: "tone-warning",
+  adopted: "tone-neutral",
+};
+
 const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
   available: {
     tone: "available",
     labelKey: "common.available",
     labelFallback: "Available",
-    badgeClass: "bg-emerald-800 dark:bg-emerald-900",
-    chipClass:
-      "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800",
+    toneClass: TONE_CLASS.available,
+    badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.available}`,
+      chipClass: `tone-chip ${TONE_CLASS.available}`,
     isAdoptable: true,
     isInRehabilitation: false,
   },
@@ -38,9 +54,9 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     tone: "rehabilitation",
     labelKey: "common.inRehabilitation",
     labelFallback: "In Rehabilitation",
-    badgeClass: "bg-indigo-800 dark:bg-indigo-900",
-    chipClass:
-      "bg-indigo-800 text-white dark:bg-indigo-950 dark:text-indigo-200 dark:border dark:border-indigo-800",
+    toneClass: TONE_CLASS.rehabilitation,
+    badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.rehabilitation}`,
+      chipClass: `tone-chip ${TONE_CLASS.rehabilitation}`,
     isAdoptable: false,
     isInRehabilitation: true,
   },
@@ -48,9 +64,9 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     tone: "pending",
     labelKey: "common.pending",
     labelFallback: "Pending",
-    badgeClass: "bg-amber-800 dark:bg-amber-900",
-    chipClass:
-      "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800",
+    toneClass: TONE_CLASS.pending,
+    badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.pending}`,
+      chipClass: `tone-chip ${TONE_CLASS.pending}`,
     isAdoptable: false,
     isInRehabilitation: false,
   },
@@ -58,9 +74,9 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     tone: "adopted",
     labelKey: "common.adopted",
     labelFallback: "Adopted",
-    badgeClass: "bg-slate-700 dark:bg-slate-800",
-    chipClass:
-      "bg-zinc-700 text-white dark:bg-zinc-800 dark:text-zinc-300 dark:border dark:border-zinc-700",
+    toneClass: TONE_CLASS.adopted,
+    badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.adopted}`,
+      chipClass: `tone-chip ${TONE_CLASS.adopted}`,
     isAdoptable: false,
     isInRehabilitation: false,
   },

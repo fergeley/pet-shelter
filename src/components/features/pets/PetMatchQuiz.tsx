@@ -506,7 +506,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                         {/* Reasons */}
                         <div className="space-y-1 bg-background/60 p-2.5 border border-border text-xs">
                           <div className="font-bold text-foreground flex items-center gap-1">
-                            <CheckCircle2 className="size-3 text-emerald-700" />
+                            <CheckCircle2 className="size-3 text-success-text" />
                             Why this match fits:
                           </div>
                           <ul className="list-disc list-inside text-muted-foreground space-y-0.5 pl-1">
@@ -518,7 +518,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
 
                         {/* Cautions if any */}
                         {score.cautions.length > 0 && (
-                          <div className="text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1">
+                          <div className="text-[11px] text-warning-text flex items-start gap-1">
                             <AlertTriangle className="size-3 shrink-0 mt-0.5" />
                             <span>{score.cautions[0]}</span>
                           </div>

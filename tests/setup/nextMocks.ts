@@ -284,17 +284,19 @@ export function resetNextMocks(): void {
 beforeEach(async () => {
   resetNextMocks();
 
-  const [serverStore, userStore, auditLog, rateLimit, idempotency] = await Promise.all([
+  const [serverStore, userStore, auditLog, rateLimit, idempotency, donationLedger] = await Promise.all([
     import("@/lib/serverStore"),
     import("@/lib/userStore"),
     import("@/lib/domain/auditLog"),
     import("@/lib/security/rateLimit"),
     import("@/lib/security/idempotency"),
+    import("@/lib/donationLedger"),
   ]);
 
   serverStore.resetServerStore();
   auditLog.resetAuditLogs();
   rateLimit.resetRateLimitStore();
   idempotency.resetIdempotencyStore();
+  donationLedger.resetDonationLedger();
   await userStore.resetUserStore();
 });

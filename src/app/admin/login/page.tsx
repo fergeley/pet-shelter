@@ -197,7 +197,7 @@ export default function AdminLoginPage() {
             )}
 
             {success && (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+              <div className="bg-success-surface border border-success-accent/30 p-3.5 text-xs text-success-text flex items-center gap-2">
                 <CheckCircle2 className="size-4 shrink-0" />
                 <span>{success}</span>
               </div>
@@ -267,7 +267,7 @@ export default function AdminLoginPage() {
                 {/* 1-Click Quick Demo Accounts */}
                 <div className="border-t border-border pt-4 bg-muted/20 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 sm:p-6 space-y-2.5 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-foreground">
-                    <ShieldCheck className="size-4 text-emerald-800 dark:text-emerald-400" />
+                    <ShieldCheck className="size-4 text-success-text " />
                     <span>1-Click Quick Demo Staff Sign In</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
@@ -354,8 +354,8 @@ export default function AdminLoginPage() {
                   {/* Every role now requires an invite code — the shelter has no anonymous-staff
                       use case, and STAFF can read applicant PII. Rendering this only for elevated
                       roles would leave STAFF/VOLUNTEER sign-up rejected with no field to fill. */}
-                  <div className="space-y-1 bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs">
-                    <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                  <div className="space-y-1 bg-warning-surface border border-warning-accent/30 p-2.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-warning-text ">
                       <KeyRound className="size-3.5" />
                       <span>Staff Invite Code Required</span>
                     </div>

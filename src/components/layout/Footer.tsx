@@ -10,7 +10,7 @@ export function Footer() {
   const { t, isMs } = useLanguage();
 
   return (
-    <footer className="border-t border-border bg-zinc-100 dark:bg-zinc-950 text-foreground">
+    <footer className="border-t border-border bg-frame-footer text-foreground">
       <div className="w-full px-6 py-12 sm:px-8 sm:py-14 lg:px-12">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4 md:grid-cols-2">
           {/* Column 1: Organization */}
@@ -101,7 +101,7 @@ export function Footer() {
                 </a>
               </li>
               <li className="flex items-center gap-2.5">
-                <MessageCircle className="size-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+                <MessageCircle className="size-4 tone-success tone-ink shrink-0" />
                 <a 
                   href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20have%20an%20enquiry%20regarding%20volunteering%20or%20fostering." 
                   target="_blank" 

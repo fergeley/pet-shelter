@@ -1,5 +1,6 @@
 "use client";
 
+import React, { Suspense } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -13,6 +14,7 @@ import {
   Award,
   ArrowRight,
   HeartHandshake,
+  Loader2,
 } from "lucide-react";
 import { DonationWidget } from "@/components/features/donations/DonationWidget";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,7 +30,7 @@ export default function DonatePage() {
       desc: isMs
         ? "Pembedahan trauma kecemasan, pemandulan wajib, vaksinasi teras 6-dalam-1 / FVRCP, dan ujian makmal diagnostik khas."
         : "Emergency trauma surgeries, compulsory spay/neuter operations, 6-in-1 / FVRCP vaccinations, and specialized diagnostic tests.",
-      color: "bg-emerald-600",
+      color: "bg-success-solid",
     },
     {
       percentage: "30%",
@@ -44,7 +46,7 @@ export default function DonatePage() {
       desc: isMs
         ? "Sanitasi harian fasiliti, disinfektan gred hospital veterinar, alas tidur bersih, utiliti, dan pasukan penjaga berdedikasi."
         : "Daily shelter sanitation, veterinary-grade disinfectants, clean bedding, utilities, and dedicated caretaker staff.",
-      color: "bg-amber-600",
+      color: "bg-warning-solid",
     },
     {
       percentage: "5%",
@@ -52,7 +54,7 @@ export default function DonatePage() {
       desc: isMs
         ? "Operasi perangkap berperikemanusiaan, pengangkutan kecemasan jalan raya, dan sangkar transit di seluruh Selangor dan Lembah Klang."
         : "Humane trapping operations, urgent roadside rescue transport, and transit carriers across Selangor and Klang Valley.",
-      color: "bg-blue-600",
+      color: "bg-info-solid",
     },
   ];
 
@@ -164,11 +166,11 @@ export default function DonatePage() {
             {/* Official Credentials Banner */}
             <div className="pt-3 flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm font-semibold">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
-                <ShieldCheck className="size-4 text-emerald-600" />
+                <ShieldCheck className="size-4 text-success-accent" />
                 {t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950/10 dark:bg-emerald-950/40 border border-emerald-600/30 rounded-lg text-emerald-800 dark:text-emerald-300">
-                <Award className="size-4 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-success-surface border border-success-accent/30 rounded-lg text-success-text ">
+                <Award className="size-4 text-success-accent" />
                 {t("donations.lhdnBadge", "LHDN Tax Deductible: Sec 44(6) ITA 1967")}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
@@ -183,7 +185,16 @@ export default function DonatePage() {
       {/* 2. Interactive Giving Engine */}
       <section className="py-12 sm:py-16 bg-muted/20">
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-5xl mx-auto">
-          <DonationWidget />
+          <Suspense
+          fallback={
+              <div className="flex min-h-[300px] items-center justify-center p-12 text-muted-foreground border border-border bg-card rounded-2xl">
+                <Loader2 className="size-6 animate-spin mr-2" />
+                <span>{isMs ? "Memuatkan borang sumbangan..." : "Loading donation form..."}</span>
+              </div>
+            }
+          >
+            <DonationWidget />
+          </Suspense>
         </div>
       </section>
 
@@ -296,7 +307,7 @@ export default function DonatePage() {
                 <ul className="space-y-2.5 text-xs sm:text-sm text-foreground/90">
                   {cat.items.map((item, itemIdx) => (
                     <li key={itemIdx} className="flex items-start gap-2">
-                      <CheckCircle2 className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <CheckCircle2 className="size-4 text-success-accent shrink-0 mt-0.5" />
                       <span>{item}</span>
                     </li>
                   ))}

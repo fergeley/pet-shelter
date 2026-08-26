@@ -37,7 +37,7 @@ export function AuditLogViewer() {
       {/* Header Info & Actions */}
       <div className="border border-border bg-background p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-300">
+          <div className="flex size-9 items-center justify-center bg-success-solid text-white ">
             <ShieldCheck className="size-5" />
           </div>
           <div>
@@ -55,13 +55,13 @@ export function AuditLogViewer() {
             size="xs"
             onClick={handleExportReceiptsCsv}
             disabled={isLoading}
-            className="text-xs gap-1.5 font-semibold bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 hover:bg-emerald-100/70"
+            className="text-xs gap-1.5 font-semibold bg-success-surface border-success-border text-success-text hover:bg-success-surface"
             title="Export official donation receipts formatted for Malaysian LHDN Section 44(6) tax reporting"
           >
             <Receipt className="size-3.5" />
             <span>Export Receipts CSV (LHDN)</span>
             {counts.receipts > 0 && (
-              <span className="px-1.5 py-0.2 bg-emerald-800 text-white dark:bg-emerald-700 text-[10px] font-bold rounded-xs">
+              <span className="px-1.5 py-0.2 bg-success-solid text-white text-[10px] font-bold rounded-xs">
                 {counts.receipts}
               </span>
             )}
@@ -96,8 +96,8 @@ export function AuditLogViewer() {
 
       {/* Export Status Notification */}
       {exportNotice && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in-50">
-          <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="bg-success-surface border border-success-border p-3 text-xs text-success-text flex items-center gap-2 animate-in fade-in-50">
+          <CheckCircle2 className="size-4 shrink-0 text-success-accent " />
           <span>{exportNotice}</span>
         </div>
       )}
@@ -181,7 +181,7 @@ export function AuditLogViewer() {
                   const details = (log.details || {}) as Record<string, unknown>;
 
                   return (
-                    <tr key={log.id} className={`hover:bg-muted/20 transition-colors ${isDonation ? "bg-emerald-50/30 dark:bg-emerald-950/15" : ""}`}>
+                    <tr key={log.id} className={`hover:bg-muted/20 transition-colors ${isDonation ? "bg-success-surface " : ""}`}>
                       <td className="p-3 whitespace-nowrap font-mono text-muted-foreground text-[11px]">
                         <div className="flex items-center gap-1.5">
                           <Clock className="size-3 text-foreground" />
@@ -197,7 +197,7 @@ export function AuditLogViewer() {
                         </div>
                         <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border ${
                           isDonation 
-                            ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700" 
+                            ? "bg-success-surface-strong text-success-text border-success-border " 
                             : "bg-muted border-border"
                         }`}>
                           {log.actorRole}
@@ -207,13 +207,13 @@ export function AuditLogViewer() {
                       <td className="p-3 whitespace-nowrap">
                         <span className={`font-mono text-xs font-bold px-2 py-0.5 border ${
                           isDonation 
-                            ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800" 
+                            ? "bg-success-surface-strong text-success-text border-success-border " 
                             : "bg-primary/10 text-foreground border-primary/20"
                         }`}>
                           {log.action}
                         </span>
                         {isDonation && details.amountMYR !== undefined && (
-                          <span className="block mt-1 font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                          <span className="block mt-1 font-mono text-[11px] font-bold text-success-text ">
                             RM {Number(details.amountMYR).toFixed(2)}
                           </span>
                         )}

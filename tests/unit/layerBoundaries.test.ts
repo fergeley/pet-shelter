@@ -137,12 +137,16 @@ describe("layer boundaries", () => {
 
   it("keeps Prisma access inside the repository layer", () => {
     // The property that makes persistence swappable and lets this suite run
-    // without a database. Adding a fourth importer is a design decision:
+    // without a database. Adding an importer is a design decision:
     // update docs/architecture/LAYERS.md (L-B2) along with this list.
     const allowed = [
       "src/lib/serverStore.ts",
       "src/lib/userStore.ts",
       "src/lib/domain/auditLog.ts",
+      // Repository layer, but deliberately *not* dual-layer: a donation record
+      // has no committed fixture to fall back to, so a failed write must fail
+      // the request rather than mint an unbacked tax receipt. See L-B2.
+      "src/lib/donationLedger.ts",
     ];
 
     const importers = Object.keys(graph).filter((file) =>

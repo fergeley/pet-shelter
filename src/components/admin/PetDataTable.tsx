@@ -109,11 +109,11 @@ export function PetDataTable({
                 </span>
                 {pet.featured && !pet.isArchived && (
                   <span title="Featured on Homepage" className="inline-flex">
-                    <Star className="size-3.5 text-amber-500 fill-amber-500/20" />
+                    <Star className="size-3.5 text-warning-accent fill-warning-accent/20" />
                   </span>
                 )}
                 {pet.isArchived && (
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-neutral-border text-neutral-text ">
                     Archived
                   </span>
                 )}
@@ -172,7 +172,7 @@ export function PetDataTable({
           return (
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${status.chipClass}`}
+                className={status.chipClass}
               >
                 <PetStatusIcon tone={status.tone} className="size-3" />
                 {t(status.labelKey, status.labelFallback)}

@@ -153,6 +153,15 @@ export interface TranslationDictionary {
     sponsorCare: string;
     careProgram: string;
     sponsorSupported: string;
+    tabAbout: string;
+    tabStatus: string;
+    tabUpdates: string;
+    tabSupport: string;
+    sponsorPetPerksTitle: string;
+    sponsorPetPerksDesc: string;
+    fosterInquiryTitle: string;
+    fosterInquiryDesc: string;
+    fosterWhatsAppBtn: string;
   };
   medicalTimeline: {
     title: string;
@@ -304,6 +313,14 @@ export interface TranslationDictionary {
     faqsTitle: string;
     faqsSubtitle: string;
     meetAnimalsCTA: string;
+    choosePetTitle: string;
+    choosePetSubtitle: string;
+    generalSanctuaryFund: string;
+    generalSanctuaryFundDesc: string;
+    companionTierTitle: string;
+    perkMonthlyUpdates: string;
+    perkDigitalCertificate: string;
+    perkSanctuaryVisits: string;
   };
   bulletins: {
     badge: string;
@@ -489,6 +506,15 @@ export const translations: Record<Language, TranslationDictionary> = {
       sponsorCare: "Sponsor Care",
       careProgram: "Care Program",
       sponsorSupported: "Sponsor Supported",
+      tabAbout: "About Me",
+      tabStatus: "Status & Health",
+      tabUpdates: "Updates Feed",
+      tabSupport: "Support & Inquiry",
+      sponsorPetPerksTitle: "Monthly Rescue Companion (RM 30/mo)",
+      sponsorPetPerksDesc: "Sponsor this rescue animal monthly to receive personalized updates and help fund ongoing care.",
+      fosterInquiryTitle: "Foster-to-Adopt & Care Inquiry",
+      fosterInquiryDesc: "This animal is in clinical rehabilitation. Inquire about temporary fostering or meet-and-greet when recovered.",
+      fosterWhatsAppBtn: "Inquire via WhatsApp",
     },
     medicalTimeline: {
       title: "Rescue Intake & Medical Care Timeline",
@@ -640,6 +666,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       faqsTitle: "Clear Answers",
       faqsSubtitle: "Frequently Asked Questions About Donations",
       meetAnimalsCTA: "Meet Our Adoptable Animals",
+      choosePetTitle: "Dedicate Sponsorship to a Specific Animal",
+      choosePetSubtitle: "Select an animal under sanctuary care or sponsor our general rescue fund",
+      generalSanctuaryFund: "General Sanctuary Fund",
+      generalSanctuaryFundDesc: "Allocates funds flexibly where urgently needed most across all animals",
+      companionTierTitle: "Rescue Companion & Updates",
+      perkMonthlyUpdates: "Monthly Photo & Video Progress Report",
+      perkDigitalCertificate: "Personalized Digital Sponsorship Certificate",
+      perkSanctuaryVisits: "Invitation to arrange occasional sanctuary visits",
     },
     bulletins: {
       badge: "Community & Rescue Bulletins",
@@ -823,6 +857,15 @@ export const translations: Record<Language, TranslationDictionary> = {
       sponsorCare: "Taja Rawatan",
       careProgram: "Program Rawatan",
       sponsorSupported: "Perlu Penajaan",
+      tabAbout: "Tentang Saya",
+      tabStatus: "Status & Kesihatan",
+      tabUpdates: "Kemas Kini Kemajuan",
+      tabSupport: "Sokong & Pertanyaan",
+      sponsorPetPerksTitle: "Rakan Penaja Bulanan (RM 30/bln)",
+      sponsorPetPerksDesc: "Taja haiwan reskue ini setiap bulan untuk menerima kemas kini peribadi dan membiayai rawatan berterusan.",
+      fosterInquiryTitle: "Pertanyaan Asuhan & Penjagaan",
+      fosterInquiryDesc: "Haiwan ini sedang dalam pemulihan klinikal. Hubungi untuk asuhan sementara atau suai kenal selepas pulih.",
+      fosterWhatsAppBtn: "Pertanyaan melalui WhatsApp",
     },
     medicalTimeline: {
       title: "Garis Masa Penyelamatan & Penjagaan Veterinar",
@@ -974,6 +1017,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       faqsTitle: "Jawapan Telus",
       faqsSubtitle: "Soalan Lazim Mengenai Sumbangan",
       meetAnimalsCTA: "Kenali Haiwan Sedia Diadopsi",
+      choosePetTitle: "Dedikasikan Penajaan Kepada Haiwan Tertentu",
+      choosePetSubtitle: "Pilih haiwan di pusat perlindungan atau taja dana reskue am",
+      generalSanctuaryFund: "Dana Am Pusat Perlindungan",
+      generalSanctuaryFundDesc: "Menyalurkan dana ke bahagian paling mendesak untuk semua haiwan",
+      companionTierTitle: "Rakan Penaja Reskue & Kemas Kini",
+      perkMonthlyUpdates: "Laporan Kemajuan Foto & Video Bulanan",
+      perkDigitalCertificate: "Sijil Penajaan Digital Rasmi",
+      perkSanctuaryVisits: "Jemputan untuk mengatur lawatan suai kenal berkala",
     },
     bulletins: {
       badge: "Buletin Komuniti & Reskue",

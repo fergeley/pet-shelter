@@ -2,6 +2,10 @@ import { AdoptionApplicationRecord } from "@/types/application";
 import { DonationReceipt } from "@/types/sponsorship";
 import { AuditEntry } from "@/lib/domain/auditLog";
 import { Pet } from "@/types/pet";
+import {
+  LHDN_TAX_DEDUCTIBLE_REF,
+  STATUTORY_ROS_REGISTRATION_NO,
+} from "@/lib/domain/shelterIdentity";
 
 /**
  * Escapes a single CSV field following RFC-4180:
@@ -220,8 +224,8 @@ export function generateReceiptsCsvString(
         r.paymentMethod,
         r.frequency || "one_time",
         r.targetPetName || "",
-        r.taxDeductibleRef || "LHDN.01/35/42/51/179-6.4912",
-        r.shelterRegistrationNo || "PPM-021-10-18082021",
+        r.taxDeductibleRef || LHDN_TAX_DEDUCTIBLE_REF,
+        r.shelterRegistrationNo || STATUTORY_ROS_REGISTRATION_NO,
       ]);
     } else if ("action" in item) {
       // AuditEntry representing a donation
@@ -253,8 +257,8 @@ export function generateReceiptsCsvString(
           (d.paymentMethod as string) || "DuitNow QR",
           (d.frequency as string) || "one_time",
           (d.targetPetName as string) || "",
-          "LHDN.01/35/42/51/179-6.4912",
-          "PPM-021-10-18082021",
+          LHDN_TAX_DEDUCTIBLE_REF,
+          STATUTORY_ROS_REGISTRATION_NO,
         ]);
       }
     }
