@@ -2,14 +2,14 @@
 
 - **Status as of**: 2026-08-26
 - **Branch**: `feat/tnrm-rehabilitation` — 25 commits ahead of `master`, **not pushed**, working tree clean
-- **Quality gates**: `npm test` **357 passing / 30 files** · `npx tsc --noEmit` clean ·
+- **Quality gates**: `npm test` **410 passing / 32 files** · `npx tsc --noEmit` clean ·
   `npm run lint` 0 errors, 4 warnings · `npm run build` compiles, 25/25 static pages
 - **Fast-forward**: `git checkout master && git merge --ff-only feat/tnrm-rehabilitation`
 
-This session closed **P1** (authentication secrets), **P3** (nested pet history), and **P5**
+This session closed **P1** (authentication secrets), **P3** (nested pet history), **P4** (rehab needs & FAQs data layer), and **P5**
 (no UI for rehabilitating animals) from the
 [TNRM sprint handoff](HANDOFF_TNRM_REHABILITATION_SPRINT.md). **P6** (dead barrels) was closed
-in parallel by a second session. **P2** and **P4** remain open.
+in parallel by a second session. **P2** remains open (blocked on stakeholder).
 
 Three sessions were writing to this tree concurrently. §5 records what that cost.
 
@@ -154,14 +154,17 @@ Two digit-transposed variants remain in use, and the wrong one reaches statutory
 exports**. Deliberately untouched: this needs the actual ROS certificate, not a guess. Ideally
 sourced from `ShelterSettings` rather than duplicated across six files.
 
-### P4 — `faqs.json` and `rehabNeeds.json` still have no reader *(recommended next target)*
+### P4 — Closed: Data Layer & Server Actions for Rehab Needs & FAQs
 
-Both fixtures are committed and bilingual; neither has a Server Action or store reading it. The
-donate page and `PetsFaqSection` still hardcode FAQ arrays inline. This is `getRehabNeedsAction()`
-from BE-04 in the [sprint plan](SPRINT_PLAN_BACKEND_AND_FRONTEND.md), it follows the established
-action → `serverStore` → fallback pattern, and it unblocks **FE-07** (Rehab Needs, 4 categories)
-and **FE-09** (FAQ accordion) at once. Touches `src/actions/` and `src/lib/` only — no collision
-with the testing stream.
+Both fixtures (`src/data/faqs.json` and `src/data/rehabNeeds.json`) now have complete, type-safe data
+layers:
+- Shared types: `src/types/rehab.ts` and `src/types/faq.ts`
+- Zod contracts: `src/lib/validations/rehab.ts` and `src/lib/validations/faq.ts`
+- Store readers: `src/lib/serverStore.ts`, `src/lib/rehabNeedsStore.ts`, `src/lib/faqStore.ts`
+- Server Actions: `src/actions/rehabNeeds.ts`, `src/actions/faqs.ts`, `src/actions/needs.ts`
+- Tests: `tests/unit/rehabNeeds.test.ts` and `tests/unit/faqs.test.ts` (53 tests total)
+
+This unblocks **FE-07** (Rehab Needs wishlist, 4 categories) and **FE-09** (FAQ accordion) for UI integration.
 
 ### P5 leftovers — two small gaps in otherwise-complete rehab UI
 

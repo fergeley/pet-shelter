@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import { Pet } from "@/types/pet";
 import { PetFormInput } from "@/lib/validations/pet";
 import { usePetStore } from "@/lib/petStore";
+import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/adminPetFilters";
+import { buildPetStatusFilterOptions } from "@/lib/petStatusPresentation";
 import { exportPetsToCsv } from "@/lib/exportCsv";
 import {
   createPet as serverCreatePet,
@@ -37,29 +39,38 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [archiveCandidate, setArchiveCandidate] = useState<{ pet: Pet; archive: boolean } | null>(null);
 
-  const filteredData = useMemo(() => {
-    return pets.filter((pet) => {
-      // Archive filter
-      if (archiveFilter === "active" && pet.isArchived) return false;
-      if (archiveFilter === "archived" && !pet.isArchived) return false;
+  // Archive scope is resolved once and reused: the visible rows, the status counts and
+  // the "All Statuses" total all read from it, and typing in the search box no longer
+  // re-runs the archive pass.
+  const archiveScopedPets = useMemo(
+    () => scopeByArchiveFilter(pets, archiveFilter),
+    [pets, archiveFilter]
+  );
 
-      // Status filter
-      if (statusFilter !== "all" && pet.status !== statusFilter) return false;
+  // The row predicate lives in `@/lib/adminPetFilters` so it can be exercised in the node
+  // test tier; this hook is only its React binding.
+  const filteredData = useMemo(
+    () =>
+      archiveScopedPets.filter((pet) =>
+        matchesAdminPetFilters(pet, { globalFilter, statusFilter, speciesFilter })
+      ),
+    [archiveScopedPets, statusFilter, speciesFilter, globalFilter]
+  );
 
-      // Species filter
-      if (speciesFilter !== "all" && pet.species !== speciesFilter) return false;
+  // Counts over that same scope rather than a hardcoded "active", so every option total
+  // and the header total describe one population — the reconciliation staff actually
+  // perform against the table.
+  const statusFilterOptions = useMemo(
+    () => buildPetStatusFilterOptions(archiveScopedPets),
+    [archiveScopedPets]
+  );
 
-      // Global search
-      if (globalFilter.trim() !== "") {
-        const q = globalFilter.toLowerCase();
-        const matchName = pet.name.toLowerCase().includes(q);
-        const matchBreed = pet.breed.toLowerCase().includes(q);
-        const matchTags = pet.tags.some((t) => t.toLowerCase().includes(q));
-        if (!matchName && !matchBreed && !matchTags) return false;
-      }
-      return true;
-    });
-  }, [pets, archiveFilter, statusFilter, speciesFilter, globalFilter]);
+  // The archive select's own three counts, resolved in one pass rather than three inline
+  // scans per render in the toolbar.
+  const archiveCounts = useMemo(() => {
+    const archived = pets.filter((pet) => pet.isArchived).length;
+    return { active: pets.length - archived, archived, all: pets.length };
+  }, [pets]);
 
   const handleOpenCreate = () => {
     setEditingPet(null);
@@ -132,6 +143,9 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
       statusFilter,
       speciesFilter,
       archiveFilter,
+      statusFilterOptions,
+      statusFilterTotal: archiveScopedPets.length,
+      archiveCounts,
       sorting,
       isFormOpen,
       editingPet,

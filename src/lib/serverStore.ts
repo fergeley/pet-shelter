@@ -1,7 +1,11 @@
 import initialPetsData from "@/data/pets.json";
 import initialApplicationsData from "@/data/applications.json";
+import initialRehabNeedsData from "@/data/rehabNeeds.json";
+import initialFaqsData from "@/data/faqs.json";
 import { MedicalTimelineEvent, Pet, PetUpdate } from "@/types/pet";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
+import { RehabNeed } from "@/types/rehab";
+import { FaqItem } from "@/types/faq";
 import { validateApplicationTransition, validatePetTransition } from "./domain/stateMachine";
 import { recordAuditLog } from "./domain/auditLog";
 import { SessionUser } from "./security/session";
@@ -395,11 +399,21 @@ function freshApplications(): AdoptionApplicationRecord[] {
   return structuredClone(initialApplicationsData) as AdoptionApplicationRecord[];
 }
 
+function freshRehabNeeds(): RehabNeed[] {
+  return structuredClone(initialRehabNeedsData) as RehabNeed[];
+}
+
+function freshFaqs(): FaqItem[] {
+  return structuredClone(initialFaqsData) as FaqItem[];
+}
+
 let serverPets: Pet[] = freshPets();
 let serverApplications: AdoptionApplicationRecord[] = freshApplications();
+let serverRehabNeeds: RehabNeed[] = freshRehabNeeds();
+let serverFaqs: FaqItem[] = freshFaqs();
 
 /**
- * Restores both in-memory collections to the committed JSON fixtures.
+ * Restores in-memory collections to the committed JSON fixtures.
  *
  * Test-only, mirroring `resetUserStore()`. Wired into the global `beforeEach`
  * in `tests/setup/nextMocks.ts` so a mutation made by one test — an inserted
@@ -409,6 +423,8 @@ let serverApplications: AdoptionApplicationRecord[] = freshApplications();
 export function resetServerStore(): void {
   serverPets = freshPets();
   serverApplications = freshApplications();
+  serverRehabNeeds = freshRehabNeeds();
+  serverFaqs = freshFaqs();
 }
 
 export function getServerPets(): Pet[] {
@@ -479,6 +495,79 @@ export function findServerPetById(id: string): Pet | null {
 export function findServerApplicationById(id: string): AdoptionApplicationRecord | null {
   const norm = id.trim().toLowerCase();
   return serverApplications.find((a) => a.id.toLowerCase() === norm) || null;
+}
+
+export function getServerRehabNeeds(filters?: string | { category?: string; search?: string }): RehabNeed[] {
+  let items = [...serverRehabNeeds];
+  const category = typeof filters === "string" ? filters : filters?.category;
+  const search = typeof filters === "object" ? filters?.search : undefined;
+
+  const trimmedCat = typeof category === "string" ? category.trim() : undefined;
+  if (trimmedCat && trimmedCat.toLowerCase() !== "all") {
+    const norm = trimmedCat.toUpperCase();
+    items = items.filter((item) => item.category.toUpperCase() === norm);
+  }
+
+  if (search && search.trim() !== "") {
+    const q = search.trim().toLowerCase();
+    items = items.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        item.nameMs.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q) ||
+        item.descriptionMs.toLowerCase().includes(q) ||
+        (item.brand && item.brand.toLowerCase().includes(q))
+    );
+  }
+
+  return items;
+}
+
+export async function getServerRehabNeedsAsync(
+  filters?: string | { category?: string; search?: string }
+): Promise<RehabNeed[]> {
+  return getServerRehabNeeds(filters);
+}
+
+export function findServerRehabNeedById(id: string): RehabNeed | null {
+  const norm = id.trim().toLowerCase();
+  return serverRehabNeeds.find((n) => n.id.toLowerCase() === norm) || null;
+}
+
+export function getServerFaqs(filters?: string | { category?: string; search?: string }): FaqItem[] {
+  let items = [...serverFaqs];
+  const category = typeof filters === "string" ? filters : filters?.category;
+  const search = typeof filters === "object" ? filters?.search : undefined;
+
+  const trimmedCat = typeof category === "string" ? category.trim() : undefined;
+  if (trimmedCat && trimmedCat.toLowerCase() !== "all") {
+    const norm = trimmedCat.toLowerCase();
+    items = items.filter((f) => f.category.toLowerCase() === norm);
+  }
+
+  if (search && search.trim() !== "") {
+    const q = search.trim().toLowerCase();
+    items = items.filter(
+      (f) =>
+        f.question.toLowerCase().includes(q) ||
+        f.questionMs.toLowerCase().includes(q) ||
+        f.answer.toLowerCase().includes(q) ||
+        f.answerMs.toLowerCase().includes(q)
+    );
+  }
+
+  return items;
+}
+
+export async function getServerFaqsAsync(
+  filters?: string | { category?: string; search?: string }
+): Promise<FaqItem[]> {
+  return getServerFaqs(filters);
+}
+
+export function findServerFaqById(id: string): FaqItem | null {
+  const norm = id.trim().toLowerCase();
+  return serverFaqs.find((f) => f.id.toLowerCase() === norm) || null;
 }
 
 export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<void> {

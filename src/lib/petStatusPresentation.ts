@@ -11,6 +11,12 @@ export interface PetStatusPresentation {
   labelFallback: string;
   /** Badge surface classes — white text sits on all four at WCAG AAA. */
   badgeClass: string;
+  /**
+   * Admin-table variant of `badgeClass`: a solid fill in light mode, a tinted bordered
+   * chip in dark mode. Unlike `badgeClass` it carries its own text colour, because the
+   * dark treatment overrides it — call sites must not add `text-white` themselves.
+   */
+  chipClass: string;
   /** Only adoptable animals accept an adoption application. */
   isAdoptable: boolean;
   /** Under veterinary or behavioural care: sponsorship is the supported action, not adoption. */
@@ -23,6 +29,8 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelKey: "common.available",
     labelFallback: "Available",
     badgeClass: "bg-emerald-800 dark:bg-emerald-900",
+    chipClass:
+      "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800",
     isAdoptable: true,
     isInRehabilitation: false,
   },
@@ -31,6 +39,8 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelKey: "common.inRehabilitation",
     labelFallback: "In Rehabilitation",
     badgeClass: "bg-indigo-800 dark:bg-indigo-900",
+    chipClass:
+      "bg-indigo-800 text-white dark:bg-indigo-950 dark:text-indigo-200 dark:border dark:border-indigo-800",
     isAdoptable: false,
     isInRehabilitation: true,
   },
@@ -39,6 +49,8 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelKey: "common.pending",
     labelFallback: "Pending",
     badgeClass: "bg-amber-800 dark:bg-amber-900",
+    chipClass:
+      "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800",
     isAdoptable: false,
     isInRehabilitation: false,
   },
@@ -47,6 +59,8 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelKey: "common.adopted",
     labelFallback: "Adopted",
     badgeClass: "bg-slate-700 dark:bg-slate-800",
+    chipClass:
+      "bg-zinc-700 text-white dark:bg-zinc-800 dark:text-zinc-300 dark:border dark:border-zinc-700",
     isAdoptable: false,
     isInRehabilitation: false,
   },
@@ -61,12 +75,58 @@ const TONE_BY_STATUS: Record<PetStatus, PetStatusTone> = {
 };
 
 /**
+ * The canonical statuses, in the order surfaces should offer them — one per tone, so the
+ * legacy alias never appears as a separate choice. Filter controls derive their options
+ * from this rather than hand-listing them, which is how rehabilitation was omitted from
+ * the admin table's status filter in the first place.
+ */
+export const PET_STATUS_SEQUENCE: PetStatus[] = [
+  "Available",
+  "In Rehabilitation",
+  "Pending",
+  "Adopted",
+];
+
+export interface PetStatusFilterOption {
+  /** Canonical status, used as the `<option value>` and fed back to `matchesStatusFilter`. */
+  value: PetStatus;
+  tone: PetStatusTone;
+  labelKey: string;
+  labelFallback: string;
+  /** How many of the supplied animals carry this status, either spelling. */
+  count: number;
+}
+
+/**
  * Resolve how a pet's status should be presented. Statuses are normalized first, so the
  * legacy `Rehabilitation` alias and the canonical `In Rehabilitation` render identically.
  */
 export function getPetStatusPresentation(status: PetStatus): PetStatusPresentation {
   const tone = TONE_BY_STATUS[normalizePetStatus(status)] ?? "pending";
   return PRESENTATIONS[tone];
+}
+
+/**
+ * Build the status filter's options and their counts over a supplied population.
+ *
+ * Every animal lands in exactly one bucket — statuses are grouped by tone, so both rehab
+ * spellings share a count and an unrecognised value still falls somewhere. The counts
+ * therefore sum to `pets.length` by construction, which is the invariant staff notice
+ * when it breaks: animals present in the header total but absent from every option.
+ */
+export function buildPetStatusFilterOptions(
+  pets: readonly Pick<Pet, "status">[]
+): PetStatusFilterOption[] {
+  const counts = new Map<PetStatusTone, number>();
+  for (const pet of pets) {
+    const { tone } = getPetStatusPresentation(pet.status);
+    counts.set(tone, (counts.get(tone) ?? 0) + 1);
+  }
+
+  return PET_STATUS_SEQUENCE.map((value) => {
+    const { tone, labelKey, labelFallback } = getPetStatusPresentation(value);
+    return { value, tone, labelKey, labelFallback, count: counts.get(tone) ?? 0 };
+  });
 }
 
 /**

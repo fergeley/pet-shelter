@@ -84,3 +84,20 @@ export function validatePetTransition(current: PetStatus, next: PetStatus): void
     );
   }
 }
+
+/**
+ * The statuses a control may offer for an animal: its own canonical status first, then
+ * every legal move out of it. Everything is normalized, so an animal stored under the
+ * legacy `Rehabilitation` alias resolves to the same list as the canonical spelling and
+ * the alias never appears as a separate choice.
+ *
+ * Deriving the options this way keeps `validatePetTransition` the single authority — a
+ * control cannot offer a move the server would reject, which matters because
+ * `updatePetStatus` returns `{ success: false }` rather than throwing, and the admin
+ * table's optimistic update would otherwise keep displaying the refused state.
+ */
+export function getAllowedPetStatusTransitions(current: PetStatus): PetStatus[] {
+  const from = normalizePetStatus(current);
+  const next = (PET_TRANSITION_GRAPH[from] || []).map(normalizePetStatus);
+  return [...new Set<PetStatus>([from, ...next])];
+}

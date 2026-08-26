@@ -138,3 +138,84 @@ that belongs to
   labels through i18n is a separate decision from fixing which label appears.
 - `BulletinFeed.tsx:27` — `CATEGORY_LABELS` is already a proper `Record` and is not affected.
 - P6 (barrels). Unrelated, tracked separately.
+
+---
+
+## 7. ✅ Resolution — 2026-08-26
+
+Implemented on `feat/tnrm-rehabilitation`. §3 resolved as **(a)**: `PetStatusPresentation` gained a
+`chipClass` alongside `badgeClass`, so the admin chip keeps its tinted dark-mode treatment and the
+public badge keeps its solid fill, from one record.
+
+**Three defects this document did not name were found while implementing it:**
+
+| Defect | Location | Fix |
+|---|---|---|
+| The status **filter itself** compared raw strings — §1 pointed at `PetDataTable:297-306`, which is only the *counts* | `usePetTableController.ts:47` | Predicate extracted to `src/lib/adminPetFilters.ts` (`filterAdminPets`) and routed through `matchesStatusFilter`, so it is exercisable in the node tier |
+| The row's quick-status `<select>` offered only Available/Pending/Adopted, so a rehab animal's controlled value matched no option and the browser rendered the first one — the dropdown *also* read "Available", and staff could not clear an animal out of care | `PetDataTable.tsx:203-213` | Options derived from `getAllowedPetStatusTransitions()` (new, in `stateMachine.ts`), which returns the animal's canonical status plus only the moves the graph permits |
+| Editing an animal stored under the legacy `Rehabilitation` alias seeded the form select with a value matching no `<option>`, so saving silently rewrote it to `Available` | `PetFormDialog.tsx:92` | `normalizePetStatus()` on seed; the two raw alias comparisons now go through `getPetStatusPresentation().isInRehabilitation` |
+
+The counts were also drawn over a hardcoded `!isArchived` while the header total counted every row.
+Both now come from the archive scope in force (`scopeByArchiveFilter`), so they sum in all three
+archive modes rather than only the default one.
+
+Step 4 landed too: `src/lib/applicationStatusPresentation.ts` + `ApplicationStatusIcon` now back the
+application table badge, its quick-status select, its filter counts, and the review dialog's four
+decision pills. Application copy stays English literals — §6 holds, and no dictionary keys exist for
+those states.
+
+**Not addressed** — `handleStatusChange` in `usePetTableController` still discards the
+`{ success: false }` that `updatePetStatus` returns, so a server-rejected transition leaves the
+optimistic UI showing the refused state. Constraining the select's options closes the only path that
+reached it from this table, but the swallow itself remains. The application table already handles
+this correctly (`statusError`), which is the pattern to copy.
+
+**Verification**: `npx tsc --noEmit` clean · `npm run test:all` 35 files / 441 tests green ·
+`npm run lint` 0 errors (4 pre-existing React Compiler `incompatible-library` warnings on
+`useReactTable` / `useForm`, unchanged). Tests added: `adminPetFilters.test.ts` (9),
+`applicationStatusPresentation.test.ts` (8), plus 7 in `petStatusPresentation.test.ts` and 6 in
+`stateMachine.test.ts`. Admin table *rendering* remains uncovered — no `@testing-library/react` in
+this repo; that belongs to [Test Task 02](TEST_TASK_02_COMPONENT_AND_UI_SUITE.md).
+
+### 7.1 Revision pass
+
+Reviewed the implementation against the codebase a second time. Three things were wrong or
+wasteful, all now fixed:
+
+- **`isRehabilitationStatus()` already existed** in `src/lib/validations/pet.ts:24` — the module
+  `PetFormDialog` already imports. The first cut reached for
+  `getPetStatusPresentation(...).isInRehabilitation` instead, pulling the presentation layer into a
+  form to answer a validation question. Reverted to the existing helper; the presentation import is
+  gone from that file.
+- **The archive scope was scanned twice** — once inside `filterAdminPets`, once for the counts. The
+  row predicate is now `matchesAdminPetFilters()` (archive-agnostic) and the hook applies
+  `scopeByArchiveFilter` once, so typing in the search box no longer re-runs the archive pass.
+  `filterAdminPets` remains as the one-call composition the tests exercise.
+- **The archive select still ran three inline `pets.filter(...)` scans per render.** Now one
+  memoized `archiveCounts` in the controller, matching how the status counts are derived.
+
+**A drift guard was added** (`PET_STATUS_SEQUENCE > covers every canonical status the validation
+enum accepts`): three status lists now exist — `PET_STATUS_SEQUENCE` (canonical, one per tone, UI
+order), `PET_STATUS_VALUES` (the zod enum, alias included), and `TONE_BY_STATUS`. The guard fails if
+they diverge, which is the defect P7 was. Verified it bites by deleting a status from the sequence
+and watching it go red.
+
+### 7.2 Deliberate behaviour changes staff will see
+
+Not regressions, but not invisible either:
+
+| Change | Why |
+|---|---|
+| The Available glyph in the admin table is now a handshake, not a check mark | `PetStatusIcon` is the shared source §4 step 2 mandates; it matches the public catalog |
+| `All Statuses (n)` counts the archive scope in force, not every record ever | Required by acceptance criterion 3 — otherwise the options can never sum to it |
+| The row quick-status select no longer offers Adopted → Pending | Illegal per `PET_TRANSITION_GRAPH`; it previously appeared to work and then diverged from the database |
+| In Malay, the status badge and status filter translate while the rest of the admin toolbar stays English | Follows §4 step 2 (`t(labelKey, labelFallback)`), which pulls against §6. One-line revert to `labelFallback` if the English-only rule wins |
+
+### 7.3 Considered and rejected
+
+- Precomputing `getAllowedPetStatusTransitions` into a frozen module-level record. Eight rows per
+  page; the allocation is noise, and a shared array is a mutation footgun.
+- Hoisting the provider-less fallback context in `LanguageProvider` to module scope. It would make
+  `t` referentially stable for consumers rendered without a provider (the admin table's `columns`
+  memo depends on `t`), but production always has one, so this only matters to Task 02's jsdom
+  tests. Out of scope here; worth doing when that tier lands.

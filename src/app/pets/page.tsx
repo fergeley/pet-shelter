@@ -4,6 +4,7 @@ import { PetGallery } from "@/components/features/pets/PetGallery";
 import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
 import { PetsFaqSection } from "@/components/layout/PetsFaqSection";
 import { getPublicPets } from "@/actions/pets";
+import { getServerFaqsAsync } from "@/lib/serverStore";
 import { Loader2 } from "lucide-react";
 import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";
 
@@ -33,6 +34,8 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
     status,
     search,
   });
+
+  const initialFaqs = await getServerFaqsAsync();
 
   return (
     <div className="min-h-screen bg-card pb-20">
@@ -64,7 +67,7 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
       </section>
 
       {/* FAQs */}
-      <PetsFaqSection />
+      <PetsFaqSection initialFaqs={initialFaqs} />
     </div>
   );
 }

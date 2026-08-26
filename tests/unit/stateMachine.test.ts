@@ -6,6 +6,7 @@ import {
   validateApplicationTransition,
   validatePetTransition,
   normalizePetStatus,
+  getAllowedPetStatusTransitions,
 } from "@/lib/domain/stateMachine";
 import { ApplicationStatus } from "@/types/application";
 import { PetStatus } from "@/types/pet";
@@ -211,5 +212,49 @@ describe("State Machine Domain Logic", () => {
         ).toThrow(DomainValidationError);
       });
     });
+  });
+});
+
+describe("getAllowedPetStatusTransitions", () => {
+  // A status control has to be able to show the animal's current state, or a controlled
+  // <select> renders whichever option happens to come first — reading, for a rehab
+  // animal, as "Available".
+  it("leads with the animal's current status", () => {
+    expect(getAllowedPetStatusTransitions("Adopted")[0]).toBe("Adopted");
+  });
+
+  it("offers rehabilitation as a move out of Available and Pending", () => {
+    expect(getAllowedPetStatusTransitions("Available")).toContain("In Rehabilitation");
+    expect(getAllowedPetStatusTransitions("Pending")).toContain("In Rehabilitation");
+  });
+
+  // Veterinary clearance back to Available is the only way out of care — an animal under
+  // treatment must not be adoptable straight from the table.
+  it("offers only Available out of rehabilitation", () => {
+    expect(getAllowedPetStatusTransitions("In Rehabilitation")).toEqual([
+      "In Rehabilitation",
+      "Available",
+    ]);
+  });
+
+  it("returns the canonical spelling for an animal stored under the legacy alias", () => {
+    expect(getAllowedPetStatusTransitions("Rehabilitation")).toEqual(
+      getAllowedPetStatusTransitions("In Rehabilitation")
+    );
+  });
+
+  it("omits transitions the graph forbids", () => {
+    expect(getAllowedPetStatusTransitions("Adopted")).not.toContain("Pending");
+  });
+
+  // Whatever a control offers must survive validation, or staff pick a move the server
+  // silently rejects while the optimistic UI keeps showing it.
+  it("only offers moves that validatePetTransition accepts", () => {
+    const statuses: PetStatus[] = ["Available", "Pending", "Adopted", "In Rehabilitation", "Rehabilitation"];
+    for (const from of statuses) {
+      for (const to of getAllowedPetStatusTransitions(from)) {
+        expect(() => validatePetTransition(from, to)).not.toThrow();
+      }
+    }
   });
 });

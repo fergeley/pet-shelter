@@ -29,6 +29,10 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { scheduleApplicationInterview } from "@/actions/applications";
+import {
+  APPLICATION_STATUS_SEQUENCE,
+  getApplicationStatusPresentation,
+} from "@/lib/applicationStatusPresentation";
 
 interface ApplicationDetailDialogProps {
   application: AdoptionApplicationRecord | null;
@@ -326,53 +330,24 @@ export function ApplicationDetailDialog({
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Application Status</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setStatus("SUBMITTED")}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
-                      status === "SUBMITTED"
-                        ? "bg-sky-100 dark:bg-sky-950/60 border-sky-500 text-sky-800 dark:text-sky-300 ring-2 ring-sky-500/20"
-                        : "bg-background border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Submitted
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStatus("UNDER_REVIEW")}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
-                      status === "UNDER_REVIEW"
-                        ? "bg-amber-100 dark:bg-amber-950/60 border-amber-500 text-amber-800 dark:text-amber-300 ring-2 ring-amber-500/20"
-                        : "bg-background border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Under Review
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStatus("APPROVED")}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
-                      status === "APPROVED"
-                        ? "bg-emerald-100 dark:bg-emerald-950/60 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-2 ring-emerald-500/20"
-                        : "bg-background border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Approve
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setStatus("REJECTED")}
-                    className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
-                      status === "REJECTED"
-                        ? "bg-red-100 dark:bg-red-950/60 border-red-500 text-red-800 dark:text-red-300 ring-2 ring-red-500/20"
-                        : "bg-background border-border text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Reject
-                  </button>
+                  {APPLICATION_STATUS_SEQUENCE.map((option) => {
+                    const presentation = getApplicationStatusPresentation(option);
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setStatus(option)}
+                        aria-pressed={status === option}
+                        className={`py-2 px-3 rounded-lg text-xs font-semibold border transition ${
+                          status === option
+                            ? presentation.pillClass
+                            : "bg-background border-border text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {presentation.actionLabel}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

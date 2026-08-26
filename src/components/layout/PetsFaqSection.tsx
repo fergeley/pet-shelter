@@ -1,80 +1,172 @@
 "use client";
 
-import React from "react";
-import { PhoneCall } from "lucide-react";
+import React, { useState, useEffect, useTransition, useRef } from "react";
+import { PhoneCall, HelpCircle, ChevronDown, MessageCircle } from "lucide-react";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { FaqItem } from "@/types/faq";
+import { getFaqsAction } from "@/actions/faqs";
 
-export function PetsFaqSection() {
+const FAQ_CATEGORY_TABS: { value: string; labelEn: string; labelMs: string }[] = [
+  { value: "all", labelEn: "All Topics", labelMs: "Semua Topik" },
+  { value: "tnrm", labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
+  { value: "sponsorship", labelEn: "Sponsorship & LHDN Tax", labelMs: "Penajaan & Pelepasan Cukai" },
+  { value: "adoption", labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
+  { value: "visiting", labelEn: "Visiting & Shelter", labelMs: "Lawatan & Santuari" },
+  { value: "get_involved", labelEn: "Volunteering & CSR", labelMs: "Sukarelawan & CSR" },
+];
+
+export function PetsFaqSection({ initialFaqs }: { initialFaqs?: FaqItem[] } = {}) {
   const { isMs } = useLanguage();
+  const [faqs, setFaqs] = useState<FaqItem[]>(initialFaqs || []);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(["faq-001", "faq-004", "faq-006"]));
+  const [isPending, startTransition] = useTransition();
+  const isInitialMount = useRef(true);
 
-  const faqs = [
-    {
-      q: isMs ? "Apakah yang diliputi oleh polisi adopsi?" : "What does the adoption process cover?",
-      a: isMs
-        ? "Semua adopsi adalah 100% percuma dan merangkumi pembedahan pemandulan, vaksinasi teras 6-dalam-1 / FVRCP, pendaftaran mikrocip, dan rawatan pencegahan parasit."
-        : "All adoptions are 100% free and cover complete spay/neuter surgery, core vaccinations (6-in-1 / FVRCP), microchip registration, and internal/external parasite treatments.",
-    },
-    {
-      q: isMs ? "Bolehkah saya membawa haiwan peliharaan sedia ada untuk sesi suai kenal?" : "Can I bring my resident dog to meet an adoptable dog?",
-      a: isMs
-        ? "Ya! Kami menggalakkan pengenalan berstruktur di bawah penyeliaan di laman santuari Petaling Jaya kami. Sila bawa kad vaksinasi haiwan anda."
-        : "Yes! We encourage supervised introductions in our outdoor compound in Petaling Jaya. Please bring your dog's vaccination card.",
-    },
-    {
-      q: isMs ? "Apakah syarat kelayakan untuk memohon adopsi?" : "What are the adoption requirements?",
-      a: isMs
-        ? "Pemohon mestilah berumur sekurang-kurangnya 21 tahun, menyediakan bukti kediaman mesra haiwan yang selamat, dan bersetuju dengan susulan kebajikan berkala."
-        : "Applicants must be at least 21 years old, provide proof of a secure pet-friendly residence (landlord or management approval if residing in high-rise), and agree to post-adoption check-ins.",
-    },
-    {
-      q: isMs ? "Berapa lamakah masa semakan permohonan?" : "How long does the application process take?",
-      a: isMs
-        ? "Kebanyakan permohonan disemak dalam tempoh 1–2 hari bekerja. Jika diluluskan, anda boleh melengkapkan urusan adopsi dan membawa haiwan pulang semasa waktu operasi santuari."
-        : "Most applications are reviewed within 1–2 business days. If approved, you can complete the adoption and bring your pet home during open visiting hours.",
-    },
-  ];
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      if (initialFaqs && initialFaqs.length > 0 && selectedCategory === "all") {
+        return;
+      }
+    }
+
+    startTransition(async () => {
+      const res = await getFaqsAction(selectedCategory === "all" ? undefined : selectedCategory);
+      if (res.success && res.data) {
+        setFaqs(res.data);
+      }
+    });
+  }, [selectedCategory, initialFaqs]);
+
+  const toggleAccordion = (id: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
-    <section className="w-full px-6 sm:px-8 lg:px-12 pt-12 border-t border-border mt-10">
-      <div className="mb-8 max-w-2xl">
-        <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          {isMs ? "Soalan Lazim Mengenai Adopsi" : "Frequently Asked Questions"}
-        </h2>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl">
-        {faqs.map((faq, idx) => (
-          <div
-            key={idx}
-            className="border border-border bg-background p-6 space-y-2.5 rounded-2xl shadow-xs"
-          >
-            <h3 className="font-heading text-lg font-bold text-foreground">
-              {faq.q}
-            </h3>
-            <p className="text-sm sm:text-base leading-relaxed text-muted-foreground">
-              {faq.a}
-            </p>
+    <section className="w-full px-6 sm:px-8 lg:px-12 pt-14 border-t border-border mt-12" id="faq">
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+            <HelpCircle className="size-3.5" />
+            {isMs ? "Soalan Lazim Komuniti" : "Community & Operations FAQ"}
           </div>
-        ))}
-      </div>
-
-      {/* Contact Banner */}
-      <div className="mt-10 bg-muted/40 border border-border p-6 max-w-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl">
-        <div>
-          <p className="text-base font-bold text-foreground">
-            {isMs ? "Ada soalan mengenai haiwan reskue kami di Petaling Jaya?" : "Have questions about an animal in Petaling Jaya?"}
-          </p>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isMs ? "Hubungi meja santuari kami Selasa hingga Ahad, 10:00 pagi – 5:00 petang." : "Call our shelter desk Tuesday through Sunday, 10:00 AM – 5:00 PM."}
+          <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
+            {isMs ? "Soalan Lazim Mengenai TNRM & Perlindungan" : "Frequently Asked Questions"}
+          </h2>
+          <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
+            {isMs
+              ? "Ketahui lebih lanjut mengenai program TNRM kampus UM, penajaan peribadi haiwan reskue, pelepasan cukai LHDN Seksyen 44(6), dan garis panduan lawatan santuari."
+              : "Learn about UM campus stray management, ear-notching science, personalized animal sponsorships, LHDN Sec 44(6) tax deductions, and shelter visiting hours."}
           </p>
         </div>
-        <a
-          href="tel:+60378765432"
-          className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-2.5 text-sm font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors focus-visible:ring-2 shrink-0 rounded-xl"
-        >
-          <PhoneCall className="size-4" />
-          03-7876 5432
-        </a>
+
+        {/* Category Filter Tabs */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {FAQ_CATEGORY_TABS.map((tab) => {
+            const isActive = selectedCategory === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setSelectedCategory(tab.value)}
+                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-foreground text-background shadow-xs"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                }`}
+              >
+                {isMs ? tab.labelMs : tab.labelEn}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Accordion FAQ List */}
+        <div className="space-y-4 pt-2">
+          {isPending && faqs.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              {isMs ? "Memuatkan soalan lazim..." : "Loading FAQs..."}
+            </div>
+          ) : (
+            faqs.map((faq) => {
+              const isOpen = openIds.has(faq.id);
+              return (
+                <div
+                  key={faq.id}
+                  className="border border-border bg-card rounded-2xl overflow-hidden transition-all shadow-xs"
+                >
+                  <button
+                    onClick={() => toggleAccordion(faq.id)}
+                    className="w-full p-5 sm:p-6 text-left flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
+                        {isMs ? faq.categoryLabelMs : faq.categoryLabel}
+                      </span>
+                      <h3 className="font-heading text-base sm:text-lg font-bold text-foreground leading-snug">
+                        {isMs ? faq.questionMs : faq.question}
+                      </h3>
+                    </div>
+                    <ChevronDown
+                      className={`size-5 text-muted-foreground shrink-0 mt-1 transition-transform duration-200 ${
+                        isOpen ? "rotate-180 text-foreground" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {isOpen && (
+                    <div className="px-5 pb-5 sm:px-6 sm:pb-6 pt-0 border-t border-border/40 text-sm sm:text-base leading-relaxed text-muted-foreground">
+                      <p className="mt-3.5 whitespace-pre-line">{isMs ? faq.answerMs : faq.answer}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Contact Banner */}
+        <div className="mt-12 bg-muted/40 border border-border p-6 sm:p-8 rounded-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div className="space-y-1">
+            <p className="text-base sm:text-lg font-bold text-foreground">
+              {isMs
+                ? "Ada soalan mengenai haiwan reskue atau program TNRM kami?"
+                : "Have questions about an animal or reporting a stray?"}
+            </p>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              {isMs
+                ? "Hubungi meja santuari Petaling Jaya kami Selasa hingga Ahad, 10:00 pagi – 5:00 petang."
+                : "Call our shelter desk in Petaling Jaya Tuesday through Sunday, 10:00 AM – 5:00 PM."}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <a
+              href="tel:+60378765432"
+              className="inline-flex items-center gap-2 bg-foreground text-background px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-foreground/85 transition-colors rounded-xl"
+            >
+              <PhoneCall className="size-3.5" />
+              03-7876 5432
+            </a>
+            <a
+              href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20have%20a%20question%20regarding%20the%20shelter."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-[#25D366] text-white px-4 py-2.5 text-xs font-bold uppercase tracking-wider hover:bg-[#20bd5a] transition-colors rounded-xl"
+            >
+              <MessageCircle className="size-3.5" />
+              WhatsApp
+            </a>
+          </div>
+        </div>
       </div>
     </section>
   );

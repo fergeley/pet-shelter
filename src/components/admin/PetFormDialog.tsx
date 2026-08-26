@@ -4,7 +4,8 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pet } from "@/types/pet";
-import { petFormSchema, PetFormInput } from "@/lib/validations/pet";
+import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
+import { normalizePetStatus } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import {
   Dialog,
@@ -89,7 +90,10 @@ export function PetFormDialog({
         gender: editingPet.gender,
         size: editingPet.size,
         weight: editingPet.weight,
-        status: editingPet.status,
+        // Normalized: the legacy `Rehabilitation` alias matches no <option> below, so a
+        // controlled select would fall back to the first one — silently rewriting an animal
+        // under care to Available on the next save.
+        status: normalizePetStatus(editingPet.status),
         adoptionFee: editingPet.adoptionFee,
         description: editingPet.description,
         rescueStory: editingPet.rescueStory,
@@ -177,13 +181,12 @@ export function PetFormDialog({
   // Rehabilitation details are only collected — and only valid — while the pet is under care.
   const statusField = register("status");
   const watchedStatus = watch("status");
-  const isUnderRehabilitation =
-    watchedStatus === "In Rehabilitation" || watchedStatus === "Rehabilitation";
+  const isUnderRehabilitation = isRehabilitationStatus(watchedStatus);
 
   const handleStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     statusField.onChange(event);
-    const next = event.target.value;
-    if (next !== "In Rehabilitation" && next !== "Rehabilitation") {
+    const next = event.target.value as Pet["status"];
+    if (!isRehabilitationStatus(next)) {
       setValue("rehabStage", undefined, { shouldValidate: true });
       setValue("rehabStageMs", undefined, { shouldValidate: true });
       setValue("rehabProgressPercent", undefined, { shouldValidate: true });

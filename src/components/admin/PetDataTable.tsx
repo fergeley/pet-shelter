@@ -21,9 +21,6 @@ import {
   Edit2,
   Archive,
   RotateCcw,
-  CheckCircle2,
-  Clock,
-  Home,
   SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
@@ -40,20 +37,27 @@ import {
 } from "@/components/ui/dialog";
 
 import { usePetTableController } from "@/hooks/usePetTableController";
+import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
+import { getAllowedPetStatusTransitions, normalizePetStatus } from "@/lib/domain/stateMachine";
+import { PetStatusIcon } from "@/components/features/pets/PetStatusIcon";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function PetDataTable({
   initialPets,
 }: {
   initialPets?: (Pet & { applicationCount?: number })[];
 } = {}) {
+  const { t } = useLanguage();
   const { state, handlers } = usePetTableController(initialPets);
   const {
-    pets,
     filteredData,
     globalFilter,
     statusFilter,
     speciesFilter,
     archiveFilter,
+    statusFilterOptions,
+    statusFilterTotal,
+    archiveCounts,
     sorting,
     isFormOpen,
     editingPet,
@@ -163,30 +167,15 @@ export function PetDataTable({
         accessorKey: "status",
         header: "Adoption Status",
         cell: ({ row }) => {
-          const pet = row.original;
-          const status = pet.status;
-
-          let badgeClass =
-            "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800";
-          let Icon = CheckCircle2;
-
-          if (status === "Pending") {
-            badgeClass =
-              "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800";
-            Icon = Clock;
-          } else if (status === "Adopted") {
-            badgeClass =
-              "bg-zinc-700 text-white dark:bg-zinc-800 dark:text-zinc-300 dark:border dark:border-zinc-700";
-            Icon = Home;
-          }
+          const status = getPetStatusPresentation(row.original.status);
 
           return (
             <div className="flex items-center gap-2">
               <span
-                className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeClass}`}
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${status.chipClass}`}
               >
-                <Icon className="size-3" />
-                {status}
+                <PetStatusIcon tone={status.tone} className="size-3" />
+                {t(status.labelKey, status.labelFallback)}
               </span>
             </div>
           );
@@ -201,15 +190,20 @@ export function PetDataTable({
             <div className="flex items-center gap-1.5 justify-end">
               {/* Quick Status Dropdown */}
               <select
-                value={pet.status}
+                value={normalizePetStatus(pet.status)}
                 onChange={(e) => handleStatusChange(pet.id, e.target.value as Pet["status"])}
                 disabled={pet.isArchived}
                 className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground disabled:opacity-50"
                 aria-label={`Change status for ${pet.name}`}
               >
-                <option value="Available">Available</option>
-                <option value="Pending">Pending</option>
-                <option value="Adopted">Adopted</option>
+                {getAllowedPetStatusTransitions(pet.status).map((status) => {
+                  const { labelKey, labelFallback } = getPetStatusPresentation(status);
+                  return (
+                    <option key={status} value={status}>
+                      {t(labelKey, labelFallback)}
+                    </option>
+                  );
+                })}
               </select>
 
               <Button
@@ -248,7 +242,7 @@ export function PetDataTable({
         },
       },
     ],
-    [handleStatusChange, handleOpenEdit, setArchiveCandidate]
+    [handleStatusChange, handleOpenEdit, setArchiveCandidate, t]
   );
 
   const table = useReactTable({
@@ -294,16 +288,12 @@ export function PetDataTable({
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
             >
-              <option value="all">All Statuses ({pets.length})</option>
-              <option value="Available">
-                Available ({pets.filter((p) => p.status === "Available" && !p.isArchived).length})
-              </option>
-              <option value="Pending">
-                Pending ({pets.filter((p) => p.status === "Pending" && !p.isArchived).length})
-              </option>
-              <option value="Adopted">
-                Adopted ({pets.filter((p) => p.status === "Adopted" && !p.isArchived).length})
-              </option>
+              <option value="all">All Statuses ({statusFilterTotal})</option>
+              {statusFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.labelKey, option.labelFallback)} ({option.count})
+                </option>
+              ))}
             </select>
           </div>
 
@@ -339,9 +329,9 @@ export function PetDataTable({
               onChange={(e) => setArchiveFilter(e.target.value)}
               className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
             >
-              <option value="active">Active Animals ({pets.filter((p) => !p.isArchived).length})</option>
-              <option value="archived">Archived ({pets.filter((p) => p.isArchived).length})</option>
-              <option value="all">All Records ({pets.length})</option>
+              <option value="active">Active Animals ({archiveCounts.active})</option>
+              <option value="archived">Archived ({archiveCounts.archived})</option>
+              <option value="all">All Records ({archiveCounts.all})</option>
             </select>
           </div>
 

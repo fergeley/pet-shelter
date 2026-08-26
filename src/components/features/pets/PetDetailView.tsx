@@ -170,14 +170,29 @@ export function PetDetailView(props: PetDetailViewProps) {
                 <h1 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
                   {pet.name}
                 </h1>
-                <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
-                    {t("petDetail.adoptionFee", "Adoption Fee")}
-                  </span>
-                  <span className="font-heading text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                    {pet.adoptionFee.toLowerCase().includes("free") ? (isMs ? "Percuma (RM 0)" : "Free (RM 0)") : pet.adoptionFee}
-                  </span>
-                </div>
+                {!isInRehabilitation ? (
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block">
+                      {t("petDetail.adoptionFee", "Adoption Fee")}
+                    </span>
+                    <span className="font-heading text-2xl font-bold text-emerald-700 dark:text-emerald-300">
+                      {pet.adoptionFee.toLowerCase().includes("free")
+                        ? isMs
+                          ? "Percuma (RM 0)"
+                          : "Free (RM 0)"
+                        : pet.adoptionFee}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                      {t("petDetail.careProgram", isMs ? "Program Rawatan" : "Care Program")}
+                    </span>
+                    <span className="font-heading text-lg font-bold text-indigo-700 dark:text-indigo-300">
+                      {t("petDetail.sponsorSupported", isMs ? "Perlu Penajaan" : "Sponsor Supported")}
+                    </span>
+                  </div>
+                )}
               </div>
               <p className="text-base text-muted-foreground mt-1">
                 {pet.breed} • <span className="font-mono font-medium">{pet.weight}</span> • {t("petDetail.intakeDate", "Rescue Intake Date")}: {pet.intakeDate}

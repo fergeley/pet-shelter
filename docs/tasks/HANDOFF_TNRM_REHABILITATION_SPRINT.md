@@ -143,13 +143,15 @@ module imports concrete paths. `@/lib/security` re-exports a `"use client"` modu
 server-side adopter breaks the build. Adopt them or delete them — see
 [`LAYERS.md §5`](../architecture/LAYERS.md).
 
-### P7 — The admin portal still shows rehab animals as Available
+### P7 — The admin portal still shows rehab animals as Available ✅ RESOLVED 2026-08-26
 
 P5 covered the public catalog only. `src/components/admin/PetDataTable.tsx:169-181` branches on raw
 status strings with **no rehab arm**, so both `In Rehabilitation` and the legacy alias fall through to
 the default emerald "Available" badge; the status filter at `:297-306` omits rehab entirely, so those
 animals belong to no bucket and the counts do not sum to the total. See
-[Target: Admin Status Parity](TARGET_ADMIN_STATUS_PARITY.md).
+[Target: Admin Status Parity](TARGET_ADMIN_STATUS_PARITY.md) §7 for what shipped, including three
+further defects of the same family found while fixing it (the filter predicate in the controller, the
+row quick-status select, and the edit form seeding an aliased status).
 
 ---
 

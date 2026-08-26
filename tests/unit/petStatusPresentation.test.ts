@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  PET_STATUS_SEQUENCE,
+  buildPetStatusFilterOptions,
   getPetStatusPresentation,
   getRehabStageLabel,
   getRehabProgressPercent,
   matchesStatusFilter,
 } from "@/lib/petStatusPresentation";
-import { PetStatus } from "@/types/pet";
+import { Pet, PetStatus } from "@/types/pet";
+import { PET_STATUS_VALUES } from "@/lib/validations/pet";
+import { normalizePetStatus } from "@/lib/domain/stateMachine";
 
 describe("getPetStatusPresentation", () => {
   it("marks Available animals as adoptable", () => {
@@ -126,5 +130,87 @@ describe("matchesStatusFilter", () => {
 
   it("rejects an unrecognised filter value rather than matching everything", () => {
     expect(matchesStatusFilter("Available", "Nonsense")).toBe(false);
+  });
+});
+
+describe("chipClass", () => {
+  // The admin tables use a tinted, bordered chip in dark mode where the public badge is a
+  // solid fill. Both must come from this module, or the two surfaces drift apart again.
+  it("gives every tone an admin chip distinct from the public solid badge", () => {
+    const statuses: PetStatus[] = ["Available", "In Rehabilitation", "Pending", "Adopted"];
+    for (const status of statuses) {
+      const { badgeClass, chipClass } = getPetStatusPresentation(status);
+      expect(chipClass).not.toBe(badgeClass);
+      expect(chipClass).toContain("dark:border");
+    }
+  });
+
+  // The chip carries its own text colour per theme, so unlike badgeClass the call site
+  // must not add `text-white` itself.
+  it("carries its own light-mode text colour", () => {
+    expect(getPetStatusPresentation("Available").chipClass).toContain("text-white");
+  });
+
+  it("returns a distinct chip treatment per tone", () => {
+    const statuses: PetStatus[] = ["Available", "In Rehabilitation", "Pending", "Adopted"];
+    const chips = statuses.map((s) => getPetStatusPresentation(s).chipClass);
+    expect(new Set(chips).size).toBe(statuses.length);
+  });
+});
+
+describe("buildPetStatusFilterOptions", () => {
+  const pet = (status: PetStatus, id: string): Pick<Pet, "id" | "status"> => ({ id, status });
+
+  it("offers one option per status, rehabilitation included", () => {
+    const options = buildPetStatusFilterOptions([]);
+    expect(options.map((o) => o.value)).toEqual([
+      "Available",
+      "In Rehabilitation",
+      "Pending",
+      "Adopted",
+    ]);
+  });
+
+  // The symptom a staff member notices: animals counted in the header that belong to no tab.
+  it("produces counts that sum to the number of animals passed in", () => {
+    const pets = [
+      pet("Available", "a"),
+      pet("In Rehabilitation", "b"),
+      pet("Rehabilitation", "c"),
+      pet("Pending", "d"),
+      pet("Adopted", "e"),
+    ];
+    const total = buildPetStatusFilterOptions(pets).reduce((sum, o) => sum + o.count, 0);
+    expect(total).toBe(pets.length);
+  });
+
+  it("counts both spellings of rehabilitation into the one bucket", () => {
+    const options = buildPetStatusFilterOptions([
+      pet("In Rehabilitation", "a"),
+      pet("Rehabilitation", "b"),
+    ]);
+    const rehab = options.find((o) => o.value === "In Rehabilitation");
+    expect(rehab?.count).toBe(2);
+  });
+
+  it("labels each option from the dictionary rather than the raw union member", () => {
+    const rehab = buildPetStatusFilterOptions([]).find((o) => o.value === "In Rehabilitation");
+    expect(rehab?.labelKey).toBe("common.inRehabilitation");
+    expect(rehab?.labelFallback).toBe("In Rehabilitation");
+  });
+});
+
+describe("PET_STATUS_SEQUENCE", () => {
+  // Three status lists now exist: this one (canonical, one per tone, UI order),
+  // PET_STATUS_VALUES (the zod enum — includes the legacy alias), and the tone record.
+  // This is the guard against the exact defect P7 was: a status added to the union but
+  // forgotten by the control that lists them.
+  it("covers every canonical status the validation enum accepts", () => {
+    const canonical = new Set(PET_STATUS_VALUES.map((status) => normalizePetStatus(status)));
+    expect([...PET_STATUS_SEQUENCE].sort()).toEqual([...canonical].sort());
+  });
+
+  it("never offers the legacy alias as a separate choice", () => {
+    expect(PET_STATUS_SEQUENCE).not.toContain("Rehabilitation");
   });
 });

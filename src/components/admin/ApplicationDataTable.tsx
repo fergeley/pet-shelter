@@ -16,8 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Search,
-  CheckCircle2,
-  Clock,
   XCircle,
   Eye,
   Trash2,
@@ -25,7 +23,6 @@ import {
   ChevronRight,
   RotateCcw,
   SlidersHorizontal,
-  FileText,
   Download,
 } from "lucide-react";
 import {
@@ -38,6 +35,12 @@ import {
 } from "@/components/ui/dialog";
 
 import { useApplicationTableController } from "@/hooks/useApplicationTableController";
+import {
+  APPLICATION_STATUS_SEQUENCE,
+  buildApplicationStatusFilterOptions,
+  getApplicationStatusPresentation,
+} from "@/lib/applicationStatusPresentation";
+import { ApplicationStatusIcon } from "@/components/admin/ApplicationStatusIcon";
 
 export function ApplicationDataTable({
   initialApplications,
@@ -127,25 +130,12 @@ export function ApplicationDataTable({
         accessorKey: "status",
         header: "Status",
         cell: ({ row }) => {
-          const status = row.original.status;
-          let badgeClass = "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800";
-          let Icon = FileText;
-
-          if (status === "APPROVED") {
-            badgeClass = "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800";
-            Icon = CheckCircle2;
-          } else if (status === "UNDER_REVIEW") {
-            badgeClass = "bg-amber-800 text-white dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800";
-            Icon = Clock;
-          } else if (status === "REJECTED") {
-            badgeClass = "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800";
-            Icon = XCircle;
-          }
+          const status = getApplicationStatusPresentation(row.original.status);
 
           return (
-            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${badgeClass}`}>
-              <Icon className="size-3" />
-              {status.replace("_", " ")}
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${status.chipClass}`}>
+              <ApplicationStatusIcon tone={status.tone} className="size-3" />
+              {status.label}
             </span>
           );
         },
@@ -163,10 +153,11 @@ export function ApplicationDataTable({
                 className="bg-background border border-input text-xs font-medium px-2 py-1 focus:ring-1 focus:ring-foreground"
                 aria-label={`Change status for application from ${app.applicantName}`}
               >
-                <option value="SUBMITTED">Submitted</option>
-                <option value="UNDER_REVIEW">Under Review</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
+                {APPLICATION_STATUS_SEQUENCE.map((status) => (
+                  <option key={status} value={status}>
+                    {getApplicationStatusPresentation(status).label}
+                  </option>
+                ))}
               </select>
 
               <Button
@@ -253,10 +244,11 @@ export function ApplicationDataTable({
               className="bg-background border border-input text-xs font-semibold px-3 py-2 text-foreground focus:ring-1 focus:ring-foreground"
             >
               <option value="all">All Applications ({applications.length})</option>
-              <option value="SUBMITTED">Submitted ({applications.filter(a => a.status === "SUBMITTED").length})</option>
-              <option value="UNDER_REVIEW">Under Review ({applications.filter(a => a.status === "UNDER_REVIEW").length})</option>
-              <option value="APPROVED">Approved ({applications.filter(a => a.status === "APPROVED").length})</option>
-              <option value="REJECTED">Rejected ({applications.filter(a => a.status === "REJECTED").length})</option>
+              {buildApplicationStatusFilterOptions(applications).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label} ({option.count})
+                </option>
+              ))}
             </select>
           </div>
 

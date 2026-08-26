@@ -151,6 +151,8 @@ export interface TranslationDictionary {
     noUpdates: string;
     whatsAppUs: string;
     sponsorCare: string;
+    careProgram: string;
+    sponsorSupported: string;
   };
   medicalTimeline: {
     title: string;
@@ -485,6 +487,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       noUpdates: "No progress updates have been recorded yet.",
       whatsAppUs: "WhatsApp Us",
       sponsorCare: "Sponsor Care",
+      careProgram: "Care Program",
+      sponsorSupported: "Sponsor Supported",
     },
     medicalTimeline: {
       title: "Rescue Intake & Medical Care Timeline",
@@ -817,6 +821,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       noUpdates: "Tiada kemas kini kemajuan direkodkan setakat ini.",
       whatsAppUs: "Hubungi WhatsApp",
       sponsorCare: "Taja Rawatan",
+      careProgram: "Program Rawatan",
+      sponsorSupported: "Perlu Penajaan",
     },
     medicalTimeline: {
       title: "Garis Masa Penyelamatan & Penjagaan Veterinar",
