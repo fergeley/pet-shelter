@@ -53,22 +53,56 @@ function resolveSpecifier(fromFile: string, spec: string): string | null {
   return null;
 }
 
+/**
+ * Removes block and line comments so quoted import statements inside JSDoc are
+ * not mistaken for real ones. Blanks them rather than deleting so the directive
+ * check below still sees the true leading run of the file.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, lead) => lead + " ".repeat(m.length - lead.length));
+}
+
+/**
+ * True when `directive` is the module's first statement.
+ *
+ * A byte-window heuristic was used here before, which silently reclassified any
+ * module whose directive sat past the window — and a misclassified module is
+ * skipped by the rules that should catch it. Skipping the leading run of
+ * whitespace is exact instead: a directive prologue must precede every
+ * statement, and comments are already blanked by `stripComments`.
+ */
+function hasDirective(strippedSource: string, directive: string): boolean {
+  const leading = strippedSource.replace(/^\s*/, "");
+  return (
+    leading.startsWith(`"${directive}"`) || leading.startsWith(`'${directive}'`)
+  );
+}
+
 function buildGraph(): Record<string, Module> {
   const graph: Record<string, Module> = {};
 
   for (const file of walk(SRC)) {
-    const source = readFileSync(join(ROOT, file), "utf8");
-    // Directives are only meaningful at the very top of a module.
-    const head = source.slice(0, 400);
+    const raw = readFileSync(join(ROOT, file), "utf8");
+    // A JSDoc block quoting an import — this codebase has several explaining
+    // *why* an import is shaped the way it is — would otherwise register as a
+    // real edge and report a violation for code that does not exist.
+    const source = stripComments(raw);
     const imports: string[] = [];
 
-    const specifierPattern = /(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g;
+    // Three forms, and `import\s+` must stay last: alternation is ordered, so
+    // putting it first would match the `import ` in `import {x} from "y"` and
+    // capture the wrong thing. The bare side-effect form is easy to forget and
+    // was invisible here until an injected violation failed to fail.
+    const specifierPattern =
+      /(?:from\s+|import\s*\(\s*|import\s+)["']([^"']+)["']/g;
     let match: RegExpExecArray | null;
     while ((match = specifierPattern.exec(source))) imports.push(match[1]);
 
     graph[file] = {
-      isClient: /^\s*["']use client["']/m.test(head),
-      isServer: /^\s*["']use server["']/m.test(head),
+      isClient: hasDirective(source, "use client"),
+      isServer: hasDirective(source, "use server"),
       imports,
     };
   }
@@ -137,26 +171,42 @@ describe("layer boundaries", () => {
 
   it("keeps Prisma access inside the repository layer", () => {
     // The property that makes persistence swappable and lets this suite run
-    // without a database. Adding an importer is a design decision:
-    // update docs/architecture/LAYERS.md (L-B2) along with this list.
-    const allowed = [
-      "src/lib/server/petRepository.ts",
-      "src/lib/server/applicationRepository.ts",
-      "src/lib/userStore.ts",
-      "src/lib/domain/auditLog.ts",
-      // Repository layer, but deliberately *not* dual-layer: a donation record
-      // has no committed fixture to fall back to, so a failed write must fail
-      // the request rather than mint an unbacked tax receipt. See L-B2.
-      "src/lib/donationLedger.ts",
-    ];
+    // without a database.
+    //
+    // Expressed as a *rule* rather than a filename list: any module inside the
+    // repository directory may reach Prisma, and exactly one module outside it
+    // may. A list had to be edited every time a repository was added or renamed,
+    // and editing it is indistinguishable from widening it on purpose.
+    //
+    // src/lib/domain/auditLog.ts is the deliberate exception: audit writes are
+    // fire-and-forget policy that every repository calls, so it cannot live
+    // inside the layer it instruments without a cycle. Adding a *second*
+    // exception is a design decision — update docs/architecture/LAYERS.md (L-B2).
+    const EXCEPTION = "src/lib/domain/auditLog.ts";
 
     const importers = Object.keys(graph).filter((file) =>
       graph[file].imports.some(
-        (spec) => resolveSpecifier(file, spec) === "src/lib/prisma.ts"
+        (spec) => resolveSpecifier(file, spec) === "src/lib/server/prisma.ts"
       )
     );
 
-    expect(importers.sort()).toEqual([...allowed].sort());
+    // Guards the guard: a moved or renamed prisma.ts would leave this empty and
+    // the assertion below would pass while enforcing nothing.
+    expect(
+      importers.length,
+      "Nothing imports src/lib/server/prisma.ts — has the Prisma client moved?"
+    ).toBeGreaterThanOrEqual(4);
+
+    const outside = importers.filter(
+      (f) => !f.startsWith("src/lib/server/") && f !== EXCEPTION
+    );
+
+    expect(
+      outside,
+      "Prisma may only be reached from src/lib/server/ (plus the audit-log " +
+        "exception). Put the query behind a repository module instead. " +
+        "Background: docs/architecture/LAYERS.md §L-B2."
+    ).toEqual([]);
   });
 
   it("keeps the repository layer out of the browser bundle", () => {

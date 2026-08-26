@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { Sen, senFromInteger } from "./domain/money";
+import { Sen, senFromInteger } from "@/lib/domain/money";
 import type { SponsorshipTierId } from "@/types/sponsorship";
 
 /**
