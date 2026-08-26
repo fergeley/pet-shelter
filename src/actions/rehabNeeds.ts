@@ -2,7 +2,7 @@
 
 import { RehabNeed } from "@/types/rehab";
 import { rehabFilterSchema, RehabFilterInput } from "@/lib/validations/rehab";
-import { getServerRehabNeedsAsync, findServerRehabNeedById } from "@/lib/serverStore";
+import { getServerRehabNeedsAsync, findServerRehabNeedById } from "@/lib/server/rehabNeedsCatalog";
 
 /**
  * Server Action: Retrieves rehabilitation house needs with optional category/search filtering.

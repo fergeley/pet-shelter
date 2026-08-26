@@ -17,9 +17,9 @@ import {
 import {
   mapDbPetToPet,
   buildPetPersistencePayload,
-  insertServerPet,
   type DbPetRecord,
-} from "@/lib/serverStore";
+} from "@/lib/server/petMappers";
+import { insertServerPet } from "@/lib/server/petRepository";
 import { getPublicPets, createPet, updatePet } from "@/actions/pets";
 import { ROLES } from "@/lib/security/rbac";
 import { Pet, PetStatus } from "@/types/pet";

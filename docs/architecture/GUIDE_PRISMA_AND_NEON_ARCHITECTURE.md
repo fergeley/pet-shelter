@@ -34,7 +34,7 @@ A frequent point of confusion is whether the application uses **Prisma** or **Ne
                                        │ On connection failure
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
 │              Resilient In-Memory Fallback Engine (Safety Net)               │
-│  - src/lib/serverStore.ts (RAM store with seed data)                        │
+│  - src/lib/server/*.ts (RAM caches seeded from src/data/*.json)             │
 │  - Ensures the site remains online even during network or database outages   │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -185,7 +185,7 @@ npx prisma db push
 
 ## 6. The In-Memory Fallback Subsystem
 
-The application features a resilient **two-tier data layer** in [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts):
+The application features a resilient **two-tier data layer** across `src/lib/server/` — `petRepository.ts` and `applicationRepository.ts` carry it, while `rehabNeedsCatalog.ts` and `faqCatalog.ts` are fixture-only and have no database tier:
 
 ```
 Application Action (e.g. getApplications())

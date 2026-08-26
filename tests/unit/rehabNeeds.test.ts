@@ -16,7 +16,8 @@ import {
   fetchRehabNeedsAction,
   getRehabNeedByIdAction,
 } from "@/actions/rehabNeeds";
-import { resetServerStore, getServerRehabNeeds } from "@/lib/serverStore";
+import { resetServerStore } from "@/lib/server/fallbackState";
+import { getServerRehabNeeds } from "@/lib/server/rehabNeedsCatalog";
 
 describe("Rehabilitation Needs Data Layer & Server Actions", () => {
   beforeEach(() => {

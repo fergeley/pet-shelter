@@ -192,7 +192,7 @@ npm start
 
 ### Incident: Database Connection Failure / Offline Mode
 * **Symptom**: PostgreSQL container is down or `DATABASE_URL` is unreachable.
-* **Behavior**: The storage engine ([`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts)) logs diagnostic warnings and transparently falls back to in-memory caching.
+* **Behavior**: The storage engine (`src/lib/server/petRepository.ts`, `src/lib/server/applicationRepository.ts`) logs diagnostic warnings and transparently falls back to in-memory caching.
 * **Resolution**:
   1. Check container health: `docker-compose ps`
   2. Restart PostgreSQL: `docker-compose restart postgres`

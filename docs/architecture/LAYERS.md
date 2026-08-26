@@ -79,11 +79,12 @@ Models: `User`, `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings`, plu
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/serverStore.ts` · `src/lib/userStore.ts` · `src/lib/domain/auditLog.ts` · `src/lib/donationLedger.ts` |
+| **Files** | `src/lib/server/petRepository.ts` · `src/lib/server/applicationRepository.ts` · `src/lib/userStore.ts` · `src/lib/domain/auditLog.ts` · `src/lib/donationLedger.ts` |
+| **Also here** | `src/lib/server/petMappers.ts` (pure row ↔ domain projection) · `src/lib/server/rehabNeedsCatalog.ts` and `src/lib/server/faqCatalog.ts` (fixture-only, **no Prisma**) · `src/lib/server/fallbackState.ts` (`resetServerStore()`) |
 | **Owns** | Every SQL call; row → domain mapping; the in-memory fallback |
 | **May import** | L-B1, L-B3, L-B4, and L-B5 for the `SessionUser` actor type |
 
-**Verified**: these four files are the *only* importers of `@/lib/prisma` in the entire `src/` tree. That property is what makes persistence swappable and lets the test suite run with no database. Adding another importer is a design decision, not a detail — `tests/unit/layerBoundaries.test.ts` fails until the list here and the allow-list there agree.
+**Verified**: these five files are the *only* importers of `@/lib/prisma` in the entire `src/` tree. That property is what makes persistence swappable and lets the test suite run with no database. Adding another importer is a design decision, not a detail — `tests/unit/layerBoundaries.test.ts` fails until the list here and the allow-list there agree.
 
 Row mappers (`DbPetRecord` → `Pet`, `DbApplicationRecord` → `AdoptionApplicationRecord`, `DbUserRecord` → `UserRecord`) live here and nowhere else.
 
@@ -210,7 +211,7 @@ The canonical shape of an action — each step is a different layer:
   → checkRateLimit(...)               // L-B5
   → schema.parse(input)               // L-B4
   → validate*Transition(...)          // L-B3
-  → serverStore mutation              // L-B2
+  → repository mutation               // L-B2
   → recordAuditLog(...)               // L-B3
   → revalidatePath(...)               // Next cache
 ```
@@ -235,7 +236,7 @@ The canonical shape of an action — each step is a different layer:
 | **L-F4** | Client stores | `src/lib/{petStore,applicationStore,bulletinStore,settingsStore,sponsorshipStore,adminAuth}.ts` — `"use client"` hooks persisting to `localStorage` under `hope_for_strays_*` keys |
 | **L-F5** | i18n | `src/lib/i18n/translations.ts` (`en` + `ms`) · `useLanguage` |
 
-**Do not confuse L-F4 with L-B2.** `serverStore.ts` is the Prisma-backed repository; the L-F4 stores are browser-only React hooks that never touch the database. L-F4 is a standing violation of Blueprint Tenet 4 (single source of truth), tolerated because these stores drive admin/demo UI only. Treat any *new* use as a design error.
+**Do not confuse L-F4 with L-B2.** `src/lib/server/` is the Prisma-backed repository layer; the L-F4 stores are browser-only React hooks that never touch the database. L-F4 is a standing violation of Blueprint Tenet 4 (single source of truth), tolerated because these stores drive admin/demo UI only. Treat any *new* use as a design error.
 
 ---
 
@@ -254,7 +255,7 @@ The canonical shape of an action — each step is a different layer:
 **Data flow across the seam:**
 
 ```
-Server Component page ──await──> src/actions/* ──> serverStore ──> Prisma
+Server Component page ──await──> src/actions/* ──> src/lib/server/* ──> Prisma
                                       ▲                            └─ fallback: src/data/*.json
 "use client" component ──> use*Controller hook ──┘
 ```
@@ -296,7 +297,7 @@ All unused barrels (`@/lib/stores`, `@/lib/security`, `@/lib/services`, and `@/c
 
 A class of inconsistency this codebase is structurally prone to, and it is **invisible to the compiler**.
 
-`Pet` fields are optional (`?`). An optional field declared in `src/types/pet.ts` but absent from `schema.prisma` and the `serverStore` mappers produces **no type error, no runtime error, and no data** — it simply returns `undefined` forever once a real database is serving. Any UI bound to it renders empty with nothing failing anywhere in the stack. The in-memory fallback hides this completely, because fixtures in `src/data/pets.json` *do* carry the field.
+`Pet` fields are optional (`?`). An optional field declared in `src/types/pet.ts` but absent from `schema.prisma` and `src/lib/server/petMappers.ts` produces **no type error, no runtime error, and no data** — it simply returns `undefined` forever once a real database is serving. Any UI bound to it renders empty with nothing failing anywhere in the stack. The in-memory fallback hides this completely, because fixtures in `src/data/pets.json` *do* carry the field.
 
 **Current state — the three scalars are now wired end to end:**
 
@@ -385,6 +386,6 @@ Recorded rather than silently fixed; amending `CLAUDE.md` is the maintainer's ca
 | "Prefer the barrels for cross-module imports" | Zero modules import any barrel (§5.2). |
 | README: passwords use bcrypt | The code uses `crypto.scrypt`. (`CLAUDE.md` already flags this correctly.) |
 
-`CLAUDE.md` also states that the new `Pet` fields "exist in neither `prisma/schema.prisma` nor the `serverStore` row mappers". That was true when written and is now **half true**: the three rehab scalars are wired end to end, and only `updates[]` and `medicalTimeline[]` remain unmapped — see §6.
+`CLAUDE.md` also states that the new `Pet` fields "exist in neither `prisma/schema.prisma` nor the repository row mappers". That was true when written and is now **half true**: the three rehab scalars are wired end to end, and only `updates[]` and `medicalTimeline[]` remain unmapped — see §6.
 
 **A note on all of the above.** Every row in this table was verified minutes before this document was regenerated, and several of them changed *during* the analysis: the TNRM propagation through L-B3, L-B4, L-B1, and L-B2 all landed while this file was being written. That is the argument for §7 — a document that hardcodes progress is wrong within the hour, so status lives in commands here, and only structure is written down.

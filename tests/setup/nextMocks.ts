@@ -274,9 +274,9 @@ export function resetNextMocks(): void {
  *
  * The `src/lib` stores are imported *dynamically, inside the hook*, and that is
  * load-bearing rather than stylistic. A setup file is evaluated before the test
- * file, so a static `import { resetServerStore } from "@/lib/serverStore"` would
- * instantiate `serverStore` — and through it the real `@/lib/prisma` — before
- * the test file's own `vi.mock("@/lib/prisma", ...)` is ever registered. Suites
+ * file, so a static `import { resetServerStore } from "@/lib/server/fallbackState"`
+ * would instantiate the repositories — and through them the real `@/lib/prisma` —
+ * before the test file's own `vi.mock("@/lib/prisma", ...)` is registered. Suites
  * that spy on the Prisma client would then assert against a client the code
  * under test is not using, and silently observe zero calls. Deferring the
  * import to hook-execution time lets each file's mocks win.
@@ -284,8 +284,8 @@ export function resetNextMocks(): void {
 beforeEach(async () => {
   resetNextMocks();
 
-  const [serverStore, userStore, auditLog, rateLimit, idempotency, donationLedger] = await Promise.all([
-    import("@/lib/serverStore"),
+  const [fallbackState, userStore, auditLog, rateLimit, idempotency, donationLedger] = await Promise.all([
+    import("@/lib/server/fallbackState"),
     import("@/lib/userStore"),
     import("@/lib/domain/auditLog"),
     import("@/lib/security/rateLimit"),
@@ -293,7 +293,7 @@ beforeEach(async () => {
     import("@/lib/donationLedger"),
   ]);
 
-  serverStore.resetServerStore();
+  fallbackState.resetServerStore();
   auditLog.resetAuditLogs();
   rateLimit.resetRateLimitStore();
   idempotency.resetIdempotencyStore();

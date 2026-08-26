@@ -7,7 +7,7 @@ import {
   toggleArchivePet,
 } from "@/actions/pets";
 import { submitApplication } from "@/actions/applications";
-import { insertServerPet } from "@/lib/serverStore";
+import { insertServerPet } from "@/lib/server/petRepository";
 
 // Mock next/headers cookies
 const mockCookieMap = new Map<string, { value: string }>();

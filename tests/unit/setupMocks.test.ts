@@ -16,8 +16,8 @@ import {
   getServerPets,
   getServerPetsAsync,
   insertServerPet,
-  resetServerStore,
-} from "@/lib/serverStore";
+} from "@/lib/server/petRepository";
+import { resetServerStore } from "@/lib/server/fallbackState";
 import { findUserByEmail, createUser, listUsers } from "@/lib/userStore";
 import {
   recordAuditLog,
@@ -364,7 +364,7 @@ describe("STRICT_PERSISTENCE off (default): graceful in-memory fallback", () => 
 
 // ===========================================================================
 describe("STRICT_PERSISTENCE on: database failures surface", () => {
-  describe("serverStore", () => {
+  describe("server store", () => {
     it("throws on a failed pet query instead of serving fixtures", async () => {
       enableStrictPersistence();
       await expect(getServerPetsAsync()).rejects.toThrow(PRISMA_FAILURE);

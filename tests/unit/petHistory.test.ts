@@ -8,13 +8,15 @@ import {
   buildPetHistoryNestedCreate,
   buildPetCreatePayload,
   buildPetUpdatePayload,
-  insertServerPet,
-  updateServerPet,
-  getServerPetsAsync,
   type DbPetRecord,
   type DbPetUpdateRecord,
   type DbMedicalTimelineEventRecord,
-} from "@/lib/serverStore";
+} from "@/lib/server/petMappers";
+import {
+  insertServerPet,
+  updateServerPet,
+  getServerPetsAsync,
+} from "@/lib/server/petRepository";
 import {
   petFormSchema,
   petUpdateSchema,

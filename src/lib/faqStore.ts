@@ -1,5 +1,5 @@
 import { FaqItem, FaqCategory, FaqFilterState } from "@/types/faq";
-import { getServerFaqsAsync, findServerFaqById } from "./serverStore";
+import { getServerFaqsAsync, findServerFaqById } from "./server/faqCatalog";
 
 export type { FaqItem, FaqCategory, FaqFilterState };
 

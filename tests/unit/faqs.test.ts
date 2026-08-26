@@ -16,7 +16,8 @@ import {
   fetchFaqsAction,
   getFaqByIdAction,
 } from "@/actions/faqs";
-import { resetServerStore, getServerFaqs } from "@/lib/serverStore";
+import { resetServerStore } from "@/lib/server/fallbackState";
+import { getServerFaqs } from "@/lib/server/faqCatalog";
 
 describe("FAQ Data Layer & Server Actions", () => {
   beforeEach(() => {

@@ -17,8 +17,8 @@ import {
   insertServerPet,
   updateServerPet,
   archiveServerPet,
-  getServerApplicationsAsync,
-} from "@/lib/serverStore";
+} from "@/lib/server/petRepository";
+import { getServerApplicationsAsync } from "@/lib/server/applicationRepository";
 
 /**
  * Public catalog query: only returns active, non-archived pets.

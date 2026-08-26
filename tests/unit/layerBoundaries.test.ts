@@ -140,7 +140,8 @@ describe("layer boundaries", () => {
     // without a database. Adding an importer is a design decision:
     // update docs/architecture/LAYERS.md (L-B2) along with this list.
     const allowed = [
-      "src/lib/serverStore.ts",
+      "src/lib/server/petRepository.ts",
+      "src/lib/server/applicationRepository.ts",
       "src/lib/userStore.ts",
       "src/lib/domain/auditLog.ts",
       // Repository layer, but deliberately *not* dual-layer: a donation record
@@ -156,5 +157,40 @@ describe("layer boundaries", () => {
     );
 
     expect(importers.sort()).toEqual([...allowed].sort());
+  });
+
+  it("keeps the repository layer out of the browser bundle", () => {
+    // `src/lib/server/` is the repository layer: every module there reaches
+    // Prisma, the fixture caches, or both. A `"use client"` module importing one
+    // pulls the database client into the browser bundle, and no type error says
+    // so. Introduced green — see docs/tasks/PLAN_LIB_RESTRUCTURE.md §4.
+    const serverModules = Object.keys(graph).filter((f) =>
+      f.startsWith("src/lib/server/")
+    );
+
+    // Guards the guard: a renamed directory would make the loop below iterate
+    // over nothing and pass while enforcing nothing.
+    expect(
+      serverModules.length,
+      "No modules found under src/lib/server/ — has the repository layer moved?"
+    ).toBeGreaterThanOrEqual(5);
+
+    const violations: string[] = [];
+    for (const file of Object.keys(graph)) {
+      if (!graph[file].isClient) continue;
+      for (const spec of graph[file].imports) {
+        const target = resolveSpecifier(file, spec);
+        if (target && serverModules.includes(target)) {
+          violations.push(`${file} imports ${target}`);
+        }
+      }
+    }
+
+    expect(
+      violations,
+      "A \"use client\" module must not import the repository layer. Call a " +
+        "Server Action from src/actions/ instead, or lift the value into " +
+        "src/lib/domain/. Background: docs/architecture/LAYERS.md §L-B2."
+    ).toEqual([]);
   });
 });

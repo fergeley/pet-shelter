@@ -1,9 +1,16 @@
 # Plan: `src/lib/` Restructure — Split the Repository, Surface the Runtime Boundary
 
-**Status**: approved, **not started**. Revision 2 (2026-08-26).
-**Blocked on**: §1. The TNRM sprint has landed (`68b1981`), but a concurrent session is actively
-writing in `src/lib/` — including the repository layer and the guard test this plan rewrites.
+**Status**: the repository split has **landed** (2026-08-27). The `src/lib/client/` and
+`src/lib/presentation/` moves are still pending — see §9.
 **Scope**: `src/lib/` only. No file outside `src/lib/` moves. No feature folders are created.
+
+> **Revision 3 — one plan decision was overturned during execution.** Rev 2 ordered *moves first,
+> split second*, so the new repository modules would be written once against final paths. Reading
+> the test suite before executing showed the cost of moving `src/lib/prisma.ts` is higher than Rev 2
+> assumed: **four test files call `vi.mock("@/lib/prisma", …)`**, and a mock whose specifier no
+> longer resolves fails silently rather than loudly — the precise trap `CLAUDE.md` warns about. The
+> churn that ordering avoided turned out to be *one import line per repository module*. So the split
+> ran first and every move was deferred. §9 records what is left.
 
 > **Revision 2 changelog.** Rev 1 was reviewed against the tree and five of its decisions were
 > wrong. Phase order caused double-churn; the shared `fallback` holder re-created the coupling the
@@ -295,3 +302,53 @@ Recorded so a future reader (or agent) does not rediscover these as fresh ideas.
 | `rehabNeedsRepository.ts` / `faqRepository.ts` | Zero Prisma calls in either. Encodes a false claim into the layer map the guards enforce. |
 | Re-export shim at `src/lib/serverStore.ts` during migration | A barrel. `CLAUDE.md` forbids them and `f031b93` already removed the last set. 15 importers is a one-commit rewrite. |
 | Guard rules exempting test-file importers | `layerBoundaries.test.ts` walks `src/` only. Test files never enter the graph, so the exemption guards nothing. |
+
+---
+
+## 9. Execution record — 2026-08-27
+
+### Landed
+
+The repository split (§3) and the two guard rules that apply to it (§4.1, §4.3).
+`src/lib/serverStore.ts` is deleted; `src/lib/server/` holds six modules:
+
+| Module | Lines | Prisma |
+|---|---|---|
+| `petMappers.ts` | ~330 | no |
+| `petRepository.ts` | ~185 | yes |
+| `applicationRepository.ts` | ~270 | yes |
+| `rehabNeedsCatalog.ts` | ~65 | no |
+| `faqCatalog.ts` | ~60 | no |
+| `fallbackState.ts` | ~27 | no |
+
+19 importers rewritten — four more than Rev 2 listed, because `src/app/pets/page.tsx`,
+`src/lib/faqStore.ts`, `src/lib/rehabNeedsStore.ts` and `tests/unit/frontendOverhaul.test.ts`
+appeared while the plan was blocked.
+
+Gates: **39 files / 516 tests green** (+1, the new guard), `tsc --noEmit` clean, `eslint` 0 errors
+(4 pre-existing warnings in `PetFormDialog.tsx`, untouched).
+
+The new guard was verified non-vacuous by injecting a violation — a `"use client"` hook importing
+`petRepository` — and confirming it failed with the exact file pair, then passed again on revert. A
+guard that has never been seen red is not known to work.
+
+### Deferred, and why
+
+| Item | Reason |
+|---|---|
+| `lib/client/` moves (6 stores) | `src/lib/sponsorshipStore.ts` was uncommitted in another session |
+| `lib/presentation/` moves (4 files) | `src/lib/petStatusPresentation.ts` was uncommitted; 11 importers, the largest single move |
+| `prisma.ts` · `userStore.ts` · `donationLedger.ts` → `lib/server/` | 4 `vi.mock("@/lib/prisma")` specifiers must move in the same commit; donations work was in flight |
+| §4.2 (`lib/client/*` only from client modules) | The directory does not exist yet |
+| §4.4 (`presentation` must not import `server`) | Same |
+
+None of these are blocked on design — only on those two files settling. When they do, the remaining
+work is one commit of `git mv` plus specifier rewrites, then the two guard rules.
+
+### Doc debt not created by this change
+
+`docs/tutorials/*` reference `serverStore` functions that never existed in the current tree
+(`addPetMedicalMilestone`, `getPublicPets`, `getRehabNeeds`). They were already stale; rewriting
+them is a separate job and was deliberately left alone rather than half-fixed. `docs/archives/*` and
+the `HANDOFF_*` documents are point-in-time records and were **not** rewritten — they correctly
+describe the tree as it was.

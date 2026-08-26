@@ -5,9 +5,9 @@ import type { SponsorshipTierId } from "@/types/sponsorship";
 /**
  * Persistence for issued LHDN tax receipts.
  *
- * ## Why this is not `serverStore.ts`
+ * ## Why this is not a dual-layer repository
  *
- * `serverStore` wraps every Prisma call in try/catch and falls back to the JSON
+ * `src/lib/server/` wraps every Prisma call in try/catch and falls back to the JSON
  * fixtures in `src/data/`. That is the right design for **reference data** — pets,
  * FAQs, rehab needs — because such data has an authoritative committed fixture, so
  * serving it from memory is degraded but truthful.

@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { getServerRehabNeedsAsync } from "@/lib/serverStore";
+import { getServerRehabNeedsAsync } from"@/lib/server/rehabNeedsCatalog";
 import { RehabNeedsSection } from "@/components/features/needs/RehabNeedsSection";
 import { PackageOpen } from "lucide-react";
 

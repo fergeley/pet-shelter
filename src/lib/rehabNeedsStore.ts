@@ -1,5 +1,5 @@
 import { RehabNeed, RehabNeedCategory, RehabUrgencyLevel, RehabFilterState } from "@/types/rehab";
-import { getServerRehabNeedsAsync, findServerRehabNeedById } from "./serverStore";
+import { getServerRehabNeedsAsync, findServerRehabNeedById } from "./server/rehabNeedsCatalog";
 
 export type { RehabNeed, RehabNeedCategory, RehabUrgencyLevel, RehabFilterState };
 

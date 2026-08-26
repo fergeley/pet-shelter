@@ -2,7 +2,7 @@
 
 import { FaqItem } from "@/types/faq";
 import { faqFilterSchema, FaqFilterInput } from "@/lib/validations/faq";
-import { getServerFaqsAsync, findServerFaqById } from "@/lib/serverStore";
+import { getServerFaqsAsync, findServerFaqById } from "@/lib/server/faqCatalog";
 
 /**
  * Server Action: Retrieves FAQs with optional category/search filtering.

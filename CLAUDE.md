@@ -48,8 +48,10 @@ docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/p
   `resetDonationLedger()`.
   New suites are order-independent by default; don't re-implement this per file.
 - Those stores are imported **dynamically inside the hook**. A static import would instantiate
-  `serverStore` — and the real `@/lib/prisma` — before a test file's own
+  the repositories — and the real `@/lib/prisma` — before a test file's own
   `vi.mock("@/lib/prisma")` registers, so Prisma spies would silently observe zero calls.
+  `resetServerStore()` now lives in `@/lib/server/fallbackState`, which is the only module that
+  knows all four caches exist.
 
 A test file's own `vi.mock("next/headers", ...)` still wins over the harness for that file; five
 suites predate the harness and rely on that.
@@ -76,14 +78,32 @@ docs/             architecture blueprints, runbooks, tutorials, sprint plan — 
 
 ### Data flow (the pattern to follow)
 
-Server Component page → `await someAction(...)` from `src/actions/*` → `src/lib/serverStore.ts`
+Server Component page → `await someAction(...)` from `src/actions/*` → `src/lib/server/*`
 → Prisma → **falls back to in-memory arrays on any error or empty table**. Interactive UI lives in
 `"use client"` components that call the same actions and keep local state in a `use*Controller` hook.
 
+### The repository layer (`src/lib/server/`)
+
+Six modules, split out of the former 883-line `serverStore.ts`:
+
+| Module | Role |
+|---|---|
+| `petRepository.ts` | pet cache + Prisma reads/writes; owns `serverPets` |
+| `applicationRepository.ts` | application cache + Prisma reads/writes; owns `serverApplications` |
+| `petMappers.ts` | pure row ↔ domain projection. **No Prisma, no cache** |
+| `rehabNeedsCatalog.ts` · `faqCatalog.ts` | fixture-only readers. **No Prisma model exists** — they are catalogs, not repositories |
+| `fallbackState.ts` | composition root; exports the single `resetServerStore()` |
+
+Approving an application cascades to the pet, so `applicationRepository` imports
+`markCachedPetAdopted` from `petRepository`. That dependency is **one-way and must stay so** — pet
+writes never touch applications. `tests/unit/layerBoundaries.test.ts` additionally forbids any
+`"use client"` module from importing `src/lib/server/*`.
+
 ### Dual-layer store (most important convention)
 
-`src/lib/serverStore.ts` wraps every Prisma call in try/catch. On failure — or when the table is
-empty — it returns module-level arrays seeded from `src/data/*.json`. Consequences:
+`petRepository.ts` and `applicationRepository.ts` wrap every Prisma call in try/catch. On failure —
+or when the table is empty — they return module-level arrays seeded from `src/data/*.json`.
+Consequences:
 
 - The app, admin portal, and tests work with no database at all.
 - **DB errors are swallowed** — reads warn in development only, writes warn always (a lost write is
@@ -91,7 +111,7 @@ empty — it returns module-level arrays seeded from `src/data/*.json`. Conseque
   Set `STRICT_PERSISTENCE=true` to make them throw instead; see "Testing harness" above.
 - Writes mutate both the DB and the in-memory array, so behaviour stays consistent within a process.
 
-Do not confuse `serverStore.ts` with the *client* stores (`petStore`, `applicationStore`,
+Do not confuse `src/lib/server/` with the *client* stores (`petStore`, `applicationStore`,
 `bulletinStore`, `settingsStore`, `sponsorshipStore`, `userStore`). Those are `"use client"` React
 hooks persisting to `localStorage` under `hope_for_strays_*` keys — used by admin/demo UI only.
 
@@ -162,6 +182,40 @@ persist choice to `localStorage` and a `SameSite=Lax` cookie. Adding a string me
 places — the interface and both dictionaries. `tests/unit/i18n.test.ts` enforces key parity, so a
 half-added key fails CI. User-facing copy belongs in the dictionary, never inline in JSX.
 
+### Design system (`src/app/globals.css`)
+
+Three layers, in this order: **tokens** (`:root` / `.dark` / `@theme inline`), **base** (element
+defaults), **components** (`@layer components`). Rules:
+
+- **Never write a raw palette utility** — no `bg-emerald-800`, `text-zinc-500`, `#ed008c`. Pick a
+  *meaning* from the seven tones: `success` · `warning` · `info` · `care` (rehabilitation) ·
+  `danger` · `highlight` (no fixed meaning — the extra distinguishable colour, reach for it
+  last) · `neutral` (adopted/archived). Each exposes seven slots:
+  `surface` `surface-strong` `border` `text` `accent` `solid` `on-solid`, e.g.
+  `bg-success-surface`, `text-care-accent`, `border-warning-border`.
+- **Never hand-write a `dark:` variant for colour.** Every token is declared in both `:root` and
+  `.dark`, so `bg-info-surface` already flips. A `dark:` next to a token means the token is wrong.
+- **Shells over class soup.** `tone-soft` (tinted surface — colour only, the caller keeps its own
+  box), `tone-panel-strong` (emphasised surface), `tone-chip` / `tone-chip-pill` (status badge),
+  `tone-pill` (decision pill), `tone-ink` (tone-coloured icon), `eyebrow` (uppercase micro-label),
+  `segmented` / `segmented-thumb` (toggles), `receipt*`. Pair a shell with a tone class:
+  `class="tone-soft tone-care"`. Every class in that layer has a live consumer — if you add one,
+  use it, and if a use disappears, delete it.
+- **Component classes take no variants.** `dark:tone-ink` and `hover:eyebrow` compile to nothing —
+  only Tailwind-generated utilities accept variants.
+- **Status colour comes from the presentation modules, never the component.**
+  `@/lib/petStatusPresentation`, `@/lib/applicationStatusPresentation`, `@/lib/medicalTimeline` and
+  `BulletinFeed`'s `CATEGORY_LABELS` each map their domain states onto a tone and hand back a ready `toneClass` / `chipClass` /
+  `badgeClass` / `pillClass`. Those strings are self-contained — adding `px-*` or `text-white` at
+  the call site is what the unit tests forbid.
+- **Type scale** runs `text-3xs` (10px) · `text-2xs` (11px) · `text-xs` … — no `text-[10px]`.
+  **Radii**: `rounded-sm`…`rounded-4xl` derive from `--radius`, plus named `rounded-mark`,
+  `rounded-control`, `rounded-card`, `rounded-dialog`. **Elevation**: `shadow-brand-xs…xl`.
+- **Two deliberate exceptions.** The printed receipt uses `--receipt-*` tokens that are *absent
+  from `.dark`* — a Sec 44(6) receipt is black ink on white paper in every theme. And HTML email
+  (`src/lib/email.ts`, `src/actions/settings.ts`) keeps literal hex, because mail clients support
+  neither CSS custom properties nor Tailwind.
+
 ## Conventions
 
 - Imports use the `@/` alias to concrete file paths (no barrels).
@@ -178,12 +232,18 @@ The tree is mid-way through the TNRM / rehabilitation sprint
 (`docs/tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md`). `npx tsc --noEmit` is clean and all tests pass;
 what remains is data-layer propagation, not type errors.
 
+**Next schema work**: `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md` — why 5NF is the wrong goal for
+this schema, the `Pet.age` value that silently rots, statuses Postgres cannot constrain, the one real
+3NF violation, and the four typed concepts with no persistence. It also records the standing gap that
+**the donation ledger has never run against real Postgres** (no Docker in the authoring session);
+`docker compose up -d && npm run db:push && npm run db:seed` is the first thing to do about it.
+
 - `PetStatus` includes `'In Rehabilitation'` plus the legacy alias `'Rehabilitation'`. Treat
   `'In Rehabilitation'` as canonical and run statuses through `normalizePetStatus()`
   (`src/lib/domain/stateMachine.ts`) before comparing them — never compare raw strings.
   Rehab transitions: an animal may enter rehab from `Available` or `Pending`, and leaves it only
   via veterinary clearance back to `Available` (no direct adoption out of rehab).
-- `rehabStage`, `rehabStageMs`, and `rehabProgressPercent` have Prisma columns, `serverStore` row
+- `rehabStage`, `rehabStageMs`, and `rehabProgressPercent` have Prisma columns, `petMappers.ts` row
   mappings, and seed coverage. **Re-run `npx prisma generate` after pulling** — a stale client
   rejects writes carrying those fields, and the fallback swallows the error.
 - `pet-009` (Tuah) and `pet-010` (Comel) in `src/data/pets.json` are the rehab fixtures; run

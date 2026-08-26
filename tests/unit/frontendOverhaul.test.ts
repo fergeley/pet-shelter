@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
-import { getServerRehabNeeds, getServerFaqs } from "@/lib/serverStore";
+import { getServerRehabNeeds } from "@/lib/server/rehabNeedsCatalog";
+import { getServerFaqs } from "@/lib/server/faqCatalog";
 import { getRehabNeedsAction } from "@/actions/rehabNeeds";
 import { getFaqsAction } from "@/actions/faqs";
 

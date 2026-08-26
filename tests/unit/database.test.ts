@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { getServerPetsAsync } from "@/lib/server/petRepository";
 import {
-  getServerPetsAsync,
   getServerApplicationsAsync,
   atomicUpdateApplicationStatus,
-} from "@/lib/serverStore";
+} from "@/lib/server/applicationRepository";
 import { ROLES } from "@/lib/security/rbac";
 import { findUserByEmail, listUsers } from "@/lib/userStore";
 
