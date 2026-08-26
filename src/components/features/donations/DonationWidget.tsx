@@ -24,6 +24,7 @@ import { submitDonationPledgeAction } from "@/actions/donations";
 import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
 import { Pet } from "@/types/pet";
+import initialPetsData from "@/data/pets.json";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PetChooserCarousel } from "./PetChooserCarousel";
 
@@ -41,7 +42,12 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const urlTier = searchParams.get("tier");
   const urlFreq = searchParams.get("freq");
 
-  const [pets, setPets] = useState<Pet[]>(initialPets);
+  const basePets: Pet[] =
+    initialPets.length > 0
+      ? initialPets
+      : ((initialPetsData as unknown as Pet[]).filter((p) => !p.isArchived));
+
+  const [pets, setPets] = useState<Pet[]>(basePets);
 
   const [frequency, setFrequency] = useState<"one_time" | "monthly">(() => {
     return urlFreq === "monthly" || urlFreq === "one_time" ? urlFreq : "one_time";
@@ -60,7 +66,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const [selectedPet, setSelectedPet] = useState<Pet | null>(() => {
     if (urlSponsorPetId || urlPetName) {
       return (
-        initialPets.find(
+        basePets.find(
           (p) =>
             (urlSponsorPetId && p.id === urlSponsorPetId) ||
             (urlPetName && p.name.toLowerCase() === urlPetName.toLowerCase())
@@ -73,7 +79,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const [targetPetName, setTargetPetName] = useState(() => {
     if (urlPetName) return urlPetName;
     if (urlSponsorPetId) {
-      const p = initialPets.find((pet) => pet.id === urlSponsorPetId);
+      const p = basePets.find((pet) => pet.id === urlSponsorPetId);
       if (p) return p.name;
     }
     return "";
@@ -220,8 +226,8 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   if (completedReceipt) {
     return (
       <div className="border border-border bg-card p-6 sm:p-10 rounded-2xl shadow-sm space-y-6">
-        <div className="bg-emerald-900/10 border border-emerald-600/30 p-5 rounded-xl flex items-start gap-3.5">
-          <CheckCircle2 className="size-6 text-emerald-600 shrink-0 mt-0.5" />
+        <div className="bg-success-surface border border-success-accent/30 p-5 rounded-xl flex items-start gap-3.5">
+          <CheckCircle2 className="size-6 text-success-accent shrink-0 mt-0.5" />
           <div>
             <h3 className="font-heading text-lg font-bold text-foreground">
               {isMs
@@ -239,30 +245,30 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         {/* Printable Official Receipt Dossier */}
         <div
           id="donation-receipt-print"
-          className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-xs"
+          className="receipt p-6 sm:p-8 space-y-5 shadow-xs"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-zinc-900 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-receipt-ink pb-4">
             <div>
-              <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-zinc-900">
+              <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-receipt-ink">
                 Hope for Strays Animal Sanctuary
               </h3>
-              <p className="text-xs text-zinc-600">
+              <p className="text-xs text-receipt-ink-muted">
                 No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
               </p>
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-2xs text-receipt-ink-faint">
                 ROS Reg: {completedReceipt.shelterRegistrationNo} • Tax Exemption:{" "}
                 {completedReceipt.taxDeductibleRef}
               </p>
             </div>
 
             <div className="text-left sm:text-right">
-              <span className="inline-block px-2.5 py-1 bg-zinc-900 text-white font-mono text-xs font-bold uppercase rounded-sm">
+              <span className="inline-block px-2.5 py-1 bg-receipt-ink text-receipt-paper font-mono text-xs font-bold uppercase rounded-sm">
                 {t("donations.receiptTitle", "Official e-Receipt")}
               </span>
-              <div className="font-mono text-xs font-bold text-zinc-800 mt-1">
+              <div className="font-mono text-xs font-bold text-receipt-ink-soft mt-1">
                 {completedReceipt.receiptNumber}
               </div>
-              <div className="text-[11px] text-zinc-500">
+              <div className="text-2xs text-receipt-ink-faint">
                 {completedReceipt.date}
               </div>
             </div>
@@ -270,43 +276,43 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div>
-              <div className="text-[10px] uppercase font-bold text-zinc-500">
+              <div className="text-3xs uppercase font-bold text-receipt-ink-faint">
                 {isMs ? "Dikeluarkan Kepada" : "Issued To"}
               </div>
-              <div className="font-bold text-zinc-900 text-sm">
+              <div className="font-bold text-receipt-ink text-sm">
                 {completedReceipt.donorName}
               </div>
-              <div className="text-zinc-600">{completedReceipt.donorEmail}</div>
+              <div className="text-receipt-ink-muted">{completedReceipt.donorEmail}</div>
               {completedReceipt.donorPhone && (
-                <div className="text-zinc-600">
+                <div className="text-receipt-ink-muted">
                   {completedReceipt.donorPhone}
                 </div>
               )}
               {completedReceipt.taxIdOrIc && (
-                <div className="text-zinc-600 font-mono">
+                <div className="text-receipt-ink-muted font-mono">
                   IC/SSM: {completedReceipt.taxIdOrIc}
                 </div>
               )}
             </div>
 
             <div>
-              <div className="text-[10px] uppercase font-bold text-zinc-500">
+              <div className="text-3xs uppercase font-bold text-receipt-ink-faint">
                 {isMs ? "Peruntukan Penajaan" : "Sponsorship Allocation"}
               </div>
-              <div className="font-bold text-zinc-900 text-sm">
+              <div className="font-bold text-receipt-ink text-sm">
                 {completedReceipt.tierName}
               </div>
               {completedReceipt.targetPetName && (
-                <div className="text-zinc-700 font-medium">
+                <div className="text-receipt-ink-soft font-medium">
                   🐾 {isMs ? "Dedikasi Haiwan" : "Dedicated Pet"}:{" "}
                   {completedReceipt.targetPetName}
                 </div>
               )}
-              <div className="text-zinc-500">
+              <div className="text-receipt-ink-faint">
                 Payment: DuitNow National Instant Rail
               </div>
               {completedReceipt.frequency && (
-                <div className="text-zinc-500 uppercase text-[10px]">
+                <div className="text-receipt-ink-faint uppercase text-3xs">
                   Type: {completedReceipt.frequency.replace("_", " ")}
                 </div>
               )}
@@ -314,23 +320,23 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
           </div>
 
           {completedReceipt.notes && (
-            <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md text-xs text-zinc-700 italic">
+            <div className="p-3 receipt-panel border rounded-md text-xs italic">
               &ldquo;{completedReceipt.notes}&rdquo;
             </div>
           )}
 
-          <div className="border-t border-b border-zinc-200 py-3 flex items-center justify-between font-heading">
-            <span className="text-sm font-bold text-zinc-900">
+          <div className="border-t border-b border-receipt-rule py-3 flex items-center justify-between font-heading">
+            <span className="text-sm font-bold text-receipt-ink">
               {isMs
                 ? "Jumlah Sumbangan Diterima"
                 : "Total Contribution Received"}
             </span>
-            <span className="text-2xl font-extrabold text-emerald-700">
+            <span className="text-2xl font-extrabold receipt-accent">
               RM {completedReceipt.amountMYR}.00
             </span>
           </div>
 
-          <div className="text-[10px] text-zinc-500 leading-relaxed italic">
+          <div className="text-3xs text-receipt-ink-faint leading-relaxed italic">
             *{" "}
             {t(
               "donations.receiptSubtitle",
@@ -455,7 +461,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                     <span className="font-heading text-xl font-bold text-foreground">
                       RM {tier.amount}
                     </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
+                    <span className="text-3xs font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
                       {tier.badgeText}
                     </span>
                   </div>
@@ -538,28 +544,28 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
               <div className="p-2.5 bg-background border border-primary/20 rounded-xl space-y-0.5">
-                <span className="font-bold text-foreground text-[11px] block">
+                <span className="font-bold text-foreground text-2xs block">
                   📸 {isMs ? "Kemas Kini Bulanan" : "Monthly Care Reports"}
                 </span>
-                <span className="text-[10px] text-muted-foreground leading-tight block">
+                <span className="text-3xs text-muted-foreground leading-tight block">
                   {t("donations.perkMonthlyUpdates", "Monthly Photo & Video Progress Report")}
                 </span>
               </div>
 
               <div className="p-2.5 bg-background border border-primary/20 rounded-xl space-y-0.5">
-                <span className="font-bold text-foreground text-[11px] block">
+                <span className="font-bold text-foreground text-2xs block">
                   🏅 {isMs ? "Sijil Penajaan" : "Digital Certificate"}
                 </span>
-                <span className="text-[10px] text-muted-foreground leading-tight block">
+                <span className="text-3xs text-muted-foreground leading-tight block">
                   {t("donations.perkDigitalCertificate", "Personalized Digital Sponsorship Certificate")}
                 </span>
               </div>
 
               <div className="p-2.5 bg-background border border-primary/20 rounded-xl space-y-0.5">
-                <span className="font-bold text-foreground text-[11px] block">
+                <span className="font-bold text-foreground text-2xs block">
                   🐾 {isMs ? "Lawatan Santuari" : "Sanctuary Visits"}
                 </span>
-                <span className="text-[10px] text-muted-foreground leading-tight block">
+                <span className="text-3xs text-muted-foreground leading-tight block">
                   {t("donations.perkSanctuaryVisits", "Invitation to arrange occasional visits")}
                 </span>
               </div>
@@ -592,7 +598,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             <div className="text-xs font-extrabold uppercase tracking-widest text-brand-duitnow mb-0.5">
               DuitNow QR
             </div>
-            <div className="text-[10px] text-receipt-ink-muted font-semibold mb-2.5">
+            <div className="text-3xs text-receipt-ink-muted font-semibold mb-2.5">
               National QR Standard (PayNet Malaysia)
             </div>
 
@@ -627,7 +633,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             <div className="text-xs font-bold text-receipt-ink-soft mt-2.5">
               Hope for Strays Shelter Selangor
             </div>
-            <div className="text-[10px] text-receipt-ink-faint font-mono mt-0.5">
+            <div className="text-3xs text-receipt-ink-faint font-mono mt-0.5">
               {t(
                 "donations.duitNowInstructions",
                 "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app."
@@ -638,19 +644,19 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
           {/* Account Details */}
           <div className="md:col-span-7 space-y-3.5 text-xs">
             <div className="p-4 border border-border bg-card rounded-xl space-y-1.5">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+              <div className="eyebrow flex items-center gap-1">
                 <Building2 className="size-3.5" /> Beneficiary Organization
               </div>
               <div className="font-bold text-foreground text-sm">
                 Pertubuhan Kebajikan Hope for Strays
               </div>
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-2xs text-muted-foreground">
                 ROS Reg: PPM-012-10-18042016
               </div>
             </div>
 
             <div className="p-4 border border-border bg-card rounded-xl space-y-2">
-              <div className="text-[10px] text-muted-foreground uppercase font-bold">
+              <div className="eyebrow">
                 Maybank Corporate Current Account
               </div>
               <div className="flex items-center justify-between gap-2">
@@ -658,7 +664,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                   <span className="font-mono font-bold text-foreground text-base tracking-wider block">
                     5140 1234 5678
                   </span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-3xs text-muted-foreground">
                     Malayan Banking Berhad (PJ Branch)
                   </span>
                 </div>
@@ -670,7 +676,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                   className="h-8 px-3 text-xs font-semibold gap-1.5 rounded-lg cursor-pointer"
                 >
                   {copiedBank ? (
-                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    <CheckCircle2 className="size-3.5 text-success-accent" />
                   ) : (
                     <Copy className="size-3.5" />
                   )}
@@ -681,11 +687,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 text-xs text-muted-foreground bg-emerald-950/10 dark:bg-emerald-950/40 p-3 rounded-xl border border-emerald-600/30">
-              <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+            <div className="flex items-center gap-2.5 text-xs text-muted-foreground bg-success-surface p-3 rounded-xl border border-success-accent/30">
+              <ShieldCheck className="size-4 text-success-accent shrink-0" />
               <span>
                 Official LHDN Tax-Exempt Reference:{" "}
-                <strong className="text-emerald-700 dark:text-emerald-400">
+                <strong className="text-success-text ">
                   LHDN.01/35/42/51/179-6.4912
                 </strong>
               </span>

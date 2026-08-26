@@ -61,7 +61,7 @@ export function AuditLogViewer() {
             <Receipt className="size-3.5" />
             <span>Export Receipts CSV (LHDN)</span>
             {counts.receipts > 0 && (
-              <span className="px-1.5 py-0.2 bg-success-solid text-white text-[10px] font-bold rounded-xs">
+              <span className="px-1.5 py-0.2 bg-success-solid text-white text-3xs font-bold rounded-xs">
                 {counts.receipts}
               </span>
             )}
@@ -122,7 +122,7 @@ export function AuditLogViewer() {
                 <Icon className="size-3.5" />
                 <span>{tab.label}</span>
                 <span
-                  className={`ml-1 px-1.5 py-0.2 text-[10px] rounded-xs font-mono font-bold ${
+                  className={`ml-1 px-1.5 py-0.2 text-3xs rounded-xs font-mono font-bold ${
                     isActive ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -163,7 +163,7 @@ export function AuditLogViewer() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-bold tracking-wider text-[11px]">
+                <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-bold tracking-wider text-2xs">
                   <th className="p-3">Timestamp</th>
                   <th className="p-3">Actor & Role</th>
                   <th className="p-3">Action Event</th>
@@ -182,12 +182,12 @@ export function AuditLogViewer() {
 
                   return (
                     <tr key={log.id} className={`hover:bg-muted/20 transition-colors ${isDonation ? "bg-success-surface " : ""}`}>
-                      <td className="p-3 whitespace-nowrap font-mono text-muted-foreground text-[11px]">
+                      <td className="p-3 whitespace-nowrap font-mono text-muted-foreground text-2xs">
                         <div className="flex items-center gap-1.5">
                           <Clock className="size-3 text-foreground" />
                           <span>{new Date(log.createdAt).toLocaleTimeString()}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{new Date(log.createdAt).toLocaleDateString()}</span>
+                        <span className="text-3xs text-muted-foreground">{new Date(log.createdAt).toLocaleDateString()}</span>
                       </td>
 
                       <td className="p-3 whitespace-nowrap">
@@ -195,7 +195,7 @@ export function AuditLogViewer() {
                           <User className="size-3 text-muted-foreground" />
                           {log.actorEmail}
                         </div>
-                        <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border ${
+                        <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-3xs font-bold uppercase tracking-wider border ${
                           isDonation 
                             ? "bg-success-surface-strong text-success-text border-success-border " 
                             : "bg-muted border-border"
@@ -213,7 +213,7 @@ export function AuditLogViewer() {
                           {log.action}
                         </span>
                         {isDonation && details.amountMYR !== undefined && (
-                          <span className="block mt-1 font-mono text-[11px] font-bold text-success-text ">
+                          <span className="block mt-1 font-mono text-2xs font-bold text-success-text ">
                             RM {Number(details.amountMYR).toFixed(2)}
                           </span>
                         )}
@@ -225,15 +225,15 @@ export function AuditLogViewer() {
                           <strong className="text-foreground">{log.entityId}</strong>
                         </div>
                         {isDonation && details.donorName ? (
-                          <span className="block text-[11px] text-muted-foreground font-sans font-medium">
+                          <span className="block text-2xs text-muted-foreground font-sans font-medium">
                             Donor: {String(details.donorName)}
                           </span>
                         ) : null}
                       </td>
 
-                      <td className="p-3 text-[11px] font-mono text-muted-foreground max-w-xs truncate">
+                      <td className="p-3 text-2xs font-mono text-muted-foreground max-w-xs truncate">
                         {log.details ? (
-                          <pre className="bg-muted/50 p-1.5 border border-border text-[10px] whitespace-pre-wrap overflow-x-auto max-h-24">
+                          <pre className="bg-muted/50 p-1.5 border border-border text-3xs whitespace-pre-wrap overflow-x-auto max-h-24">
                             {JSON.stringify(log.details, null, 2)}
                           </pre>
                         ) : (

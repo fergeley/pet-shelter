@@ -145,14 +145,41 @@ care (an earlier revision keyed it on `isAvailable`, which wrongly stripped it f
 
 ## 4. 🎯 Open Items, Prioritized
 
-### P2 — The ROS registration number is still inconsistent *(blocked on stakeholder)*
+### P2 — The ROS registration number is still inconsistent *(still blocked on stakeholder)*
 
 Two digit-transposed variants remain in use, and the wrong one reaches statutory documents:
 `PPM-012-10-18042016` (footer, donate, privacy, terms, README) versus `PPM-021-10-18082021`
-(`src/actions/donations.ts:13`, `src/lib/exportCsv.ts`, `src/lib/sponsorshipStore.ts`,
-`SponsorshipModal.tsx`). The second set feeds **LHDN Section 44(6) tax e-receipts and ROS CSV
-exports**. Deliberately untouched: this needs the actual ROS certificate, not a guess. Ideally
-sourced from `ShelterSettings` rather than duplicated across six files.
+(LHDN Section 44(6) tax e-receipts and ROS CSV exports). **Which is correct still needs the actual
+ROS certificate, not a guess** — no value has been changed.
+
+**What did change**: the architecture around it. Both variants now sit side by side in
+`src/lib/domain/shelterIdentity.ts` as `STATUTORY_ROS_REGISTRATION_NO` and
+`PUBLIC_ROS_REGISTRATION_NO`, and the receipt/export paths (`src/actions/donations.ts`,
+`src/lib/exportCsv.ts` ×2) read from there instead of holding their own copies. Emitted output is
+byte-identical to before.
+
+To close it once the certificate is confirmed:
+
+1. Set both constants in `shelterIdentity.ts` to the confirmed value and collapse them into one
+   export. `ROS_REGISTRATION_NO` also overrides the statutory one at runtime, so a hotfix can ship
+   as configuration ahead of the code change.
+2. Delete the divergence guard in `tests/unit/shelterIdentity.test.ts`, which fails deliberately
+   once the two agree.
+3. Migrate the remaining public-facing copies (`Footer.tsx`, `HomeSections.tsx`, the donate /
+   privacy / terms pages, `SponsorshipModal.tsx`, and the i18n dictionary) onto the constant.
+
+Receipts already issued are unaffected: each `Donation` row snapshots the identifiers it was issued
+under, so correcting the constant changes future receipts only — which is the legally correct
+behaviour, not an oversight.
+
+### Landed — the donation ledger (was: donations were never persisted)
+
+`submitDonationPledgeAction` previously minted a receipt number, emailed it, wrote an audit log, and
+stored **nothing**. The number existed only in the donor's inbox, so it could not back an LHDN claim
+or an ROS annual return. There is now a `Donation` table, gapless receipt numbering via
+`ReceiptSequence`, and exact integer-sen money. See "The ledger exception" in `CLAUDE.md` and L-B2 in
+`docs/architecture/LAYERS.md` for the design and why it deliberately departs from the dual-layer
+store. Run `npm run db:push` after pulling.
 
 ### P4 — Closed: Data Layer & Server Actions for Rehab Needs & FAQs
 

@@ -283,7 +283,7 @@ export default function AdminLoginPage() {
                         variant="outline"
                         size="xs"
                         onClick={() => handleQuickDemoLogin(demo.email, demo.pass)}
-                        className="text-[11px] font-semibold"
+                        className="text-2xs font-semibold"
                       >
                         {demo.role}
                       </Button>
@@ -359,7 +359,7 @@ export default function AdminLoginPage() {
                       <KeyRound className="size-3.5" />
                       <span>Staff Invite Code Required</span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       All shelter accounts require an invite code. Request one from a shelter
                       administrator — it is distributed out-of-band and is never shown here.
                     </p>

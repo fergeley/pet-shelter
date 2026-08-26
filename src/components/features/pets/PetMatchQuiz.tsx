@@ -165,7 +165,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                               <div className="text-sm font-bold text-foreground">{item.title}</div>
                               <div className="text-xs text-muted-foreground mt-1 leading-snug">{item.desc}</div>
                             </div>
-                            <div className="mt-3 text-[11px] font-bold">
+                            <div className="mt-3 text-2xs font-bold">
                               {isSelected ? (
                                 <span className="text-primary flex items-center gap-1">
                                   <CheckCircle2 className="size-3.5" /> Selected
@@ -370,7 +370,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                           >
                             <Icon className={`size-4 mb-1.5 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
                             <div className="text-xs font-bold text-foreground">{item.title}</div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{item.desc}</div>
+                            <div className="text-2xs text-muted-foreground mt-0.5 leading-snug">{item.desc}</div>
                           </button>
                         );
                       })}
@@ -408,7 +408,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                             }`}
                           >
                             <div className="text-xs font-bold text-foreground">{item.title}</div>
-                            <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{item.desc}</div>
+                            <div className="text-2xs text-muted-foreground mt-0.5 leading-snug">{item.desc}</div>
                           </button>
                         );
                       })}
@@ -477,7 +477,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
                           sizes="150px"
                         />
                         <div className="absolute top-2 left-2">
-                          <span className="px-2 py-0.5 text-[11px] font-bold bg-background/90 text-foreground border border-border">
+                          <span className="px-2 py-0.5 text-2xs font-bold bg-background/90 text-foreground border border-border">
                             {pet.species.toUpperCase()}
                           </span>
                         </div>
@@ -518,7 +518,7 @@ export function PetMatchQuiz(props: UsePetMatchQuizControllerProps) {
 
                         {/* Cautions if any */}
                         {score.cautions.length > 0 && (
-                          <div className="text-[11px] text-warning-text flex items-start gap-1">
+                          <div className="text-2xs text-warning-text flex items-start gap-1">
                             <AlertTriangle className="size-3 shrink-0 mt-0.5" />
                             <span>{score.cautions[0]}</span>
                           </div>

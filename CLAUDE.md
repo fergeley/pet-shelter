@@ -16,7 +16,7 @@ Tailwind CSS v4 + shadcn (`base-sera` style) + `@base-ui/react` · Prisma 7.9.1 
 ```bash
 npm run dev            # next dev (Turbopack)
 npm run build          # prisma generate && next build
-npm test               # vitest run --project unit  — 30 files / 357 tests, all green
+npm test               # vitest run --project unit  — 39 files / 512 tests, all green
 npm run test:watch     # vitest
 npm run test:unit      # Tiers 1-2: domain logic + architectural guards (node)
 npm run test:components # Tier 4: client components (jsdom)
@@ -44,7 +44,8 @@ docker compose up -d   # local Postgres 16 on :5432 (postgres/postgrespassword/p
   (`revalidatePath`/`revalidateTag`/`updateTag` spies plus `getRevalidatedPaths()`), and
   `next/navigation` (`redirect`/`notFound` **throw**, as the real ones do).
 - A global `beforeEach` that resets every module-level cache: `resetServerStore()`,
-  `resetUserStore()`, `resetAuditLogs()`, `resetRateLimitStore()`, `resetIdempotencyStore()`.
+  `resetUserStore()`, `resetAuditLogs()`, `resetRateLimitStore()`, `resetIdempotencyStore()`,
+  `resetDonationLedger()`.
   New suites are order-independent by default; don't re-implement this per file.
 - Those stores are imported **dynamically inside the hook**. A static import would instantiate
   `serverStore` — and the real `@/lib/prisma` — before a test file's own
@@ -93,6 +94,44 @@ empty — it returns module-level arrays seeded from `src/data/*.json`. Conseque
 Do not confuse `serverStore.ts` with the *client* stores (`petStore`, `applicationStore`,
 `bulletinStore`, `settingsStore`, `sponsorshipStore`, `userStore`). Those are `"use client"` React
 hooks persisting to `localStorage` under `hope_for_strays_*` keys — used by admin/demo UI only.
+
+### The ledger exception (`src/lib/donationLedger.ts`)
+
+Donation receipts deliberately **do not** use the dual-layer fallback. The fallback is coherent for
+*reference data* (pets, FAQs, needs) because each has an authoritative committed fixture; a donation
+records that an external event happened — money moved — and there is no fixture for an event that
+hasn't occurred. Swallowing that write would hand a donor an official LHDN receipt number for a row
+that exists nowhere.
+
+So the ledger uses a **declared mode** instead of an implicit fallback:
+
+- `DATABASE_URL` set → Postgres is authoritative; a failed write throws `ReceiptIssuanceError`, the
+  Server Action reports failure, and **no receipt is issued**.
+- `DATABASE_URL` unset → the in-memory ledger is authoritative (the documented offline mode). Still
+  gapless, just per-process.
+
+Reads keep the usual asymmetry: a failed listing returns `[]` and warns.
+
+Two properties are structural, not conventional:
+
+- **Gapless numbering** — `ReceiptSequence` is a counter row incremented in the *same transaction*
+  as the insert, so a number is consumed iff the receipt exists. A Postgres `SEQUENCE` cannot do
+  this (a rolled-back txn burns its value), and a hole in a statutory series reads to an auditor as
+  a destroyed receipt. `@@unique([sequenceScope, sequenceValue])` is the real guarantee.
+- **Append-only** — no update/delete is exported and `Donation` has no `updatedAt`. Corrections are
+  new offsetting rows. `prisma/sql/donation_append_only.sql` adds the matching DB trigger (opt-in).
+
+Money is **integer sen**, never `Float` and never Prisma `Decimal` — see `src/lib/domain/money.ts`
+for why (`Decimal` does not survive the `"use server"` boundary intact). Convert at the edges with
+`senFromRinggit` / `ringgitFromSen`; `Sen` is a branded type so the 100× mistake is a compile error.
+
+Statutory identifiers live in `src/lib/domain/shelterIdentity.ts`, and each `Donation` row snapshots
+the ones it was issued under — the same point-in-time capture as `AdoptionApplication.petName`.
+**The ROS registration number discrepancy (P2) is still unresolved and blocked on the certificate**;
+the two variants are now side by side in that one file instead of scattered across six.
+
+New tables: run `npm run db:push` after pulling, or `donation.create` fails and, because this path
+does not fall back, the donation fails too — which is the intended behaviour.
 
 ### Security (`src/lib/security/`)
 

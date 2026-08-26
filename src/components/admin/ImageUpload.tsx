@@ -265,7 +265,7 @@ export function ImageUpload({
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         {savingsInfo && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-success-text bg-success-surface border border-success-border px-2 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-2xs font-medium text-success-text bg-success-surface border border-success-border px-2 py-0.5 rounded">
             <CheckCircle2 className="w-3 h-3" />
             {savingsInfo}
           </span>
@@ -327,7 +327,7 @@ export function ImageUpload({
               {uploading ? (
                 <div className="flex flex-col items-center gap-1.5">
                   <Loader2 className="w-6 h-6 animate-spin text-foreground" />
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {optimizing ? "Optimizing..." : "Uploading..."}
                   </span>
                 </div>
@@ -335,7 +335,7 @@ export function ImageUpload({
                 <>
                   <Upload className="w-5 h-5 text-muted-foreground" />
                   <span className="text-xs font-semibold text-foreground">Add Photo</span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {images.length}/{maxImages} max
                   </span>
                 </>

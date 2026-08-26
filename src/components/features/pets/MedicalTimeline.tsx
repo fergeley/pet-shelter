@@ -93,7 +93,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         </div>
 
         {/* Verification Tag */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-surface border border-success-border text-[11px] font-bold text-success-text rounded-full shrink-0">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-surface border border-success-border text-2xs font-bold text-success-text rounded-full shrink-0">
           <Check className="size-3 text-success-accent stroke-[3]" />
           <span>{isMs ? "Rekod Sahih Veterinar" : "Shelter Vet Certified"}</span>
         </div>
@@ -146,12 +146,12 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
               <div className="bg-background border border-border rounded-xl p-3.5 sm:p-4 shadow-xs space-y-1.5 transition-colors hover:border-foreground/30">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <span className="font-mono text-2xs font-bold text-muted-foreground uppercase tracking-wider">
                       {formatDate(event.date)}
                     </span>
                     {event.badge && (
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getCategoryBadgeClasses(
+                        className={`text-3xs font-bold px-2 py-0.5 rounded-full border ${getCategoryBadgeClasses(
                           event.category
                         )}`}
                       >
@@ -161,7 +161,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
                   </div>
 
                   {event.verified && (
-                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                    <span className="text-3xs text-muted-foreground font-medium flex items-center gap-1">
                       <Check className="size-3 text-success-accent stroke-[2.5]" />
                       {t("common.verified", "Verified")}
                     </span>
@@ -177,7 +177,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
                 </p>
 
                 {event.veterinarian && (
-                  <div className="pt-1 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <div className="pt-1 text-2xs text-muted-foreground flex items-center gap-1.5">
                     <Stethoscope className="size-3 text-primary shrink-0" />
                     <span>
                       {t("medicalTimeline.verifiedBy", "Verified by")} <strong>{event.veterinarian}</strong>

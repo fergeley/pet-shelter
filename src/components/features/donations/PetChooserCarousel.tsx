@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import Image from "next/image";
 import { Pet } from "@/types/pet";
 import { useLanguage } from "@/components/providers/LanguageProvider";
@@ -31,6 +31,18 @@ export function PetChooserCarousel({
 
   const isGeneralSelected = !selectedPetId || selectedPetId === "general";
 
+  // Auto-scroll selected pet card into view
+  useEffect(() => {
+    if (selectedPetId && selectedPetId !== "general" && scrollContainerRef.current) {
+      const targetCard = scrollContainerRef.current.querySelector<HTMLElement>(
+        `[data-pet-id="${selectedPetId}"]`
+      );
+      if (targetCard) {
+        targetCard.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }
+  }, [selectedPetId]);
+
   const handleScroll = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
       const scrollAmount = 280;
@@ -49,7 +61,7 @@ export function PetChooserCarousel({
           <label className="text-xs font-bold uppercase tracking-wider text-foreground block">
             {t("donations.choosePetTitle", "Dedicate Sponsorship to a Specific Animal")}
           </label>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <p className="text-2xs text-muted-foreground mt-0.5">
             {t("donations.choosePetSubtitle", "Select an animal under sanctuary care or sponsor our general rescue fund")}
           </p>
         </div>
@@ -99,7 +111,7 @@ export function PetChooserCarousel({
           <div className="space-y-2">
             <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden bg-primary/15 border border-primary/20 flex flex-col items-center justify-center text-primary">
               <Building2 className="size-8 mb-1 text-primary" />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
+              <span className="text-3xs font-bold uppercase tracking-wider text-primary">
                 {isMs ? "Seluruh Santuari" : "Whole Shelter"}
               </span>
               {isGeneralSelected && (
@@ -114,7 +126,7 @@ export function PetChooserCarousel({
                 <Sparkles className="size-3.5 text-primary shrink-0" />
                 <span>{t("donations.generalSanctuaryFund", "General Sanctuary Fund")}</span>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1 leading-tight line-clamp-2">
+              <p className="text-2xs text-muted-foreground mt-1 leading-tight line-clamp-2">
                 {t(
                   "donations.generalSanctuaryFundDesc",
                   "Allocates funds flexibly where urgently needed most across all animals"
@@ -123,7 +135,7 @@ export function PetChooserCarousel({
             </div>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-border text-[10px] font-semibold text-primary">
+          <div className="mt-3 pt-2 border-t border-border text-3xs font-semibold text-primary">
             🐾 {isMs ? "Semua Haiwan Reskue" : "All Rescue Animals"}
           </div>
         </button>
@@ -136,6 +148,7 @@ export function PetChooserCarousel({
           return (
             <button
               key={pet.id}
+              data-pet-id={pet.id}
               type="button"
               onClick={() => onSelectPet(pet)}
               className={`shrink-0 w-52 sm:w-56 p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all snap-start cursor-pointer ${
@@ -154,7 +167,7 @@ export function PetChooserCarousel({
                     sizes="220px"
                   />
                   <div className="absolute top-2 left-2">
-                    <span className={`${statusPres.badgeClass} text-[9px] px-2 py-0.5 shadow-xs`}>
+                    <span className={`${statusPres.badgeClass} text-3xs px-2 py-0.5 shadow-xs`}>
                       <PetStatusIcon tone={statusPres.tone} className="size-2.5" />
                       {t(statusPres.labelKey, statusPres.labelFallback)}
                     </span>
@@ -166,7 +179,7 @@ export function PetChooserCarousel({
                     </div>
                   )}
 
-                  <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 text-[9px] font-semibold text-white rounded-md">
+                  <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 text-3xs font-semibold text-white rounded-md">
                     {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
                   </div>
                 </div>
@@ -175,13 +188,13 @@ export function PetChooserCarousel({
                   <div className="font-heading text-sm font-bold text-foreground">
                     {pet.name}
                   </div>
-                  <p className="text-[11px] text-muted-foreground line-clamp-1">
+                  <p className="text-2xs text-muted-foreground line-clamp-1">
                     {pet.breed} • {pet.weight}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground">
+              <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-3xs text-muted-foreground">
                 <span className="font-medium text-foreground">{pet.species}</span>
                 <span className="text-primary font-bold">
                   {statusPres.isInRehabilitation

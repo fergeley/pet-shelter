@@ -166,7 +166,7 @@ export function HomeOurWorkSection() {
               >
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full ${pillar.badgeColor}`}>
+                    <span className={`text-2xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${pillar.badgeColor}`}>
                       {isMs ? pillar.tagMs : pillar.tagEn}
                     </span>
                     <div className="flex size-10 items-center justify-center bg-card border border-border rounded-xl">
@@ -553,7 +553,7 @@ export function HomeCommunitySection() {
                 </h4>
                 <Link
                   href="/needs"
-                  className="text-[11px] font-bold text-primary hover:underline"
+                  className="text-2xs font-bold text-primary hover:underline"
                 >
                   {isMs ? "Lihat Senarai Penuh →" : "View Full List →"}
                 </Link>

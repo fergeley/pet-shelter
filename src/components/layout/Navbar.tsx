@@ -102,7 +102,7 @@ export function Navbar() {
               <span className="font-heading text-base sm:text-lg font-bold tracking-tight text-foreground leading-tight">
                 Hope for Strays <span className="text-primary text-xs font-bold uppercase tracking-wider">UM</span>
               </span>
-              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider hidden sm:block">
+              <span className="text-3xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:block">
                 {isMs ? "Kewujudan Bersama melalui TNRM" : "Coexistence through TNRM & Education"}
               </span>
             </div>
@@ -166,7 +166,7 @@ export function Navbar() {
                         <item.icon className="size-4 text-primary shrink-0 mt-0.5" />
                         <div>
                           <p className="text-xs font-bold text-foreground">{item.label}</p>
-                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
+                          <p className="text-2xs text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
                         </div>
                       </Link>
                     ))}
@@ -211,7 +211,7 @@ export function Navbar() {
                         <item.icon className="size-4 text-primary shrink-0 mt-0.5" />
                         <div>
                           <p className="text-xs font-bold text-foreground">{item.label}</p>
-                          <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
+                          <p className="text-2xs text-muted-foreground leading-tight mt-0.5">{item.desc}</p>
                         </div>
                       </Link>
                     ))}

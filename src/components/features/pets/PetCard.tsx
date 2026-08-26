@@ -91,7 +91,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
               <div className="flex items-start gap-1.5">
                 <PetStatusIcon tone={status.tone} className="size-3.5 mt-0.5 shrink-0 text-care-text " />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-care-text ">
+                  <p className="text-3xs font-bold uppercase tracking-wider text-care-text ">
                     {t("common.rehabStage", "Rehabilitation Stage")}
                   </p>
                   <p className="text-xs font-semibold text-foreground leading-snug mt-0.5">
@@ -102,7 +102,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
 
               {rehabProgress !== undefined && (
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground">
+                  <div className="flex items-center justify-between text-3xs font-semibold text-muted-foreground">
                     <span>{t("common.rehabProgress", "Recovery Progress")}</span>
                     <span className="font-mono text-foreground">{rehabProgress}%</span>
                   </div>

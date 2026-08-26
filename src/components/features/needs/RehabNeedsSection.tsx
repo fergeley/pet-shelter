@@ -71,7 +71,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
     const norm = level.toLowerCase();
     if (norm === "critical") {
       return (
-        <span className="inline-flex items-center gap-1 bg-danger-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+        <span className="inline-flex items-center gap-1 bg-danger-solid text-white text-2xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
           <AlertCircle className="size-3" />
           {isMs ? "Kritikal" : "Critical"}
         </span>
@@ -79,14 +79,14 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
     }
     if (norm === "high") {
       return (
-        <span className="inline-flex items-center gap-1 bg-warning-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+        <span className="inline-flex items-center gap-1 bg-warning-solid text-white text-2xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
           <AlertCircle className="size-3" />
           {isMs ? "Tinggi" : "High Priority"}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 bg-success-solid text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+      <span className="inline-flex items-center gap-1 bg-success-solid text-white text-2xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
         <ShieldCheck className="size-3" />
         {isMs ? "Biasa" : "Normal"}
       </span>
@@ -154,7 +154,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
             >
               <div className="space-y-3.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
+                  <span className="eyebrow bg-muted px-2.5 py-1 rounded-md">
                     {isMs ? item.categoryLabelMs : item.categoryLabel}
                   </span>
                   {getUrgencyBadge(item.urgencyLevel)}

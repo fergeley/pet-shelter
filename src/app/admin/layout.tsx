@@ -75,7 +75,7 @@ export default function AdminLayout({
               <span className="font-heading text-lg font-bold tracking-tight text-foreground">
                 Hope for Strays
               </span>
-              <span className="bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-foreground/80 border border-border">
+              <span className="bg-muted px-2 py-0.5 text-3xs font-bold uppercase tracking-wider text-foreground/80 border border-border">
                 Staff Admin
               </span>
             </div>

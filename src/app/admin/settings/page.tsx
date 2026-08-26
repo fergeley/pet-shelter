@@ -271,7 +271,7 @@ export default function AdminSettingsPage() {
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      className="text-2xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                     >
                       {showApiKey ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                       {showApiKey ? "Hide Key" : "Reveal Key"}
@@ -284,7 +284,7 @@ export default function AdminSettingsPage() {
                     {...register("resendApiKey")}
                     className="text-sm font-mono py-2.5"
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Leave blank to inherit the global <code className="bg-muted px-1 py-0.5 rounded text-foreground">RESEND_API_KEY</code> from your environment.
                   </p>
                 </div>
@@ -309,7 +309,7 @@ export default function AdminSettingsPage() {
                       {...register("shelterNotificationEmail")}
                       className="text-sm py-2.5 font-mono"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Receives coordinator alerts whenever a public adopter submits an application.
                     </p>
                   </div>
@@ -376,7 +376,7 @@ export default function AdminSettingsPage() {
                       {testResult.success ? "Test Email Delivered Successfully!" : "Test Email Dispatch Failed"}
                     </p>
                     {testResult.messageId && (
-                      <p className="font-mono text-[11px]">
+                      <p className="font-mono text-2xs">
                         Resend Message ID: <strong>{testResult.messageId}</strong> {testResult.simulated && "(Simulation Mode)"}
                       </p>
                     )}

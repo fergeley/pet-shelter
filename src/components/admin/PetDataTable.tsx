@@ -113,7 +113,7 @@ export function PetDataTable({
                   </span>
                 )}
                 {pet.isArchived && (
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-neutral-border text-neutral-text ">
+                  <span className="text-3xs uppercase font-bold tracking-wider px-1.5 py-0.5 bg-neutral-border text-neutral-text ">
                     Archived
                   </span>
                 )}

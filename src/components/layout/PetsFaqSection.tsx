@@ -109,7 +109,7 @@ export function PetsFaqSection({ initialFaqs }: { initialFaqs?: FaqItem[] } = {}
                     className="w-full p-5 sm:p-6 text-left flex items-start justify-between gap-4 cursor-pointer hover:bg-muted/30 transition-colors"
                   >
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary block">
+                      <span className="text-3xs font-bold uppercase tracking-wider text-primary block">
                         {isMs ? faq.categoryLabelMs : faq.categoryLabel}
                       </span>
                       <h3 className="font-heading text-base sm:text-lg font-bold text-foreground leading-snug">

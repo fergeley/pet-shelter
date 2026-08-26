@@ -167,17 +167,17 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                             <span className="font-heading text-lg font-bold text-foreground">
                               RM {tier.amount}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
+                            <span className="text-3xs font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
                               {tier.badgeText}
                             </span>
                           </div>
                           <div className="text-xs font-bold text-foreground line-clamp-1">{tier.name}</div>
-                          <div className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">
+                          <div className="text-2xs text-muted-foreground mt-1 leading-snug line-clamp-2">
                             {tier.description}
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2 border-t border-border/60 text-[10px] text-primary font-medium">
+                        <div className="mt-3 pt-2 border-t border-border/60 text-3xs text-primary font-medium">
                           {tier.impactMetrics}
                         </div>
                       </button>
@@ -237,16 +237,16 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                       <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
-                        <span className="font-bold text-foreground text-[11px] block">📸 Monthly Updates</span>
-                        <span className="text-[10px] text-muted-foreground leading-tight block">WhatsApp & Email progress reports</span>
+                        <span className="font-bold text-foreground text-2xs block">📸 Monthly Updates</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">WhatsApp & Email progress reports</span>
                       </div>
                       <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
-                        <span className="font-bold text-foreground text-[11px] block">🏅 Digital Certificate</span>
-                        <span className="text-[10px] text-muted-foreground leading-tight block">Official e-Certificate of Sponsorship</span>
+                        <span className="font-bold text-foreground text-2xs block">🏅 Digital Certificate</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">Official e-Certificate of Sponsorship</span>
                       </div>
                       <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
-                        <span className="font-bold text-foreground text-[11px] block">🐾 Sanctuary Visits</span>
-                        <span className="text-[10px] text-muted-foreground leading-tight block">Arranged visiting privileges</span>
+                        <span className="font-bold text-foreground text-2xs block">🐾 Sanctuary Visits</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">Arranged visiting privileges</span>
                       </div>
                     </div>
                   </div>
@@ -270,10 +270,10 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                   {/* DuitNow QR Visual Box */}
                   <div className="border-2 border-brand-duitnow bg-receipt-paper text-receipt-ink p-4 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
-                    <div className="text-[11px] font-extrabold uppercase tracking-widest text-brand-duitnow mb-0.5">
+                    <div className="text-2xs font-extrabold uppercase tracking-widest text-brand-duitnow mb-0.5">
                       DuitNow QR
                     </div>
-                    <div className="text-[10px] text-receipt-ink-muted font-semibold mb-2">
+                    <div className="text-3xs text-receipt-ink-muted font-semibold mb-2">
                       National QR Standard (PayNet Malaysia)
                     </div>
 
@@ -303,10 +303,10 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                       </svg>
                     </div>
 
-                    <div className="text-[10px] font-bold text-receipt-ink-soft mt-2">
+                    <div className="text-3xs font-bold text-receipt-ink-soft mt-2">
                       Hope for Strays Shelter Selangor
                     </div>
-                    <div className="text-[9px] text-receipt-ink-faint font-mono">
+                    <div className="text-3xs text-receipt-ink-faint font-mono">
                       Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc.
                     </div>
                   </div>
@@ -314,19 +314,19 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                   {/* Manual Bank Account Details */}
                   <div className="space-y-3 text-xs">
                     <div className="p-3.5 border border-border bg-card rounded-lg space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                      <div className="eyebrow flex items-center gap-1">
                         <Building2 className="size-3" /> Beneficiary Organization
                       </div>
                       <div className="font-bold text-foreground text-sm">Pertubuhan Kebajikan Hope for Strays</div>
-                      <div className="text-[11px] text-muted-foreground">ROS Registration: PPM-021-10-18082021</div>
+                      <div className="text-2xs text-muted-foreground">ROS Registration: PPM-021-10-18082021</div>
                     </div>
 
                     <div className="p-3.5 border border-border bg-card rounded-lg space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold">Maybank Account Details</div>
+                      <div className="eyebrow">Maybank Account Details</div>
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <span className="font-mono font-bold text-foreground text-base tracking-wider block">5140 1234 5678</span>
-                          <span className="text-[10px] text-muted-foreground">Malayan Banking Berhad (PJ Branch)</span>
+                          <span className="text-3xs text-muted-foreground">Malayan Banking Berhad (PJ Branch)</span>
                         </div>
                         <Button
                           type="button"
@@ -335,14 +335,14 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                           onClick={handleCopyMaybank}
                           className="h-8 px-3 text-xs font-semibold gap-1.5"
                         >
-                          {copiedBank ? <CheckCircle2 className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                          {copiedBank ? <CheckCircle2 className="size-3.5 text-success-accent" /> : <Copy className="size-3.5" />}
                           {copiedBank ? "Copied!" : "Copy"}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-emerald-950/10 dark:bg-emerald-950/40 p-2.5 rounded-md border border-emerald-600/20">
-                      <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
+                    <div className="flex items-center gap-2 text-2xs text-muted-foreground bg-success-surface p-2.5 rounded-md border border-success-accent/20">
+                      <ShieldCheck className="size-4 text-success-accent shrink-0" />
                       <span>Official LHDN Tax-Exempt Reference: <strong>LHDN.01/35/42/51/179-6.4912</strong></span>
                     </div>
                   </div>
@@ -436,8 +436,8 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
           ) : (
             /* E-Receipt View */
             <div className="space-y-6">
-              <div className="bg-emerald-900/10 border border-emerald-600/30 p-4 rounded-xl flex items-start gap-3">
-                <CheckCircle2 className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="bg-success-surface border border-success-accent/30 p-4 rounded-xl flex items-start gap-3">
+                <CheckCircle2 className="size-5 text-success-accent shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-heading text-sm font-bold text-foreground">
                     Sponsorship Confirmed! Thank You for Saving Rescue Lives.
@@ -458,7 +458,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                     <p className="text-xs text-receipt-ink-muted">
                       No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
                     </p>
-                    <p className="text-[11px] text-receipt-ink-faint">
+                    <p className="text-2xs text-receipt-ink-faint">
                       ROS Reg: {completedReceipt.shelterRegistrationNo} • Tax Exemption: {completedReceipt.taxDeductibleRef}
                     </p>
                   </div>
@@ -470,13 +470,13 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                     <div className="font-mono text-xs font-bold text-receipt-ink-soft mt-1">
                       {completedReceipt.receiptNumber}
                     </div>
-                    <div className="text-[11px] text-receipt-ink-faint">{completedReceipt.date}</div>
+                    <div className="text-2xs text-receipt-ink-faint">{completedReceipt.date}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-receipt-ink-faint">Issued To</div>
+                    <div className="text-3xs uppercase font-bold text-receipt-ink-faint">Issued To</div>
                     <div className="font-bold text-receipt-ink text-sm">{completedReceipt.donorName}</div>
                     <div className="text-receipt-ink-muted">{completedReceipt.donorEmail}</div>
                     {completedReceipt.donorPhone && <div className="text-receipt-ink-muted">{completedReceipt.donorPhone}</div>}
@@ -484,14 +484,14 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                   </div>
 
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-receipt-ink-faint">Sponsorship Allocation</div>
+                    <div className="text-3xs uppercase font-bold text-receipt-ink-faint">Sponsorship Allocation</div>
                     <div className="font-bold text-receipt-ink text-sm">{completedReceipt.tierName}</div>
                     {completedReceipt.targetPetName && (
                       <div className="text-receipt-ink-soft font-medium">🐾 Dedicated Pet: {completedReceipt.targetPetName}</div>
                     )}
                     <div className="text-receipt-ink-faint">Payment: DuitNow National Instant Rail</div>
                     {completedReceipt.frequency && (
-                      <div className="text-receipt-ink-faint uppercase text-[10px]">Type: {completedReceipt.frequency.replace("_", " ")}</div>
+                      <div className="text-receipt-ink-faint uppercase text-3xs">Type: {completedReceipt.frequency.replace("_", " ")}</div>
                     )}
                   </div>
                 </div>
@@ -507,7 +507,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                   <span className="text-2xl font-extrabold receipt-accent">RM {completedReceipt.amountMYR}.00</span>
                 </div>
 
-                <div className="text-[10px] text-receipt-ink-faint leading-relaxed italic">
+                <div className="text-3xs text-receipt-ink-faint leading-relaxed italic">
                   * This receipt is computer-generated and valid for income tax deduction under Subsection 44(6) of the Malaysian Income Tax Act 1967.
                 </div>
               </div>

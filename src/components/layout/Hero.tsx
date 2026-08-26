@@ -164,7 +164,7 @@ export function Hero() {
           {/* Impact Showcase Strip (FE-02) */}
           <div className="max-w-7xl mx-auto mt-12 sm:mt-16 pt-8 border-t border-border/80">
             <div className="mb-4">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
                 {isMs ? "Impak Komuniti & Penyelamatan Setakat Ini" : "Our Impact & Stray Management So Far"}
               </span>
             </div>

@@ -69,6 +69,33 @@ export function PetDetailView(props: PetDetailViewProps) {
     { id: "support", label: t("petDetail.tabSupport", "Support & Inquiry"), icon: HeartHandshake },
   ];
 
+  const handleTabKeyDown = (
+    e: React.KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number
+  ) => {
+    let nextIndex = currentIndex;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+      e.preventDefault();
+      nextIndex = (currentIndex + 1) % tabItems.length;
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+      e.preventDefault();
+      nextIndex = (currentIndex - 1 + tabItems.length) % tabItems.length;
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      nextIndex = 0;
+    } else if (e.key === "End") {
+      e.preventDefault();
+      nextIndex = tabItems.length - 1;
+    } else {
+      return;
+    }
+
+    const nextTab = tabItems[nextIndex];
+    setActiveTab(nextTab.id);
+    const el = document.getElementById(`tab-${nextTab.id}`);
+    el?.focus();
+  };
+
   return (
     <div className="min-h-screen bg-card pb-20">
       {/* Top Breadcrumbs & Back */}
@@ -150,7 +177,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                 </h1>
                 {!isInRehabilitation ? (
                   <div className="text-right">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-success-accent block">
+                    <span className="text-3xs font-bold uppercase tracking-wider text-success-accent block">
                       {t("petDetail.adoptionFee", "Adoption Fee")}
                     </span>
                     <span className="font-heading text-2xl font-bold text-success-text ">
@@ -163,7 +190,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                   </div>
                 ) : (
                   <div className="text-right">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-care-accent block">
+                    <span className="text-3xs font-bold uppercase tracking-wider text-care-accent block">
                       {t("petDetail.careProgram", "Care Program")}
                     </span>
                     <span className="font-heading text-lg font-bold text-care-text ">
@@ -222,19 +249,21 @@ export function PetDetailView(props: PetDetailViewProps) {
             {/* 4-Part Tabbed Navigation Bar (FE-05) */}
             <div className="border-b border-border">
               <nav className="flex space-x-2 sm:space-x-4 overflow-x-auto pb-1" aria-label="Pet Profile Tabs" role="tablist">
-                {tabItems.map((tab) => {
+                {tabItems.map((tab, idx) => {
                   const Icon = tab.icon;
                   const isActive = activeTab === tab.id;
                   return (
                     <button
-                    key={tab.id}
-                    role="tab"
-                    id={`tab-${tab.id}`}
-                    aria-selected={isActive}
-                    aria-controls={`panel-${tab.id}`}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex items-center gap-2 py-3 px-3.5 sm:px-4 text-xs sm:text-sm font-bold tracking-tight border-b-2 whitespace-nowrap transition-colors cursor-pointer ${
-                    isActive
+                      key={tab.id}
+                      role="tab"
+                      id={`tab-${tab.id}`}
+                      tabIndex={isActive ? 0 : -1}
+                      aria-selected={isActive}
+                      aria-controls={`panel-${tab.id}`}
+                      onClick={() => setActiveTab(tab.id)}
+                      onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                      className={`inline-flex items-center gap-2 py-3 px-3.5 sm:px-4 text-xs sm:text-sm font-bold tracking-tight border-b-2 whitespace-nowrap transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary ${
+                        isActive
                           ? "border-primary text-foreground font-extrabold"
                           : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
                       }`}
@@ -242,7 +271,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                       <Icon className={`size-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                       <span>{tab.label}</span>
                       {tab.count !== undefined && tab.count > 0 && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted text-muted-foreground rounded-full">
+                        <span className="px-1.5 py-0.5 text-3xs font-mono font-bold bg-muted text-muted-foreground rounded-full">
                           {tab.count}
                         </span>
                       )}
@@ -289,7 +318,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-center">
                     <div className="border border-border bg-background p-3 rounded-xl">
                       <Dog className="size-4 mx-auto mb-1 text-muted-foreground" />
-                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">{t("petDetail.goodWithDogs", "Dogs")}</div>
+                      <div className="eyebrow">{t("petDetail.goodWithDogs", "Dogs")}</div>
                       <div className={`text-xs font-bold mt-0.5 ${pet.compatibility.goodWithDogs ? "text-success-text " : "text-destructive"}`}>
                         {pet.compatibility.goodWithDogs ? t("petDetail.good", "Good") : t("petDetail.noDogs", "No Dogs")}
                       </div>
@@ -297,7 +326,7 @@ export function PetDetailView(props: PetDetailViewProps) {
 
                     <div className="border border-border bg-background p-3 rounded-xl">
                       <Cat className="size-4 mx-auto mb-1 text-muted-foreground" />
-                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">{t("petDetail.goodWithCats", "Cats")}</div>
+                      <div className="eyebrow">{t("petDetail.goodWithCats", "Cats")}</div>
                       <div className={`text-xs font-bold mt-0.5 ${pet.compatibility.goodWithCats ? "text-success-text " : "text-destructive"}`}>
                         {pet.compatibility.goodWithCats ? t("petDetail.good", "Good") : t("petDetail.noCats", "No Cats")}
                       </div>
@@ -305,7 +334,7 @@ export function PetDetailView(props: PetDetailViewProps) {
 
                     <div className="border border-border bg-background p-3 rounded-xl">
                       <Baby className="size-4 mx-auto mb-1 text-muted-foreground" />
-                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">{t("petDetail.goodWithKids", "Children")}</div>
+                      <div className="eyebrow">{t("petDetail.goodWithKids", "Children")}</div>
                       <div className={`text-xs font-bold mt-0.5 ${pet.compatibility.goodWithKids ? "text-success-text " : "text-destructive"}`}>
                         {pet.compatibility.goodWithKids ? t("petDetail.kidSafe", "Kid-Safe") : t("petDetail.adultsOnly", "Adults Only")}
                       </div>
@@ -313,7 +342,7 @@ export function PetDetailView(props: PetDetailViewProps) {
 
                     <div className="border border-border bg-background p-3 rounded-xl">
                       <Activity className="size-4 mx-auto mb-1 text-muted-foreground" />
-                      <div className="text-[10px] font-semibold uppercase text-muted-foreground">{t("petDetail.energyLevel", "Energy")}</div>
+                      <div className="eyebrow">{t("petDetail.energyLevel", "Energy")}</div>
                       <div className="text-xs font-bold text-foreground mt-0.5">
                         {pet.compatibility.energyLevel === "Low" ? t("common.low", "Low") : pet.compatibility.energyLevel === "High" ? t("common.high", "High") : t("common.moderate", "Moderate")}
                       </div>
@@ -351,7 +380,7 @@ export function PetDetailView(props: PetDetailViewProps) {
 
                     {rehabProgress !== undefined && (
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                        <div className="flex items-center justify-between text-2xs font-semibold">
                           <span className="uppercase tracking-wider text-muted-foreground">
                             {t("common.rehabProgress", "Recovery Progress")}
                           </span>
@@ -389,7 +418,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                       </div>
                       <div>
                         <div className="font-bold text-foreground">{t("petDetail.vaccinatedTitle", "Core Vaccinated")}</div>
-                        <div className="text-[10px] text-muted-foreground">{t("petDetail.vaccinatedSub", "DHPPi / FVRCP series")}</div>
+                        <div className="text-3xs text-muted-foreground">{t("petDetail.vaccinatedSub", "DHPPi / FVRCP series")}</div>
                       </div>
                     </div>
 
@@ -399,7 +428,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                       </div>
                       <div>
                         <div className="font-bold text-foreground">{t("petDetail.spayedTitle", "Spayed / Neutered")}</div>
-                        <div className="text-[10px] text-muted-foreground">{t("petDetail.spayedSub", "Certified sterile")}</div>
+                        <div className="text-3xs text-muted-foreground">{t("petDetail.spayedSub", "Certified sterile")}</div>
                       </div>
                     </div>
 
@@ -409,7 +438,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                       </div>
                       <div>
                         <div className="font-bold text-foreground">{t("petDetail.chippedTitle", "Microchipped")}</div>
-                        <div className="text-[10px] text-muted-foreground">{t("petDetail.chippedSub", "Registered ISO ID")}</div>
+                        <div className="text-3xs text-muted-foreground">{t("petDetail.chippedSub", "Registered ISO ID")}</div>
                       </div>
                     </div>
                   </div>
@@ -457,7 +486,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                             {update.date}
                           </time>
                           {update.category && (
-                            <span className="bg-secondary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-secondary-foreground border border-border rounded-md">
+                            <span className="bg-secondary px-2.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-secondary-foreground border border-border rounded-md">
                               {update.category}
                             </span>
                           )}
@@ -487,7 +516,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                 <div className="border-2 border-primary/40 bg-primary/5 p-6 rounded-2xl space-y-4 shadow-xs">
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-primary text-primary-foreground text-[10px] font-extrabold uppercase tracking-wider rounded-md">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-primary text-primary-foreground text-3xs font-extrabold uppercase tracking-wider rounded-md">
                         <Sparkles className="size-3" />
                         {isMs ? "Penajaan Diutamakan" : "Featured Program"}
                       </div>
@@ -506,28 +535,28 @@ export function PetDetailView(props: PetDetailViewProps) {
                   {/* 3 Signature Perks */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-primary/20 text-xs">
                     <div className="p-3 bg-background/80 border border-primary/20 rounded-xl space-y-1">
-                      <div className="font-bold text-foreground flex items-center gap-1 text-[11px]">
+                      <div className="font-bold text-foreground flex items-center gap-1 text-2xs">
                         📸 {isMs ? "Kemas Kini Bulanan" : "Monthly Care Reports"}
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
+                      <p className="text-3xs text-muted-foreground leading-tight">
                         {t("donations.perkMonthlyUpdates", "Monthly Photo & Video Progress Report via WhatsApp/Email")}
                       </p>
                     </div>
 
                     <div className="p-3 bg-background/80 border border-primary/20 rounded-xl space-y-1">
-                      <div className="font-bold text-foreground flex items-center gap-1 text-[11px]">
+                      <div className="font-bold text-foreground flex items-center gap-1 text-2xs">
                         🏅 {isMs ? "Sijil Digital" : "Digital Certificate"}
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
+                      <p className="text-3xs text-muted-foreground leading-tight">
                         {t("donations.perkDigitalCertificate", "Personalized Digital Sponsorship Certificate")}
                       </p>
                     </div>
 
                     <div className="p-3 bg-background/80 border border-primary/20 rounded-xl space-y-1">
-                      <div className="font-bold text-foreground flex items-center gap-1 text-[11px]">
+                      <div className="font-bold text-foreground flex items-center gap-1 text-2xs">
                         🐾 {isMs ? "Lawatan Santuari" : "Sanctuary Visits"}
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-tight">
+                      <p className="text-3xs text-muted-foreground leading-tight">
                         {t("donations.perkSanctuaryVisits", "Invitation to arrange occasional sanctuary visits")}
                       </p>
                     </div>

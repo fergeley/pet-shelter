@@ -218,14 +218,14 @@ function ApplicationTrackerContent() {
                       &bull; {result.petBreed}
                     </span>
                   )}
-                  <span className="bg-success-surface text-success-text border border-success-border text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-success-surface text-success-text border border-success-border text-3xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     {t("common.freeAdoption", "100% Free Adoption")}
                   </span>
                 </div>
 
                 <p className="text-xs text-muted-foreground">
                   {isMs ? "Pemohon" : "Applicant"}: <strong>{result.applicantName}</strong> &bull; {isMs ? "Rujukan" : "Reference"}:{" "}
-                  <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[11px]">
+                  <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-2xs">
                     {result.id}
                   </code>
                 </p>
@@ -264,7 +264,7 @@ function ApplicationTrackerContent() {
                   >
                     <CheckCircle2 className="size-5 mx-auto text-primary" />
                     <p className="text-xs font-bold uppercase">{t("tracking.step1", "1. Received")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step1Sub", "In Queue")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step1Sub", "In Queue")}</p>
                   </div>
 
                   {/* Step 2 */}
@@ -281,7 +281,7 @@ function ApplicationTrackerContent() {
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step2", "2. Review")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step2Sub", "Coordinator Screen")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step2Sub", "Coordinator Screen")}</p>
                   </div>
 
                   {/* Step 3 */}
@@ -298,7 +298,7 @@ function ApplicationTrackerContent() {
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step3", "3. Meet & Greet")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step3Sub", "Interaction")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step3Sub", "Interaction")}</p>
                   </div>
 
                   {/* Step 4 */}
@@ -315,7 +315,7 @@ function ApplicationTrackerContent() {
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step4", "4. Approved")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step4Sub", "Homebound")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step4Sub", "Homebound")}</p>
                   </div>
                 </div>
 

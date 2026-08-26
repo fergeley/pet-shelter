@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPets, getPetById } from "@/actions/pets";
@@ -96,7 +97,9 @@ export default async function PetProfilePage({ params }: PetPageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <PetDetailView initialPet={pet} />
+      <Suspense fallback={<div className="min-h-screen bg-card" />}>
+        <PetDetailView initialPet={pet} />
+      </Suspense>
     </>
   );
 }
