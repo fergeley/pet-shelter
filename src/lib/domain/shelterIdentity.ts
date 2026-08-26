@@ -44,6 +44,14 @@ export const LHDN_TAX_DEDUCTIBLE_REF = "LHDN.01/35/42/51/179-6.4912";
  *
  * Preserved byte-for-byte from `src/actions/donations.ts` so that centralising the
  * constant changes no output. See the P2 note above before "correcting" it.
+ *
+ * **The override reaches server code only.** `SponsorshipModal` and `sponsorshipStore`
+ * are `"use client"`, and Next.js inlines only `NEXT_PUBLIC_*` into the client bundle, so
+ * `process.env.ROS_REGISTRATION_NO` is `undefined` there and the default below applies.
+ * Correcting P2 by configuration therefore fixes server-issued receipts and ROS exports;
+ * the client-side sponsorship receipt needs the constant itself edited. Renaming this to
+ * `NEXT_PUBLIC_ROS_REGISTRATION_NO` would close that gap if the config path matters more
+ * than keeping a statutory identifier out of the browser bundle.
  */
 export const STATUTORY_ROS_REGISTRATION_NO =
   process.env.ROS_REGISTRATION_NO ?? "PPM-021-10-18082021";

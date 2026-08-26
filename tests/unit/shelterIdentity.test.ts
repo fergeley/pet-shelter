@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { readFileSync, readdirSync, statSync } from "fs";
+import { join, relative, resolve, sep } from "path";
+import { fileURLToPath } from "url";
 import {
   LHDN_TAX_DEDUCTIBLE_REF,
   PUBLIC_ROS_REGISTRATION_NO,
@@ -72,5 +75,48 @@ describe("currentIssuerIdentity", () => {
 
     expect(first).not.toBe(second);
     expect(first).toEqual(second);
+  });
+});
+
+describe("statutory literals are confined to this module", () => {
+  // The durable half of the fix, and the reason this suite is not enough on its own:
+  // proving `STATUTORY_ROS_REGISTRATION_NO` is overridable says nothing about whether the
+  // call sites read it. A single inlined string means correcting P2 half-applies — one
+  // deployment emitting two different registration numbers, invisible until somebody
+  // reconciles a receipt against an export.
+  //
+  // Same shape as tests/unit/layerBoundaries.test.ts: a property of the source tree that
+  // no behavioural test can see.
+  const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "..");
+  const SRC = join(ROOT, "src");
+  const OWNER = "src/lib/domain/shelterIdentity.ts";
+
+  /** ROS registration numbers and the LHDN Sec 44(6) approval reference, in any spelling. */
+  const STATUTORY_LITERAL = /PPM-\d{3}-\d{2}-\d{8}|LHDN\.\d{2}\/\d{2}\/\d{2}/;
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) walk(full, out);
+      else if (/\.tsx?$/.test(full)) out.push(full);
+    }
+    return out;
+  }
+
+  it("appears in no file under src/ other than shelterIdentity.ts", () => {
+    const offenders: string[] = [];
+
+    for (const file of walk(SRC)) {
+      const repoPath = relative(ROOT, file).split(sep).join("/");
+      if (repoPath === OWNER) continue;
+
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, index) => {
+          if (STATUTORY_LITERAL.test(line)) offenders.push(`${repoPath}:${index + 1}`);
+        });
+    }
+
+    expect(offenders).toEqual([]);
   });
 });

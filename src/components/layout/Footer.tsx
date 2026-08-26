@@ -1,5 +1,6 @@
 "use client";
 
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import Link from "next/link";
 import { PawPrint, MapPin, Phone, Mail, Clock, MessageCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/providers/ThemeToggle";
@@ -126,7 +127,7 @@ export function Footer() {
           <div className="flex flex-wrap items-center gap-3">
             <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
             <span className="text-muted-foreground/40 hidden sm:inline">•</span>
-            <p className="font-mono">{t("footer.rosReg", "ROS Reg: PPM-012-10-18042016")}</p>
+            <p className="font-mono">{t("footer.rosReg", "ROS Reg: {regNo}", { regNo: PUBLIC_ROS_REGISTRATION_NO })}</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-4">

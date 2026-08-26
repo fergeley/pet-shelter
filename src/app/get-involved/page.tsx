@@ -1,3 +1,4 @@
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import { Metadata } from "next";
 import {
   Users,
@@ -204,7 +205,7 @@ export default function GetInvolvedPage() {
                 Corporate Matching & LHDN Tax-Exempt Drives
               </h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Sponsor a monthly TNRM sterilization drive or equipment upgrade. All financial contributions are eligible for Malaysian <strong>LHDN Section 44(6) tax deductions</strong> under Society Registration PPM-012-10-18042016.
+                Sponsor a monthly TNRM sterilization drive or equipment upgrade. All financial contributions are eligible for Malaysian <strong>LHDN Section 44(6) tax deductions</strong> under Society Registration {PUBLIC_ROS_REGISTRATION_NO}.
               </p>
               <div className="space-y-1.5 pt-2 text-xs text-foreground/90 font-medium">
                 <div className="flex items-center gap-2">

@@ -183,3 +183,77 @@ Steps 4–6 reduce the blast radius and can land separately.
   (`git status --porcelain` empty) is false again as of this writing. Worth noting that its Phase 2
   moves `exportCsv.ts` and `sponsorshipStore.ts`: doing this target first is cheaper, since the edits
   here are small and the moves there are mechanical.
+
+---
+
+## 7. State at 2026-08-27 — partially overtaken
+
+Work landed on this target while §1–§6 above were being written, in `6c6d6d5` /
+`2f1257e`. §1 records the state as found; this section records what is left. Where the
+two disagree, this section is current.
+
+**Landed:**
+
+| Item | Evidence |
+|---|---|
+| `exportCsv.ts` adopted | Imports the constants; `:227-228` read `LHDN_TAX_DEDUCTIBLE_REF` / `STATUTORY_ROS_REGISTRATION_NO` instead of literals |
+| `tests/unit/shelterIdentity.test.ts` written | 7 tests: the three constants, the deliberate P2 divergence, correction-by-configuration, and `currentIssuerIdentity()` snapshot semantics |
+| `donations.test.ts` partly repointed | Imports `STATUTORY_ROS_REGISTRATION_NO` (`:7`) but still asserts the literal at `:106` and `:165` |
+
+**Still open — and the open half is the durable half:**
+
+1. **No source scan.** The new suite has zero `readFileSync`/`readdirSync` references. It proves the
+   constant is overridable; nothing proves the call sites read it. §4 step 2 exists precisely because
+   this assertion is what stops the target from decaying, and it is the piece not yet written.
+2. **The second receipt issuer is untouched** — `sponsorshipStore.ts:84-85` still inlines both
+   identifiers, and `SponsorshipModal.tsx:321,346` still renders literals. `ROS_REGISTRATION_NO`
+   therefore *still* half-applies: donation receipts and CSV exports would pick up a correction,
+   sponsorship receipts would not. The mixed-identifier failure in §1 is narrowed, not closed.
+3. **All public copy is unchanged** — `donate/page.tsx:110,111,170`, `get-involved/page.tsx:207`,
+   `privacy/page.tsx:39`, `terms/page.tsx:39,86`, `DonationWidget.tsx:343,654,695`,
+   `Footer.tsx:129`, `HomeSections.tsx:330`, and `translations.ts:416,627,655,699,767,978,1006,1050`.
+4. **`exportCsv.test.ts:56-57,70-71`** still pins string literals.
+5. **`.env.example`** still does not document `ROS_REGISTRATION_NO`.
+
+**24 literals across 10 files.** §3's decision is unchanged and still unmade; §5's acceptance
+criteria are unchanged. Note that `Footer.tsx:129` carries its literal inside a `t()` *fallback*
+argument — `t("footer.rosReg", "ROS Reg: PPM-…")` — so the interpolation work in §3(a) has to cover
+fallbacks as well as dictionary entries, or the scan in step 2 will still find them.
+
+### 7.1 Landed — 2026-08-27
+
+All 24 sites adopted. §3 resolved as **(a)**: the dictionary holds copy with `{regNo}` / `{taxRef}`
+placeholders, and the constants are passed at the three call sites (`donations.rosBadge`,
+`footer.rosReg`, `donations.receiptSubtitle`). `common.rosBadge` had no call site at all — a dead
+entry, left in place and interpolated for consistency.
+
+| Work | Detail |
+|---|---|
+| Source-scan guard | `shelterIdentity.test.ts` — walks `src/`, fails listing every `file:line` carrying a `PPM-` or `LHDN.` literal outside the module. This is the assertion that makes the target stay fixed |
+| Statutory surfaces | `sponsorshipStore.ts` now spreads `currentIssuerIdentity()`; `SponsorshipModal` reads the constants |
+| Public surfaces | 7 pages/components + 8 dictionary entries |
+| Tests repointed | `exportCsv.test.ts`, `donations.test.ts` assert via the constants, so closing P2 fails exactly one test — the one that explains the divergence |
+| `.env.example` | `ROS_REGISTRATION_NO` documented, with its server-only scope stated |
+
+**The env override cannot reach client components.** `SponsorshipModal` and `sponsorshipStore` are
+`"use client"`, and Next.js inlines only `NEXT_PUBLIC_*` into the client bundle, so
+`process.env.ROS_REGISTRATION_NO` is `undefined` there and the module default applies. Correcting P2
+by configuration therefore fixes server-issued receipts and ROS exports but *not* the client-rendered
+sponsorship receipt, which needs the constant itself edited. Recorded in the module docblock rather
+than worked around — renaming to `NEXT_PUBLIC_*` trades a config path for putting a statutory
+identifier in the browser bundle, and that is a call for whoever closes P2.
+
+**On §5's "byte-identical output":** rendered *text* is unchanged, verified against the production
+build. The *markup* is not quite: React emits `<!-- -->` separators where a literal became a JSX
+expression, so `Selangor (PPM-012-10-18042016)` is now
+`Selangor (<!-- -->PPM-012-10-18042016<!-- -->)`. Invisible, inert, and standard React. Worth noting
+that the dictionary path has no such artifact — `t()` returns one interpolated string, so the footer
+is byte-identical. Contorting JSX into `{"…" + CONST + "…"}` to chase byte-identity in generated HTML
+would trade readable source for nothing.
+
+**Verification**: `npx tsc --noEmit` clean · `npm run test:all` 40 files / 516 tests green ·
+`npm run lint` 0 errors · `npm run build` passes · no `{regNo}` or `{taxRef}` placeholder reaches any
+prerendered page.
+
+**Still open**: P2 itself. The two constants remain deliberately divergent, one test says so on
+purpose, and the certificate is still unread.

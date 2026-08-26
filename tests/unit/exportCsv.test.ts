@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { LHDN_TAX_DEDUCTIBLE_REF, STATUTORY_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import {
   formatCsvField,
   generateReceiptsCsvString,
@@ -53,8 +54,8 @@ describe("LHDN Donation Receipt CSV Generator", () => {
         paymentMethod: "duitnow_qr",
         targetPetName: "Milo",
         taxIdOrIc: "920512-10-5432",
-        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-        shelterRegistrationNo: "PPM-021-10-18082021",
+        taxDeductibleRef: LHDN_TAX_DEDUCTIBLE_REF,
+        shelterRegistrationNo: STATUTORY_ROS_REGISTRATION_NO,
       },
     ];
 
@@ -67,8 +68,8 @@ describe("LHDN Donation Receipt CSV Generator", () => {
     expect(csv).toContain('"cheryl.tan@example.com"');
     expect(csv).toContain('"920512-10-5432"');
     expect(csv).toContain('"50.00"');
-    expect(csv).toContain('"LHDN.01/35/42/51/179-6.4912"');
-    expect(csv).toContain('"PPM-021-10-18082021"');
+    expect(csv).toContain(`"${LHDN_TAX_DEDUCTIBLE_REF}"`);
+    expect(csv).toContain(`"${STATUTORY_ROS_REGISTRATION_NO}"`);
   });
 
   it("should parse donation audit log entries into valid receipt CSV rows", () => {

@@ -4,7 +4,10 @@ import { submitDonationPledgeAction } from "@/actions/donations";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
 import { findDonationByReceiptNumber, listDonations } from "@/lib/donationLedger";
-import { STATUTORY_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
+import {
+  LHDN_TAX_DEDUCTIBLE_REF,
+  STATUTORY_ROS_REGISTRATION_NO,
+} from "@/lib/domain/shelterIdentity";
 
 describe("Donation & Sponsorship Validation Schema", () => {
   it("should validate a standard donation pledge successfully", () => {
@@ -102,8 +105,8 @@ describe("Donation Server Action (submitDonationPledgeAction)", () => {
       expect(result.data.donorEmail).toBe("kenneth.lee@example.com");
       expect(result.data.amountMYR).toBe(250);
       expect(result.data.targetPetName).toBe("Barnaby");
-      expect(result.data.taxDeductibleRef).toBe("LHDN.01/35/42/51/179-6.4912");
-      expect(result.data.shelterRegistrationNo).toBe("PPM-021-10-18082021");
+      expect(result.data.taxDeductibleRef).toBe(LHDN_TAX_DEDUCTIBLE_REF);
+      expect(result.data.shelterRegistrationNo).toBe(STATUTORY_ROS_REGISTRATION_NO);
       expect(result.data.tierName).toBe("Emergency Medical & Trauma Care");
     }
 
@@ -161,8 +164,8 @@ describe("Donation Receipt Transactional Email Dispatcher", () => {
       targetPetName: "Luna",
       taxIdOrIc: "910101-10-1234",
       notes: "Thanks for taking care of Luna!",
-      taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-      shelterRegistrationNo: "PPM-021-10-18082021",
+      taxDeductibleRef: LHDN_TAX_DEDUCTIBLE_REF,
+      shelterRegistrationNo: STATUTORY_ROS_REGISTRATION_NO,
     };
 
     const emailResult = await sendDonationReceiptEmail(mockReceipt);

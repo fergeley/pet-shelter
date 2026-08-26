@@ -1,5 +1,6 @@
 "use client";
 
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import React from "react";
 import Link from "next/link";
 import { 
@@ -327,7 +328,7 @@ export function HomeStandardsSection() {
           <div className="lg:col-span-5 space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-semibold border border-border rounded-md">
               <ShieldCheck className="size-3.5 text-foreground" />
-              <span>{isMs ? "Persatuan Berdaftar ROS Malaysia: PPM-012-10-18042016" : "Malaysian Registered Society: PPM-012-10-18042016"}</span>
+              <span>{(isMs ? "Persatuan Berdaftar ROS Malaysia: " : "Malaysian Registered Society: ") + PUBLIC_ROS_REGISTRATION_NO}</span>
             </div>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
               {isMs ? "Piawaian Kebajikan & Santuari Haiwan" : "Our Animal Welfare & Sanctuary Standards"}

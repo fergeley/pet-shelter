@@ -1,5 +1,6 @@
 "use client";
 
+import { LHDN_TAX_DEDUCTIBLE_REF, PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -340,7 +341,8 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             *{" "}
             {t(
               "donations.receiptSubtitle",
-              "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: LHDN.01/35/42/51/179-6.4912"
+              "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
+              { taxRef: LHDN_TAX_DEDUCTIBLE_REF }
             )}
           </div>
         </div>
@@ -651,7 +653,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 Pertubuhan Kebajikan Hope for Strays
               </div>
               <div className="text-2xs text-muted-foreground">
-                ROS Reg: PPM-012-10-18042016
+                ROS Reg: {PUBLIC_ROS_REGISTRATION_NO}
               </div>
             </div>
 
@@ -692,7 +694,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
               <span>
                 Official LHDN Tax-Exempt Reference:{" "}
                 <strong className="text-success-text ">
-                  LHDN.01/35/42/51/179-6.4912
+                  {LHDN_TAX_DEDUCTIBLE_REF}
                 </strong>
               </span>
             </div>

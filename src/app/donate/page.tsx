@@ -1,5 +1,6 @@
 "use client";
 
+import { LHDN_TAX_DEDUCTIBLE_REF, PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import React, { Suspense } from "react";
 import Link from "next/link";
 import {
@@ -107,8 +108,8 @@ export default function DonatePage() {
     {
       q: isMs ? "Adakah sumbangan saya layak mendapat potongan cukai di Malaysia?" : "Is my contribution tax-deductible in Malaysia?",
       a: isMs
-        ? "Ya! Pertubuhan Kebajikan Hope for Strays merupakan organisasi kebajikan yang diluluskan pengecualian cukai di bawah Seksyen 44(6) Akta Cukai Pendapatan 1967 (No. Rujukan Kelulusan: LHDN.01/35/42/51/179-6.4912). Semua sumbangan tunai layak untuk potongan cukai rasmi individu dan korporat."
-        : "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: LHDN.01/35/42/51/179-6.4912). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
+        ? "Ya! Pertubuhan Kebajikan Hope for Strays merupakan organisasi kebajikan yang diluluskan pengecualian cukai di bawah Seksyen 44(6) Akta Cukai Pendapatan 1967 (No. Rujukan Kelulusan: " + LHDN_TAX_DEDUCTIBLE_REF + "). Semua sumbangan tunai layak untuk potongan cukai rasmi individu dan korporat."
+        : "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: " + LHDN_TAX_DEDUCTIBLE_REF + "). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
     },
     {
       q: isMs ? "Bagaimanakah saya menerima resit rasmi potongan cukai?" : "How do I receive my official tax receipt?",
@@ -167,7 +168,7 @@ export default function DonatePage() {
             <div className="pt-3 flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm font-semibold">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
                 <ShieldCheck className="size-4 text-success-accent" />
-                {t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}
+                {t("donations.rosBadge", "ROS Reg: {regNo}", { regNo: PUBLIC_ROS_REGISTRATION_NO })}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-success-surface border border-success-accent/30 rounded-lg text-success-text ">
                 <Award className="size-4 text-success-accent" />

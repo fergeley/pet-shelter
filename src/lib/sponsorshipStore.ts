@@ -1,5 +1,6 @@
 "use client";
 
+import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
 import { useState, useEffect, useCallback } from "react";
 import { SponsorshipTier, DonationReceipt } from "@/types/sponsorship";
 import { SPONSORSHIP_TIERS } from "@/lib/domain/sponsorshipTiers";
@@ -81,8 +82,7 @@ export function useSponsorshipStore() {
         targetPetName: data.targetPetName,
         taxIdOrIc: data.taxIdOrIc,
         notes: data.notes,
-        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-        shelterRegistrationNo: "PPM-021-10-18082021",
+        ...currentIssuerIdentity(),
       };
 
       setReceipts((prev) => [newReceipt, ...prev]);

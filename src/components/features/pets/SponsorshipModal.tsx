@@ -1,5 +1,6 @@
 "use client";
 
+import { LHDN_TAX_DEDUCTIBLE_REF, STATUTORY_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import {
   Dialog,
   DialogContent,
@@ -318,7 +319,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                         <Building2 className="size-3" /> Beneficiary Organization
                       </div>
                       <div className="font-bold text-foreground text-sm">Pertubuhan Kebajikan Hope for Strays</div>
-                      <div className="text-2xs text-muted-foreground">ROS Registration: PPM-021-10-18082021</div>
+                      <div className="text-2xs text-muted-foreground">ROS Registration: {STATUTORY_ROS_REGISTRATION_NO}</div>
                     </div>
 
                     <div className="p-3.5 border border-border bg-card rounded-lg space-y-1">
@@ -343,7 +344,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
 
                     <div className="flex items-center gap-2 text-2xs text-muted-foreground bg-success-surface p-2.5 rounded-md border border-success-accent/20">
                       <ShieldCheck className="size-4 text-success-accent shrink-0" />
-                      <span>Official LHDN Tax-Exempt Reference: <strong>LHDN.01/35/42/51/179-6.4912</strong></span>
+                      <span>Official LHDN Tax-Exempt Reference: <strong>{LHDN_TAX_DEDUCTIBLE_REF}</strong></span>
                     </div>
                   </div>
                 </div>
