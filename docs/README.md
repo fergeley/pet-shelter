@@ -33,6 +33,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 - **[🔴 Target: Admin Status Parity](tasks/TARGET_ADMIN_STATUS_PARITY.md)**: Records P7 — the admin pet table renders rehabilitating animals as "Available" and its status filter cannot reach them. Admin-side follow-on to P5.
 - **[Handoff: Pet History Persistence](tasks/HANDOFF_PET_HISTORY_PERSISTENCE.md)**: Resolves open item P3 — the nested-collection modeling decision for `updates[]` and `medicalTimeline[]`, with the step plan and required test coverage.
 - **[✅ Handoff: Auth Hardening, Rehabilitation UI & Pet History](tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md)**: **Start here.** Closes P1, P3 and P5 — what shipped, why `src/instrumentation.ts` must never be deleted, why green tests could not see a missing migration, and the remaining P2/P4 backlog.
+- **[⏸️ Plan: `src/lib/` Restructure](tasks/PLAN_LIB_RESTRUCTURE.md)**: Approved, **blocked on the TNRM sprint landing**. Splits the 883-line `serverStore.ts` into per-domain repositories, moves the six `"use client"` stores into `lib/client/`, and extends the layer guard to enforce both. Records why a full `src/features/` migration was rejected on evidence.
 - **[Cross-Team Architecture Contract](architecture/ARCHITECTURE_CONTRACT_BACKEND_FRONTEND.md)**: TypeScript data contracts, Server Action signatures, and deep-link standards.
 
 ---
