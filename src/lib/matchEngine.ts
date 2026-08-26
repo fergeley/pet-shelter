@@ -1,4 +1,3 @@
-import "@/lib/client/petStore";
 import { Pet } from "@/types/pet";
 import { QuizAnswers, PetMatchResult, MatchScoreBreakdown } from "@/types/match";
 
