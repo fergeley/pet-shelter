@@ -12,7 +12,7 @@ export interface PetStatusPresentation {
   /**
    * The design-system tone class (`tone-success`, `tone-care`, …) declared in
    * `globals.css`. On its own it only remaps the local `--tone-*` group, so it composes
-   * with any tone-aware shell — `tone-panel`, `tone-ink`, `eyebrow-tone` — without this
+   * with any tone-aware shell — `tone-soft`, `tone-ink`, `eyebrow-tone` — without this
    * module having to know which one the call site picked.
    */
    toneClass: string;
@@ -46,7 +46,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelFallback: "Available",
     toneClass: TONE_CLASS.available,
     badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.available}`,
-      chipClass: `tone-chip ${TONE_CLASS.available}`,
+    chipClass: `tone-chip ${TONE_CLASS.available}`,
     isAdoptable: true,
     isInRehabilitation: false,
   },
@@ -56,7 +56,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelFallback: "In Rehabilitation",
     toneClass: TONE_CLASS.rehabilitation,
     badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.rehabilitation}`,
-      chipClass: `tone-chip ${TONE_CLASS.rehabilitation}`,
+    chipClass: `tone-chip ${TONE_CLASS.rehabilitation}`,
     isAdoptable: false,
     isInRehabilitation: true,
   },
@@ -66,7 +66,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelFallback: "Pending",
     toneClass: TONE_CLASS.pending,
     badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.pending}`,
-      chipClass: `tone-chip ${TONE_CLASS.pending}`,
+    chipClass: `tone-chip ${TONE_CLASS.pending}`,
     isAdoptable: false,
     isInRehabilitation: false,
   },
@@ -76,7 +76,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     labelFallback: "Adopted",
     toneClass: TONE_CLASS.adopted,
     badgeClass: `tone-chip tone-chip-pill ${TONE_CLASS.adopted}`,
-      chipClass: `tone-chip ${TONE_CLASS.adopted}`,
+    chipClass: `tone-chip ${TONE_CLASS.adopted}`,
     isAdoptable: false,
     isInRehabilitation: false,
   },

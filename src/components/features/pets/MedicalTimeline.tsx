@@ -48,7 +48,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
       case "intake":
         return <Activity className="size-3.5 sm:size-4 text-info-text " />;
       case "diagnostic":
-        return <Stethoscope className="size-3.5 sm:size-4 text-clinical-text " />;
+        return <Stethoscope className="size-3.5 sm:size-4 text-highlight-text" />;
       case "treatment":
         return <CheckCircle2 className="size-3.5 sm:size-4 text-warning-text " />;
       case "vaccination":
@@ -93,7 +93,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         </div>
 
         {/* Verification Tag */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-success-surface border border-success-border text-2xs font-bold text-success-text rounded-full shrink-0">
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 tone-soft tone-success border text-2xs font-bold rounded-full shrink-0">
           <Check className="size-3 text-success-accent stroke-[3]" />
           <span>{isMs ? "Rekod Sahih Veterinar" : "Shelter Vet Certified"}</span>
         </div>

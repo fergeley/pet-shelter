@@ -227,7 +227,7 @@ export function ApplicationDetailDialog({
         )}
 
         {successMessage && (
-          <div className="bg-success-surface border border-success-border p-3 text-xs text-success-text flex items-center gap-2 rounded-md">
+          <div className="tone-soft tone-success border p-3 text-xs flex items-center gap-2 rounded-md">
             <CheckCircle2 className="size-4 shrink-0" />
             <span>{successMessage}</span>
           </div>
@@ -403,7 +403,7 @@ export function ApplicationDetailDialog({
           {/* Tab 2: Schedule Meet & Greet */}
           {activeTab === "interview" && (
             <form onSubmit={handleScheduleInterview} className="space-y-4">
-              <div className="p-3 bg-info-surface border border-info-border rounded-lg text-xs text-info-text ">
+              <div className="p-3 tone-soft tone-info border rounded-lg text-xs">
                 Scheduling a Meet & Greet transitions the application to <strong>Under Review</strong>, dispatches a formal invitation email, and adds the session to the applicant&apos;s live tracking dashboard.
               </div>
 

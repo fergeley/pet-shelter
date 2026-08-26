@@ -24,12 +24,18 @@ interface BulletinFeedProps {
   compact?: boolean;
 }
 
-const CATEGORY_LABELS: Record<BulletinCategory, { label: string; badgeClass: string }> = {
-  urgent_need: { label: "Urgent Foster / Need", badgeClass: "bg-danger-solid text-white dark:border font-bold" },
-  clinic: { label: "Clinic / Vaccine", badgeClass: "bg-success-solid text-white dark:border font-bold" },
-  event: { label: "Event", badgeClass: "bg-info-solid text-white dark:border font-bold" },
-  happy_tail: { label: "Adoption Update", badgeClass: "bg-clinical-solid text-white dark:border font-bold" },
-  announcement: { label: "Notice", badgeClass: "bg-neutral-solid text-white dark:border font-bold" },
+/**
+ * Bulletin category → design tone, mirroring the mapping in `@/lib/petStatusPresentation`
+ * and `@/lib/medicalTimeline`. `happy_tail` takes `highlight` rather than `success`
+ * because `clinic` already owns green, and two categories sharing a colour makes the
+ * badge legend unreadable.
+ */
+const CATEGORY_LABELS: Record<BulletinCategory, { label: string; toneClass: string }> = {
+  urgent_need: { label: "Urgent Foster / Need", toneClass: "tone-danger" },
+  clinic: { label: "Clinic / Vaccine", toneClass: "tone-success" },
+  event: { label: "Event", toneClass: "tone-info" },
+  happy_tail: { label: "Adoption Update", toneClass: "tone-highlight" },
+  announcement: { label: "Notice", toneClass: "tone-neutral" },
 };
 
 export function BulletinFeed({
@@ -174,12 +180,12 @@ export function BulletinFeed({
                     {/* Badges & Date */}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 text-xs uppercase tracking-wider ${catInfo.badgeClass}`}>
+                        <span className={`tone-chip px-3 py-1 ${catInfo.toneClass}`}>
                           {catInfo.label}
                         </span>
 
                         {bulletin.isPinned && (
-                          <span className="inline-flex items-center gap-1 bg-warning-solid dark:border text-white px-3 py-1 text-xs font-bold uppercase">
+                          <span className="tone-chip tone-warning px-3 py-1">
                             <Pin className="size-3" /> Pinned
                           </span>
                         )}

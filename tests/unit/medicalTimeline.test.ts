@@ -110,7 +110,7 @@ describe("Rescue Intake & Clinical Medical Timeline", () => {
 
   it("should return a design-system tone class for every category", () => {
     expect(getCategoryToneClass("intake")).toBe("tone-info");
-    expect(getCategoryToneClass("diagnostic")).toBe("tone-clinical");
+    expect(getCategoryToneClass("diagnostic")).toBe("tone-highlight");
     expect(getCategoryToneClass("treatment")).toBe("tone-warning");
     expect(getCategoryToneClass("vaccination")).toBe("tone-success");
     expect(getCategoryToneClass("surgery")).toBe("tone-danger");

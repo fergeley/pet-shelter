@@ -65,7 +65,9 @@
        info      informational · scheduled · submitted
        care      under rehabilitation or veterinary care
        danger    rejected · urgent · negative
-       clinical  veterinary examination (medical timeline only)
+       highlight the extra distinguishable colour, with no fixed meaning: for legends
+                 that have run out of meaning tones (the medical timeline's diagnostic
+                 entries, the bulletin feed's adoption updates). Reach for it last.
        neutral   adopted · archived · inert
      Slots: surface (tinted panel) · surface-strong (emphasised panel) ·
             border · text (readable on surface) · accent (icon on page bg) ·
@@ -117,14 +119,14 @@
   --tone-danger-solid: oklch(44.4% 0.177 26.899);
   --tone-danger-on-solid: #ffffff;
 
-  /* clinical — purple */
-  --tone-clinical-surface: oklch(97.7% 0.014 308.299);
-  --tone-clinical-surface-strong: oklch(94.6% 0.033 307.174);
-  --tone-clinical-border: oklch(82.7% 0.119 306.383);
-  --tone-clinical-text: oklch(43.8% 0.218 303.724);
-  --tone-clinical-accent: oklch(55.8% 0.288 302.321);
-  --tone-clinical-solid: oklch(43.8% 0.218 303.724);
-  --tone-clinical-on-solid: #ffffff;
+  /* highlight — purple */
+  --tone-highlight-surface: oklch(97.7% 0.014 308.299);
+  --tone-highlight-surface-strong: oklch(94.6% 0.033 307.174);
+  --tone-highlight-border: oklch(82.7% 0.119 306.383);
+  --tone-highlight-text: oklch(43.8% 0.218 303.724);
+  --tone-highlight-accent: oklch(55.8% 0.288 302.321);
+  --tone-highlight-solid: oklch(43.8% 0.218 303.724);
+  --tone-highlight-on-solid: #ffffff;
 
   /* neutral — zinc */
   --tone-neutral-surface: oklch(98.5% 0 none);
@@ -239,14 +241,14 @@
   --tone-danger-solid: oklch(25.8% 0.092 26.042);
   --tone-danger-on-solid: oklch(88.5% 0.062 18.334);
 
-  /* clinical — purple */
-  --tone-clinical-surface: oklch(29.1% 0.149 302.717 / 0.45);
-  --tone-clinical-surface-strong: oklch(29.1% 0.149 302.717 / 0.75);
-  --tone-clinical-border: oklch(43.8% 0.218 303.724);
-  --tone-clinical-text: oklch(82.7% 0.119 306.383);
-  --tone-clinical-accent: oklch(71.4% 0.203 305.504);
-  --tone-clinical-solid: oklch(29.1% 0.149 302.717);
-  --tone-clinical-on-solid: oklch(90.2% 0.063 306.703);
+  /* highlight — purple */
+  --tone-highlight-surface: oklch(29.1% 0.149 302.717 / 0.45);
+  --tone-highlight-surface-strong: oklch(29.1% 0.149 302.717 / 0.75);
+  --tone-highlight-border: oklch(43.8% 0.218 303.724);
+  --tone-highlight-text: oklch(82.7% 0.119 306.383);
+  --tone-highlight-accent: oklch(71.4% 0.203 305.504);
+  --tone-highlight-solid: oklch(29.1% 0.149 302.717);
+  --tone-highlight-on-solid: oklch(90.2% 0.063 306.703);
 
   /* neutral — zinc */
   --tone-neutral-surface: oklch(27.4% 0.006 286.033 / 0.5);
@@ -349,13 +351,13 @@
   --color-danger-solid: var(--tone-danger-solid);
   --color-danger-on-solid: var(--tone-danger-on-solid);
 
-  --color-clinical-surface: var(--tone-clinical-surface);
-  --color-clinical-surface-strong: var(--tone-clinical-surface-strong);
-  --color-clinical-border: var(--tone-clinical-border);
-  --color-clinical-text: var(--tone-clinical-text);
-  --color-clinical-accent: var(--tone-clinical-accent);
-  --color-clinical-solid: var(--tone-clinical-solid);
-  --color-clinical-on-solid: var(--tone-clinical-on-solid);
+  --color-highlight-surface: var(--tone-highlight-surface);
+  --color-highlight-surface-strong: var(--tone-highlight-surface-strong);
+  --color-highlight-border: var(--tone-highlight-border);
+  --color-highlight-text: var(--tone-highlight-text);
+  --color-highlight-accent: var(--tone-highlight-accent);
+  --color-highlight-solid: var(--tone-highlight-solid);
+  --color-highlight-on-solid: var(--tone-highlight-on-solid);
 
   --color-neutral-surface: var(--tone-neutral-surface);
   --color-neutral-surface-strong: var(--tone-neutral-surface-strong);
@@ -501,14 +503,14 @@
     --tone-solid: var(--tone-danger-solid);
     --tone-on-solid: var(--tone-danger-on-solid);
   }
-  .tone-clinical {
-    --tone-surface: var(--tone-clinical-surface);
-    --tone-surface-strong: var(--tone-clinical-surface-strong);
-    --tone-border: var(--tone-clinical-border);
-    --tone-text: var(--tone-clinical-text);
-    --tone-accent: var(--tone-clinical-accent);
-    --tone-solid: var(--tone-clinical-solid);
-    --tone-on-solid: var(--tone-clinical-on-solid);
+  .tone-highlight {
+    --tone-surface: var(--tone-highlight-surface);
+    --tone-surface-strong: var(--tone-highlight-surface-strong);
+    --tone-border: var(--tone-highlight-border);
+    --tone-text: var(--tone-highlight-text);
+    --tone-accent: var(--tone-highlight-accent);
+    --tone-solid: var(--tone-highlight-solid);
+    --tone-on-solid: var(--tone-highlight-on-solid);
   }
   .tone-neutral {
     --tone-surface: var(--tone-neutral-surface);
@@ -524,17 +526,6 @@
   .tone-ink {
     color: var(--tone-accent);
   }
-  .tone-fill {
-    background-color: var(--tone-accent);
-  }
-  .tone-hairline {
-    border-color: color-mix(in oklab, var(--tone-accent) 40%, transparent);
-  }
-  /* Faint wash + hairline: the "quiet" panel treatment (rehab notes, pillars). */
-  .tone-wash {
-    background-color: color-mix(in oklab, var(--tone-accent) 6%, transparent);
-    border-color: color-mix(in oklab, var(--tone-accent) 30%, transparent);
-  }
 
   /* --- Micro label: the uppercase eyebrow above a value or section. --- */
   .eyebrow {
@@ -547,7 +538,7 @@
 
   /* --- Filled status badge. Pair with a tone class. --- */
   .tone-chip {
-    @apply inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-3xs font-bold uppercase tracking-wider;
+    @apply inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider;
     background-color: var(--tone-solid);
     color: var(--tone-on-solid);
     border-color: transparent;
@@ -556,25 +547,19 @@
     border-color: var(--tone-border);
   }
   .tone-chip-pill {
-    @apply rounded-full px-2.5 py-0.5 text-2xs;
+    @apply rounded-full;
   }
 
   /* --- Tinted surface: colour only, no box metrics. Pair with a tone class.
-     Use this when the call site already owns padding, radius and type scale
-     (small badges, table rows, inline pills). --- */
+     The call site keeps its own padding, radius and type scale, which is why this
+     rather than a fixed panel shell: the tinted callouts across the app share a
+     colour treatment but almost never share a box. --- */
   .tone-soft {
     background-color: var(--tone-surface);
     border-color: var(--tone-border);
     color: var(--tone-text);
   }
 
-  /* --- Tinted callout / notice panel: `tone-soft` plus the standard shell. --- */
-  .tone-panel {
-    @apply rounded-xl border p-4 text-xs;
-    background-color: var(--tone-surface);
-    border-color: var(--tone-border);
-    color: var(--tone-text);
-  }
   .tone-panel-strong {
     background-color: var(--tone-surface-strong);
   }
@@ -598,15 +583,6 @@
   }
   .receipt-rule {
     border-color: var(--receipt-rule);
-  }
-  .receipt-soft {
-    color: var(--receipt-ink-soft);
-  }
-  .receipt-muted {
-    color: var(--receipt-ink-muted);
-  }
-  .receipt-faint {
-    color: var(--receipt-ink-faint);
   }
   .receipt-accent {
     color: var(--receipt-ink-accent);

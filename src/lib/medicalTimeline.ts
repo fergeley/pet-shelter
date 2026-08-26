@@ -137,11 +137,11 @@ function addDays(dateStr: string, days: number): string {
  * Surgery reads as `danger` and shares red with a rejected application: the two used
  * different-but-adjacent hues (rose vs red) purely by accident, and one tone per meaning
  * is what keeps the legend learnable. `clearance` is a vaccination that outranks it, so
- * it takes the same tone with the emphasised surface rather than a seventh colour.
+ * it takes the same tone with the emphasised surface rather than an eighth colour.
  */
 const CATEGORY_TONE: Record<MedicalTimelineCategory, string> = {
   intake: "tone-info",
-  diagnostic: "tone-clinical",
+  diagnostic: "tone-highlight",
   treatment: "tone-warning",
   vaccination: "tone-success",
   surgery: "tone-danger",
@@ -154,8 +154,8 @@ export function getCategoryToneClass(category: MedicalTimelineCategory): string 
 }
 
 /**
- * Colour classes only — the call site owns the badge's padding, radius and type scale,
- * so this returns `tone-soft` rather than the full `tone-panel` shell.
+ * Colour classes only — `tone-soft` sets the tinted surface, border and text and nothing
+ * else, because the call site owns the badge's padding, radius and type scale.
  */
 export function getCategoryBadgeClasses(category: MedicalTimelineCategory): string {
   const tone = getCategoryToneClass(category);

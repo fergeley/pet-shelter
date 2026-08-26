@@ -111,7 +111,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {savedSuccess && (
-        <div className="bg-success-surface border border-success-border text-success-text p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
+        <div className="tone-soft tone-success border p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
           <CheckCircle2 className="size-4 shrink-0" />
           <span>Shelter settings and service parameters updated successfully! Changes are active immediately.</span>
         </div>
@@ -256,7 +256,7 @@ export default function AdminSettingsPage() {
                     Automate application confirmations, coordinator alerts, status updates, and interview invitations.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success-text bg-success-surface border border-success-border px-2.5 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold tone-soft tone-success border px-2.5 py-1 rounded-full">
                   <ShieldCheck className="size-3.5" />
                   Service Connected
                 </span>
@@ -362,7 +362,7 @@ export default function AdminSettingsPage() {
                 <div
                   className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 border ${
                     testResult.success
-                      ? "bg-success-surface border-success-border text-success-text "
+                      ? "tone-soft tone-success"
                       : "bg-destructive/10 border-destructive/30 text-destructive"
                   }`}
                 >

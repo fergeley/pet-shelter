@@ -55,7 +55,7 @@ export function AuditLogViewer() {
             size="xs"
             onClick={handleExportReceiptsCsv}
             disabled={isLoading}
-            className="text-xs gap-1.5 font-semibold bg-success-surface border-success-border text-success-text hover:bg-success-surface"
+            className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
             title="Export official donation receipts formatted for Malaysian LHDN Section 44(6) tax reporting"
           >
             <Receipt className="size-3.5" />
@@ -96,7 +96,7 @@ export function AuditLogViewer() {
 
       {/* Export Status Notification */}
       {exportNotice && (
-        <div className="bg-success-surface border border-success-border p-3 text-xs text-success-text flex items-center gap-2 animate-in fade-in-50">
+        <div className="tone-soft tone-success border p-3 text-xs flex items-center gap-2 animate-in fade-in-50">
           <CheckCircle2 className="size-4 shrink-0 text-success-accent " />
           <span>{exportNotice}</span>
         </div>
@@ -197,7 +197,7 @@ export function AuditLogViewer() {
                         </div>
                         <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-3xs font-bold uppercase tracking-wider border ${
                           isDonation 
-                            ? "bg-success-surface-strong text-success-text border-success-border " 
+                            ? "tone-soft tone-panel-strong tone-success" 
                             : "bg-muted border-border"
                         }`}>
                           {log.actorRole}
@@ -207,7 +207,7 @@ export function AuditLogViewer() {
                       <td className="p-3 whitespace-nowrap">
                         <span className={`font-mono text-xs font-bold px-2 py-0.5 border ${
                           isDonation 
-                            ? "bg-success-surface-strong text-success-text border-success-border " 
+                            ? "tone-soft tone-panel-strong tone-success" 
                             : "bg-primary/10 text-foreground border-primary/20"
                         }`}>
                           {log.action}

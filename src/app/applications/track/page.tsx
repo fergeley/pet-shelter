@@ -218,7 +218,7 @@ function ApplicationTrackerContent() {
                       &bull; {result.petBreed}
                     </span>
                   )}
-                  <span className="bg-success-surface text-success-text border border-success-border text-3xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="tone-soft tone-success border text-3xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     {t("common.freeAdoption", "100% Free Adoption")}
                   </span>
                 </div>
@@ -305,7 +305,7 @@ function ApplicationTrackerContent() {
                   <div
                     className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
                       currentStep >= 3
-                        ? "bg-success-surface border-success-border text-success-text "
+                        ? "tone-soft tone-success"
                         : "bg-muted/30 border-border text-muted-foreground"
                     }`}
                   >
@@ -321,7 +321,7 @@ function ApplicationTrackerContent() {
 
                 {/* Scheduled Interview Card */}
                 {result.interviewDetails && (
-                  <div className="p-5 rounded-xl bg-info-surface border border-info-border text-info-text space-y-3 animate-in">
+                  <div className="p-5 rounded-xl tone-soft tone-info border space-y-3 animate-in">
                     <div className="flex items-center gap-2">
                       <Calendar className="size-4 text-info-accent " />
                       <h4 className="text-xs font-bold uppercase tracking-wider">
@@ -386,7 +386,7 @@ function ApplicationTrackerContent() {
 
                 {/* Approved State Celebration Card */}
                 {result.status === "APPROVED" && (
-                  <div className="p-5 rounded-xl bg-success-surface border border-success-border text-success-text space-y-3 animate-in">
+                  <div className="p-5 rounded-xl tone-soft tone-success border space-y-3 animate-in">
                     <div className="flex items-center gap-2 text-success-text ">
                       <FileCheck2 className="size-5" />
                       <h4 className="text-sm font-bold">
@@ -411,7 +411,7 @@ function ApplicationTrackerContent() {
 
                 {/* Under Review Guidance Card */}
                 {result.status === "UNDER_REVIEW" && !result.interviewDetails && (
-                  <div className="p-4 rounded-xl bg-warning-surface border border-warning-border text-warning-text text-xs space-y-1">
+                  <div className="p-4 rounded-xl tone-soft tone-warning border text-xs space-y-1">
                     <p className="font-semibold">⏳ {t("tracking.reviewTitle", "Review Currently in Progress")}</p>
                     <p className="text-muted-foreground leading-relaxed">
                       {t("tracking.reviewDesc", "Our team is reviewing your household profile. We will reach out via WhatsApp or email to confirm a Meet & Greet time slot.")}
