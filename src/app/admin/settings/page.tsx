@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
-import { useSettingsStore } from "@/lib/settingsStore";
+import { useSettingsStore } from "@/lib/client/settingsStore";
 import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

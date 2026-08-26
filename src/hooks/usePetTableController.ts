@@ -3,10 +3,10 @@
 import { useState, useMemo } from "react";
 import { Pet } from "@/types/pet";
 import { PetFormInput } from "@/lib/validations/pet";
-import { usePetStore } from "@/lib/petStore";
-import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/adminPetFilters";
+import { usePetStore } from "@/lib/client/petStore";
+import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/presentation/adminPetFilters";
 import { buildPetStatusFilterOptions } from "@/lib/petStatusPresentation";
-import { exportPetsToCsv } from "@/lib/exportCsv";
+import { exportPetsToCsv } from "@/lib/presentation/exportCsv";
 import {
   createPet as serverCreatePet,
   updatePet as serverUpdatePet,

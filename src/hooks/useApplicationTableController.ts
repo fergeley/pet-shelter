@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { SortingState } from "@tanstack/react-table";
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
-import { useApplicationStore } from "@/lib/applicationStore";
-import { exportApplicationsToCsv } from "@/lib/exportCsv";
+import { useApplicationStore } from "@/lib/client/applicationStore";
+import { exportApplicationsToCsv } from "@/lib/presentation/exportCsv";
 import {
   updateApplicationStatus as serverUpdateStatus,
   deleteApplication as serverDeleteApplication,

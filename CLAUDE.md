@@ -69,7 +69,9 @@ src/actions/      "use server" Server Actions — the app's entire write/query A
 src/app/          App Router pages (async Server Components) + /api/upload route handler
 src/components/   layout/ · providers/ · features/{pets,adoptions,donations,bulletins} · admin/ · ui/
 src/hooks/        use*Controller.ts — client state/logic pulled out of components
-src/lib/          domain logic, security, i18n, stores, services, validations
+src/lib/          server/ (repositories) · client/ (localStorage hooks) · presentation/ (status → tone)
+                  · domain/ · security/ · validations/ · i18n/ · storage/ — the first three are
+                  guarded by tests/unit/layerBoundaries.test.ts, not just convention
 src/data/         JSON fixtures (pets, applications, bulletins, faqs, rehabNeeds) = fallback dataset
 src/types/        shared TS contract (pet, application, bulletin, match, sponsorship)
 tests/unit/       Vitest (node environment, `@/` alias, no DOM)
@@ -111,8 +113,8 @@ Consequences:
   Set `STRICT_PERSISTENCE=true` to make them throw instead; see "Testing harness" above.
 - Writes mutate both the DB and the in-memory array, so behaviour stays consistent within a process.
 
-Do not confuse `src/lib/server/` with the *client* stores (`petStore`, `applicationStore`,
-`bulletinStore`, `settingsStore`, `sponsorshipStore`, `userStore`). Those are `"use client"` React
+Do not confuse `src/lib/server/` with the *client* stores in `src/lib/client/` (`petStore`, `applicationStore`,
+`bulletinStore`, `settingsStore`, `sponsorshipStore`, `adminAuth`). Those are `"use client"` React
 hooks persisting to `localStorage` under `hope_for_strays_*` keys — used by admin/demo UI only.
 
 ### The ledger exception (`src/lib/donationLedger.ts`)

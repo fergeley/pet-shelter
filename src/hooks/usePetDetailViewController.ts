@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Pet } from "@/types/pet";
-import { usePetStore } from "@/lib/petStore";
+import { usePetStore } from "@/lib/client/petStore";
 import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
 
 export type PetDetailTab = "about" | "status" | "updates" | "support";

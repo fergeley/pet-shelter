@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { fetchAuditLogsAction } from "@/actions/audit";
 import { AuditEntry } from "@/lib/domain/auditLog";
-import { exportReceiptsToCsv, exportAuditLogsToCsv } from "@/lib/exportCsv";
+import { exportReceiptsToCsv, exportAuditLogsToCsv } from "@/lib/presentation/exportCsv";
 
 export type AuditTabFilter = "all" | "receipts" | "adoptions" | "system";
 

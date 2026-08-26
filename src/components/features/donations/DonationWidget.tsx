@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/sponsorshipStore";
+import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";

@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAdminAuth } from "@/lib/adminAuth";
+import { useAdminAuth } from "@/lib/client/adminAuth";
 import { 
   PawPrint, 
   Dog, 

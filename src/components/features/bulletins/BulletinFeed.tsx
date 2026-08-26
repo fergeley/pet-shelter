@@ -13,7 +13,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { Bulletin, BulletinCategory, BulletinFormData, BulletinTargetPage } from "@/types/bulletin";
-import { useBulletins } from "@/lib/bulletinStore";
+import { useBulletins } from "@/lib/client/bulletinStore";
 import { AdminBulletinModal } from "./AdminBulletinModal";
 import { Button } from "@/components/ui/button";
 

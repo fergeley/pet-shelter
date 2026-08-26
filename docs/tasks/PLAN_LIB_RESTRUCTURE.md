@@ -1,7 +1,7 @@
 # Plan: `src/lib/` Restructure — Split the Repository, Surface the Runtime Boundary
 
-**Status**: the repository split has **landed** (2026-08-27). The `src/lib/client/` and
-`src/lib/presentation/` moves are still pending — see §9.
+**Status**: the repository split, the `src/lib/client/` move, and 2 of 4 `src/lib/presentation/`
+moves have **landed** (2026-08-27). Two presentation modules remain — see §9.
 **Scope**: `src/lib/` only. No file outside `src/lib/` moves. No feature folders are created.
 
 > **Revision 3 — one plan decision was overturned during execution.** Rev 2 ordered *moves first,
@@ -352,3 +352,46 @@ work is one commit of `git mv` plus specifier rewrites, then the two guard rules
 them is a separate job and was deliberately left alone rather than half-fixed. `docs/archives/*` and
 the `HANDOFF_*` documents are point-in-time records and were **not** rewritten — they correctly
 describe the tree as it was.
+
+
+---
+
+## 10. Execution record — second pass, 2026-08-27
+
+### Landed
+
+- `src/lib/client/` — all six `"use client"` localStorage stores (`petStore`, `applicationStore`,
+  `bulletinStore`, `settingsStore`, `sponsorshipStore`, `adminAuth`), 13 importers rewritten.
+- `src/lib/presentation/` — `adminPetFilters.ts` and `exportCsv.ts`, 6 importers rewritten.
+- Guard §4.2 — no non-client module may import `src/lib/client/*`.
+- Guard §4.4 — `src/lib/presentation/*` may not import `src/lib/server/*`.
+
+Gates: **39 files / 518 tests green** (+2 guards), `tsc` clean, `eslint` 0 errors. Both new guards
+verified non-vacuous by injection.
+
+### Still deferred
+
+`petStatusPresentation.ts` and `applicationStatusPresentation.ts`. Both modules are clean, but two
+of their importers — `src/components/features/pets/PetStatusIcon.tsx` and
+`src/components/admin/ApplicationStatusIcon.tsx` — carry another session's uncommitted work, and
+moving these would mean editing and committing files someone else authored.
+
+Also still deferred: `prisma.ts`, `userStore.ts`, `donationLedger.ts` → `lib/server/`, which needs
+the four `vi.mock("@/lib/prisma")` specifiers moved in the same commit.
+
+### A gap found in the guard harness itself
+
+`buildGraph()` in `tests/unit/layerBoundaries.test.ts` collects import specifiers with
+
+```js
+/(?:from\s+|import\s*\(\s*)["']([^"']+)["']/g
+```
+
+which matches `from "x"` and `import("x")` but **not a bare side-effect import**, `import "x";`.
+Discovered by accident: an injected violation using the bare form passed every rule. So a module
+can reach client-only code — or the repository layer — through a side-effect import and no rule in
+this file will see it.
+
+Low severity today (nothing in `src/` uses the bare form for a first-party module) but it is a
+silent hole in every guard here, present since the file was written. See
+`docs/tasks/TARGET_LAYER_GUARD_COMPLETENESS.md`.

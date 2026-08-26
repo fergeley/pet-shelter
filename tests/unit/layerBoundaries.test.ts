@@ -193,4 +193,66 @@ describe("layer boundaries", () => {
         "src/lib/domain/. Background: docs/architecture/LAYERS.md §L-B2."
     ).toEqual([]);
   });
+
+  it("keeps the localStorage stores on the client", () => {
+    // `src/lib/client/` is L-F4: browser-only React hooks over localStorage.
+    // A server module importing one reaches for `window` during SSR. The
+    // directory makes the boundary visible; this makes it enforced.
+    const clientModules = Object.keys(graph).filter((f) =>
+      f.startsWith("src/lib/client/")
+    );
+
+    expect(
+      clientModules.length,
+      "No modules found under src/lib/client/ — has L-F4 moved?"
+    ).toBeGreaterThanOrEqual(6);
+
+    const violations: string[] = [];
+    for (const file of Object.keys(graph)) {
+      if (graph[file].isClient) continue;
+      for (const spec of graph[file].imports) {
+        const target = resolveSpecifier(file, spec);
+        if (target && clientModules.includes(target)) {
+          violations.push(`${file} imports ${target}`);
+        }
+      }
+    }
+
+    expect(
+      violations,
+      "Only a \"use client\" module may import src/lib/client/. These are " +
+        "localStorage hooks, not a data source — a server module needs " +
+        "src/lib/server/ instead. Background: docs/architecture/LAYERS.md §L-F4."
+    ).toEqual([]);
+  });
+
+  it("keeps presentation helpers free of the repository layer", () => {
+    // Status → tone/badge mapping is a pure function of a domain value. Reaching
+    // into a repository from here would make a render path do a database read.
+    const presentationModules = Object.keys(graph).filter((f) =>
+      f.startsWith("src/lib/presentation/")
+    );
+
+    expect(
+      presentationModules.length,
+      "No modules found under src/lib/presentation/."
+    ).toBeGreaterThanOrEqual(2);
+
+    const violations: string[] = [];
+    for (const file of presentationModules) {
+      for (const spec of graph[file].imports) {
+        const target = resolveSpecifier(file, spec);
+        if (target && target.startsWith("src/lib/server/")) {
+          violations.push(`${file} imports ${target}`);
+        }
+      }
+    }
+
+    expect(
+      violations,
+      "src/lib/presentation/ must stay pure — it maps a domain value onto a " +
+        "tone or label and nothing else. Take the data as a parameter instead " +
+        "of fetching it. Background: docs/architecture/LAYERS.md §L-B2."
+    ).toEqual([]);
+  });
 });

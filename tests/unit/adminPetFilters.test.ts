@@ -4,7 +4,7 @@ import {
   filterAdminPets,
   matchesAdminPetFilters,
   scopeByArchiveFilter,
-} from "@/lib/adminPetFilters";
+} from "@/lib/presentation/adminPetFilters";
 import { PetStatus, Species } from "@/types/pet";
 
 type Row = {

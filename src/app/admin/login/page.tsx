@@ -17,7 +17,7 @@ import {
   EyeOff,
   Clock,
 } from "lucide-react";
-import { useAdminAuth } from "@/lib/adminAuth";
+import { useAdminAuth } from "@/lib/client/adminAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

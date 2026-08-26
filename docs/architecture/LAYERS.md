@@ -233,7 +233,7 @@ The canonical shape of an action — each step is a different layer:
 | **L-F1** | Design primitives | `src/components/ui/` (shadcn `base-sera`, `@base-ui/react`) · `src/app/globals.css` · Tailwind v4 / PostCSS · `components.json` |
 | **L-F2** | Feature components | `src/components/features/{pets,adoptions,bulletins,donations}` · `src/components/admin/` · `src/components/layout/` |
 | **L-F3** | Client controllers | `src/hooks/use*Controller.ts` (9 files) · `src/components/providers/` (Theme, Language) |
-| **L-F4** | Client stores | `src/lib/{petStore,applicationStore,bulletinStore,settingsStore,sponsorshipStore,adminAuth}.ts` — `"use client"` hooks persisting to `localStorage` under `hope_for_strays_*` keys |
+| **L-F4** | Client stores | `src/lib/client/{petStore,applicationStore,bulletinStore,settingsStore,sponsorshipStore,adminAuth}.ts` — `"use client"` hooks persisting to `localStorage` under `hope_for_strays_*` keys. `tests/unit/layerBoundaries.test.ts` forbids any non-client module importing them |
 | **L-F5** | i18n | `src/lib/i18n/translations.ts` (`en` + `ms`) · `useLanguage` |
 
 **Do not confuse L-F4 with L-B2.** `src/lib/server/` is the Prisma-backed repository layer; the L-F4 stores are browser-only React hooks that never touch the database. L-F4 is a standing violation of Blueprint Tenet 4 (single source of truth), tolerated because these stores drive admin/demo UI only. Treat any *new* use as a design error.
@@ -270,7 +270,7 @@ Computed from the full import graph, not by inspection.
 
 ### 5.1 — Resolved, and now guarded
 
-`src/actions/donations.ts` used to import `SPONSORSHIP_TIERS` from `src/lib/sponsorshipStore.ts`, a `"use client"` module — a Server Action reaching into client-only code.
+`src/actions/donations.ts` used to import `SPONSORSHIP_TIERS` from `src/lib/client/sponsorshipStore.ts`, a `"use client"` module — a Server Action reaching into client-only code.
 
 **The fix**: the catalog moved to `src/lib/domain/sponsorshipTiers.ts`, a directive-free module both sides may import. `sponsorshipStore.ts` re-exports it so the three client consumers and `controllers.test.ts` were untouched; the action now calls `findSponsorshipTier(id)`.
 
@@ -379,7 +379,7 @@ Recorded rather than silently fixed; amending `CLAUDE.md` is the maintainer's ca
 
 | `CLAUDE.md` says | Verified reality |
 |---|---|
-| `userStore` is one of the *client* stores | It has no `"use client"` directive, imports `@/lib/prisma`, and is server-side L-B2. Only the six modules in L-F4 are client stores. |
+| `userStore` is one of the *client* stores | It has no `"use client"` directive, imports `@/lib/prisma`, and is server-side L-B2. Only the six modules in `src/lib/client/` are client stores. |
 | The Zod enums in `validations/pet.ts` "still only know the three original statuses" | `PET_STATUS_VALUES` contains all five, including both rehab spellings. |
 | `PET_TRANSITION_GRAPH` "still only knows the three original statuses" | It has all five plus a `normalizePetStatus` alias resolver. |
 | "`npx tsc --noEmit` currently fails" — the whole *Work in progress / known broken* section | That propagation was completed. `tsc` is clean outside `scratch/`; the suite is green. The section is stale. |
