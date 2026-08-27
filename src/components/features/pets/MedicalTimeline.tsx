@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { Pet, MedicalTimelineCategory } from "@/types/pet";
-import { getPetMedicalTimeline, getCategoryBadgeClasses } from "@/lib/medicalTimeline";
+import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
+import { getCategoryBadgeClasses } from "@/lib/presentation/medicalTimelinePresentation";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   ShieldCheck,

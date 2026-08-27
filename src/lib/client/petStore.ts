@@ -192,6 +192,19 @@ export function usePetStore() {
     [pets, savePets]
   );
 
+  const replacePet = useCallback(
+    (pet: Pet): boolean => {
+      const index = pets.findIndex((p) => p.id === pet.id);
+      if (index === -1) return false;
+
+      const updated = [...pets];
+      updated[index] = pet;
+      savePets(updated);
+      return true;
+    },
+    [pets, savePets]
+  );
+
   const resetToDefaultPets = useCallback(() => {
     savePets(initialPetsData as Pet[]);
   }, [savePets]);
@@ -202,6 +215,7 @@ export function usePetStore() {
     addPet,
     updatePet,
     updatePetStatus,
+    replacePet,
     deletePet,
     toggleArchivePet,
     resetToDefaultPets,

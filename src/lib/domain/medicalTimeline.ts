@@ -1,10 +1,21 @@
-import { Pet, MedicalTimelineEvent, MedicalTimelineCategory } from "@/types/pet";
+import { Pet, MedicalTimelineEvent } from "@/types/pet";
 import { Language } from "@/lib/i18n/translations";
 
 /**
- * Normalizes and localizes the medical timeline for a pet.
- * If the pet has custom timeline events, it returns them sorted by date.
- * If not, it deterministically synthesizes clinical milestones from the pet's medical metadata.
+ * The clinical history a pet is presented with — read from the record when one
+ * exists, synthesised from the pet's medical flags when it does not.
+ *
+ * This is a domain concern rather than a view helper: `medicalTimeline[]` is
+ * still fixture-only (no Prisma model, no mapper — see LAYERS.md §6), so for
+ * most animals the timeline *is* whatever this function derives from
+ * `medical.*` and `intakeDate`. That is also why the synthesis must stay
+ * deterministic — the same pet has to produce the same milestones on every
+ * render and in every process, or an adopter watches the clinical record change
+ * underneath them.
+ *
+ * The category → design-tone mapping that used to sit alongside this now lives
+ * in `@/lib/presentation/medicalTimelinePresentation`. Nothing here depends on
+ * it: this module returns events, not classes.
  */
 export function getPetMedicalTimeline(pet: Pet, lang: Language = "en"): MedicalTimelineEvent[] {
   const isMs = lang === "ms";
@@ -129,37 +140,4 @@ function addDays(dateStr: string, days: number): string {
   }
   parsed.setDate(parsed.getDate() + days);
   return parsed.toISOString().split("T")[0];
-}
-
-/**
- * Timeline category → design tone class from `globals.css`.
- *
- * Surgery reads as `danger` and shares red with a rejected application: the two used
- * different-but-adjacent hues (rose vs red) purely by accident, and one tone per meaning
- * is what keeps the legend learnable. `clearance` is a vaccination that outranks it, so
- * it takes the same tone with the emphasised surface rather than an eighth colour.
- */
-const CATEGORY_TONE: Record<MedicalTimelineCategory, string> = {
-  intake: "tone-info",
-  diagnostic: "tone-highlight",
-  treatment: "tone-warning",
-  vaccination: "tone-success",
-  surgery: "tone-danger",
-  clearance: "tone-success",
-};
-
-/** The tone class alone, for icons and rules that need the colour without the panel. */
-export function getCategoryToneClass(category: MedicalTimelineCategory): string {
-  return CATEGORY_TONE[category] ?? "tone-neutral";
-}
-
-/**
- * Colour classes only — `tone-soft` sets the tinted surface, border and text and nothing
- * else, because the call site owns the badge's padding, radius and type scale.
- */
-export function getCategoryBadgeClasses(category: MedicalTimelineCategory): string {
-  const tone = getCategoryToneClass(category);
-  return category === "clearance"
-    ? `tone-soft tone-panel-strong ${tone}`
-    : `tone-soft ${tone}`;
 }

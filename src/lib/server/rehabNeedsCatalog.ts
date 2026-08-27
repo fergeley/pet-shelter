@@ -1,5 +1,5 @@
 import initialRehabNeedsData from "@/data/rehabNeeds.json";
-import { RehabNeed } from "@/types/rehab";
+import { RehabNeed, RehabNeedCategory } from "@/types/rehab";
 
 /**
  * Rehabilitation-house wishlist reads.
@@ -62,4 +62,35 @@ export async function getServerRehabNeedsAsync(
 export function findServerRehabNeedById(id: string): RehabNeed | null {
   const norm = id.trim().toLowerCase();
   return serverRehabNeeds.find((n) => n.id.toLowerCase() === norm) || null;
+}
+
+/**
+ * Distinct rehabilitation-need categories present in the dataset, in
+ * first-appearance order, carrying both label languages through from the
+ * fixture.
+ *
+ * A category *filter* needs the populated categories, not the full
+ * `REHAB_NEED_CATEGORIES` enum in `@/lib/validations/rehab` — a tab that
+ * matches nothing is a dead control. `RehabNeedsSection` hardcodes an
+ * equivalent list today; this is the server-side source it should read instead.
+ */
+export function getServerRehabCategories(): {
+  category: RehabNeedCategory;
+  labelEn: string;
+  labelMs: string;
+}[] {
+  const seen = new Set<string>();
+  const categories: { category: RehabNeedCategory; labelEn: string; labelMs: string }[] = [];
+
+  for (const item of serverRehabNeeds) {
+    if (seen.has(item.category)) continue;
+    seen.add(item.category);
+    categories.push({
+      category: item.category,
+      labelEn: item.categoryLabel,
+      labelMs: item.categoryLabelMs,
+    });
+  }
+
+  return categories;
 }

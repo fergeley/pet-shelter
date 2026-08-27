@@ -1,7 +1,21 @@
+"use client";
+
 /**
  * Client-Side Image Optimization Utility
  * Converts images to WebP format and resizes oversized photos before upload.
  * Reduces bandwidth consumption by 70–90% without native C++ server dependencies.
+ *
+ * Lives in `src/lib/client/` because it is browser-only: it needs `document`
+ * (canvas) and the DOM `Image` constructor. That is the same reason the
+ * localStorage hooks alongside it live here — the directory is an *environment*
+ * boundary, the mirror of `src/lib/server/`, not a "React hooks" folder.
+ *
+ * Why this matters: on the server every export degrades *silently* —
+ * `isWebPSupported()` returns false and `optimizeImageForUpload()` hands back
+ * the original file — so a stray server-side import would look like a working
+ * no-op while every upload shipped unoptimized. The directory guard in
+ * `tests/unit/layerBoundaries.test.ts` turns that into a failing test, and the
+ * directive above turns it into a build error.
  */
 
 export interface OptimizeImageOptions {

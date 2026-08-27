@@ -21,6 +21,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
     addPet,
     updatePet,
     updatePetStatus,
+    replacePet,
     deletePet,
     toggleArchivePet,
     resetToDefaultPets,
@@ -93,35 +94,47 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
         const base = prev || pets;
         return base.map((p) => (p.id === editingPet.id ? { ...p, ...data } : p));
       });
+
+      const rollback = (errorMessage: string) => {
+        if (prevPet) {
+          replacePet(prevPet);
+          setLocalPets((prev) => {
+            const base = prev || pets;
+            return base.map((p) => (p.id === prevPet.id ? prevPet : p));
+          });
+        }
+        setStatusError(errorMessage);
+      };
+
       serverUpdatePet(editingPet.id, data)
         .then((res) => {
           if (res && !res.success) {
-            if (prevPet) {
-              updatePet(prevPet.id, prevPet);
-              setLocalPets((prev) => {
-                const base = prev || pets;
-                return base.map((p) => (p.id === prevPet.id ? prevPet : p));
-              });
-            }
-            setStatusError(res.error || "Failed to update pet.");
+            rollback(res.error || "Failed to update pet.");
           }
         })
         .catch((err) => {
           console.warn("Background server update sync:", err);
+          rollback(err instanceof Error ? err.message : "Network error updating pet.");
         });
     } else {
       const created = addPet(data);
       setLocalPets((prev) => [created, ...(prev || pets)]);
+
+      const rollback = (errorMessage: string) => {
+        deletePet(created.id);
+        setLocalPets((prev) => (prev ? prev.filter((p) => p.id !== created.id) : null));
+        setStatusError(errorMessage);
+      };
+
       serverCreatePet(data)
         .then((res) => {
           if (res && !res.success) {
-            deletePet(created.id);
-            setLocalPets((prev) => (prev ? prev.filter((p) => p.id !== created.id) : null));
-            setStatusError(res.error || "Failed to create pet.");
+            rollback(res.error || "Failed to create pet.");
           }
         })
         .catch((err) => {
           console.warn("Background server create sync:", err);
+          rollback(err instanceof Error ? err.message : "Network error creating pet.");
         });
     }
     setIsFormOpen(false);
@@ -132,6 +145,8 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
     if (archiveCandidate) {
       setStatusError(null);
       const { pet, archive } = archiveCandidate;
+      const prevPet = pets.find((p) => p.id === pet.id);
+
       toggleArchivePet(pet.id, archive);
       setLocalPets((prev) => {
         const base = prev || pets;
@@ -139,21 +154,27 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
           p.id === pet.id ? { ...p, isArchived: archive, deletedAt: archive ? new Date().toISOString() : null } : p
         );
       });
+
+      const rollback = (errorMessage: string) => {
+        if (prevPet) {
+          replacePet(prevPet);
+          setLocalPets((prev) => {
+            const base = prev || pets;
+            return base.map((p) => (p.id === prevPet.id ? prevPet : p));
+          });
+        }
+        setStatusError(errorMessage);
+      };
+
       serverToggleArchivePet(pet.id, archive)
         .then((res) => {
           if (res && !res.success) {
-            toggleArchivePet(pet.id, !archive);
-            setLocalPets((prev) => {
-              const base = prev || pets;
-              return base.map((p) =>
-                p.id === pet.id ? { ...p, isArchived: !archive, deletedAt: !archive ? new Date().toISOString() : null } : p
-              );
-            });
-            setStatusError(res.error || "Failed to update archive status.");
+            rollback(res.error || "Failed to update archive status.");
           }
         })
         .catch((err) => {
           console.warn("Background server archive sync:", err);
+          rollback(err instanceof Error ? err.message : "Network error updating archive status.");
         });
       setArchiveCandidate(null);
     }
@@ -162,7 +183,6 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
   const handleStatusChange = (id: string, newStatus: Pet["status"]) => {
     setStatusError(null);
     const prevPet = pets.find((p) => p.id === id);
-    const prevStatus = prevPet?.status;
 
     updatePetStatus(id, newStatus);
     setLocalPets((prev) => {
@@ -170,21 +190,26 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
       return base.map((p) => (p.id === id ? { ...p, status: newStatus } : p));
     });
 
+    const rollback = (errorMessage: string) => {
+      if (prevPet) {
+        replacePet(prevPet);
+        setLocalPets((prev) => {
+          const base = prev || pets;
+          return base.map((p) => (p.id === id ? prevPet : p));
+        });
+      }
+      setStatusError(errorMessage);
+    };
+
     serverUpdatePetStatus(id, newStatus)
       .then((res) => {
         if (res && !res.success) {
-          if (prevStatus) {
-            updatePetStatus(id, prevStatus);
-            setLocalPets((prev) => {
-              const base = prev || pets;
-              return base.map((p) => (p.id === id ? { ...p, status: prevStatus } : p));
-            });
-          }
-          setStatusError(res.error || "Failed to update pet status.");
+          rollback(res.error || "Failed to update pet status.");
         }
       })
       .catch((err) => {
         console.warn("Background server status sync:", err);
+        rollback(err instanceof Error ? err.message : "Network error updating pet status.");
       });
   };
 

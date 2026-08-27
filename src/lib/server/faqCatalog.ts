@@ -1,5 +1,5 @@
 import initialFaqsData from "@/data/faqs.json";
-import { FaqItem } from "@/types/faq";
+import { FaqItem, FaqCategory } from "@/types/faq";
 
 /**
  * Bilingual FAQ reads.
@@ -58,4 +58,34 @@ export async function getServerFaqsAsync(
 export function findServerFaqById(id: string): FaqItem | null {
   const norm = id.trim().toLowerCase();
   return serverFaqs.find((f) => f.id.toLowerCase() === norm) || null;
+}
+
+/**
+ * Distinct FAQ categories present in the dataset, in first-appearance order,
+ * carrying both label languages through from the fixture.
+ *
+ * A category *filter* needs the populated categories, not the full
+ * `FAQ_CATEGORIES` enum in `@/lib/validations/faq` — a tab that matches nothing
+ * is a dead control. `PetsFaqSection` hardcodes an equivalent list today; this
+ * is the server-side source it should read instead.
+ */
+export function getServerFaqCategories(): {
+  category: FaqCategory;
+  labelEn: string;
+  labelMs: string;
+}[] {
+  const seen = new Set<string>();
+  const categories: { category: FaqCategory; labelEn: string; labelMs: string }[] = [];
+
+  for (const item of serverFaqs) {
+    if (seen.has(item.category)) continue;
+    seen.add(item.category);
+    categories.push({
+      category: item.category,
+      labelEn: item.categoryLabel,
+      labelMs: item.categoryLabelMs,
+    });
+  }
+
+  return categories;
 }

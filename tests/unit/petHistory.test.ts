@@ -27,7 +27,7 @@ import {
   type PetUpdateInput,
 } from "@/lib/validations/pet";
 import { createPet, updatePet, getPetById } from "@/actions/pets";
-import { getPetMedicalTimeline } from "@/lib/medicalTimeline";
+import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
 import { ROLES } from "@/lib/security/rbac";
 import { Pet, MedicalTimelineEvent, PetUpdate } from "@/types/pet";
 import petsData from "@/data/pets.json";

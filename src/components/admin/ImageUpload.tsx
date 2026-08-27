@@ -3,7 +3,7 @@
 import React, { useRef, useState, useCallback, useId } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { optimizeImageForUpload } from "@/lib/imageOptimization";
+import { optimizeImageForUpload } from "@/lib/client/imageOptimization";
 
 export interface UploadedImage {
   url: string;
