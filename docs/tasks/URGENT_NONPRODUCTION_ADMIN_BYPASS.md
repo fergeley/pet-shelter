@@ -169,7 +169,46 @@ This branch has concurrent sessions committing to it.
 
 ---
 
-## 7. Dispatch prompt
+## 7. Adjacent findings — noticed at `1dfb8c9`, not part of this task
+
+Recorded here rather than in their own document because they are each a few lines, and whoever picks
+up the admin-authentication work is who should see them.
+
+### 7.1 `tests/unit/upload.fixes.test.ts` asserts nothing about the route
+
+Its `Authentication` block (lines 18-31) builds a local `vi.fn()`, resolves it, and asserts it
+returned what it was just told to return:
+
+```ts
+mockVerifyAdminSession.mockResolvedValue(false);
+// In actual route, this would check verifyAdminSession()   <- the comment admits it
+await expect(mockVerifyAdminSession()).resolves.toBe(false);
+```
+
+No route code is imported or executed, so the two tests named "should return 403 when user is not
+authenticated" and "should allow upload when user is authenticated admin" would both still pass if
+`/api/upload` dropped its auth check entirely. They are also now shape-stale: they mock `true` /
+`false`, and `verifyAdminSession()` returns `AdminPrincipal | null` since `1dfb8c9`.
+
+`tests/unit/upload.test.ts` exercises the real `POST` / `DELETE` handlers and is the pattern to
+follow. Fixing this means writing genuine 403 tests, not adjusting the mock.
+
+### 7.2 Two dangling `docs/tasks/` references in `src/`
+
+The archive reorganisation moved several specs to `docs/archives/tasks/`. Two source comments still
+point at the old paths:
+
+- `src/lib/security/secrets.ts:6` → `docs/tasks/TARGET_SECRET_HARDENING.md`
+- `src/lib/domain/shelterIdentity.ts:13` → `docs/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md`
+
+Deliberately left alone: at the time of writing the rename was **staged but not committed**, so the
+destination path was not settled and repointing them would have been a guess. Re-check whether the
+move landed before touching these. (`secrets.ts:149` also names the spec, but as a bare filename
+with no path — that one is fine either way.)
+
+---
+
+## 8. Dispatch prompt
 
 ```
 In C:\Users\User\pet-shelter, close the non-production admin bypass.
