@@ -1,3 +1,5 @@
+@AGENTS.md
+
 Workflow Orchestration
 1. Plan Node Default
 Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
