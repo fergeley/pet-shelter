@@ -1,6 +1,6 @@
 -- Enforces the append-only guarantee on `donations` below the ORM.
 --
--- `src/lib/donationLedger.ts` exports no update or delete path, so the
+-- `src/lib/server/donationLedger.ts` exports no update or delete path, so the
 -- application cannot mutate an issued receipt. This script closes the remaining
 -- gap: a psql session, an admin tool, or a future contributor reaching for
 -- `prisma.donation.update` directly.

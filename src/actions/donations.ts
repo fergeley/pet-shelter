@@ -73,7 +73,7 @@ function optionalText(value: string | undefined): string | undefined {
  * Step 3 throwing means steps 4 and 5 never run and the donor is told to retry,
  * which is the correct outcome. This is a deliberate departure from the
  * fire-and-forget style used elsewhere in `src/actions` — see the module comment in
- * `src/lib/donationLedger.ts` for why donation records do not get the dual-layer
+ * `src/lib/server/donationLedger.ts` for why donation records do not get the dual-layer
  * store's forgiving fallback.
  */
 export async function submitDonationPledgeAction(

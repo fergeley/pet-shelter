@@ -1,10 +1,10 @@
-import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -13,9 +13,16 @@ function hashPasswordSync(password: string): string {
 }
 
 async function main() {
-  const connectionString =
-    process.env.DATABASE_URL ||
-    "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
+  // Resolved through prisma/env.ts rather than read straight from process.env, so
+  // the seed and `prisma db push` can never disagree about which database they are
+  // talking to. They used to, and the pair still exited 0 while doing it.
+  const connectionString = resolveDatabaseUrl();
+
+  // This script is not additive — see the deleteMany calls in the pet loop below.
+  // Aimed at a shared database it destroys real history rows, and it runs
+  // unattended from an npm script with no confirmation prompt, so the target is
+  // checked before a connection is opened.
+  assertSeedTargetIsLocal(connectionString);
 
   const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
   const pool = new Pool({

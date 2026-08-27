@@ -44,7 +44,7 @@ donation action minted an LHDN receipt number, emailed it, and persisted **nothi
 | Landed | Where |
 |---|---|
 | `Donation` + `ReceiptSequence` models | `prisma/schema.prisma:218`, `:252` |
-| Gapless receipt numbering (counter row in the insert's transaction) | `src/lib/donationLedger.ts` |
+| Gapless receipt numbering (counter row in the insert's transaction) | `src/lib/server/donationLedger.ts` |
 | Exact integer-sen money with a branded `Sen` type | `src/lib/domain/money.ts` |
 | Declared-mode persistence (no silent fallback for event records) | `donationLedger.ts`, `docs/architecture/LAYERS.md` L-B2 |
 | Statutory identifiers single-sourced | `src/lib/domain/shelterIdentity.ts` |
@@ -54,14 +54,64 @@ Read **"The ledger exception"** in `CLAUDE.md` before touching any of it. The ke
 everything below: *the dual-layer fallback is correct for reference data and wrong for event
 records*, because there is no committed fixture for an event that has not happened yet.
 
-⚠️ **`npm run db:push` is required** — `Donation` and `ReceiptSequence` have no tables until it runs,
-and this path deliberately does not fall back.
+⚠️ **`npm run db:push:local` is required** — `Donation` and `ReceiptSequence` have no tables until it
+runs, and this path deliberately does not fall back.
 
-⚠️ **Never verified against real Postgres.** No Docker was available in the authoring session. The
-transaction/upsert path is proven only against a hand-built fake that models row locking and
-rollback (`tests/unit/donationLedger.test.ts`). **First action for the next session with Docker:**
-`docker compose up -d && npm run db:push && npm run db:seed`, then issue a donation and confirm the
-row and the receipt serial. This is the single largest unverified assumption in the codebase.
+### 2.1 The Postgres verification gap — harness landed, run still outstanding
+
+**Status (2026-08-28): the probes exist and are wired; they have not yet been run green, because
+this machine has no working Docker engine.** See §2.2.
+
+The original instruction here was `docker compose up -d && npm run db:push && npm run db:seed`.
+**Do not run that pair.** Executing it as written would have pushed schema changes to a hosted Neon
+branch, for two compounding reasons that have since been fixed:
+
+1. `prisma.config.ts` loaded `.env.local` before `.env`, and `.env.local` on a developer machine
+   holds a Neon `DATABASE_URL` with `NEON_BRANCH=production`. So `db:push` never targeted localhost.
+2. `prisma/seed.ts` used `import "dotenv/config"`, which loads `.env` **only** — a file this repo
+   does not have. So `db:seed` fell through to its hardcoded `localhost:5432` default.
+
+The two commands therefore resolved **different databases**, and both exited 0. The pair looked like
+an end-to-end verification while the halves had never met, and the half that ran against Neon was a
+schema mutation on shared infrastructure.
+
+| Fix | Where |
+|---|---|
+| Single env/URL resolver shared by the CLI and the seed | `prisma/env.ts` |
+| Seed refuses a non-local target (`ALLOW_REMOTE_SEED` to override) | `prisma/env.ts`, `prisma/seed.ts` |
+| Localhost-pinned commands that never read `.env.local` | `db:up`, `db:push:local`, `db:seed:local`, `test:db` |
+| Tier 3b: the only suites that talk to real Postgres | `tests/integration/db/`, `vitest.config.mts` |
+| Probes refuse a non-local host before opening a connection | `tests/integration/db/support/database.ts` |
+
+`tests/integration/db/donationLedger.postgres.test.ts` is what actually closes the gap this section
+describes. It asserts the properties that belong to **PostgreSQL rather than to the module**, which
+is precisely what the hand-built fake in `tests/unit/donationLedger.test.ts` cannot do: transactional
+rollback of the counter row, the `@@unique([sequenceScope, sequenceValue])` index, row-level locking
+under eight concurrent issuers, and exact integer-sen round-tripping.
+`schemaIntegrity.postgres.test.ts` covers the other half — that the `rehab*` columns and the two new
+tables were actually *pushed*, not merely declared, and that the seeded fixtures round-trip unchanged.
+
+Tier 3b **fails rather than skips** when `DATABASE_URL` is unset, and is deliberately excluded from
+`npm run test:all`. A skip reads as a pass in the summary line, which is how "verified against
+Postgres" became a claim nobody had tested.
+
+**To close it, on a machine with a working Docker engine:**
+
+```
+npm run db:up
+npm run db:push:local && npm run db:seed:local
+npm run test:db
+```
+
+### 2.2 Blocker — no working container engine on this machine
+
+`docker compose up -d` cannot run here. Docker Desktop 29.3.1 is installed and its backend processes
+start, but every `wsl` invocation fails with `Wsl/CallMsi/Install/REGDB_E_CLASSNOTREG`, and the only
+Docker context is `desktop-linux`, which requires WSL2. There is no native Postgres on the host
+either (nothing listening on `:5432`, no service, no `psql`).
+
+Repair needs an **elevated** shell — `wsl --update`, or `wsl --install --no-distribution` — followed
+by a Docker Desktop restart. Windows 11 **Home** rules out the Hyper-V backend as an alternative.
 
 **Also landed since the review**: `PLAN_LIB_RESTRUCTURE` (`f75de27`) split the 883-line
 `serverStore.ts` into `src/lib/server/{petRepository,applicationRepository,petMappers,
@@ -203,7 +253,14 @@ small, P-A last because it is the widest:
 
 1. **P-C** — delete the four label fields, derive from the category enum via `translations.ts`,
    update `faqs.json` / `rehabNeeds.json`, update the FAQ/rehab suites.
-2. **P-E** — model comments only. No behaviour change. ~20 minutes.
+2. ~~**P-E** — model comments only. No behaviour change. ~20 minutes.~~ ✅ **Landed 2026-08-28.**
+   `AdoptionApplication` and `AuditLog` now carry model-level comments explaining why their
+   duplicated columns are point-in-time snapshots rather than 3NF defects, matching the treatment
+   already on `Donation`. Field-level comments mark `petName`, `petBreed`, `actorEmail`, `actorRole`,
+   `details`, and `metadata` individually, so the rationale survives someone reading one field in
+   isolation. Stale `src/lib/donationLedger.ts` / `src/lib/userStore.ts` paths were corrected in
+   `prisma/schema.prisma`, `prisma/sql/donation_append_only.sql`, `src/actions/donations.ts`, and
+   `docs/architecture/LAYERS.md` — the modules moved under `src/lib/server/` in `f75de27`/`d554edb`.
 3. **P-B** — enums for both statuses; normalise `"Rehabilitation"` on write; `db push`; sweep the 14
    raw comparisons. Consider a source-tree guard like the one in
    `tests/unit/shelterIdentity.test.ts:78` to keep raw status literals out of `src/`.
@@ -215,8 +272,11 @@ small, P-A last because it is the widest:
 ## 6. Acceptance criteria
 
 - `npx tsc --noEmit` clean; `npm run lint` 0 errors; `npm run test:all` green at **≥ 517 tests**.
-- `npm run db:push && npm run db:seed` succeeds against real Postgres, and the seeded fixtures
-  round-trip unchanged (this is the standing gap flagged in §2).
+- `npm run db:push:local && npm run db:seed:local` succeeds against real Postgres, and the seeded
+  fixtures round-trip unchanged — asserted by `npm run test:db`, not by eyeballing the output. This
+  is the standing gap flagged in §2; the harness landed 2026-08-28, the run is blocked on §2.2.
+- `npm run db:seed` with no local database configured **refuses to run** rather than seeding
+  whatever `.env.local` points at.
 - P-A: no `age`/`ageCategory` column remains; `ageCategory` is computed and unit-tested at its
   boundaries (a pet turning 1 crosses `puppy_kitten → young` on the right day).
 - P-B: an invalid status is rejected **by the database**, demonstrated by a test.
@@ -249,3 +309,18 @@ was lost, but the ledger is not findable from the log.
 **Before starting P-A or P-B**, confirm the other session has landed or stopped. Both sweep files
 that P8 is actively editing, and a 17-file `age` refactor colliding with an in-flight UI change
 produces conflicts rather than progress.
+
+**Update 2026-08-28** — the concurrent writer is still active. During the §2.1 work it landed
+`00692eb`, `fdf851f`, `0bf5e09`, `71687c1`, and `1597a43`, and was simultaneously editing
+`package.json`, `tests/setup/componentSetup.ts`, `tests/setup/integrationEnv.ts`,
+`src/lib/presentation/`, and `src/app/globals.css`. Two practical consequences:
+
+- It independently added `test:db` and the project-scoped `test:all`, converging on the same design
+  from the other direction. Its `test:db` was **not** pinned to localhost; that has been corrected,
+  because `tests/setup/integrationEnv.ts` loads `.env.local` into the Tier-3b lane and would
+  otherwise aim the destructive probes at the Neon branch.
+- `npm install` churn makes `package.json` and `package-lock.json` transiently unreadable. Re-read
+  before patching, patch scripts key-by-key rather than rewriting the file, and check `git diff
+  --cached` separately before committing — this session's index is shared.
+
+P-A and P-B remain unstarted and should stay that way until the writer stops.

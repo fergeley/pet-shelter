@@ -79,7 +79,7 @@ Models: `User`, `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings`, plu
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/server/petRepository.ts` · `src/lib/server/applicationRepository.ts` · `src/lib/userStore.ts` · `src/lib/domain/auditLog.ts` · `src/lib/donationLedger.ts` |
+| **Files** | `src/lib/server/petRepository.ts` · `src/lib/server/applicationRepository.ts` · `src/lib/server/userStore.ts` · `src/lib/domain/auditLog.ts` · `src/lib/server/donationLedger.ts` |
 | **Also here** | `src/lib/server/petMappers.ts` (pure row ↔ domain projection) · `src/lib/server/rehabNeedsCatalog.ts` and `src/lib/server/faqCatalog.ts` (fixture-only, **no Prisma**) · `src/lib/server/fallbackState.ts` (`resetServerStore()`) |
 | **Owns** | Every SQL call; row → domain mapping; the in-memory fallback |
 | **May import** | L-B1, L-B3, L-B4, and L-B5 for the `SessionUser` actor type |

@@ -83,11 +83,39 @@ model Pet {
   @@map("pets")
 }
 
+/// An application to adopt a specific animal.
+///
+/// ## Why petName and petBreed are copied from Pet
+///
+/// A normalisation pass reads these as redundant — the data is one join away
+/// through `petId` — and deleting them looks like a free 3NF win. It is not, and
+/// the reason is visible one line up: `petId` is **nullable**, with
+/// `onDelete: SetNull`.
+///
+/// When a pet row is archived and eventually removed, `petId` becomes null and the
+/// join disappears. The application must still say which animal it was for: it is
+/// the record of a decision a family and this shelter made on a particular day, it
+/// backs the ROS annual return, and an applicant asking "what happened to my
+/// application for Tuah" must still get an answer. So these are not a cached copy
+/// of a live value; they are a **point-in-time snapshot**, the same pattern an
+/// invoice uses when it stores the price a line item sold at rather than joining to
+/// today's price list.
+///
+/// The test for whether a duplicated column is a normalisation defect is whether
+/// the two copies are *supposed* to stay equal. Here they are not. Renaming a pet
+/// must not retroactively rewrite the applications filed under its old name, in
+/// exactly the way `Donation.tierName` must not be rewritten by renaming a tier.
+///
+/// `Donation` documents the same reasoning for its issuer identity; treat the two
+/// as one pattern.
 model AdoptionApplication {
   id                    String   @id @default(cuid())
   petId                 String?
   pet                   Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  /// Snapshot of the pet's name at application time. Deliberately not a join —
+  /// see the model comment. Survives `petId` going null.
   petName               String
+  /// Snapshot of the pet's breed at application time. Same rationale as petName.
   petBreed              String?
   applicantName         String
   email                 String
@@ -168,15 +196,42 @@ model MedicalTimelineEvent {
   @@map("medical_timeline_events")
 }
 
+/// An immutable record of a privileged action.
+///
+/// ## Why details and metadata are unstructured on purpose
+///
+/// Both look like columns waiting to be normalised: `details` is prose, `metadata`
+/// is a JSON blob with no declared shape. Normalising either is an anti-pattern
+/// here, because an audit log's whole value is being a faithful record of what the
+/// system looked like **at write time**.
+///
+/// A typed column means a later migration rewrites, reinterprets, or drops entries
+/// written under the old shape — and an audit trail that changes retroactively is
+/// not evidence of anything. Keeping the payload schemaless means a row written
+/// today still reads exactly as it was written after the surrounding models have
+/// moved on. That is the trade being made: queryability is given up deliberately,
+/// in exchange for the one property this table exists to have.
+///
+/// `actorEmail` and `actorRole` are snapshots for the same reason as
+/// `AdoptionApplication.petName` — the actor's role at the time of the action, not
+/// their role now. A user demoted next year must not appear to have been demoted
+/// when they took the action.
+///
+/// Contrast `MedicalTimelineEvent`, which is compliance data that *must* be queried
+/// across pets and therefore does get real columns.
 model AuditLog {
   id           String   @id @default(cuid())
   action       String
   actorId      String?
+  /// Snapshot of the actor's identity at write time; not a join to User.
   actorEmail   String
+  /// Snapshot of the actor's role at write time. See the model comment.
   actorRole    String
   targetEntity String
   targetId     String?
+  /// Human-readable prose. Deliberately unstructured — see the model comment.
   details      String
+  /// Free-form payload whose shape belongs to the action that wrote it.
   metadata     Json?
   createdAt    DateTime @default(now())
 
@@ -230,7 +285,7 @@ model ReceiptSequence {
 /// ## Append-only by construction
 ///
 /// This is a statutory document, not application state. There is deliberately no
-/// `updatedAt` column and no update or delete path in `src/lib/donationLedger.ts`:
+/// `updatedAt` column and no update or delete path in `src/lib/server/donationLedger.ts`:
 /// a receipt that can be edited after issue is not evidence of anything. A
 /// correction is issued as a new offsetting record, the way an accounting ledger
 /// handles one. `prisma/sql/donation_append_only.sql` adds the matching database
