@@ -92,7 +92,7 @@ inside `tsconfig`'s `**/*.ts` include and its errors break the project typecheck
 | Secret | Location | Fallback |
 |---|---|---|
 | `SESSION_SECRET` | `src/lib/security/crypto.ts:3` | hardcoded string |
-| `ADMIN_SECRET_KEY` | `src/lib/auth.ts:21` | `"hope_shelter_admin_secret_key_2026"` |
+| `ADMIN_SECRET_KEY` | `src/lib/security/adminSession.ts` | `"hope_shelter_admin_secret_key_2026"` |
 | `STAFF_INVITE_SECRET` | `src/actions/auth.ts:15` | `"1234"` |
 
 Worse, `registerAction` (`src/actions/auth.ts:137`) accepts `"HOPE2026"` or `"1234"` as invite codes
@@ -106,6 +106,9 @@ Fail startup on missing secrets in production instead of defaulting.
 > `model PetUpdate` plus `mapDbPetUpdate` / `buildPetUpdatePayload` in `serverStore.ts`. P5 is closed
 > by `4e9bdf4` and the P5 fee fix in `68b1981`. **P4 is only partly closed**: `src/actions/faqs.ts`
 > and `src/lib/rehabNeedsStore.ts` exist and `PetsFaqSection` / `RehabNeedsSection` consume them,
+> — **both claims are now wrong**: those wrappers were deleted as unreachable, and the two
+> components call the Server Actions. They still *hardcode* their category tab lists; the
+> `getServerFaqCategories()` / `getServerRehabCategories()` readers exist to replace that.
 > but `src/app/donate/page.tsx:107` still owns an inline `const faqs = [...]` array. That remnant is
 > the whole of what is left of P4.
 

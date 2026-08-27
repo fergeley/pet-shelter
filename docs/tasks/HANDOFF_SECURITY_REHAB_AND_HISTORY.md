@@ -187,7 +187,7 @@ Both fixtures (`src/data/faqs.json` and `src/data/rehabNeeds.json`) now have com
 layers:
 - Shared types: `src/types/rehab.ts` and `src/types/faq.ts`
 - Zod contracts: `src/lib/validations/rehab.ts` and `src/lib/validations/faq.ts`
-- Store readers: `src/lib/serverStore.ts`, `src/lib/rehabNeedsStore.ts`, `src/lib/faqStore.ts`
+- Store readers: `src/lib/server/` (the `faqStore.ts` / `rehabNeedsStore.ts` wrappers were deleted as dead code; callers use `faqCatalog.ts` and `rehabNeedsCatalog.ts` directly)
 - Server Actions: `src/actions/rehabNeeds.ts`, `src/actions/faqs.ts`, `src/actions/needs.ts`
 - Tests: `tests/unit/rehabNeeds.test.ts` and `tests/unit/faqs.test.ts` (53 tests total)
 

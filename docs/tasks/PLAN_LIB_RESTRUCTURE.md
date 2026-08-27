@@ -472,3 +472,59 @@ are what this plan set out to deliver, and they are in place.
   file is the specific hazard of a `git mv`, and printing it is not the same as reading it.**
 - Verifying the new client guard is what exposed the bare-side-effect-import hole in `buildGraph()`
   — the injected violation failed to fail. See `TARGET_LAYER_GUARD_COMPLETENESS.md`.
+
+---
+
+## 13. Follow-on pass — 2026-08-27, five parallel agents
+
+Everything §12 listed as "still loose" is resolved. `src/lib/` now holds exactly three files at its
+root — `utils.ts`, `email.ts`, `persistenceMode.ts` — the three §12 judged correctly placed.
+
+| Item | Outcome |
+|---|---|
+| `medicalTimeline.ts` | **Split**: `domain/medicalTimeline.ts` (synthesis) + `presentation/medicalTimelinePresentation.ts` (tone mapping). Test file split on the same seam; 7 tests preserved |
+| `matchEngine.ts` | → `domain/matchEngine.ts`. Imports only `@/types/*`, matching L-B3's permitted direction |
+| `auth.ts` | → `security/adminSession.ts`. Named for the question it answers, not for the legacy branch slated for deletion |
+| `imageOptimization.ts` | → `client/imageOptimization.ts`, with a `"use client"` directive added |
+| `faqStore.ts` · `rehabNeedsStore.ts` | **Deleted** as unreachable. Category derivation salvaged into the catalogs |
+
+Final: **41 test files / 524 tests**, `tsc` clean.
+
+### What the parallel pass got right that a single pass would have missed
+
+- **`src/lib/client/` means *browser-only*, not *"use client" React store*.** Settled by the mirror
+  argument: `src/lib/server/` already holds `faqCatalog.ts` and `rehabNeedsCatalog.ts`, which
+  contain no Prisma — §3 named them catalogs precisely so the directory could mean *where code may
+  run*. `client/` is its counterpart. L-F4's wording in `LAYERS.md` was widened to match.
+- **A dead module was hiding a live fix.** `faqStore.getFaqCategories()` was the one non-forwarding
+  export. `RehabNeedsSection.tsx:23` and `PetsFaqSection.tsx:9` each hardcode the same category tab
+  list, and the derived version answers "which categories are actually populated" — which the
+  `FAQ_CATEGORIES` / `REHAB_NEED_CATEGORIES` Zod enums cannot, since they list all seven including
+  empty ones. Deleting without reading would have lost it. **Open follow-up**: wire those two
+  components to `getServerFaqCategories()` / `getServerRehabCategories()`.
+
+### Two security findings, reported not acted on
+
+From the `auth.ts` move, both about `verifyAdminSession()`:
+
+1. **The legacy `admin_session` cookie bypasses RBAC granularity, not just expiry.** The sealed
+   branch distinguishes `ADMIN` from `COORDINATOR`; the cookie branch returns bare `true` with no
+   role, so anyone holding `ADMIN_SECRET_KEY` gets what the *most* privileged caller can do. The
+   in-file comment documents expiry and revocation but not this.
+2. **It returns `boolean`, so it cannot feed the audit trail.** Callers learn *that* a request is
+   authorised, never *who* — so a mutation gated solely by it records no real actor, against §9.5.
+   `SessionUser | null` would force the legacy branch to name a principal.
+
+Tracked against `TARGET_SECRET_HARDENING.md` §3.5.
+
+### On running five agents in one working tree
+
+The file-scope division held: the overlap check found no file importing two of the five modules, and
+no agent collided with another. What did not hold was **git isolation**. Agents were forbidden from
+running any git command, and complied — but a concurrent session committed their in-flight edits
+mid-task (`27a4b79` swept one agent's six files including a deletion) and, at least once, restored
+the working tree underneath an agent, silently reverting a completed move that had to be redone.
+
+The lesson is not "don't parallelise". Scoping by disjoint file sets worked. The lesson is that
+**forbidding git writes in the agents does nothing if a process outside that set is writing history**
+— isolation has to cover every writer, or it covers none.

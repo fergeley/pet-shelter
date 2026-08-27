@@ -106,7 +106,7 @@ Work test-first. Write the tests, run them, and confirm they fail before impleme
 | 3 | Extend row type, mapper, and save paths | `src/lib/serverStore.ts` |
 | 4 | Zod schemas for both event shapes | `src/lib/validations/pet.ts` |
 | 5 | Carry history through create/update | `src/actions/pets.ts`, `src/lib/petStore.ts` |
-| 6 | Preserve the synthetic-timeline fallback | `src/lib/medicalTimeline.ts` |
+| 6 | Preserve the synthetic-timeline fallback | `src/lib/domain/medicalTimeline.ts` |
 | 7 | Run the full gate | — |
 | 8 | Apply to a real database (**manual**) | `npm run db:push` |
 
@@ -115,7 +115,7 @@ Work test-first. Write the tests, run them, and confirm they fail before impleme
 - **Keep the fixture IDs.** `tl-001-1`, `up-009-1` — use them as the primary key (`String @id`)
   rather than switching to `cuid()`, so existing seed data round-trips unchanged.
 - **Keep `date` as `String`** in `YYYY-MM-DD` form. It matches the current TypeScript type and
-  the bilingual formatting in `src/lib/medicalTimeline.ts`, and avoids timezone drift.
+  the bilingual formatting in `src/lib/domain/medicalTimeline.ts`, and avoids timezone drift.
 - **Order by date on read.** Fixture order is currently incidental; make it explicit.
 - **`buildPetPersistencePayload` needs deliberate splitting.** It returns one flat column set
   shared by create and update. Nested relations cannot travel that way — create nests a

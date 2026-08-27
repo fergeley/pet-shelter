@@ -27,7 +27,7 @@ works — setting the environment variable — does not close the main hole.**
 | Secret | Location | Fallback | In `.env.example`? |
 |---|---|---|:---:|
 | `SESSION_SECRET` | `src/lib/security/crypto.ts:3` | `"hope-for-strays-secret-key-32-chars-long-secure-salt!"` | ✅ |
-| `ADMIN_SECRET_KEY` | `src/lib/auth.ts:21` | `"hope_shelter_admin_secret_key_2026"` | ✅ |
+| `ADMIN_SECRET_KEY` | `src/lib/security/adminSession.ts` | `"hope_shelter_admin_secret_key_2026"` | ✅ |
 | `STAFF_INVITE_SECRET` | `src/actions/auth.ts:15` | `"1234"` | ❌ **undocumented** |
 
 ### Exploit path A — self-registration exposes applicant PII
@@ -69,7 +69,7 @@ error: `Staff invite code is required to register with '${role}' privileges. Use
 - `SESSION_SECRET` seeds the HMAC that signs `hope_shelter_session`. Missing env var → cookies are
   signed with a key published in this repository, so a session for any `id`/`role` can be forged
   offline. It also derives `ENCRYPTION_KEY` (`sha256`) at `crypto.ts:4`.
-- `verifyAdminSession()` (`src/lib/auth.ts:24`) returns `true` when the `admin_session` cookie
+- `verifyAdminSession()` (`src/lib/security/adminSession.ts`) returns `true` when the `admin_session` cookie
   **equals** `ADMIN_SECRET_KEY`. That is a static bearer token, not a session — one cookie set to a
   known literal yields admin, and it is the sole gate on `/api/upload`.
 
@@ -142,7 +142,7 @@ currently enforces it.
 ### 3.3 Point existing callers at the module
 
 - `src/lib/security/crypto.ts:3` → `getSessionSecret()`
-- `src/lib/auth.ts:21` → `getAdminSecretKey()`
+- `src/lib/security/adminSession.ts` → `getAdminSecretKey()`
 - `src/actions/auth.ts:15` → `getStaffInviteSecret()`
 
 ### 3.4 Document the third secret

@@ -151,7 +151,7 @@ ADMIN_SECRET_KEY="generate-a-secure-admin-secret-key-here"
 
 ## 4. Built-in Client-side Image Optimization Pipeline
 
-To avoid hitting serverless payload limits (4.5 MB), [`src/components/admin/ImageUpload.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/ImageUpload.tsx) automatically invokes [`src/lib/imageOptimization.ts`](file:///c:/Users/User/pet-shelter/src/lib/imageOptimization.ts) before initiating uploads:
+To avoid hitting serverless payload limits (4.5 MB), [`src/components/admin/ImageUpload.tsx`](file:///c:/Users/User/pet-shelter/src/components/admin/ImageUpload.tsx) automatically invokes [`src/lib/client/imageOptimization.ts`](file:///c:/Users/User/pet-shelter/src/lib/client/imageOptimization.ts) before initiating uploads:
 
 - Resizes images exceeding 1600px width/height using HTML5 Canvas.
 - Re-encodes images to high-efficiency `.webp` format at 85% compression quality.

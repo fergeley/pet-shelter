@@ -26,7 +26,7 @@ interface BulletinFeedProps {
 
 /**
  * Bulletin category → design tone, mirroring the mapping in `@/lib/petStatusPresentation`
- * and `@/lib/medicalTimeline`. `happy_tail` takes `highlight` rather than `success`
+ * and `@/lib/presentation/medicalTimelinePresentation`. `happy_tail` takes `highlight` rather than `success`
  * because `clinic` already owns green, and two categories sharing a colour makes the
  * badge legend unreadable.
  */

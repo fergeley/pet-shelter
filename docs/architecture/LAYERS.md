@@ -121,7 +121,7 @@ Two further properties are enforced structurally rather than by convention:
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/domain/stateMachine.ts` · `src/lib/domain/auditLog.ts` · `src/lib/domain/sponsorshipTiers.ts` |
+| **Files** | `src/lib/domain/stateMachine.ts` · `auditLog.ts` · `sponsorshipTiers.ts` · `matchEngine.ts` · `medicalTimeline.ts` · `money.ts` · `shelterIdentity.ts` |
 | **Owns** | Legal status transitions, `DomainValidationError`, the audit trail |
 | **May import** | L-B4 (types only) |
 
@@ -156,7 +156,7 @@ Zod 4. The rule (Blueprint Tenet 3): **every value crossing into a Server Action
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/security/{session,crypto,rbac,rateLimit,idempotency}.ts` · `src/lib/auth.ts` |
+| **Files** | `src/lib/security/{session,crypto,rbac,rateLimit,idempotency,secrets,adminSession}.ts` |
 | **Owns** | Authentication, authorization, abuse control |
 | **May import** | L-B4 |
 
@@ -171,14 +171,12 @@ Zod 4. The rule (Blueprint Tenet 3): **every value crossing into a Server Action
 
 |  |  |
 |---|---|
-| **Files** | `src/lib/email.ts` · `exportCsv.ts` · `matchEngine.ts` · `medicalTimeline.ts` · `imageOptimization.ts` |
+| **Files** | `src/lib/email.ts` · `src/lib/presentation/exportCsv.ts` |
 | **Owns** | Outbound I/O and computation that is not a domain invariant |
 | **May import** | L-B3, L-B4 |
 
 - **`email.ts`** — Resend. Five transactional senders: application confirmation, staff alert, status update, interview invitation, donation receipt. Silently simulates without `RESEND_API_KEY`.
-- **`matchEngine.ts`**, **`medicalTimeline.ts`** — verified pure functions over `Pet`; no I/O, no browser API, trivially unit-testable.
 - **`exportCsv.ts`** — *split residency*. `generate*CsvString` is pure and node-testable (RFC-4180 + formula-injection sanitisation) 🟢; the `export*ToCsv` wrappers trigger a browser download via `Blob` + `document.createElement("a")` 🔵.
-- **`imageOptimization.ts`** — **entirely browser-side** (canvas resize / WebP encode) despite living in `lib/`. It is 🔵 frontend, not backend. Misfiled; see §5.3.
 
 ### L-B7 — Infrastructure adapters
 
@@ -233,7 +231,7 @@ The canonical shape of an action — each step is a different layer:
 | **L-F1** | Design primitives | `src/components/ui/` (shadcn `base-sera`, `@base-ui/react`) · `src/app/globals.css` · Tailwind v4 / PostCSS · `components.json` |
 | **L-F2** | Feature components | `src/components/features/{pets,adoptions,bulletins,donations}` · `src/components/admin/` · `src/components/layout/` |
 | **L-F3** | Client controllers | `src/hooks/use*Controller.ts` (9 files) · `src/components/providers/` (Theme, Language) |
-| **L-F4** | Client stores | `src/lib/client/{petStore,applicationStore,bulletinStore,settingsStore,sponsorshipStore,adminAuth}.ts` — `"use client"` hooks persisting to `localStorage` under `hope_for_strays_*` keys. `tests/unit/layerBoundaries.test.ts` forbids any non-client module importing them |
+| **L-F4** | Client stores | `src/lib/client/{petStore,applicationStore,bulletinStore,settingsStore,sponsorshipStore,adminAuth}.ts` — plus `imageOptimization.ts`. The directory means **browser-only**, not "localStorage hook" — the guard enforces *where code may run*, mirroring `src/lib/server/`, which likewise holds non-Prisma catalogs. `tests/unit/layerBoundaries.test.ts` forbids any non-client module importing them |
 | **L-F5** | i18n | `src/lib/i18n/translations.ts` (`en` + `ms`) · `useLanguage` |
 
 **Do not confuse L-F4 with L-B2.** `src/lib/server/` is the Prisma-backed repository layer; the L-F4 stores are browser-only React hooks that never touch the database. L-F4 is a standing violation of Blueprint Tenet 4 (single source of truth), tolerated because these stores drive admin/demo UI only. Treat any *new* use as a design error.
@@ -282,9 +280,13 @@ Computed from the full import graph, not by inspection.
 
 All unused barrels (`@/lib/stores`, `@/lib/security`, `@/lib/services`, and `@/components/**`) have been removed. The codebase strictly enforces direct, concrete file imports, eliminating any latent server-action-to-client-component boundary leakage from re-exports.
 
-### 5.3 — Misfiled
+### 5.3 — Misfiled *(closed 2026-08-27)*
 
-`imageOptimization.ts` is browser-only (canvas) but sits in `lib/`. It belongs in `src/lib/client/` or next to the upload component.
+`imageOptimization.ts` was browser-only (canvas) while sitting in `lib/`. It now lives at
+`src/lib/client/imageOptimization.ts` and carries a `"use client"` directive, so a server import is
+a build error rather than a silent no-op — its exports previously degraded quietly off the browser
+(`isWebPSupported()` → `false`, `optimizeImageForUpload()` → the original file), which would have
+shipped unoptimised uploads with nothing failing.
 
 ### 5.4 — Pruned dead code
 
