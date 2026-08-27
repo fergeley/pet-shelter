@@ -49,7 +49,14 @@ export default defineConfig({
           ...shared,
           name: "integration",
           environment: "node",
-          include: ["tests/integration/**/*.test.{ts,tsx}"],
+          // Single-level glob on purpose. `tests/integration/db/` holds the
+          // Tier-3b suites that require a reachable Postgres; they belong to the
+          // `integration-db` project below and must not be swept up here, or
+          // every run without a database goes red. Narrowing `include` rather
+          // than setting `exclude` keeps Vitest's default exclude list (which
+          // covers node_modules and dist) intact — assigning `exclude` replaces
+          // those defaults rather than adding to them.
+          include: ["tests/integration/*.test.{ts,tsx}"],
           // Strict persistence is a property of this tier, not of the command
           // that launched it. Declaring it here means `npm run test:integration`,
           // `npm run test:all`, a bare `vitest` watch, and an IDE run all get it.
@@ -64,11 +71,60 @@ export default defineConfig({
         resolve: { alias },
         test: {
           ...shared,
+          name: "integration-db",
+          environment: "node",
+          include: ["tests/integration/db/**/*.test.{ts,tsx}"],
+
+          // Prepended, not appended: `nextMocks.ts` imports the repositories in
+          // its `beforeEach`, and those construct the Prisma pool from
+          // `DATABASE_URL`. Loading `.env.local` after it would hand Prisma the
+          // hardcoded `localhost:5432` fallback, and every assertion below would
+          // then fail against a refused connection instead of the real schema —
+          // which is indistinguishable from a genuine schema failure.
+          setupFiles: ["./tests/setup/integrationEnv.ts", ...shared.setupFiles],
+
+          // Tier 3b: the only suites that talk to a real PostgreSQL server.
+          //
+          // Opt-in, via `npm run test:db`, and deliberately NOT part of
+          // `npm run test:all`. Every other tier runs anywhere — the app is
+          // designed to work with no database at all — so folding these in would
+          // make a green tree depend on Docker being up, and CI would fail for a
+          // missing container rather than a broken change.
+          //
+          // The opposite mistake is the more dangerous one, so these suites
+          // *fail* rather than skip when `DATABASE_URL` is unset. A skip reads as
+          // a pass in the summary line, which is precisely how "verified against
+          // Postgres" became a claim nobody had actually tested.
+          //
+          env: { STRICT_PERSISTENCE: "true" },
+
+          // These suites share one database, so they must not race each other
+          // over the same receipt-sequence rows.
+          fileParallelism: false,
+        },
+      },
+      {
+        resolve: { alias },
+        test: {
+          ...shared,
           name: "components",
           environment: "jsdom",
-          // Tier 4: client components only. Reports "no tests" until Task 02
-          // lands, which is a pass, not a failure.
+          // Tier 4: client components only.
           include: ["tests/components/**/*.test.{ts,tsx}"],
+
+          // Vitest's 5s default is a node-lane number. Mounting a Base UI
+          // dialog in jsdom and driving it with `user-event` — which advances a
+          // real timer per keystroke — costs seconds per test, and with four
+          // files in parallel the slowest legitimately crossed 5s and failed for
+          // load rather than for behaviour. Raised rather than worked around,
+          // because trimming the interactions to fit would mean testing less.
+          testTimeout: 20_000,
+
+          // Appended, so `nextMocks.ts` still wins the ordering it documents.
+          // This half is strictly jsdom-shaped — jest-dom matchers, RTL
+          // `cleanup()`, and the browser APIs jsdom omits — and must not reach
+          // the node lanes, where `document` does not exist.
+          setupFiles: [...shared.setupFiles, "./tests/setup/componentSetup.ts"],
         },
       },
     ],

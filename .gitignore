@@ -36,6 +36,10 @@ yarn-error.log*
 # onboarding step ("copy .env.example -> .env.local"). Without this a fresh
 # clone never receives it, and the required-secret documentation is invisible.
 !.env.example
+# ...and SOPS encrypted environment files (encrypted with age public keys)
+!.env*.enc
+!*.enc.env
+!*.enc
 
 # vercel
 .vercel
@@ -56,11 +60,22 @@ next-env.d.ts
 *.gif
 *.webp
 
-# local agent / editor config (may contain credentials)
+# local agent / editor config & secrets keys (never commit private keys)
 .mcp.json
 .vscode/
 .claude/settings.local.json
+*.key
+*.agekey
+keys.txt
+key.txt
 
 # scratch work & local API probes
 /scratch/
 obsidian-api.http
+
+# playwright (tier 5) run artifacts — traces, screenshots and videos are kept
+# on failure only, so a green run leaves nothing here
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
