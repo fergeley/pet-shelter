@@ -7,17 +7,17 @@ import {
   REHAB_NEED_CATEGORIES,
 } from "@/lib/validations/rehab";
 import {
-  getRehabNeeds,
-  getRehabNeedById,
-  getRehabCategories,
-} from "@/lib/rehabNeedsStore";
-import {
   getRehabNeedsAction,
   fetchRehabNeedsAction,
   getRehabNeedByIdAction,
 } from "@/actions/rehabNeeds";
 import { resetServerStore } from "@/lib/server/fallbackState";
-import { getServerRehabNeeds } from "@/lib/server/rehabNeedsCatalog";
+import {
+  getServerRehabNeeds,
+  getServerRehabNeedsAsync,
+  findServerRehabNeedById,
+  getServerRehabCategories,
+} from "@/lib/server/rehabNeedsCatalog";
 
 describe("Rehabilitation Needs Data Layer & Server Actions", () => {
   beforeEach(() => {
@@ -114,46 +114,46 @@ describe("Rehabilitation Needs Data Layer & Server Actions", () => {
 
   describe("Store Reader Functions (L-B2)", () => {
     it("should return all needs when no category filter is passed", async () => {
-      const needs = await getRehabNeeds();
+      const needs = await getServerRehabNeedsAsync();
       expect(needs.length).toBe(11);
     });
 
     it("should return all needs when category is 'all'", async () => {
-      const needs = await getRehabNeeds("all");
+      const needs = await getServerRehabNeedsAsync("all");
       expect(needs.length).toBe(11);
     });
 
     it("should filter needs by category (URGENT)", async () => {
-      const urgentNeeds = await getRehabNeeds("URGENT");
+      const urgentNeeds = await getServerRehabNeedsAsync("URGENT");
       expect(urgentNeeds.length).toBe(3);
       expect(urgentNeeds.every((n) => n.category === "URGENT")).toBe(true);
     });
 
     it("should filter needs case-insensitively ('urgent' -> 'URGENT')", async () => {
-      const urgentNeeds = await getRehabNeeds("urgent");
+      const urgentNeeds = await getServerRehabNeedsAsync("urgent");
       expect(urgentNeeds.length).toBe(3);
       expect(urgentNeeds.every((n) => n.category === "URGENT")).toBe(true);
     });
 
     it("should return empty array for non-existent category", async () => {
-      const empty = await getRehabNeeds("NONEXISTENT");
+      const empty = await getServerRehabNeedsAsync("NONEXISTENT");
       expect(empty).toEqual([]);
     });
 
-    it("should find an item by id", async () => {
-      const item = await getRehabNeedById("need-001");
+    it("should find an item by id", () => {
+      const item = findServerRehabNeedById("need-001");
       expect(item).toBeDefined();
       expect(item?.id).toBe("need-001");
       expect(item?.name).toContain("Veterinary Recovery Wet Food");
     });
 
-    it("should return null when searching for an unknown id", async () => {
-      const item = await getRehabNeedById("need-99999");
+    it("should return null when searching for an unknown id", () => {
+      const item = findServerRehabNeedById("need-99999");
       expect(item).toBeNull();
     });
 
-    it("should extract distinct categories with labels via getRehabCategories", async () => {
-      const categories = await getRehabCategories();
+    it("should extract distinct categories with labels via getServerRehabCategories", () => {
+      const categories = getServerRehabCategories();
       expect(categories.length).toBe(4);
       expect(categories.map((c) => c.category)).toEqual([
         "URGENT",

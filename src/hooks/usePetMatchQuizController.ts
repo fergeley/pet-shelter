@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Pet } from "@/types/pet";
 import { QuizAnswers, PetMatchResult } from "@/types/match";
-import { matchPetsWithQuiz } from "@/lib/matchEngine";
+import { matchPetsWithQuiz } from "@/lib/domain/matchEngine";
 import { usePetStore } from "@/lib/client/petStore";
 
 export interface UsePetMatchQuizControllerProps {
