@@ -159,53 +159,72 @@ The scale is extended below `xs` rather than reached around: `text-[10px]` and `
 
 ## 5. Component-Specific Guidance
 
+Each entry below was read from the component on 2026-08-28. Where a shape or elevation is named, it
+is the token, not a measured pixel value — resolve it in `globals.css` rather than restating it here.
+
 ### Buttons
 
-- **Default State**: Soft rounded, warm coral background, white or cream text
-- **Hover State**: Darker coral or muted secondary, lifted shadow
-- **Disabled State**: Muted gray-brown, no cursor change
-- **Variants**: Primary (coral), secondary (blush), outline (border only)
-- **Size**: sm (2.5rem), md (3rem), lg (3.5rem) heights
+[`src/components/ui/button.tsx`](../src/components/ui/button.tsx) — a `cva` shell over
+`@base-ui/react/button`.
 
-**Implementation**: See [`src/components/ui/button.tsx`](src/components/ui/button.tsx)
+The base shell is the brand signature and applies to *every* variant: `rounded-control`,
+`shadow-brand-xs`, and `text-xs font-semibold uppercase tracking-widest`. **Buttons in this app are
+uppercase tracked labels**, not sentence-case text — a new button that does not look like that is
+almost certainly bypassing the shell.
+
+- **Variants** (6): `default` (primary coral, `shadow-brand-md`), `outline` (bordered, translucent
+  card fill), `secondary` (blush), `ghost` (hover wash only), `destructive` (tinted, not solid — it
+  is `bg-destructive/10` with destructive text), `link` (underlined, no box).
+- **Sizes** (8): `default` `h-10`, `xs` `h-7`, `sm` `h-9`, `lg` `h-11`, plus the square
+  `icon`, `icon-xs`, `icon-sm`, `icon-lg`. There is no `md`.
+- **Disabled**: `opacity-50` and `pointer-events-none` — the fill is not swapped for a muted colour.
+- **Focus**: `focus-visible:border-ring` plus `ring-2 ring-ring/30`.
+- **Invalid**: `aria-invalid:` swaps the border and ring to `destructive`, so a form control wired to
+  `aria-invalid` styles itself.
 
 ### Cards
 
-- **Background**: Cream or warm off-white
-- **Border**: Soft clay / warm beige, 1px
-- **Radius**: 1.4rem (squircle)
-- **Shadow**: Subtle warm shadow
-- **Padding**: 1.5rem to 2rem depending on content density
+[`src/components/ui/card.tsx`](../src/components/ui/card.tsx)
 
-**Implementation**: See [`src/components/ui/card.tsx`](src/components/ui/card.tsx)
+- **Surface**: `bg-card`, `rounded-card`, `shadow-brand-lg`.
+- **Edge**: `ring-1 ring-border` — a **ring, not a border**. This matters when composing: adding
+  `border` to a card gives it two concentric edges.
+- **Padding**: driven by one custom property, `--card-spacing`, set to `--spacing(8)` (2rem) and
+  dropped to `--spacing(5)` (1.25rem) by `data-size="sm"`. Header, content and footer all read the
+  same variable, which is what keeps their horizontal padding aligned. Override the variable, not
+  the individual paddings.
 
 ### Dialogs / Modals
 
-- **Background**: Cream (light mode) or deep brown (dark mode)
-- **Radius**: 1.6rem for prominent feel
-- **Overlay**: Semi-transparent dark (rgba 0,0,0,0.5)
-- **Shadow**: Soft drop shadow beneath
-- **Padding**: 2rem internal spacing
+[`src/components/ui/dialog.tsx`](../src/components/ui/dialog.tsx)
 
-**Implementation**: See [`src/components/ui/dialog.tsx`](src/components/ui/dialog.tsx)
+- **Surface**: `bg-popover`, `rounded-dialog`, `shadow-brand-xl`, `ring-1 ring-border`.
+- **Overlay**: `bg-black/20` with `backdrop-blur-sm` — a light scrim over a blur, not a heavy dim.
+- **Box**: `p-6`, `gap-6`, `sm:max-w-md`, centred by translate.
 
 ### Navbar
 
-- **Height**: 4rem (64px)
-- **Background**: Gradient blend of primary accent and cream
-- **Border-radius**: Soft (1.25rem) on logo / icon containers
-- **Text**: Deep espresso brown on warm background
-- **Logo Container**: Rounded soft container with slight elevation shadow
+[`src/components/layout/Navbar.tsx`](../src/components/layout/Navbar.tsx)
 
-**Implementation**: See [`src/components/Navbar.tsx`](src/components/Navbar.tsx)
+- **Frame**: `sticky top-0`, `h-16` (4rem), `bg-card/95` with `backdrop-blur-md`, and
+  `border-b border-border`. It is a **flat translucent bar — there is no gradient.**
+- **Logo tile**: `size-9`, `rounded-mark`, `bg-brand-mark`, `ring-1 ring-brand-mark-ring`,
+  `shadow-brand-sm`. This is what `--radius-mark` and the `brand-mark` tokens exist for.
 
 ### Form Inputs
 
-- **Border**: Soft clay, 1px
-- **Radius**: Moderate rounded (0.75rem)
-- **Focus State**: Primary coral ring (2px), no outline
-- **Placeholder**: Muted text, lower opacity
-- **Padding**: 0.75rem to 1rem
+[`src/components/ui/input.tsx`](../src/components/ui/input.tsx)
+
+**Inputs in this app are underlines, not boxes.** Worth stating plainly, because it is the one place
+the shape language deliberately departs from the rounded surfaces everywhere else:
+
+- **Edge**: `border border-transparent` with only `border-b-input` visible — a single bottom rule.
+- **Radius**: none. Do not add one.
+- **Box**: `h-10`, `px-0`, `py-1`. The field is flush with its label, not inset.
+- **Focus**: `focus-visible:border-b-ring` — the bottom rule changes colour. There is **no focus
+  ring** on inputs, unlike buttons.
+- **Invalid**: `aria-invalid:border-b-destructive`.
+- **Placeholder**: `text-muted-foreground`, with the global `::placeholder` rule adding `/70`.
 
 ---
 
@@ -213,16 +232,17 @@ The scale is extended below `xs` rather than reached around: `text-[10px]` and `
 
 ### Logo & Icon
 
-- **Primary Logo**: `/public/android-icon-192x192.png` (paw icon, warm palette)
-- **Favicon Set**: 
-  - `/public/favicon-192x192.png`
-  - `/public/favicon-96x96.png`
-  - `/public/favicon-32x32.png`
-  - `/public/favicon-16x16.png`
-  - `/public/favicon.ico` (fallback)
-- **Apple Icon**: `/public/apple-icon-180x180.png`
+Wired up in [`src/app/layout.tsx`](../src/app/layout.tsx):
 
-All brand assets should be referenced from the `public/` folder and should maintain the warm coral / cream color scheme.
+- **Favicon**: `/favicon-32x32.png`, `/favicon-96x96.png`, with `/favicon.ico` as fallback
+- **Apple**: `/apple-icon-180x180.png`, `/apple-icon-precomposed.png`
+- **PWA / tiles**: `/manifest.json` and `/browserconfig.xml`
+
+`public/` also carries the full `android-icon-*`, `apple-icon-*`, `ms-icon-*` and `favicon-16x16`
+sets that these three files select from. `/public/uploads/` is runtime pet imagery, not brand assets.
+
+All brand assets should be referenced from `public/` and should maintain the warm coral / cream
+scheme.
 
 ---
 
@@ -243,22 +263,34 @@ Use Tailwind's spacing utilities (`p-`, `m-`, `gap-`) rather than custom pixel v
 
 ## 8. Accessibility & Contrast
 
-- All text must maintain **WCAG AA contrast** (4.5:1 for body, 3:1 for large text).
-- The warm palette is legible; test dark text on light backgrounds and vice versa.
-- Focus states must always be visible; use the primary accent color for ring focus states.
-- Ensure color is never the only method of conveying information (pair with icons, text labels, or borders).
+- WCAG **AA** (4.5:1 body, 3:1 large text) is the **target**, and it is worth being precise that it
+  is not currently a *verified* property. No automated check measures tone `solid` against
+  `on-solid`, and a prior code comment claimed AAA for pairings that are closer to AA. Treat the
+  ratios as unmeasured until a contrast guard lands — it is computable from the `oklch` values and is
+  tracked in [`TARGET_EMAIL_COLOUR_PARITY.md`](tasks/TARGET_EMAIL_COLOUR_PARITY.md) §6.
+- Focus states must always be visible. Note the two mechanisms differ by control: buttons use a
+  `ring-2 ring-ring/30`, inputs use a bottom-border colour change (§5). Do not "fix" an input to
+  match a button.
+- Colour must never be the only carrier of meaning — pair a tone with an icon, a label or a border.
+  The seven tones are meanings first (§1.2); the colour is how they are shown, not what they are.
 
 ---
 
 ## 9. When to Request Design Review
 
-Request design review before implementing if you're:
+Several of the old review triggers are now enforced automatically and no longer need a human:
+a raw palette utility, a hardcoded hex, an arbitrary radius/type/shadow, an undeclared class or a
+missing tone slot all fail `npm test`. See the note at the top of this document.
 
-1. Adding a new component type not listed above
-2. Introducing a color outside the palette
-3. Changing border radius conventions
-4. Creating a variant with significantly different styling
-5. Applying dark mode handling that isn't a simple invert of light mode
+What still needs a person, because no test can judge it:
+
+1. Adding a component type not listed in §5
+2. Adding an **eighth tone** — the taxonomy is meanings, and a new one is a claim that the app makes
+   a distinction the existing seven cannot
+3. Adding a step to the type, radius or elevation scale (the guard checks you used *a* step, not that
+   the step was the right one)
+4. Choosing *which* tone a new status maps to
+5. Departing from the shape language the way inputs deliberately do (§5)
 
 ---
 
