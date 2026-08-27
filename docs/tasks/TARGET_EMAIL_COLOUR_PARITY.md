@@ -198,11 +198,13 @@ the part that will silently come back if the fix is "update both files".
 
 Recorded here so they are not rediscovered from scratch:
 
-- **`docs/design-system.md` §5–§9 are unaudited.** §1–§4 and the quick reference were realigned on
-  the tokens; the component guidance, brand assets, spacing and accessibility sections were not read
-  against the current components. §5's implementation links are also written relative to the repo
-  root rather than to `docs/`, so they 404 — and at least one (`src/components/Navbar.tsx`) may name
-  a file that no longer exists.
+- ~~**`docs/design-system.md` §5–§9 are unaudited.**~~ **Closed by `10065ca`.** They were audited and
+  §5 was found to be describing a materially different application — inputs documented as boxed and
+  rounded are in fact underlines with no radius, buttons had 6 variants and 8 sizes rather than the
+  documented 3 and 3, cards use a ring rather than a border, the navbar has no gradient, and §6
+  listed a favicon that does not exist. All four implementation links were 404ing. Nothing remains
+  open here; §8's contrast claim was downgraded to an unverified target that points back at §6 of
+  this document.
 - **The guard's documented soundness leaks**, all commented in the test file: an all-lowercase prose
   string could mark a shell used; a class list written in single quotes is invisible to the scanner;
   a class name composed at runtime (`` `tone-${x}` ``) is invisible. Each weakens the "unused class"
