@@ -3,7 +3,7 @@
 **Date**: 2026-08-28
 **Branch**: `feat/tnrm-rehabilitation`
 **Commit**: `edffe74`
-**Supersedes**: the four `TEST_TASK_0*.md` specs, now in `docs/archives/tasks/`
+**Supersedes**: the four `TEST_TASK_0*.md` specs in `docs/tasks/`
 
 ---
 
