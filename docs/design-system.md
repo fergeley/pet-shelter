@@ -257,7 +257,16 @@ Follow Tailwind's default 4px grid for consistency:
 - **XL**: 2rem (32px)
 - **2XL**: 3rem (48px)
 
-Use Tailwind's spacing utilities (`p-`, `m-`, `gap-`) rather than custom pixel values.
+Use Tailwind's spacing utilities (`p-`, `m-`, `gap-`) rather than custom pixel values. Verified
+2026-08-28: `--spacing` is not overridden, and no arbitrary `p-[…]` / `m-[…]` / `gap-[…]` exists in
+`src/`.
+
+**Arbitrary values are not banned outright** — only on the colour, type, radius and elevation scales
+(§1–§4). A *layout dimension* is not a design token, so `min-h-[360px]`, `max-w-[200px]`,
+`w-[95vw]`, `grid-cols-[1fr_auto]`, `leading-[1.15]` and the width senses of `stroke-[2.5]` /
+`ring-[3px]` are all legitimate and are what every arbitrary value in `src/` currently is. Card and
+dialog padding is the better pattern where it fits: one `--card-spacing` variable that the whole
+shell reads (§5).
 
 ---
 

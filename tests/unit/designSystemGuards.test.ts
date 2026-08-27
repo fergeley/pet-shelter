@@ -327,6 +327,19 @@ describe("design system guards", () => {
   it("uses no arbitrary type, radius or elevation value", () => {
     // 121 arbitrary font sizes (text-[9px], text-[10px], text-[11px]) and a
     // hand-written shadow per card is the state this scale replaced.
+    //
+    // Deliberately limited to the three *design-scale* prefixes. Every other
+    // arbitrary value in src/ is a layout dimension — leading-[1.15],
+    // min-h-[360px], max-w-[200px], w-[95vw], grid-cols-[1fr_auto],
+    // stroke-[2.5] and ring-[3px] (both the *width* senses) — and a grid cell
+    // that has to be 360px tall is not a design token. Widening this list to
+    // "any arbitrary value" turns ~20 legitimate call sites red and teaches
+    // people to skip the guard, which is the failure mode this whole file is
+    // written to avoid.
+    //
+    // The colour senses of those same prefixes are not a hole: ring-[#fff]
+    // would be caught by the hex assertion above. The two rules interlock, so
+    // do not "fix" this one by adding colour prefixes to it.
     const pattern = /(?:^|[^a-zA-Z0-9_-])((?:[a-z][a-z0-9-]*:)*(?:text|rounded|shadow)-\[[^\]]*\])/g;
 
     const offenders: string[] = [];
