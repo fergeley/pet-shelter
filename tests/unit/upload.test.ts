@@ -10,7 +10,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 // Mock auth to allow authorized upload tests
-vi.mock("@/lib/auth", () => ({
+vi.mock("@/lib/security/adminSession", () => ({
   verifyAdminSession: vi.fn().mockResolvedValue(true),
 }));
 

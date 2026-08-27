@@ -10,7 +10,7 @@ import {
 import { Pet } from "@/types/pet";
 import { getCurrentSession, SessionUser } from "@/lib/security/session";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
-import { verifyAdminSession } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import {
   getServerPetsAsync,
   findServerPetById,

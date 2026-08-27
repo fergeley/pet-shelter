@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { verifyAdminSession } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import {
   getPublicPets,
