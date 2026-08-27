@@ -107,24 +107,34 @@ Recommended: make the absence of `DATABASE_URL` explicit rather than papered ove
 `isDatabaseConfigured()` from a single module, have the ledger and the repositories both read it,
 and construct the client lazily so that no pool is opened when nothing is configured.
 
-### P-2 — Tier 3 has `STRICT_PERSISTENCE` but no database 🟠
+### P-2 — ✅ Resolved by the concurrent session, hours after this was written 🟢
 
-`vitest.config.mts` gives the `integration` project `STRICT_PERSISTENCE: "true"` and **no**
-`DATABASE_URL`. Combined with P-1, the first real integration test written into that lane connects
-to `localhost:5432`, fails, and — because strict mode rethrows — goes red for an environmental
-reason that looks like a code defect.
+**Original finding:** `vitest.config.mts` gave the `integration` project `STRICT_PERSISTENCE: "true"`
+and **no** `DATABASE_URL`. Combined with P-1, the first real integration test written into that lane
+would connect to `localhost:5432`, fail, and — because strict mode rethrows — go red for an
+environmental reason indistinguishable from a code defect. The open question was what Tier 3 is
+*for*: strict-mode semantics with no database, or a second DB-backed lane. It could not be both.
 
-It passes today only because `tests/integration/strictHarness.test.ts` asserts an env var and never
-queries. That is the tier's *only* file.
+**It is now the first.** The concurrent session answered it while this document was being written,
+and answered it better than the framing above:
+`tests/integration/support/prismaDouble.ts` doubles the Prisma **client**, so Tier 3a asserts the
+behaviours strict mode exists for — a failing query must propagate rather than silently serve
+fixtures — without any server. Three suites now use it (`auditLogFlush`, `rbacAuthorization`,
+`softDeleteFiltering`); `npm run test:integration` is 4 files / 40 tests green.
 
-The Tier-3b lane solved this by loading `.env.local` through `tests/setup/integrationEnv.ts`. **Do
-not copy that to Tier 3 without the locality guard** — on a developer machine `.env.local` names the
-Neon production branch, and the guard in `tests/integration/db/support/database.ts` is the only thing
-standing between a destructive suite and that branch.
+The resulting split is the right one, and both halves now name each other in their module comments:
 
-Decide what Tier 3 is *for*: strict-mode behaviour with no database (rename it, drop
-`STRICT_PERSISTENCE`, keep it hermetic), or a second DB-backed lane (fold it into Tier 3b). It
-cannot be both.
+| Tier | Location | Prisma | Needs a server |
+|---|---|---|---|
+| 3a | `tests/integration/*.test.ts` | doubled client | no |
+| 3b | `tests/integration/db/**` | real client | **yes** — fails if absent |
+
+**What still stands from this finding:** `tests/setup/integrationEnv.ts` loads `.env.local`, and it
+is registered on **Tier 3b only**. Keep it that way. On a developer machine `.env.local` names the
+Neon production branch, and `assertProbeTargetIsLocal()` in
+`tests/integration/db/support/database.ts` is the only thing between a destructive suite and that
+branch. Adding that setup file to Tier 3a would hand it a production `DATABASE_URL` it has no guard
+for, and P-1's fabricated-localhost fallback would hide the mistake rather than surface it.
 
 ### P-3 — The append-only guarantee is documentation, not enforcement 🟠
 
@@ -193,8 +203,13 @@ Ordered so that each step is verifiable when it lands:
    harness a second time.
 4. **P-1** — single `isDatabaseConfigured()`; drop the fabricated URL; lazy client construction.
    Sweep the ledger and the repositories onto it.
-5. **P-2** — decide what Tier 3 is, then make the config say so.
+5. ~~**P-2**~~ — already resolved; nothing to do but keep `integrationEnv.ts` off Tier 3a.
 6. **P-4** — rewrite `.env.example` last, so it documents the world as it then is.
+
+> **A note on this document's own staleness.** P-2 was resolved by the concurrent session *within
+> hours* of being written, and this file had to be corrected before anyone acted on it. Re-run the
+> §1 and §3 claims against the tree before starting any item here — on this branch a target's
+> baseline has a shelf life measured in hours, not days.
 
 ## 6. Acceptance criteria
 

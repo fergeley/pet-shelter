@@ -61,3 +61,21 @@ Verified by execution, not inspection:
 The Tier-3b suites have never been run green. They are written and wired; the claim being made is
 "the harness exists and fails correctly when the database is absent", not "the ledger is verified
 against Postgres". That second claim stays open until the blocker above is cleared.
+
+## Landed
+
+`bde0095` — 14 files, committed with a pathspec (`git add -- <paths>` then
+`git commit -F <msg> -- <the same paths>`) so the concurrent session's 15 staged archive renames
+stayed in the index rather than riding along.
+
+Deliberately **not** committed: `package.json`, `vitest.config.mts`, `docs/README.md`. All three
+carry both sessions' edits, and the other half of each references files that were still untracked
+(`tests/setup/componentSetup.ts`, `integrationEnv.ts`) or only staged (the archive moves).
+Committing them would have produced broken references. Consequence: the `test:db` / `db:*:local`
+scripts and the `integration-db` project block are not in `bde0095` — they land with that session's
+next commit. The Tier-3b tests are safe in history either way; they simply are not collected until
+the config does.
+
+`npm run test:integration` verified green afterwards (4 files / 40 tests) — confirming the
+single-level glob narrowing did not orphan the three Tier-3a suites that session added at that path
+while this work was in flight.
