@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pet } from "@/types/pet";
+import { Pet, PetStatus } from "@/types/pet";
 import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
-import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { normalizePetStatus, getAllowedPetStatusTransitions } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import {
   Dialog,
@@ -183,6 +183,13 @@ export function PetFormDialog({
   const watchedStatus = watch("status");
   const isUnderRehabilitation = isRehabilitationStatus(watchedStatus);
 
+  const allowedStatusOptions = useMemo(() => {
+    if (editingPet?.status) {
+      return getAllowedPetStatusTransitions(editingPet.status);
+    }
+    return ["Available", "Pending", "Adopted", "In Rehabilitation"] as PetStatus[];
+  }, [editingPet?.status]);
+
   const handleStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     statusField.onChange(event);
     const next = event.target.value as Pet["status"];
@@ -312,10 +319,17 @@ export function PetFormDialog({
                   onChange={handleStatusChange}
                   className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground font-semibold"
                 >
-                  <option value="Available">Available</option>
-                  <option value="Pending">Pending Application</option>
-                  <option value="Adopted">Adopted (Happy Tail)</option>
-                  <option value="In Rehabilitation">In Rehabilitation (Under Care)</option>
+                  {allowedStatusOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt === "Pending"
+                        ? "Pending Application"
+                        : opt === "Adopted"
+                        ? "Adopted (Happy Tail)"
+                        : opt === "In Rehabilitation"
+                        ? "In Rehabilitation (Under Care)"
+                        : "Available"}
+                    </option>
+                  ))}
                 </select>
               </div>
 

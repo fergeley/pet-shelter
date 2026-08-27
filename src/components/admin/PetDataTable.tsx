@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Star,
   FileText,
+  XCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -62,6 +63,7 @@ export function PetDataTable({
     isFormOpen,
     editingPet,
     archiveCandidate,
+    statusError,
   } = state;
   const {
     setGlobalFilter,
@@ -71,6 +73,7 @@ export function PetDataTable({
     setSorting,
     setIsFormOpen,
     setArchiveCandidate,
+    setStatusError,
     handleOpenCreate,
     handleOpenEdit,
     handleFormSubmit,
@@ -90,49 +93,38 @@ export function PetDataTable({
               src={row.original.image}
               alt={row.original.name}
               fill
-              className={`object-cover ${row.original.isArchived ? "grayscale opacity-75" : ""}`}
               sizes="48px"
+              className="object-cover"
             />
           </div>
         ),
       },
       {
         accessorKey: "name",
-        header: "Name & Breed",
+        header: "Name & Bio",
         cell: ({ row }) => {
           const pet = row.original;
           return (
-            <div>
-              <div className="flex items-center gap-1.5 font-heading text-base font-bold text-foreground">
-                <span className={pet.isArchived ? "line-through text-muted-foreground" : ""}>
+            <div className="space-y-1 max-w-[200px] sm:max-w-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-foreground text-sm flex items-center gap-1.5">
                   {pet.name}
+                  {pet.featured && (
+                    <span title="Featured on homepage">
+                      <Star className="size-3.5 fill-warning-accent text-warning-accent inline-block" />
+                    </span>
+                  )}
                 </span>
-                {pet.featured && !pet.isArchived && (
-                  <span title="Featured on Homepage" className="inline-flex">
-                    <Star className="size-3.5 text-warning-accent fill-warning-accent/20" />
-                  </span>
-                )}
-                {pet.isArchived && (
-                  <span className="text-3xs uppercase font-bold tracking-wider px-1.5 py-0.5 bg-neutral-border text-neutral-text ">
-                    Archived
-                  </span>
-                )}
+                <span className="text-2xs font-mono px-1.5 py-0.5 bg-muted text-muted-foreground">
+                  {pet.id}
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground font-medium">
-                {pet.breed} • <span className="font-mono">{pet.weight}</span>
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                {pet.breed} • {pet.age} • {pet.gender}
               </p>
             </div>
           );
         },
-      },
-      {
-        accessorKey: "species",
-        header: "Species",
-        cell: ({ row }) => (
-          <span className="capitalize text-xs font-semibold px-2.5 py-1 bg-secondary text-secondary-foreground border border-border">
-            {row.original.species}
-          </span>
-        ),
       },
       {
         accessorKey: "age",
@@ -261,6 +253,18 @@ export function PetDataTable({
 
   return (
     <div className="space-y-6">
+      {statusError && (
+        <div className="bg-destructive/10 border border-destructive/30 p-3.5 text-xs text-destructive flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <XCircle className="size-4 shrink-0" />
+            <span>{statusError}</span>
+          </div>
+          <Button variant="ghost" size="xs" onClick={() => setStatusError(null)} className="text-xs">
+            Dismiss
+          </Button>
+        </div>
+      )}
+
       {/* Top Toolbar */}
       <div className="border border-border bg-card p-4 sm:p-5 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
         {/* Search & Filters */}

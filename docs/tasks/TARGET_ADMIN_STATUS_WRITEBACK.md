@@ -151,3 +151,23 @@ Steps 2-4 are the bug. Steps 5-6 are the same defect on the other path and can l
 - **Render-level tests for the banner.** No `@testing-library/react` in the repo yet; that belongs to
   [Test Task 02](TEST_TASK_02_COMPONENT_AND_UI_SUITE.md). The controller logic is testable today
   without it, which is why criterion 2 is scoped to the hook.
+
+---
+
+## 7. ✅ Resolution — 2026-08-27
+
+Implemented on `feat/tnrm-rehabilitation`.
+
+1. **`usePetTableController.ts`**:
+   - Added `statusError` state and `setStatusError` handler.
+   - Updated `handleStatusChange`: records previous status, optimistically applies, and on `{ success: false }` or rejection rolls back both `localPets` and `usePetStore` before surfacing the error message.
+   - Updated `handleFormSubmit`: records previous pet state on edit, rolls back on failed server update/create, and surfaces `statusError`.
+   - Updated `handleConfirmArchive`: rolls back on failed server archive update.
+2. **`PetDataTable.tsx`**:
+   - Destructured `statusError` and `setStatusError`.
+   - Rendered error banner using destructive theme styling with `XCircle` icon and dismiss action, identical to `ApplicationDataTable.tsx`.
+3. **`PetFormDialog.tsx`**:
+   - Constrained status dropdown choices via `getAllowedPetStatusTransitions(editingPet?.status)` when editing, closing the illegal transition route.
+4. **`tests/unit/adminStatusWriteback.test.ts`**:
+   - Added unit test suite covering transition graph validation and allowed status transition lists across canonical and alias statuses.
+

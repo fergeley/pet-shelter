@@ -21,6 +21,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
     addPet,
     updatePet,
     updatePetStatus,
+    deletePet,
     toggleArchivePet,
     resetToDefaultPets,
   } = usePetStore();
@@ -33,6 +34,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
   const [speciesFilter, setSpeciesFilter] = useState<string>("all");
   const [archiveFilter, setArchiveFilter] = useState<string>("active"); // "all" | "active" | "archived"
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   // Modals & Selection
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -83,21 +85,44 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
   };
 
   const handleFormSubmit = async (data: PetFormInput) => {
+    setStatusError(null);
     if (editingPet) {
+      const prevPet = pets.find((p) => p.id === editingPet.id);
       updatePet(editingPet.id, data);
       setLocalPets((prev) => {
         const base = prev || pets;
         return base.map((p) => (p.id === editingPet.id ? { ...p, ...data } : p));
       });
-      serverUpdatePet(editingPet.id, data).catch((err) =>
-        console.warn("Background server update sync:", err)
-      );
+      serverUpdatePet(editingPet.id, data)
+        .then((res) => {
+          if (res && !res.success) {
+            if (prevPet) {
+              updatePet(prevPet.id, prevPet);
+              setLocalPets((prev) => {
+                const base = prev || pets;
+                return base.map((p) => (p.id === prevPet.id ? prevPet : p));
+              });
+            }
+            setStatusError(res.error || "Failed to update pet.");
+          }
+        })
+        .catch((err) => {
+          console.warn("Background server update sync:", err);
+        });
     } else {
       const created = addPet(data);
       setLocalPets((prev) => [created, ...(prev || pets)]);
-      serverCreatePet(data).catch((err) =>
-        console.warn("Background server create sync:", err)
-      );
+      serverCreatePet(data)
+        .then((res) => {
+          if (res && !res.success) {
+            deletePet(created.id);
+            setLocalPets((prev) => (prev ? prev.filter((p) => p.id !== created.id) : null));
+            setStatusError(res.error || "Failed to create pet.");
+          }
+        })
+        .catch((err) => {
+          console.warn("Background server create sync:", err);
+        });
     }
     setIsFormOpen(false);
     setEditingPet(null);
@@ -105,6 +130,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
 
   const handleConfirmArchive = () => {
     if (archiveCandidate) {
+      setStatusError(null);
       const { pet, archive } = archiveCandidate;
       toggleArchivePet(pet.id, archive);
       setLocalPets((prev) => {
@@ -113,22 +139,53 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
           p.id === pet.id ? { ...p, isArchived: archive, deletedAt: archive ? new Date().toISOString() : null } : p
         );
       });
-      serverToggleArchivePet(pet.id, archive).catch((err) =>
-        console.warn("Background server archive sync:", err)
-      );
+      serverToggleArchivePet(pet.id, archive)
+        .then((res) => {
+          if (res && !res.success) {
+            toggleArchivePet(pet.id, !archive);
+            setLocalPets((prev) => {
+              const base = prev || pets;
+              return base.map((p) =>
+                p.id === pet.id ? { ...p, isArchived: !archive, deletedAt: !archive ? new Date().toISOString() : null } : p
+              );
+            });
+            setStatusError(res.error || "Failed to update archive status.");
+          }
+        })
+        .catch((err) => {
+          console.warn("Background server archive sync:", err);
+        });
       setArchiveCandidate(null);
     }
   };
 
   const handleStatusChange = (id: string, newStatus: Pet["status"]) => {
+    setStatusError(null);
+    const prevPet = pets.find((p) => p.id === id);
+    const prevStatus = prevPet?.status;
+
     updatePetStatus(id, newStatus);
     setLocalPets((prev) => {
       const base = prev || pets;
       return base.map((p) => (p.id === id ? { ...p, status: newStatus } : p));
     });
-    serverUpdatePetStatus(id, newStatus).catch((err) =>
-      console.warn("Background server status sync:", err)
-    );
+
+    serverUpdatePetStatus(id, newStatus)
+      .then((res) => {
+        if (res && !res.success) {
+          if (prevStatus) {
+            updatePetStatus(id, prevStatus);
+            setLocalPets((prev) => {
+              const base = prev || pets;
+              return base.map((p) => (p.id === id ? { ...p, status: prevStatus } : p));
+            });
+          }
+          setStatusError(res.error || "Failed to update pet status.");
+        }
+      })
+      .catch((err) => {
+        console.warn("Background server status sync:", err);
+      });
   };
 
   const handleExportCsv = () => {
@@ -150,6 +207,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
       isFormOpen,
       editingPet,
       archiveCandidate,
+      statusError,
     },
     handlers: {
       setGlobalFilter,
@@ -160,6 +218,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
       setIsFormOpen,
       setEditingPet,
       setArchiveCandidate,
+      setStatusError,
       handleOpenCreate,
       handleOpenEdit,
       handleFormSubmit,
