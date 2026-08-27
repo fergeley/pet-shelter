@@ -3,6 +3,10 @@
 Both were found while restructuring, both are unstarted as of 2026-08-27, and neither is blocked.
 They are independent — dispatch either alone.
 
+**Run them with `/fix-category-tabs` and `/fix-admin-session`** (`.claude/commands/`). The prompts
+below are the same content, kept here for reading and for pasting into a session that has no access
+to this repo's commands.
+
 | # | Item | Risk | Size |
 |---|---|---|---|
 | 1 | Wire two components to the derived category readers | Low | ~4 files |
