@@ -14,6 +14,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 ---
 
 ### 🏗️ Architecture & Technical Blueprints
+- **[Where Code Goes](architecture/WHERE_CODE_GOES.md)**: One page. Which directory a new file belongs in, the five rules CI enforces, and the two traps this codebase has actually hit. **Start here** — the documents below are the reasoning behind it.
 - **[Application Layer Map (Backend vs Frontend)](architecture/LAYERS.md)**: All 15 layers named and owned, legal dependency directions, machine-verified layer violations, and the type-invisible contract gap between `Pet` and the store. Regenerate its findings with `node docs/architecture/layer-graph.mjs`.
 - **[System Architecture Blueprint](architecture/ARCHITECTURE_BLUEPRINT.md)**: High-level system topology, Server Components vs Client Components, security layers, and data flows.
 - **[Database & ORM Architecture Guide](architecture/GUIDE_PRISMA_AND_NEON_ARCHITECTURE.md)**: PostgreSQL schema, Neon branching, Prisma ORM setup, connection pooling, and in-memory dual-layer storage pattern.
