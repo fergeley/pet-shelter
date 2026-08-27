@@ -2,6 +2,10 @@
 description: Change verifyAdminSession to return a principal instead of a boolean, so privileged mutations can record who acted
 ---
 
+> ✅ **Done at `1dfb8c9` (2026-08-28). Do not re-run.** Kept as the record of what was asked.
+> The weakness it surfaced but was told not to fix is
+> `docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
+
 Change `verifyAdminSession()` so privileged mutations can record **who** acted.
 
 Read `src/lib/security/adminSession.ts` and `docs/tasks/TARGET_SECRET_HARDENING.md` §3.5 first.

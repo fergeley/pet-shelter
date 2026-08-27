@@ -1,16 +1,16 @@
 # 🟡 Target: Two Follow-Ups from the `src/lib/` Restructure
 
-Both were found while restructuring, both are unstarted as of 2026-08-27, and neither is blocked.
-They are independent — dispatch either alone.
+Both were found while restructuring and neither is blocked. They are independent — dispatch either
+alone. **Item 2 is done** (`1dfb8c9`, 2026-08-28); item 1 is still unstarted.
 
-**Run them with `/fix-category-tabs` and `/fix-admin-session`** (`.claude/commands/`). The prompts
+**Run item 1 with `/fix-category-tabs`** (`.claude/commands/`). The prompts
 below are the same content, kept here for reading and for pasting into a session that has no access
 to this repo's commands.
 
-| # | Item | Risk | Size |
-|---|---|---|---|
-| 1 | Wire two components to the derived category readers | Low | ~4 files |
-| 2 | Make `verifyAdminSession()` name a principal | **Security** | ~5 files |
+| # | Item | Risk | Size | Status |
+|---|---|---|---|---|
+| 1 | Wire two components to the derived category readers | Low | ~4 files | 🟡 unstarted |
+| 2 | Make `verifyAdminSession()` name a principal | **Security** | ~5 files | ✅ `1dfb8c9` |
 
 ---
 
@@ -79,9 +79,17 @@ prove a tab renders. Report what you saw.
 
 ---
 
-## 2. `verifyAdminSession()` cannot name who acted
+## 2. ✅ `verifyAdminSession()` cannot name who acted — **done at `1dfb8c9`**
 
-`src/lib/security/adminSession.ts:12` returns `Promise<boolean>`. Two consequences:
+> Closed 2026-08-28. It returns `AdminPrincipal | null` now, and the legacy shared-secret branch
+> names `shared-secret@admin-token.invalid` — an RFC 2606 `.invalid` address that cannot collide
+> with a staff mailbox. The synthetic `admin@hopeforstrays.org` it replaced was indistinguishable
+> from a real administrator. The section below is kept as the record of what was wrong.
+>
+> It also surfaced an authentication hole that was deliberately left in place and written up
+> separately: [`URGENT_NONPRODUCTION_ADMIN_BYPASS.md`](URGENT_NONPRODUCTION_ADMIN_BYPASS.md).
+
+`src/lib/security/adminSession.ts:12` returned `Promise<boolean>`. Two consequences:
 
 1. **The legacy `admin_session` cookie bypasses RBAC granularity, not just expiry.** The sealed
    branch distinguishes `ADMIN` from `COORDINATOR`; the cookie branch returns bare `true` with no
