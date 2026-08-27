@@ -12,7 +12,7 @@ import {
   Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 import { PetStatusIcon } from "@/components/features/pets/PetStatusIcon";
 
 interface PetChooserCarouselProps {

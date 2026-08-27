@@ -11,7 +11,7 @@ import {
   Cat 
 } from "lucide-react";
 import { Pet } from "@/types/pet";
-import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 import { PetStatusIcon } from "./PetStatusIcon";
 import {
   Dialog,

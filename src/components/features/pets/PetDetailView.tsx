@@ -31,7 +31,7 @@ import {
   Gift,
   Clock,
 } from "lucide-react";
-import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/petStatusPresentation";
+import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
 import { PetStatusIcon } from "./PetStatusIcon";
 import { usePetDetailViewController, PetDetailTab } from "@/hooks/usePetDetailViewController";
 

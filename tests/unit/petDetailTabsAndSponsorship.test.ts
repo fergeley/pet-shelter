@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPetStatusPresentation, getRehabStageLabel, getRehabProgressPercent } from "@/lib/petStatusPresentation";
+import { getPetStatusPresentation, getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
 import { findSponsorshipTier, SPONSORSHIP_TIERS } from "@/lib/domain/sponsorshipTiers";
 import { Pet } from "@/types/pet";
 

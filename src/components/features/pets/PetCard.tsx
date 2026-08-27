@@ -11,7 +11,7 @@ import {
   getPetStatusPresentation,
   getRehabStageLabel,
   getRehabProgressPercent,
-} from "@/lib/petStatusPresentation";
+} from "@/lib/presentation/petStatusPresentation";
 import { PetStatusIcon } from "./PetStatusIcon";
 
 interface PetCardProps {

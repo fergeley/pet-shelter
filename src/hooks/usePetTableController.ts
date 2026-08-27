@@ -5,7 +5,7 @@ import { Pet } from "@/types/pet";
 import { PetFormInput } from "@/lib/validations/pet";
 import { usePetStore } from "@/lib/client/petStore";
 import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/presentation/adminPetFilters";
-import { buildPetStatusFilterOptions } from "@/lib/petStatusPresentation";
+import { buildPetStatusFilterOptions } from "@/lib/presentation/petStatusPresentation";
 import { exportPetsToCsv } from "@/lib/presentation/exportCsv";
 import {
   createPet as serverCreatePet,

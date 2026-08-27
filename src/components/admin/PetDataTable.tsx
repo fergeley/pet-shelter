@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { usePetTableController } from "@/hooks/usePetTableController";
-import { getPetStatusPresentation } from "@/lib/petStatusPresentation";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 import { getAllowedPetStatusTransitions, normalizePetStatus } from "@/lib/domain/stateMachine";
 import { PetStatusIcon } from "@/components/features/pets/PetStatusIcon";
 import { useLanguage } from "@/components/providers/LanguageProvider";

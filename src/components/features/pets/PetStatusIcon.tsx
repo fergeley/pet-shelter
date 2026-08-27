@@ -1,6 +1,6 @@
 import { Clock, HeartHandshake, HomeIcon, Stethoscope, type LucideIcon } from "lucide-react";
 
-import type { PetStatusTone } from "@/lib/petStatusPresentation";
+import type { PetStatusTone } from "@/lib/presentation/petStatusPresentation";
 
 /**
  * The glyph that stands for each status tone.

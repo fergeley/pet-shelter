@@ -4,7 +4,7 @@ import {
   APPLICATION_STATUS_SEQUENCE,
   buildApplicationStatusFilterOptions,
   getApplicationStatusPresentation,
-} from "@/lib/applicationStatusPresentation";
+} from "@/lib/presentation/applicationStatusPresentation";
 import { APPLICATION_TRANSITION_GRAPH } from "@/lib/domain/stateMachine";
 import { ApplicationStatus } from "@/types/application";
 

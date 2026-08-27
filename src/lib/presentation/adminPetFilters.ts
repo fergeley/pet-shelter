@@ -1,5 +1,5 @@
 import { Pet } from "@/types/pet";
-import { matchesStatusFilter } from "@/lib/petStatusPresentation";
+import { matchesStatusFilter } from "@/lib/presentation/petStatusPresentation";
 
 /** The three row-level filters, as the toolbar holds them: raw `<select>` / input strings. */
 export interface AdminPetSearchCriteria {

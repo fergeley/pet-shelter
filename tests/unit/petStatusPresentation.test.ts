@@ -7,7 +7,7 @@ import {
   getRehabStageLabel,
   getRehabProgressPercent,
   matchesStatusFilter,
-} from "@/lib/petStatusPresentation";
+} from "@/lib/presentation/petStatusPresentation";
 import { Pet, PetStatus } from "@/types/pet";
 import { PET_STATUS_VALUES } from "@/lib/validations/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";

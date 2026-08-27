@@ -39,7 +39,7 @@ import {
   APPLICATION_STATUS_SEQUENCE,
   buildApplicationStatusFilterOptions,
   getApplicationStatusPresentation,
-} from "@/lib/applicationStatusPresentation";
+} from "@/lib/presentation/applicationStatusPresentation";
 import { ApplicationStatusIcon } from "@/components/admin/ApplicationStatusIcon";
 
 export function ApplicationDataTable({

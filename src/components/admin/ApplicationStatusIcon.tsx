@@ -1,6 +1,6 @@
 import { CheckCircle2, Clock, FileText, XCircle, type LucideIcon } from "lucide-react";
 
-import type { ApplicationStatusTone } from "@/lib/applicationStatusPresentation";
+import type { ApplicationStatusTone } from "@/lib/presentation/applicationStatusPresentation";
 
 /**
  * The glyph that stands for each application status tone.

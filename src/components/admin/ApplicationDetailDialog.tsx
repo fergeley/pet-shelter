@@ -32,7 +32,7 @@ import { scheduleApplicationInterview } from "@/actions/applications";
 import {
   APPLICATION_STATUS_SEQUENCE,
   getApplicationStatusPresentation,
-} from "@/lib/applicationStatusPresentation";
+} from "@/lib/presentation/applicationStatusPresentation";
 
 interface ApplicationDetailDialogProps {
   application: AdoptionApplicationRecord | null;

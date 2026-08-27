@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/client/petStore";
-import { matchesStatusFilter } from "@/lib/petStatusPresentation";
+import { matchesStatusFilter } from "@/lib/presentation/petStatusPresentation";
 
 export interface UsePetGalleryControllerProps {
   initialPets?: Pet[];
