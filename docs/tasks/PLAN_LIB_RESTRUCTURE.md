@@ -1,7 +1,7 @@
 # Plan: `src/lib/` Restructure — Split the Repository, Surface the Runtime Boundary
 
-**Status**: the repository split, the `src/lib/client/` move, and 2 of 4 `src/lib/presentation/`
-moves have **landed** (2026-08-27). Two presentation modules remain — see §9.
+**Status**: ✅ **complete** (2026-08-27). All three phases landed. §12 lists what was deliberately
+left loose in `src/lib/` and the two findings that came out of doing the work.
 **Scope**: `src/lib/` only. No file outside `src/lib/` moves. No feature folders are created.
 
 > **Revision 3 — one plan decision was overturned during execution.** Rev 2 ordered *moves first,
@@ -419,3 +419,56 @@ The three guard-harness gaps from `TARGET_LAYER_GUARD_COMPLETENESS.md` were clos
 `petStatusPresentation.ts` and `applicationStatusPresentation.ts` → `src/lib/presentation/`. Both
 modules are clean; `PetStatusIcon.tsx` and `ApplicationStatusIcon.tsx` are not. That is the whole
 blocker — 21 importers and no design questions left.
+
+
+---
+
+## 12. Closed — 2026-08-27
+
+`petStatusPresentation.ts` and `applicationStatusPresentation.ts` moved into
+`src/lib/presentation/`, 17 importers rewritten. The plan is complete:
+
+```
+src/lib/
+├── server/        9 modules — repositories, mappers, catalogs, prisma, ledger
+├── client/        6 modules — "use client" localStorage hooks
+├── presentation/  4 modules — status → tone/label mappers
+├── domain/ · security/ · validations/ · i18n/ · storage/
+└── auth.ts  email.ts  faqStore.ts  imageOptimization.ts  matchEngine.ts
+    medicalTimeline.ts  persistenceMode.ts  rehabNeedsStore.ts  utils.ts
+```
+
+Six guards in `tests/unit/layerBoundaries.test.ts` hold the shape: Prisma confined to
+`src/lib/server/` (path rule, plus the audit-log exception), no Server Action reaching client code,
+no client module reaching the repository layer, no non-client module reaching `src/lib/client/`,
+and `src/lib/presentation/` barred from `src/lib/server/`. Each was verified by injecting a
+violation and watching it fail.
+
+Final: **39 test files / 518 tests**, `tsc` clean, `eslint` 0 errors.
+
+### What is still loose, and why
+
+Nine files remain directly under `src/lib/`. Three are correct there; the rest are follow-on work
+this plan deliberately did not take on.
+
+| File | Verdict |
+|---|---|
+| `utils.ts` (6 lines) | Correct — framework-level `cn`, 11 importers, belongs at the root |
+| `email.ts` (652) | Correct — L-B6 service adapter, its own layer |
+| `persistenceMode.ts` (62) | Correct — cross-cutting policy read by every repository |
+| `medicalTimeline.ts` (165) | **Straddles two layers.** `getPetMedicalTimeline()` is domain synthesis; `getCategoryToneClass()` / `getCategoryBadgeClasses()` are presentation. `CLAUDE.md` already names it beside the two presentation modules. Needs splitting, not moving |
+| `matchEngine.ts` (221) | Pure domain math → `domain/`. Verified free of DOM access (its only `window` is the word in user-facing copy) |
+| `imageOptimization.ts` (172) | The one genuinely browser-only loose file — canvas and `document`. Needs a client-side home, but it is not a `"use client"` module, so guard rule 4 does not apply as-is |
+| `auth.ts` (36) | Legacy `verifyAdminSession` accepting the `admin_session` cookie → `security/` |
+| `faqStore.ts` · `rehabNeedsStore.ts` (42 each) | Near pass-throughs over the catalogs — 3 of 4 exports just forward. Either collapse into the catalogs or document why the indirection earns its place |
+
+None of these are blockers; each is a small independent decision. The directory shape and its guards
+are what this plan set out to deliver, and they are in place.
+
+### Two things the work itself surfaced
+
+- Moving `donationLedger.ts` broke its relative `./domain/money` import. The pre-move check
+  *printed* both relative imports; only the first was acted on. **A relative import inside a moved
+  file is the specific hazard of a `git mv`, and printing it is not the same as reading it.**
+- Verifying the new client guard is what exposed the bare-side-effect-import hole in `buildGraph()`
+  — the injected violation failed to fail. See `TARGET_LAYER_GUARD_COMPLETENESS.md`.
