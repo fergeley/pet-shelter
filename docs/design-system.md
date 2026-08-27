@@ -2,41 +2,85 @@
 
 This document defines the visual identity, color palette, typography, and component shape language for the pet-shelter application.
 
+> **These rules are enforced.** `tests/unit/designSystemGuards.test.ts` fails the build on a raw
+> palette utility, a hardcoded hex, an arbitrary type/radius/shadow value, an undeclared design-system
+> class, or a tone slot missing from either theme. It runs in `npm test`. If you are about to write
+> something this document forbids, the suite will say so before review does — see
+> [`docs/tasks/TARGET_DESIGN_SYSTEM_GUARDS.md`](tasks/TARGET_DESIGN_SYSTEM_GUARDS.md) for why.
+
 ---
 
-## 1. Color Palette
+## 1. Color
 
-The palette is intentionally warm, approachable, and rescue-focused. All colors are derived from the primary paw icon and should create a cohesive, non-clinical visual identity.
+The palette is intentionally warm, approachable, and rescue-focused, derived from the primary paw
+icon. Nothing in `src/` names a color directly. Every value is declared once as a token in
+[`src/app/globals.css`](../src/app/globals.css) — in `:root` and again in `.dark` — and exposed to
+Tailwind through the `@theme inline` map. Because the generated utility resolves to `var(--token)`
+rather than a literal, `bg-success-surface` already adapts to the theme.
 
-### Light Mode
+**That indirection is the point**: pairing a token utility with a `dark:` variant recreates the ~180
+hand-written overrides that had drifted out of sync with their light counterparts. Write the token
+utility alone.
 
-| Token | Color | Use Case |
-|-------|-------|----------|
-| **background** | `#FFFDF8` (Cream / Warm Ivory) | Page backgrounds, card surfaces |
-| **foreground** | `#2A1810` (Deep Espresso Brown) | Primary text, headings, body copy |
-| **primary** | `#C85A54` (Muted Coral / Rose Terracotta) | Key CTAs, accent highlights, hover states |
-| **secondary** | `#E8D5C4` (Blush / Warm Sand) | Secondary buttons, muted accents, tags |
-| **muted** | `#D4B5A0` (Warm Clay) | Borders, dividers, subtle backgrounds |
-| **border** | `#E5D4C1` (Soft Beige) | Card borders, input borders, separators |
+### 1.1 Brand surface tokens
 
-### Dark Mode
+The frame every page sits in: `background`, `foreground`, `card`, `popover`, `primary`, `secondary`,
+`muted`, `accent`, `accent-subtle`, `destructive`, `border`, `input`, `ring`, plus the `frame-*`,
+`brand-mark*` and `control-*` groups. Consume them as `bg-background`, `text-muted-foreground`,
+`border-border`, and so on. Read the current values from `globals.css` — they are not duplicated here,
+because a copy is a copy that goes stale.
 
-| Token | Color | Use Case |
-|-------|-------|----------|
-| **background** | `#1A1410` (Deep Brown-Black) | Dark backgrounds |
-| **foreground** | `#F5EFEA` (Warm Off-White) | Text on dark backgrounds |
-| **primary** | `#F49080` (Lighter Coral / Warm Salmon) | Bright accents in dark mode |
-| **secondary** | `#D4A89C` (Warm Rose) | Secondary accents |
-| **muted** | `#5A4A40` (Warm Gray-Brown) | Borders in dark mode |
-| **border** | `#6B5B50` (Medium Brown) | Dark mode borders |
+### 1.2 Semantic tones — pick by meaning, never by hue
 
-### Implementation Location
+Seven tones, seven slots each. A component says what a thing *means* and the token layer decides what
+color that is:
 
-All theme tokens are defined centrally in:
-- **CSS Variables**: [`src/app/globals.css`](src/app/globals.css) (`:root` and `html.dark` selectors)
-- **Tailwind Config**: Extends color theme from CSS variables via `theme.colors.{token}`
+| Tone | Meaning |
+|------|---------|
+| **success** | verified · available · approved · payment received |
+| **warning** | pending · needs attention · caution |
+| **info** | informational · scheduled · submitted |
+| **care** | under rehabilitation or veterinary care |
+| **danger** | rejected · urgent · negative |
+| **highlight** | the extra distinguishable color, with no fixed meaning — for legends that have run out of meaning tones. Reach for it last. |
+| **neutral** | adopted · archived · inert |
 
-Any new component should reference these tokens via `bg-background`, `text-foreground`, `border-border`, etc., rather than hardcoded hex values.
+| Slot | Use |
+|------|-----|
+| `surface` | tinted panel |
+| `surface-strong` | emphasised panel |
+| `border` | border on a tinted panel |
+| `text` | readable on `surface` |
+| `accent` | icon or rule on the page background |
+| `solid` | filled badge |
+| `on-solid` | text on that fill |
+
+Used two ways. Directly, as a utility — `bg-care-surface`, `text-care-text`, `border-care-border` —
+or, preferably, by composing a **tone class** with a **shell**: `class="tone-soft tone-care"`. The
+tone class remaps a local `--tone-*` group and does nothing else, so every shell works with every
+tone and a status surface can be restyled in one place.
+
+The shells are declared in the `@layer components` block of `globals.css`: `tone-soft`,
+`tone-panel-strong`, `tone-pill`, `tone-chip` (+ `tone-chip-pill`), `tone-ink`, `eyebrow`,
+`receipt` (+ `receipt-panel`, `receipt-accent`) and `segmented` (+ `segmented-thumb`).
+
+Two things that look reasonable and are not:
+
+- **A variant on a shell** — `dark:tone-ink`, `hover:tone-soft` — compiles to nothing. Tailwind
+  generates variants for utilities, not for classes in `@layer components`, so the element silently
+  keeps its base styling.
+- **A tone or slot that does not exist** — `tone-success-strong`, `bg-alert-surface` — also compiles
+  to nothing, and renders unstyled rather than throwing.
+
+Status → tone mapping lives in [`src/lib/presentation/`](../src/lib/presentation), not in components.
+
+### 1.3 The two deliberate exceptions
+
+- **HTML email** (`src/lib/email.ts`, `src/actions/settings.ts`) keeps literal hex. Mail clients
+  support neither custom properties nor Tailwind, so a token would arrive colourless.
+- **The printed tax receipt** (`--receipt-*`) is fixed, and deliberately absent from `.dark`. A
+  Sec 44(6) receipt is black ink on white paper in every theme and has to survive a monochrome
+  printer.
 
 ---
 
@@ -46,21 +90,26 @@ The design follows a **soft, semi-rounded** approach (the "squircle" direction) 
 
 ### Border Radius Guide
 
-| Component | Radius | CSS Value | Rationale |
-|-----------|--------|-----------|-----------|
-| **Buttons** | Soft | `rounded-[1.25rem]` | Inviting, touchable; signals CTA |
-| **Cards** | Rounded | `rounded-[1.4rem]` | Gentle, friendly surfaces; primary content containers |
-| **Dialogs** | Extra Rounded | `rounded-[1.6rem]` | Calm, non-aggressive modal framing; larger radius for emphasis |
-| **Inputs** | Soft | `rounded-[0.75rem]` | Slightly softer than dialog, but consistent with overall language |
-| **Navbar** | Soft | `rounded-[1.25rem]` | Matches button radius for visual cohesion |
-| **Small UI** | Minimal | `rounded-md` or `rounded-lg` | Badge, pill, small tag elements |
+The scale derives from `--radius` (1.15rem), so changing that one value reshapes the whole app.
+`rounded-3xl` and `rounded-4xl` are overridden too — Tailwind's defaults (1.5rem / 2rem) would
+otherwise land *below* this project's `rounded-2xl` and invert the scale.
+
+| Step | CSS Value | Use |
+|------|-----------|-----|
+| `rounded-sm` … `rounded-4xl` | `calc(--radius × 0.6)` … `× 2.6` | The general scale |
+| `rounded-mark` | 1rem | The logo tile |
+| `rounded-control` | 1.25rem | Buttons, navbar, segmented controls |
+| `rounded-card` | 1.4rem | Card surfaces |
+| `rounded-dialog` | 1.6rem | Modals |
+| `rounded-md` / `rounded-lg` | from the scale | Badges, pills, small tags |
 
 ### Practical Application
 
-- **Do**: Use the defined radius tokens consistently across all new components.
+- **Do**: Use the named shapes for the four shells that have one; the general scale otherwise.
 - **Do**: Apply radius to both background shapes and border strokes for cohesion.
 - **Don't**: Mix sharp corners with soft rounded corners in the same visual section.
-- **Don't**: Use radius values outside the guide unless explicitly approved during design review.
+- **Don't**: write `rounded-[1.4rem]`. An arbitrary radius is invisible to `--radius` and fails
+  `designSystemGuards`. If a shape is genuinely missing, add the step to `globals.css`.
 
 ---
 
@@ -70,12 +119,16 @@ Shadows are subtle and warm-toned to maintain the soft, approachable aesthetic.
 
 ### Shadow System
 
-| Layer | CSS | Use Case |
-|-------|-----|----------|
-| **Card Shadow** | `shadow-[0_10px_28px_rgba(200,90,84,0.08)]` | Card surfaces, lifted content |
-| **Button Hover** | `shadow-md` + warmtint | Interactive hover states |
-| **Dialog Shadow** | `shadow-[0_20px_48px_rgba(0,0,0,0.12)]` | Modal overlays, prominent surfaces |
-| **Subtle Shadow** | `shadow-sm` | Borders and minimal elevation |
+Warm-tinted, so shadows sit on cream without reading as grey. Five named steps, declared in
+`globals.css`; an inline `shadow-[…]` fails `designSystemGuards`.
+
+| Step | Use Case |
+|------|----------|
+| `shadow-brand-xs` | Borders and minimal elevation |
+| `shadow-brand-sm` | Interactive hover states |
+| `shadow-brand-md` | Lifted controls |
+| `shadow-brand-lg` | Card surfaces, lifted content |
+| `shadow-brand-xl` | Modal overlays, prominent surfaces |
 
 ---
 
@@ -96,6 +149,11 @@ Shadows are subtle and warm-toned to maintain the soft, approachable aesthetic.
 | **Body / Paragraph** | 1rem / 16px | 400 (normal) | 1.6 | `text-base` |
 | **Small / Caption** | 0.875rem / 14px | 400 (normal) | 1.5 | `text-sm` |
 | **Tiny / Badge** | 0.75rem / 12px | 500 (medium) | 1.4 | `text-xs font-medium` |
+| **Metadata label** | 0.6875rem / 11px | 700 (bold) | 1.15 | `text-2xs` |
+| **Eyebrow / fine print** | 0.625rem / 10px | 700 (bold) | 1.0 | `text-3xs`, or the `eyebrow` shell |
+
+The scale is extended below `xs` rather than reached around: `text-[10px]` and `text-[11px]` are what
+`text-3xs` and `text-2xs` replaced, and `designSystemGuards` rejects them.
 
 ---
 
@@ -204,24 +262,26 @@ Request design review before implementing if you're:
 
 ---
 
-## Quick Reference: CSS Variables
+## Quick Reference
 
-All values are exposed as CSS custom properties in [`src/app/globals.css`](src/app/globals.css):
+[`src/app/globals.css`](../src/app/globals.css) is the single source of truth, in four numbered
+sections: **1. Tokens** (`:root`, `.dark`, `@theme inline`), **2. Base** (element defaults),
+**3. Components** (the shells), **4. Print** (receipt isolation). Values are `oklch()` or hex; the
+`@theme inline` map is what turns each one into a Tailwind utility.
 
-```css
---background: 0 0% 99.7%;
---foreground: 16 60% 10%;
---primary: 10 42% 51%;
---secondary: 19 45% 87%;
---muted: 16 25% 68%;
---border: 20 42% 80%;
---radius: 1.4rem;
-```
+Access in components via the generated utility — `bg-background`, `text-foreground`, `border-border`,
+`bg-care-surface`, `rounded-card`, `shadow-brand-lg` — or by composing a tone class with a shell,
+`class="tone-soft tone-care"`. Never `var()` at a call site, never a literal.
 
-Access in components via:
-- Tailwind class: `bg-background`, `text-foreground`, `border-border`, `rounded-[var(--radius)]`
-- CSS: `background-color: hsl(var(--background))`
+| Want to… | Do |
+|---|---|
+| add a color | declare `--x` in **both** `:root` and `.dark`, map it in `@theme inline`, then use `bg-x` |
+| add a status color | reuse one of the seven tones; add a tone only if the *meaning* is new |
+| add a recurring shell | declare it in `@layer components` and use it — an unused class fails the guard |
+| use a one-off size | add the step to the scale rather than inlining `text-[13px]` |
+
+**Enforced by**: [`tests/unit/designSystemGuards.test.ts`](../tests/unit/designSystemGuards.test.ts).
 
 ---
 
-**Last Updated**: 2026-08-15
+**Last Updated**: 2026-08-27

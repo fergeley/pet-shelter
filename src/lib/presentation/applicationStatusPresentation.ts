@@ -11,7 +11,7 @@ export interface ApplicationStatusPresentation {
   actionLabel: string;
   /**
    * The design-system tone class from `globals.css`. Composes with any tone-aware shell
-   * (`tone-soft`, `tone-ink`, `eyebrow-tone`) so surfaces beyond the two below can pick
+   * (`tone-soft`, `tone-ink`, `tone-pill`) so surfaces beyond the two below can pick
    * up the status colour without restating it.
    */
   toneClass: string;

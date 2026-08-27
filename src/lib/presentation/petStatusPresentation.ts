@@ -12,7 +12,7 @@ export interface PetStatusPresentation {
   /**
    * The design-system tone class (`tone-success`, `tone-care`, …) declared in
    * `globals.css`. On its own it only remaps the local `--tone-*` group, so it composes
-   * with any tone-aware shell — `tone-soft`, `tone-ink`, `eyebrow-tone` — without this
+   * with any tone-aware shell — `tone-soft`, `tone-ink`, `tone-chip` — without this
    * module having to know which one the call site picked.
    */
    toneClass: string;

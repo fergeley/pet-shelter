@@ -531,10 +531,6 @@
   .eyebrow {
     @apply text-3xs font-bold uppercase tracking-wider text-muted-foreground;
   }
-  .eyebrow-tone {
-    @apply text-3xs font-bold uppercase tracking-wider;
-    color: var(--tone-accent);
-  }
 
   /* --- Filled status badge. Pair with a tone class. --- */
   .tone-chip {
@@ -580,9 +576,6 @@
     background-color: var(--receipt-paper);
     border-color: var(--border);
     color: var(--receipt-ink);
-  }
-  .receipt-rule {
-    border-color: var(--receipt-rule);
   }
   .receipt-accent {
     color: var(--receipt-ink-accent);

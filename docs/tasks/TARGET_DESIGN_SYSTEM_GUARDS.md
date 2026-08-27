@@ -105,14 +105,14 @@ Each of these would produce false positives that train people to disable the gua
 
 ### 3.3 Naming and placement
 
-`tests/unit/designSystem.test.ts`, alongside `layerBoundaries.test.ts`. Tier 2 (architectural
+`tests/unit/designSystemGuards.test.ts`, alongside `layerBoundaries.test.ts`. Tier 2 (architectural
 guards), per the `npm run test:unit` grouping in `CLAUDE.md`.
 
 ---
 
 ## 4. Step plan
 
-1. **Create `tests/unit/designSystem.test.ts`** using the `walk()` / `readFileSync` shape from
+1. **Create `tests/unit/designSystemGuards.test.ts`** using the `walk()` / `readFileSync` shape from
    `layerBoundaries.test.ts`. Load every `src/**/*.{ts,tsx}` once into a `Map`, and a
    comment-stripped copy into a second `Map` (§3.1). Read `src/app/globals.css` once.
 2. **Colour assertions** over the stripped sources:
