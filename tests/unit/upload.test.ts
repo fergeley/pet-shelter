@@ -9,9 +9,19 @@ vi.mock("fs/promises", () => ({
   unlink: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock auth to allow authorized upload tests
+// Mock auth to allow authorized upload tests. `verifyAdminSession` resolves to
+// an AdminPrincipal now rather than `true`, and the route reads `.authMethod`
+// off it for the audit entry -- a bare `true` would type-check as `never` here
+// and blow up at that property read.
 vi.mock("@/lib/security/adminSession", () => ({
-  verifyAdminSession: vi.fn().mockResolvedValue(true),
+  verifyAdminSession: vi.fn().mockResolvedValue({
+    id: "admin-1",
+    email: "admin@hopeforstrays.org",
+    name: "Admin User",
+    role: "ADMIN",
+    expiresAt: Date.now() + 86400000,
+    authMethod: "session",
+  }),
 }));
 
 function createMockImageFile(name: string, type: string, size = 1024): File {

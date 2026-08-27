@@ -8,9 +8,12 @@ import {
   sortHistoryByDate,
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
-import { getCurrentSession, SessionUser } from "@/lib/security/session";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
-import { verifyAdminSession } from "@/lib/security/adminSession";
+import {
+  AdminPrincipal,
+  DEV_BYPASS_PRINCIPAL,
+  verifyAdminSession,
+} from "@/lib/security/adminSession";
 import {
   getServerPetsAsync,
   findServerPetById,
@@ -88,22 +91,27 @@ export async function getPetById(id: string): Promise<Pet | null> {
   return findServerPetById(id);
 }
 
-async function getAdminActorOrThrow(): Promise<SessionUser> {
-  const isAuthorized = await verifyAdminSession();
-  if (!isAuthorized && process.env.NODE_ENV === "production") {
+/**
+ * The actor to attribute a privileged pet mutation to.
+ *
+ * `verifyAdminSession()` now names the principal it authorized, so the second
+ * `getCurrentSession()` read this used to do is gone -- and with it the case
+ * where the legacy token authorized the request but a lower-privileged session
+ * cookie was present, and *that* user got written into the audit row.
+ */
+async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
+  const principal = await verifyAdminSession();
+  if (principal) return principal;
+
+  // Nothing authorized this. Production refuses; every other build has always
+  // let it through, and that is preserved rather than fixed here. What changes
+  // is that the actor it yields is labelled as the bypass it is, instead of
+  // borrowing an identity indistinguishable from a real administrator's.
+  if (process.env.NODE_ENV === "production") {
     throw new Error("Unauthorized: Admin authorization required");
   }
 
-  const session = await getCurrentSession();
-  if (session) return session;
-
-  return {
-    id: "admin-token-user",
-    email: "admin@hopeforstrays.org",
-    name: "Shelter Administrator",
-    role: "ADMIN",
-    expiresAt: Date.now() + 86400000,
-  };
+  return DEV_BYPASS_PRINCIPAL;
 }
 
 export async function createPet(
