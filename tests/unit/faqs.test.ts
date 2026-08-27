@@ -7,17 +7,17 @@ import {
   FAQ_CATEGORIES,
 } from "@/lib/validations/faq";
 import {
-  getFaqs,
-  getFaqById,
-  getFaqCategories,
-} from "@/lib/faqStore";
-import {
   getFaqsAction,
   fetchFaqsAction,
   getFaqByIdAction,
 } from "@/actions/faqs";
 import { resetServerStore } from "@/lib/server/fallbackState";
-import { getServerFaqs } from "@/lib/server/faqCatalog";
+import {
+  getServerFaqs,
+  getServerFaqsAsync,
+  findServerFaqById,
+  getServerFaqCategories,
+} from "@/lib/server/faqCatalog";
 
 describe("FAQ Data Layer & Server Actions", () => {
   beforeEach(() => {
@@ -107,46 +107,46 @@ describe("FAQ Data Layer & Server Actions", () => {
 
   describe("Store Reader Functions (L-B2)", () => {
     it("should return all FAQs when no category filter is passed", async () => {
-      const faqs = await getFaqs();
+      const faqs = await getServerFaqsAsync();
       expect(faqs.length).toBe(8);
     });
 
     it("should return all FAQs when category is 'all'", async () => {
-      const faqs = await getFaqs("all");
+      const faqs = await getServerFaqsAsync("all");
       expect(faqs.length).toBe(8);
     });
 
     it("should filter FAQs by category (tnrm)", async () => {
-      const tnrmFaqs = await getFaqs("tnrm");
+      const tnrmFaqs = await getServerFaqsAsync("tnrm");
       expect(tnrmFaqs.length).toBe(3);
       expect(tnrmFaqs.every((f) => f.category === "tnrm")).toBe(true);
     });
 
     it("should filter FAQs case-insensitively ('TNRM' -> 'tnrm')", async () => {
-      const tnrmFaqs = await getFaqs("TNRM");
+      const tnrmFaqs = await getServerFaqsAsync("TNRM");
       expect(tnrmFaqs.length).toBe(3);
       expect(tnrmFaqs.every((f) => f.category === "tnrm")).toBe(true);
     });
 
     it("should return empty array for non-existent category", async () => {
-      const empty = await getFaqs("nonexistent");
+      const empty = await getServerFaqsAsync("nonexistent");
       expect(empty).toEqual([]);
     });
 
-    it("should find an item by id", async () => {
-      const item = await getFaqById("faq-001");
+    it("should find an item by id", () => {
+      const item = findServerFaqById("faq-001");
       expect(item).toBeDefined();
       expect(item?.id).toBe("faq-001");
       expect(item?.question).toContain("What is TNRM");
     });
 
-    it("should return null when searching for an unknown id", async () => {
-      const item = await getFaqById("faq-99999");
+    it("should return null when searching for an unknown id", () => {
+      const item = findServerFaqById("faq-99999");
       expect(item).toBeNull();
     });
 
-    it("should extract distinct categories with labels via getFaqCategories", async () => {
-      const categories = await getFaqCategories();
+    it("should extract distinct categories with labels via getServerFaqCategories", () => {
+      const categories = getServerFaqCategories();
       expect(categories.length).toBe(5);
       expect(categories.map((c) => c.category)).toEqual([
         "tnrm",
