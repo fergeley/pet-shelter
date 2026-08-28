@@ -19,28 +19,47 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  ALL_CATEGORY_VALUE,
+  CategoryTab,
+  DerivedCategory,
+  withAllTab,
+} from "@/lib/presentation/categoryTabs";
 
-const CATEGORY_TABS: { value: string; labelEn: string; labelMs: string }[] = [
-  { value: "all", labelEn: "All Wishlist Items", labelMs: "Semua Barangan Keperluan" },
-  { value: "URGENT", labelEn: "Urgent Medical", labelMs: "Perubatan Mendesak" },
-  { value: "REGULAR", labelEn: "Regular Nutrition & Care", labelMs: "Nutrisi & Penjagaan Rutin" },
-  { value: "LONG_TERM", labelEn: "Facility Improvements", labelMs: "Penambahbaikan Fasiliti" },
-  { value: "TNRM_EQUIPMENT", labelEn: "TNRM Field Equipment", labelMs: "Peralatan Lapangan TNRM" },
-];
+/**
+ * The one tab that is not derived from the fixture. Its wording is carried
+ * over verbatim from the hardcoded list this component used to own, and is
+ * deliberately not the FAQ strip's "All Topics": this list is a wishlist.
+ */
+const ALL_NEEDS_TAB: CategoryTab = {
+  value: ALL_CATEGORY_VALUE,
+  labelEn: "All Wishlist Items",
+  labelMs: "Semua Barangan Keperluan",
+};
 
-export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[] } = {}) {
+export function RehabNeedsSection({
+  initialNeeds,
+  initialCategories,
+}: { initialNeeds?: RehabNeed[]; initialCategories?: DerivedCategory[] } = {}) {
   const { isMs } = useLanguage();
   const [needs, setNeeds] = useState<RehabNeed[]>(initialNeeds || []);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY_VALUE);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const isInitialMount = useRef(true);
 
+  const categoryTabs = withAllTab(ALL_NEEDS_TAB, initialCategories);
+
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (initialNeeds && initialNeeds.length > 0 && selectedCategory === "all" && searchQuery.trim() === "") {
+      if (
+        initialNeeds &&
+        initialNeeds.length > 0 &&
+        selectedCategory === ALL_CATEGORY_VALUE &&
+        searchQuery.trim() === ""
+      ) {
         return;
       }
     }
@@ -48,7 +67,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
     const timer = setTimeout(() => {
       startTransition(async () => {
         const res = await getRehabNeedsAction({
-          category: selectedCategory === "all" ? undefined : selectedCategory,
+          category: selectedCategory === ALL_CATEGORY_VALUE ? undefined : selectedCategory,
           search: searchQuery.trim() === "" ? undefined : searchQuery.trim(),
         });
         if (res.success && res.data) {
@@ -99,7 +118,7 @@ export function RehabNeedsSection({ initialNeeds }: { initialNeeds?: RehabNeed[]
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         {/* Category Tabs */}
         <div className="flex flex-wrap gap-2">
-          {CATEGORY_TABS.map((tab) => {
+          {categoryTabs.map((tab) => {
             const isActive = selectedCategory === tab.value;
             return (
               <button

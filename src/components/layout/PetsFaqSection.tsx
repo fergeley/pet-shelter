@@ -5,34 +5,50 @@ import { PhoneCall, HelpCircle, ChevronDown, MessageCircle } from "lucide-react"
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { FaqItem } from "@/types/faq";
 import { getFaqsAction } from "@/actions/faqs";
+import {
+  ALL_CATEGORY_VALUE,
+  CategoryTab,
+  DerivedCategory,
+  withAllTab,
+} from "@/lib/presentation/categoryTabs";
 
-const FAQ_CATEGORY_TABS: { value: string; labelEn: string; labelMs: string }[] = [
-  { value: "all", labelEn: "All Topics", labelMs: "Semua Topik" },
-  { value: "tnrm", labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
-  { value: "sponsorship", labelEn: "Sponsorship & LHDN Tax", labelMs: "Penajaan & Pelepasan Cukai" },
-  { value: "adoption", labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
-  { value: "visiting", labelEn: "Visiting & Shelter", labelMs: "Lawatan & Santuari" },
-  { value: "get_involved", labelEn: "Volunteering & CSR", labelMs: "Sukarelawan & CSR" },
-];
+/**
+ * The one tab that is not derived from the fixture. Its wording is carried
+ * over verbatim from the hardcoded list this component used to own: the
+ * bilingual category labels come from the fixture rows, and "all" has no row
+ * to come from.
+ */
+const ALL_FAQ_TAB: CategoryTab = {
+  value: ALL_CATEGORY_VALUE,
+  labelEn: "All Topics",
+  labelMs: "Semua Topik",
+};
 
-export function PetsFaqSection({ initialFaqs }: { initialFaqs?: FaqItem[] } = {}) {
+export function PetsFaqSection({
+  initialFaqs,
+  initialCategories,
+}: { initialFaqs?: FaqItem[]; initialCategories?: DerivedCategory[] } = {}) {
   const { isMs } = useLanguage();
   const [faqs, setFaqs] = useState<FaqItem[]>(initialFaqs || []);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY_VALUE);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set(["faq-001", "faq-004", "faq-006"]));
   const [isPending, startTransition] = useTransition();
   const isInitialMount = useRef(true);
 
+  const categoryTabs = withAllTab(ALL_FAQ_TAB, initialCategories);
+
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (initialFaqs && initialFaqs.length > 0 && selectedCategory === "all") {
+      if (initialFaqs && initialFaqs.length > 0 && selectedCategory === ALL_CATEGORY_VALUE) {
         return;
       }
     }
 
     startTransition(async () => {
-      const res = await getFaqsAction(selectedCategory === "all" ? undefined : selectedCategory);
+      const res = await getFaqsAction(
+        selectedCategory === ALL_CATEGORY_VALUE ? undefined : selectedCategory
+      );
       if (res.success && res.data) {
         setFaqs(res.data);
       }
@@ -72,7 +88,7 @@ export function PetsFaqSection({ initialFaqs }: { initialFaqs?: FaqItem[] } = {}
 
         {/* Category Filter Tabs */}
         <div className="flex flex-wrap gap-2 pt-2">
-          {FAQ_CATEGORY_TABS.map((tab) => {
+          {categoryTabs.map((tab) => {
             const isActive = selectedCategory === tab.value;
             return (
               <button

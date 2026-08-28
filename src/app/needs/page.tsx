@@ -1,5 +1,8 @@
 import { Metadata } from "next";
-import { getServerRehabNeedsAsync } from"@/lib/server/rehabNeedsCatalog";
+import {
+  getServerRehabNeedsAsync,
+  getServerRehabCategories,
+} from "@/lib/server/rehabNeedsCatalog";
 import { RehabNeedsSection } from "@/components/features/needs/RehabNeedsSection";
 import { PackageOpen } from "lucide-react";
 
@@ -11,6 +14,9 @@ export const metadata: Metadata = {
 
 export default async function NeedsPage() {
   const initialNeeds = await getServerRehabNeedsAsync();
+  // Only the categories the fixture actually populates, so the tab strip cannot
+  // offer a filter that matches nothing.
+  const initialNeedCategories = getServerRehabCategories();
 
   return (
     <main className="min-h-screen bg-background pb-20">
@@ -32,7 +38,10 @@ export default async function NeedsPage() {
 
       {/* Main Content */}
       <section className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 pt-10">
-        <RehabNeedsSection initialNeeds={initialNeeds} />
+        <RehabNeedsSection
+          initialNeeds={initialNeeds}
+          initialCategories={initialNeedCategories}
+        />
       </section>
     </main>
   );
