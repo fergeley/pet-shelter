@@ -1,4 +1,12 @@
-# 🔴 URGENT — Admin pet mutations do not authenticate outside production
+# ✅ RESOLVED — Admin pet mutations do not authenticate outside production
+
+> **Closed 2026-08-28.** `getAdminActorOrThrow()` now throws `UnauthorizedError` for every
+> unauthenticated caller in every environment, and `DEV_BYPASS_PRINCIPAL` is gone. The eleven
+> dependent tests authenticate through `tests/setup/authSession.ts`, and
+> `tests/unit/softDeleteAndAuth.test.ts` gained the regression guard §3 asked for — all five
+> actions refused, with the catalogue asserted unchanged. Verified against a running `next dev`
+> as §4 required; see `tasks/todo.md`. Everything below is the finding as written, kept intact.
+> §7's adjacent findings were **not** part of this task and remain open.
 
 **Date**: 2026-08-28
 **Branch**: `feat/tnrm-rehabilitation`

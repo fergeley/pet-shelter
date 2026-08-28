@@ -6,6 +6,15 @@ import {
 } from "@/lib/email";
 import { AdoptionApplicationRecord } from "@/types/application";
 import { DonationReceipt } from "@/types/sponsorship";
+import { ApplicationStatus } from "@/types/application";
+import { sendApplicationStatusUpdateEmail } from "@/lib/email";
+import {
+  DESIGN_TONES,
+  EMAIL_BRAND,
+  EMAIL_RECEIPT,
+  EMAIL_TONE,
+} from "@/lib/presentation/emailTokens";
+import { getApplicationStatusPresentation } from "@/lib/presentation/applicationStatusPresentation";
 
 describe("Transactional Email Service", () => {
   const sampleApplication: AdoptionApplicationRecord = {
@@ -177,5 +186,142 @@ describe("Sec 44(6) donation receipt — the two halves must agree", () => {
       expect(body).toContain("910101-10-1234");
       expect(body).toContain("RM 250.00");
     }
+  });
+});
+
+/**
+ * The rendered half of email colour parity.
+ *
+ * `designSystemGuards.test.ts` proves the hex mirror still equals the tokens in
+ * `globals.css`. That is necessary but not sufficient: it would stay green if `email.ts`
+ * imported the mirror and then never used it, or used the wrong entry. These assertions read
+ * the markup that actually goes on the wire.
+ *
+ * Background: docs/tasks/TARGET_EMAIL_COLOUR_PARITY.md.
+ */
+describe("rendered email colour parity", () => {
+  const application: AdoptionApplicationRecord = {
+    id: "app-parity-001",
+    petId: "pet-001",
+    petName: "Kopi",
+    applicantName: "Tan Ah Kow",
+    email: "tahkow@example.com",
+    phone: "012-3456789",
+    address: "123 Jalan SS2, Petaling Jaya",
+    housingType: "landed_terrace",
+    hasFencedYard: "yes",
+    currentPets: "none",
+    householdExperience: "experienced",
+    applicantNotes: "Excited!",
+    status: "SUBMITTED",
+    createdAt: "2026-08-15",
+    updatedAt: "2026-08-15",
+  };
+
+  /** Drives a builder down the live path and returns the payload Resend would receive. */
+  async function capture(dispatch: () => Promise<unknown>): Promise<string> {
+    const originalEnv = process.env.RESEND_API_KEY;
+    process.env.RESEND_API_KEY = "test_key";
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "resend-msg-test" }),
+    } as unknown as Response);
+
+    try {
+      await dispatch();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      return JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)).html as string;
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalEnv) process.env.RESEND_API_KEY = originalEnv;
+      else delete process.env.RESEND_API_KEY;
+    }
+  }
+
+  it("gives all seven tones a badge and a card, in the mirrored colours", async () => {
+    // The gap this closes: the email had four badge classes named after application statuses,
+    // so care, neutral and highlight had no email colour at all and anything mapped to them
+    // rendered in the sky reserved for "informational".
+    const html = await capture(() => sendApplicationStatusUpdateEmail(application, "APPROVED"));
+
+    const missing: string[] = [];
+    for (const tone of DESIGN_TONES) {
+      const { surface, text, accent } = EMAIL_TONE[tone];
+      if (!html.includes(`.badge-${tone} { background: ${surface}; color: ${text}; }`)) {
+        missing.push(`.badge-${tone} (${surface} / ${text})`);
+      }
+      if (!html.includes(`.card-${tone} { background: ${surface}; border-left-color: ${accent}; }`)) {
+        missing.push(`.card-${tone} (${surface} / ${accent})`);
+      }
+    }
+
+    expect(
+      missing,
+      "Every tone needs an email presence, or a status mapped to it silently falls back to " +
+        "the default informational badge in the recipient's inbox."
+    ).toEqual([]);
+  });
+
+  it("badges a status in the same tone the app shows it in", async () => {
+    // The defect in the target doc §1.2: a status read one colour in the admin table and
+    // another in the inbox, because email kept its own status → colour table.
+    const statuses: ApplicationStatus[] = ["SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED"];
+
+    for (const status of statuses) {
+      const html = await capture(() => sendApplicationStatusUpdateEmail(application, status));
+      const { toneClass } = getApplicationStatusPresentation(status);
+      const tone = toneClass.replace(/^tone-/, "");
+
+      expect(
+        html,
+        `${status} is ${toneClass} in the app, so its email badge must be badge-${tone}`
+      ).toContain(`class="badge badge-${tone}"`);
+    }
+  });
+
+  it("styles the statutory receipt from the --receipt-* group", async () => {
+    // §3.3: --receipt-* is the one token group already fixed across themes, because a
+    // Sec 44(6) receipt is black ink on white paper and has to survive a monochrome printer.
+    // The emailed and the printed receipt for the same donation are meant to be one document.
+    const html = await capture(() =>
+      sendDonationReceiptEmail({
+        receiptNumber: "HFS-DON-202608-4821",
+        date: "28 Aug 2026, 10:15 AM",
+        donorName: "Siti Nurhaliza",
+        donorEmail: "siti@example.com",
+        tierId: "vaccine",
+        tierName: "Core Vaccination & Deworming",
+        amountMYR: 250,
+        frequency: "one_time",
+        paymentMethod: "duitnow_qr",
+        targetPetName: "Luna",
+        taxDeductibleRef: "LHDN.01/35/42/51/179-6.9999",
+        shelterRegistrationNo: "PPM-001-10-99999999",
+      })
+    );
+
+    expect(html, "the receipt sits on receipt paper").toContain(EMAIL_RECEIPT.paper);
+    expect(html, "receipt headings are receipt ink").toContain(EMAIL_RECEIPT.ink);
+    expect(html, "the total is the fixed receipt accent").toContain(EMAIL_RECEIPT.inkAccent);
+    expect(html, "field labels are the faint ink").toContain(EMAIL_RECEIPT.inkFaint);
+  });
+
+  it("wears the brand palette, and none of the palette it replaced", async () => {
+    const html = await capture(() => sendApplicationStatusUpdateEmail(application, "APPROVED"));
+
+    expect(html, "the header band is the brand terracotta").toContain(EMAIL_BRAND.primary);
+    expect(html, "the page sits on the brand cream").toContain(EMAIL_BRAND.background);
+
+    // The stock Tailwind slate/sky the email was built from. A shelter whose app is warm
+    // cream and terracotta was sending cool slate-and-sky mail; these are the exact values.
+    const ABANDONED = ["#0f172a", "#f8fafc", "#64748b", "#e2e8f0", "#0284c7", "#0369a1", "#1e293b"];
+    const survivors = ABANDONED.filter((hex) => html.toLowerCase().includes(hex));
+
+    expect(
+      survivors,
+      "These are Tailwind's stock slate/sky — the vocabulary the token pass removed from the " +
+        "app. Reaching for one here puts the shelter's email back in a palette its own " +
+        "application abandoned."
+    ).toEqual([]);
   });
 });
