@@ -274,11 +274,22 @@ shell reads (§5).
 
 ## 8. Accessibility & Contrast
 
-- WCAG **AA** (4.5:1 body, 3:1 large text) is the **target**, and it is worth being precise that it
-  is not currently a *verified* property. No automated check measures tone `solid` against
-  `on-solid`, and a prior code comment claimed AAA for pairings that are closer to AA. Treat the
-  ratios as unmeasured until a contrast guard lands — it is computable from the `oklch` values and is
-  tracked in [`TARGET_EMAIL_COLOUR_PARITY.md`](tasks/TARGET_EMAIL_COLOUR_PARITY.md) §6.
+- WCAG **AA** for body text (4.5:1) is **enforced**, not aspirational. `designSystemGuards.test.ts`
+  measures every pairing the vocabulary promises — each tone's `text` on `surface` and on
+  `surface-strong`, `on-solid` on `solid`, every `*-foreground` on its own surface, `--primary` and
+  `--destructive` in both directions, and the receipt inks on paper — in **both** themes, and fails
+  the build below 4.5:1. Translucent tokens are composited onto the page background first, because
+  `.dark` declares all seven tone surfaces with alpha and skipping them would exempt half the
+  palette while reporting green.
+- This replaced a hedge, and the hedge was justified: when the sweep was first run, `:root`'s
+  `--primary` was **2.90:1** as text on cream and **3.00:1** under white text — below AA in both
+  directions, across 262 utility uses, with the default button rendering it at 12px. It was darkened
+  to `#b2594f` (hue and chroma held, lightness down 11 points). Everything else already passed.
+  See [`TARGET_LIGHT_PRIMARY_CONTRAST.md`](tasks/TARGET_LIGHT_PRIMARY_CONTRAST.md).
+- **Non-text contrast is deliberately not asserted.** WCAG's 3:1 rule covers boundaries required to
+  understand content; a tinted `border` on its own tinted `surface` is decorative, and the panel is
+  distinguished by its fill. Asserting those would fail sixteen legitimate design choices. If you add
+  a boundary that genuinely carries meaning on its own, measure it by hand.
 - Focus states must always be visible. Note the two mechanisms differ by control: buttons use a
   `ring-2 ring-ring/30`, inputs use a bottom-border colour change (§5). Do not "fix" an input to
   match a button.

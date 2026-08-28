@@ -177,3 +177,54 @@ work — with `git add -A` under its own message.
   than inherit them.
 - Treat anything already implemented when you arrive as a **draft to review against this plan**, not
   as the task being done.
+
+---
+
+## 8. Outcome
+
+**Done 2026-08-28.** `:root --primary` → `#b2594f`, `--primary-hover` → `#aa5148` (same ΔL, so the
+hover keeps its one-step relationship). `.dark` untouched — it was already 8.3–9.0:1.
+
+| | before | after |
+|---|---|---|
+| `text-primary` on `--background` | 2.90:1 ❌ | **4.51:1** ✅ |
+| `--primary-foreground` on `--primary` | 3.00:1 ❌ | **4.67:1** ✅ |
+| `--primary-foreground` on `--primary-hover` | 3.31:1 ❌ | **5.20:1** ✅ |
+
+Guard added to `designSystemGuards.test.ts`: 73 pairings across both themes, translucent surfaces
+composited per §3.3, failing below 4.5:1. Four injections verified it bites — the old primary value,
+a muddied foreground, a *dark-theme* tone text, and a deleted token (reported, never skipped).
+`tests/support/oklch.ts` gained `parseCssColor` / `compositeOver` / `relativeLuminance` /
+`contrastRatio`, anchored in `oklch.test.ts` on ratios fixed by the WCAG formula (black on white is
+21:1 exactly). The email mirror was recomputed from the token, not hand-matched, so the emailed
+button label now clears AA too. `npm run test:all` 52 files / 697 tests green.
+
+### 8.1 ⚠️ The consequence worth knowing: primary and destructive converged
+
+Darkening primary moved it toward `--destructive` (`#b54043`). Measured as OKLab ΔE:
+
+| | ΔEok |
+|---|---|
+| old `#d77a6f` vs destructive | 0.147 — clearly different |
+| **new `#b2594f` vs destructive** | **0.049 — similar** |
+
+Roughly a threefold loss of separation. It does **not** affect buttons much, because the destructive
+variant is a tint (`bg-destructive/10` with destructive text) rather than a solid fill, so the two
+never appear as competing solid blocks. Where it does bite is *text*: `text-primary` (121 call sites)
+and `text-destructive` (55) are now near-neighbours on cream, and a destructive link that reads as a
+primary link is a real confusion.
+
+Not fixed here, because fixing it means changing a *second* brand token beyond what was approved.
+The options, for whoever picks this up:
+
+1. **Accept it.** §8 of the design-system doc already requires that colour never be the only carrier
+   of meaning — destructive actions pair with an icon or an explicit label. Cheapest, and arguably
+   already the rule.
+2. **Push `--destructive` further from the brand hue** — toward a cooler red. One token, no call
+   sites, restores the separation. Needs the same contrast check (`--destructive` on `--card` is
+   5.48:1 today and must stay ≥ 4.5).
+3. Re-pick primary with a small hue shift as well as a lightness drop. Most disruptive; the brand
+   colour was only meant to get darker, not to change hue.
+
+Recommendation: **2**, as its own small target. It is the one that restores the distinction without
+touching the colour the shelter is recognised by.
