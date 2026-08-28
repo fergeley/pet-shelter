@@ -9,11 +9,8 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
-import {
-  AdminPrincipal,
-  DEV_BYPASS_PRINCIPAL,
-  verifyAdminSession,
-} from "@/lib/security/adminSession";
+import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
+import { UnauthorizedError } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
@@ -103,15 +100,15 @@ async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
   const principal = await verifyAdminSession();
   if (principal) return principal;
 
-  // Nothing authorized this. Production refuses; every other build has always
-  // let it through, and that is preserved rather than fixed here. What changes
-  // is that the actor it yields is labelled as the bypass it is, instead of
-  // borrowing an identity indistinguishable from a real administrator's.
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("Unauthorized: Admin authorization required");
-  }
-
-  return DEV_BYPASS_PRINCIPAL;
+  // Nothing authorized this, in any environment. There was a
+  // `NODE_ENV === "production"` guard around this throw, which meant every
+  // other build -- `next dev` on a LAN, a preview deployment, a container
+  // that leaves NODE_ENV unset, CI -- handed an unauthenticated caller an
+  // ADMIN principal and let all five mutations below proceed. The typed
+  // error is what the rest of the RBAC layer raises; the message is kept
+  // verbatim because it reaches the admin UI through each action's catch.
+  // See docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
+  throw new UnauthorizedError("Unauthorized: Admin authorization required");
 }
 
 export async function createPet(

@@ -7,11 +7,15 @@ import { getAdminSecretKey } from "@/lib/security/secrets";
 /**
  * How a request proved it was allowed to perform an Admin operation.
  *
- * Only `session` is backed by a signed, expiring, per-user cookie. The other
- * two authorize a request without identifying a human, and every audit row they
- * produce needs to be readable as such.
+ * Only `session` is backed by a signed, expiring, per-user cookie.
+ * `legacy-shared-secret` authorizes a request without identifying a human, and
+ * every audit row it produces needs to be readable as such.
+ *
+ * There was a third member, `dev-bypass`, recording that nothing authenticated
+ * at all and a non-production build allowed the write anyway. It is gone with
+ * the bypass itself -- see docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
  */
-export type AdminAuthMethod = "session" | "legacy-shared-secret" | "dev-bypass";
+export type AdminAuthMethod = "session" | "legacy-shared-secret";
 
 /**
  * The actor behind an authorized Admin operation.
@@ -39,6 +43,9 @@ export type AdminPrincipal = SessionUser & { authMethod: AdminAuthMethod };
  * 3. `expiresAt` is 0, which is the honest answer -- a static bearer token has
  *    no expiry. A real session always carries a future timestamp.
  *
+ * Since the non-production bypass was removed, this is the only principal that
+ * authorizes a mutation without naming a person.
+ *
  * Removing this branch outright is tracked as
  * `docs/archives/tasks/TARGET_SECRET_HARDENING.md` §3.5.
  */
@@ -49,27 +56,6 @@ export const LEGACY_ADMIN_TOKEN_PRINCIPAL: AdminPrincipal = {
   role: ROLES.ADMIN,
   expiresAt: 0,
   authMethod: "legacy-shared-secret",
-};
-
-/**
- * Recorded when authentication was not satisfied at all and a non-production
- * build let the mutation through anyway.
- *
- * This constant does not create that bypass -- `src/actions/pets.ts` has always
- * had it -- it names it. Previously one fabricated `admin@hopeforstrays.org`
- * identity served both this case and the shared-secret case above, so an audit
- * row could not distinguish "a token holder acted" from "nobody authenticated
- * and the build was not production".
- *
- * The bypass itself is a separate weakness, deliberately left in place here.
- */
-export const DEV_BYPASS_PRINCIPAL: AdminPrincipal = {
-  id: "dev-unauthenticated",
-  email: "unauthenticated@dev-bypass.invalid",
-  name: "Unauthenticated (development bypass)",
-  role: ROLES.ADMIN,
-  expiresAt: 0,
-  authMethod: "dev-bypass",
 };
 
 /**

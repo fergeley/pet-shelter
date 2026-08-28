@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from "vitest";
 import { getPrismaDouble, resetPrismaDouble, type PrismaDouble } from "./support/prismaDouble";
 import { mockCookieStore } from "../setup/nextMocks";
+import { signInAs, type Role } from "../setup/authSession";
 
 /**
  * Tier 3a — RBAC on the Server Action surface, under `STRICT_PERSISTENCE=true`.
@@ -32,20 +33,6 @@ let prismaDouble: PrismaDouble;
 beforeAll(async () => {
   prismaDouble = await getPrismaDouble();
 });
-
-type Role = "ADMIN" | "COORDINATOR" | "STAFF" | "VOLUNTEER";
-
-/** Seals a real session for `role` and puts it in the cookie jar the action reads. */
-async function signInAs(role: Role): Promise<void> {
-  const { sealSession, SESSION_COOKIE_NAME } = await import("@/lib/security/session");
-  const token = sealSession({
-    id: `usr-${role.toLowerCase()}`,
-    email: `${role.toLowerCase()}@hopeforstrays.org`,
-    name: `Test ${role}`,
-    role,
-  });
-  mockCookieStore.seed(SESSION_COOKIE_NAME, token);
-}
 
 /** Every database method across the double, for "was any data touched?" assertions. */
 function databaseCalls(): number {

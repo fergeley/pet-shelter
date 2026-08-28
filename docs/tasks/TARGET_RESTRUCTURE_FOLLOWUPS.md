@@ -1,20 +1,39 @@
-# 🟡 Target: Two Follow-Ups from the `src/lib/` Restructure
+# ✅ Target: Two Follow-Ups from the `src/lib/` Restructure
 
-Both were found while restructuring and neither is blocked. They are independent — dispatch either
-alone. **Item 2 is done** (`1dfb8c9`, 2026-08-28); item 1 is still unstarted.
+Both were found while restructuring and both are now closed: item 2 at `1dfb8c9`, item 1 at
+`5832244`, 2026-08-28. Nothing here is outstanding.
 
-**Run item 1 with `/fix-category-tabs`** (`.claude/commands/`). The prompts
-below are the same content, kept here for reading and for pasting into a session that has no access
-to this repo's commands.
+The dispatch prompts below are kept as the record of what each item was. `/fix-category-tabs` and
+`/fix-admin-session` (`.claude/commands/`) still carry the same content; re-running either now would
+re-describe work already in history.
 
 | # | Item | Risk | Size | Status |
 |---|---|---|---|---|
-| 1 | Wire two components to the derived category readers | Low | ~4 files | 🟡 unstarted |
+| 1 | Wire two components to the derived category readers | Low | 5 files | ✅ `5832244` |
 | 2 | Make `verifyAdminSession()` name a principal | **Security** | ~5 files | ✅ `1dfb8c9` |
 
 ---
 
-## 1. Category tabs are hardcoded
+## 1. ✅ Category tabs are hardcoded — **done at `5832244`**
+
+> Closed 2026-08-28. Both strips now read `initialCategories` from their Server Component parent,
+> and the tab shape lives in `src/lib/presentation/categoryTabs.ts`. Three things this section got
+> wrong, recorded because the next reader of a target doc should expect them:
+>
+> - **The dead-tab risk was latent, not active.** The hardcoded *sets* were already correct — 5 FAQ
+>   topics and 4 need categories, same values, same order. What had actually drifted were the
+>   **labels**: 7 of 9 no longer matched `categoryLabel` / `categoryLabelMs` in the fixture. The
+>   readers close the hole permanently, but the visible diff was a relabel, not a retab.
+> - **Trap 4 below is wrong about the `"all"` tab.** It says both lists open with
+>   `{ value: "all", labelEn: "All Topics", labelMs: "Semua Topik" }`. Only the FAQ does;
+>   `RehabNeedsSection` had `"All Wishlist Items"` / `"Semua Barangan Keperluan"`. Implementing the
+>   prompt literally would have silently relabelled the wishlist — the exact class of quiet
+>   breakage trap 4 exists to prevent. Each component now prepends its own.
+> - **Trap 1 is stronger than stated.** `tests/unit/layerBoundaries.test.ts` matches import
+>   *specifiers*, so `import type ... from "@/lib/server/..."` trips it too. Borrowing the readers'
+>   return type is therefore not available even as a types-only shortcut, which is why the shape is
+>   declared in `presentation/`. Confirmed by injecting that import and watching the guard go red.
+
 
 `src/lib/server/faqCatalog.ts:72` and `src/lib/server/rehabNeedsCatalog.ts:77` export
 `getServerFaqCategories()` / `getServerRehabCategories()`. **Nothing imports either.**

@@ -28,23 +28,17 @@ import {
 } from "@/lib/validations/pet";
 import { createPet, updatePet, getPetById } from "@/actions/pets";
 import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
-import { ROLES } from "@/lib/security/rbac";
+import { signInAsAdmin, TEST_ADMIN_ACTOR } from "../setup/authSession";
 import { Pet, MedicalTimelineEvent, PetUpdate } from "@/types/pet";
 import petsData from "@/data/pets.json";
 
 // Mock next/cache — src/actions/pets.ts calls revalidatePath on every mutation.
-vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
-}));
-
-// Mock next/headers — getCurrentSession reads the session cookie.
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    get: () => undefined,
-    set: () => undefined,
-    delete: () => undefined,
-  })),
-}));
+// `next/cache` and `next/headers` are doubled by the global harness in
+// tests/setup/nextMocks.ts. This file used to declare its own, and a file's
+// own `vi.mock` wins over a setup file's -- so its `cookies()` returned
+// `undefined` for everything and no test here could hold a session. That was
+// survivable only while admin mutations had a non-production bypass. Do not
+// reinstate them: `signInAsAdmin()` below writes into the harness's jar.
 
 /**
  * A recording stand-in for the Prisma client.
@@ -122,14 +116,6 @@ vi.mock("@/lib/server/prisma", () => {
 });
 
 describe("Nested Pet History Persistence (updates[] & medicalTimeline[])", () => {
-  const mockAdminActor = {
-    id: "usr-admin-01",
-    email: "admin@hopeforstrays.org",
-    name: "Dr. Sarah Tan",
-    role: ROLES.ADMIN,
-    expiresAt: Date.now() + 86400000,
-  };
-
   const timelineIntake: MedicalTimelineEvent = {
     id: "tl-hist-1",
     date: "2026-06-12",
@@ -313,8 +299,12 @@ describe("Nested Pet History Persistence (updates[] & medicalTimeline[])", () =>
     medicalTimeline: [timelineIntake, timelineSurgery],
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     for (const spy of Object.values(prismaSpies)) spy.mockClear();
+    // The admin mutations exercised below authenticate for real. Signing in
+    // here rather than per-test keeps the invariant statable: every test in
+    // this file acts as one signed-in administrator.
+    await signInAsAdmin();
   });
 
   // ---------------------------------------------------------------- schema --
@@ -705,7 +695,7 @@ describe("Nested Pet History Persistence (updates[] & medicalTimeline[])", () =>
     });
 
     it("should hand nested history creates to Prisma when inserting a pet", async () => {
-      await insertServerPet(makePet({ id: "pet-hist-insert-01" }), mockAdminActor);
+      await insertServerPet(makePet({ id: "pet-hist-insert-01" }), TEST_ADMIN_ACTOR);
 
       expect(prismaSpies.petCreate).toHaveBeenCalledTimes(1);
       const data = (prismaSpies.petCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
@@ -719,7 +709,7 @@ describe("Nested Pet History Persistence (updates[] & medicalTimeline[])", () =>
 
     it("should clear existing history rows before writing the new ones on update", async () => {
       const pet = makePet({ id: "pet-hist-update-01" });
-      await insertServerPet(pet, mockAdminActor);
+      await insertServerPet(pet, TEST_ADMIN_ACTOR);
       prismaSpies.transaction.mockClear();
       prismaSpies.petUpdateDeleteMany.mockClear();
       prismaSpies.timelineDeleteMany.mockClear();
@@ -727,7 +717,7 @@ describe("Nested Pet History Persistence (updates[] & medicalTimeline[])", () =>
       await updateServerPet(
         "pet-hist-update-01",
         { ...pet, medicalTimeline: [timelineIntake], updates: undefined },
-        mockAdminActor
+        TEST_ADMIN_ACTOR
       );
 
       // Clear-then-write must be ordered and atomic: a nested create alone would

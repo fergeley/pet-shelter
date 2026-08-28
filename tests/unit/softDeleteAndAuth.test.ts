@@ -8,7 +8,11 @@ import { getAuditLogs } from "@/lib/domain/auditLog";
 import {
   getPublicPets,
   getAdminPets,
+  createPet,
+  updatePet,
   toggleArchivePet,
+  deletePet,
+  updatePetStatus,
 } from "@/actions/pets";
 import { submitApplication } from "@/actions/applications";
 import { insertServerPet } from "@/lib/server/petRepository";
@@ -294,5 +298,124 @@ describe("Soft Deletes & Query Filtering", () => {
 
     expect(submitResult.success).toBe(false);
     expect(submitResult.error).toContain("archived");
+  });
+});
+
+/**
+ * The regression guard for `docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
+ *
+ * `getAdminActorOrThrow()` used to throw only when `NODE_ENV === "production"`
+ * and hand every other build an ADMIN principal, so an unauthenticated caller
+ * could rewrite the catalogue on any dev, preview or CI instance -- this suite
+ * included, since Vitest runs with `NODE_ENV=test`.
+ *
+ * Making the suites that relied on that bypass authenticate proves the
+ * authorized path still works. Only this block proves the unauthorized one is
+ * shut, so this is the test that must fail if the escape hatch ever returns.
+ *
+ * Every case asserts two things, because a refusal that still wrote is not a
+ * refusal: the action reports failure, *and* the catalogue is unchanged.
+ */
+describe("Unauthenticated pet mutations are refused", () => {
+  /** Each action funnels the throw through its own catch, so the message is the signal. */
+  const REFUSED = /unauthorized/i;
+
+  let existingPetId: string;
+
+  beforeEach(async () => {
+    // Nothing authorizes anything in this block: no signed session cookie and no
+    // admin_session token. This is precisely the caller the bypass waved through.
+    mockCookieMap.clear();
+
+    existingPetId = `unauth-pet-${Math.random().toString(36).substring(7)}`;
+    // Seeded through the repository rather than the action, so the fixture write
+    // is not itself subject to the gate under test.
+    await insertServerPet(makeTestPet(existingPetId), {
+      ...REAL_ADMIN,
+      expiresAt: Date.now() + 86400000,
+    });
+  });
+
+  /** A payload that would succeed if -- and only if -- the caller were an admin. */
+  function makeCreateForm(name: string) {
+    return {
+      name,
+      species: "dog" as const,
+      breed: "Golden Mix",
+      age: "2 years",
+      ageCategory: "young" as const,
+      gender: "Male" as const,
+      size: "Medium" as const,
+      weight: "18 kg",
+      status: "Available" as const,
+      adoptionFee: "Free",
+      description: "A valid payload, so authorization is the only thing that can refuse it.",
+      rescueStory: "Rescued safely; publishing this record is an administrator's job.",
+      image: "https://images.unsplash.com/photo-1543466835-00a7907e9de1",
+      tags: ["Friendly"],
+      intakeDate: "2026-01-01",
+    };
+  }
+
+  it("names nobody as the principal when no cookie authorizes the request", async () => {
+    await expect(verifyAdminSession()).resolves.toBeNull();
+  });
+
+  it("refuses createPet, and inserts no pet", async () => {
+    const name = "Unauthenticated Create";
+
+    const result = await createPet(makeCreateForm(name));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(REFUSED);
+    expect((await getAdminPets()).some((p) => p.name === name)).toBe(false);
+  });
+
+  it("refuses updatePet, and leaves the stored record untouched", async () => {
+    const result = await updatePet(existingPetId, makeCreateForm("Renamed By Nobody"));
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(REFUSED);
+    const stored = (await getAdminPets()).find((p) => p.id === existingPetId);
+    expect(stored?.name).toBe(`Doggo_${existingPetId}`);
+  });
+
+  it("refuses toggleArchivePet, and the pet stays in the public catalogue", async () => {
+    const result = await toggleArchivePet(existingPetId, true);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(REFUSED);
+    expect((await getAdminPets()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
+    const publicPets = await getPublicPets({ search: existingPetId });
+    expect(publicPets.some((p) => p.id === existingPetId)).toBe(true);
+  });
+
+  it("refuses deletePet, which delegates to toggleArchivePet and must not inherit a hole", async () => {
+    const result = await deletePet(existingPetId);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(REFUSED);
+    expect((await getAdminPets()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
+  });
+
+  it("refuses updatePetStatus, and the status does not move", async () => {
+    const result = await updatePetStatus(existingPetId, "Adopted");
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(REFUSED);
+    expect((await getAdminPets()).find((p) => p.id === existingPetId)?.status).toBe("Available");
+  });
+
+  it("writes no audit row for a refused mutation", async () => {
+    // The bypass did not merely permit the write, it recorded one -- an audit
+    // trail naming `unauthenticated@dev-bypass.invalid` as the actor. A refusal
+    // must leave the log exactly as it found it.
+    const rowsBefore = getAuditLogs(500).length;
+
+    await createPet(makeCreateForm("Unauthenticated Audit"));
+    await toggleArchivePet(existingPetId, true);
+    await updatePetStatus(existingPetId, "Adopted");
+
+    expect(getAuditLogs(500).length).toBe(rowsBefore);
   });
 });

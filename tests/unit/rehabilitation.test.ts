@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -21,22 +21,16 @@ import {
 } from "@/lib/server/petMappers";
 import { insertServerPet } from "@/lib/server/petRepository";
 import { getPublicPets, createPet, updatePet } from "@/actions/pets";
-import { ROLES } from "@/lib/security/rbac";
+import { signInAsAdmin, TEST_ADMIN_ACTOR } from "../setup/authSession";
 import { Pet, PetStatus } from "@/types/pet";
 
 // Mock next/cache — src/actions/pets.ts calls revalidatePath at module scope on mutation.
-vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
-}));
-
-// Mock next/headers — getCurrentSession reads the session cookie.
-vi.mock("next/headers", () => ({
-  cookies: vi.fn(async () => ({
-    get: () => undefined,
-    set: () => undefined,
-    delete: () => undefined,
-  })),
-}));
+// `next/cache` and `next/headers` are doubled by the global harness in
+// tests/setup/nextMocks.ts. This file used to declare its own, and a file's
+// own `vi.mock` wins over a setup file's -- so its `cookies()` returned
+// `undefined` for everything and no test here could hold a session. That was
+// survivable only while admin mutations had a non-production bypass. Do not
+// reinstate them: `signInAsAdmin()` below writes into the harness's jar.
 
 describe("Rehabilitation Status Lifecycle & Persistence", () => {
   const ALL_PET_STATUSES = [
@@ -50,13 +44,12 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
   const CANONICAL_REHAB: PetStatus = "In Rehabilitation";
   const ALIAS_REHAB: PetStatus = "Rehabilitation";
 
-  const mockAdminActor = {
-    id: "usr-admin-01",
-    email: "admin@hopeforstrays.org",
-    name: "Dr. Sarah Tan",
-    role: ROLES.ADMIN,
-    expiresAt: Date.now() + 86400000,
-  };
+  beforeEach(async () => {
+    // The admin mutations exercised below authenticate for real. Signing in
+    // here rather than per-test keeps the invariant statable: every test in
+    // this file acts as one signed-in administrator.
+    await signInAsAdmin();
+  });
 
   function threw(fn: () => void): boolean {
     try {
@@ -358,7 +351,7 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
 
   describe("Public Catalog Filtering", () => {
     it("should surface a rehabilitating pet under either status spelling", async () => {
-      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-01" }), mockAdminActor);
+      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-01" }), TEST_ADMIN_ACTOR);
 
       const canonical = await getPublicPets({ status: CANONICAL_REHAB });
       const alias = await getPublicPets({ status: ALIAS_REHAB });
@@ -369,7 +362,7 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
     });
 
     it("should exclude rehabilitating pets from the Available listing", async () => {
-      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-02" }), mockAdminActor);
+      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-02" }), TEST_ADMIN_ACTOR);
 
       const available = await getPublicPets({ status: "Available" });
       expect(available.some((p) => p.id === "pet-rehab-filter-02")).toBe(false);
@@ -377,7 +370,7 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
     });
 
     it("should retain rehabilitation progress on pets returned by the catalog", async () => {
-      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-03" }), mockAdminActor);
+      await insertServerPet(makeRehabPet({ id: "pet-rehab-filter-03" }), TEST_ADMIN_ACTOR);
 
       const results = await getPublicPets({ status: CANONICAL_REHAB });
       const tuah = results.find((p) => p.id === "pet-rehab-filter-03");
