@@ -94,9 +94,36 @@ function normalizeHex(value: string): string {
  * nothing.
  */
 export function cssColorToHex(declaration: string): string {
+  const { hex, alpha } = parseCssColor(declaration);
+
+  // Alpha is deliberately unsupported *here* rather than flattened. A translucent token
+  // composites against whatever is behind it, and an email has no way to know what that is —
+  // mirroring one as opaque hex would silently ship a colour nobody chose. No token the email
+  // mirror covers has alpha; `--frame` and the dark tone surfaces do, which is why this is a
+  // throw and not an assumption. Callers that *can* name the backdrop use `compositeOver`.
+  if (alpha !== 1) {
+    throw new Error(
+      `cssColorToHex refuses the translucent colour "${declaration}": a hex mirror cannot ` +
+        "carry alpha, and compositing it against an unknown backdrop would invent a colour."
+    );
+  }
+
+  return hex;
+}
+
+/**
+ * Resolves a CSS colour declaration to an opaque hex plus its alpha, without judging the alpha.
+ *
+ * Split out from `cssColorToHex` so there is exactly one parser: the email mirror needs a
+ * colour that refuses to be translucent, and the contrast guard needs one that composites
+ * instead. Two parsers would be two places to get `none` or a percentage wrong.
+ */
+export function parseCssColor(declaration: string): { hex: string; alpha: number } {
   const value = declaration.trim();
 
-  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) return normalizeHex(value);
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+    return { hex: normalizeHex(value), alpha: 1 };
+  }
 
   const oklch = /^oklch\(\s*([^\s/]+)\s+([^\s/]+)\s+([^\s/)]+)\s*(?:\/\s*([^\s)]+)\s*)?\)$/i.exec(
     value
@@ -109,17 +136,6 @@ export function cssColorToHex(declaration: string): string {
 
   const [, rawL, rawC, rawH, rawAlpha] = oklch;
 
-  // Alpha is deliberately unsupported rather than flattened. A translucent token composites
-  // against whatever is behind it, and an email has no way to know what that is — mirroring
-  // one as opaque hex would silently ship a colour nobody chose. No token this mirror
-  // covers has alpha; `--frame` does, which is why this is a throw and not an assumption.
-  if (rawAlpha !== undefined && Number(rawAlpha) !== 1) {
-    throw new Error(
-      `cssColorToHex refuses the translucent colour "${declaration}": a hex mirror cannot ` +
-        "carry alpha, and compositing it against an unknown backdrop would invent a colour."
-    );
-  }
-
   // `none` is CSS Color 4's missing-component keyword and behaves as 0. It appears on the
   // achromatic tokens (`oklch(98.5% 0 none)`), where hue is genuinely undefined.
   const parseComponent = (raw: string, scale: number): number => {
@@ -131,11 +147,51 @@ export function cssColorToHex(declaration: string): string {
     return numeric;
   };
 
-  return oklchToHex(
-    parseComponent(rawL, 100),
-    parseComponent(rawC, 1),
-    parseComponent(rawH, 1)
-  );
+  return {
+    hex: oklchToHex(parseComponent(rawL, 100), parseComponent(rawC, 1), parseComponent(rawH, 1)),
+    alpha: rawAlpha === undefined ? 1 : parseComponent(rawAlpha, 100),
+  };
+}
+
+/**
+ * Flattens a translucent colour onto an opaque backdrop, the way a browser paints it.
+ *
+ * Needed because half the dark palette is translucent — `.dark`'s tone surfaces are declared
+ * `oklch(… / 0.45)` over the page background. A contrast check that skipped them would exempt
+ * seven surfaces while reporting green, which is worse than not checking at all.
+ */
+export function compositeOver(colour: { hex: string; alpha: number }, backdrop: string): string {
+  if (colour.alpha >= 1) return colour.hex;
+  const front = channels(colour.hex);
+  const back = channels(backdrop);
+  return `#${front
+    .map((c, i) => Math.round(c * colour.alpha + back[i] * (1 - colour.alpha)))
+    .map((c) => c.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/** The 0–255 channels of a `#rrggbb`. */
+function channels(hex: string): number[] {
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+}
+
+/**
+ * WCAG 2.x relative luminance.
+ *
+ * The same linear-sRGB step the OKLCH pipeline already runs, weighted by the sRGB primaries —
+ * which is why the contrast work was cheap once the converter existed.
+ */
+export function relativeLuminance(hex: string): number {
+  const [r, g, b] = channels(hex)
+    .map((c) => c / 255)
+    .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG contrast ratio, 1:1 to 21:1. Order-independent. */
+export function contrastRatio(a: string, b: string): number {
+  const [lighter, darker] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 /**

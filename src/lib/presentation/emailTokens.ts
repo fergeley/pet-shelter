@@ -83,7 +83,7 @@ export const EMAIL_BRAND = {
   /** Secondary copy — fine print, captions, footers. */
   mutedForeground: "#6b4c4a",
   /** Terracotta. The header band and the call-to-action button. */
-  primary: "#d77a6f",
+  primary: "#b2594f",
   /** Text on `primary`. */
   primaryForeground: "#fffdfb",
 } as const satisfies Record<string, string>;

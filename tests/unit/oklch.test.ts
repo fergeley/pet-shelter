@@ -2,7 +2,15 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
-import { cssColorToHex, oklchToHex, readCssTokens } from "../support/oklch";
+import {
+  compositeOver,
+  contrastRatio,
+  cssColorToHex,
+  oklchToHex,
+  parseCssColor,
+  readCssTokens,
+  relativeLuminance,
+} from "../support/oklch";
 
 /**
  * Pins the `oklch()` → hex converter against values it did not produce.
@@ -129,6 +137,46 @@ describe("oklch → sRGB hex", () => {
       expect(tokens.size).toBeGreaterThan(60);
       expect(tokens.get("--background")).toBe("#fff8f4");
       expect(tokens.get("--receipt-paper")).toBe("#ffffff");
+    });
+  });
+
+  describe("contrast, for the guard that reads these values", () => {
+    // Anchored on ratios that are fixed by the WCAG formula rather than by this
+    // implementation: black on white is 21:1 exactly, and #777 on white is the canonical
+    // "just above 4.5" value quoted in the spec's own examples.
+    it("computes the WCAG ratios", () => {
+      expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
+      expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
+      expect(contrastRatio("#777777", "#ffffff")).toBeCloseTo(4.478, 2);
+      expect(contrastRatio("#808080", "#ffffff")).toBeCloseTo(3.949, 2);
+    });
+
+    it("does not care which colour is named first", () => {
+      expect(contrastRatio("#b2594f", "#fff8f4")).toBeCloseTo(
+        contrastRatio("#fff8f4", "#b2594f"),
+        10
+      );
+    });
+
+    it("puts relative luminance at the ends of its range", () => {
+      expect(relativeLuminance("#000000")).toBeCloseTo(0, 6);
+      expect(relativeLuminance("#ffffff")).toBeCloseTo(1, 6);
+    });
+
+    it("reads alpha off a translucent declaration instead of refusing it", () => {
+      // `cssColorToHex` throws on these; the contrast guard needs them, because half the dark
+      // palette is declared this way.
+      const translucent = parseCssColor("oklch(26.2% 0.051 172.552 / 0.45)");
+      expect(translucent.alpha).toBeCloseTo(0.45, 5);
+      expect(translucent.hex).toMatch(/^#[0-9a-f]{6}$/);
+      expect(parseCssColor("oklch(92% 0.004 286.32)").alpha).toBe(1);
+    });
+
+    it("composites a translucent colour onto its backdrop", () => {
+      // Half-opacity black over white is mid grey; a fully opaque colour ignores the backdrop.
+      expect(compositeOver({ hex: "#000000", alpha: 0.5 }, "#ffffff")).toBe("#808080");
+      expect(compositeOver({ hex: "#ff0000", alpha: 1 }, "#00ff00")).toBe("#ff0000");
+      expect(compositeOver({ hex: "#ffffff", alpha: 0 }, "#123456")).toBe("#123456");
     });
   });
 });

@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
-import { cssColorToHex, readCssTokens } from "../support/oklch";
+import {
+  compositeOver,
+  contrastRatio,
+  cssColorToHex,
+  parseCssColor,
+  readCssTokens,
+} from "../support/oklch";
 import {
   DESIGN_TONES,
   EMAIL_BRAND,
@@ -436,6 +442,137 @@ describe("design system guards", () => {
         "The emailed receipt mirrors the --receipt-* group as a whole, so that it and the " +
           "printed receipt for the same donation stay the same document."
       ).toEqual(declared);
+    });
+  });
+
+  /**
+   * Colour contrast.
+   *
+   * `docs/design-system.md` §8 used to call AA a target rather than a verified property, and
+   * it was right to hedge: when this was first measured, `:root`'s `--primary` was 2.90:1 as
+   * text on cream and 3.00:1 under white text — below AA in both directions, across 262
+   * utility uses. The token was darkened; this is what stops it drifting back.
+   *
+   * Scoped to *text* on purpose. WCAG's 3:1 non-text rule covers boundaries required to
+   * understand content, not a decorative hairline on a panel already distinguished by its
+   * fill — asserting those would turn sixteen legitimate design choices red and teach people
+   * to skip the guard, which is the failure mode this whole file is written to avoid.
+   * Background: docs/tasks/TARGET_LIGHT_PRIMARY_CONTRAST.md §3.2.
+   */
+  describe("colour contrast", () => {
+    /** WCAG AA for body text. The app has no text large enough to earn the 3:1 allowance. */
+    const AA_TEXT = 4.5;
+
+    /**
+     * Brand pairings that are actually rendered. `--primary` and `--destructive` appear as
+     * *foregrounds* too — `text-primary` alone has 121 call sites — so each is checked in
+     * both directions rather than only as a fill.
+     */
+    const BRAND_PAIRS: ReadonlyArray<readonly [string, string]> = [
+      ["--foreground", "--background"],
+      ["--foreground", "--card"],
+      ["--muted-foreground", "--background"],
+      ["--muted-foreground", "--card"],
+      ["--muted-foreground", "--muted"],
+      ["--primary-foreground", "--primary"],
+      ["--primary", "--background"],
+      ["--primary", "--card"],
+      ["--secondary-foreground", "--secondary"],
+      ["--accent-foreground", "--accent"],
+      ["--destructive-foreground", "--destructive"],
+      ["--destructive", "--background"],
+      ["--destructive", "--card"],
+    ];
+
+    /** Slot pairings the tone vocabulary promises: `text` reads on a surface, `on-solid` on `solid`. */
+    const TONE_PAIRS = TONES.flatMap((tone) => [
+      [`--tone-${tone}-text`, `--tone-${tone}-surface`] as const,
+      [`--tone-${tone}-text`, `--tone-${tone}-surface-strong`] as const,
+      [`--tone-${tone}-on-solid`, `--tone-${tone}-solid`] as const,
+    ]);
+
+    const RECEIPT_PAIRS = [
+      "--receipt-ink",
+      "--receipt-ink-soft",
+      "--receipt-ink-muted",
+      "--receipt-ink-faint",
+      "--receipt-ink-accent",
+    ].map((ink) => [ink, "--receipt-paper"] as const);
+
+    /**
+     * Measures one pairing, compositing anything translucent onto the page ground first.
+     *
+     * The compositing is not optional: `.dark` declares all seven tone surfaces as
+     * `oklch(… / 0.45)`, so a check that skipped translucent tokens would silently exempt
+     * half the palette while reporting green.
+     */
+    function measure(
+      tokens: Map<string, string>,
+      ground: string,
+      [fgToken, bgToken]: readonly [string, string]
+    ): { ratio: number; fg: string; bg: string } | string {
+      const fgDeclaration = tokens.get(fgToken);
+      const bgDeclaration = tokens.get(bgToken);
+      if (!fgDeclaration || !bgDeclaration) {
+        return `${!fgDeclaration ? fgToken : bgToken} is not declared`;
+      }
+      const bg = compositeOver(parseCssColor(bgDeclaration), ground);
+      const fg = compositeOver(parseCssColor(fgDeclaration), bg);
+      return { ratio: contrastRatio(fg, bg), fg, bg };
+    }
+
+    const THEMES = [
+      { name: ":root", tokens: readCssTokens(rootBlock), pairs: [...BRAND_PAIRS, ...TONE_PAIRS, ...RECEIPT_PAIRS] },
+      // `--receipt-*` is deliberately absent from `.dark` — the receipt is paper in every theme.
+      { name: ".dark", tokens: readCssTokens(darkBlock), pairs: [...BRAND_PAIRS, ...TONE_PAIRS] },
+    ];
+
+    it("measures every pairing it claims to be measuring", () => {
+      // Guards the guard: a renamed token or an empty theme block would make the assertion
+      // below iterate over nothing, or skip the pairing that regressed, and still pass.
+      const total = THEMES.reduce((n, theme) => n + theme.pairs.length, 0);
+      expect(total, "the contrast sweep covers almost nothing").toBeGreaterThanOrEqual(60);
+
+      const undeclared = THEMES.flatMap(({ name, tokens, pairs }) => {
+        const ground = parseCssColor(tokens.get("--background")!).hex;
+        return pairs
+          .map((pair) => measure(tokens, ground, pair))
+          .filter((result): result is string => typeof result === "string")
+          .map((problem) => `${name}: ${problem}`);
+      });
+
+      expect(
+        undeclared,
+        "A pairing naming a token that does not exist is never skipped — a skipped pairing is " +
+          "how a guard comes to report green over the thing it was written to catch."
+      ).toEqual([]);
+    });
+
+    it("puts every promised text pairing at or above AA", () => {
+      const offenders: string[] = [];
+
+      for (const { name, tokens, pairs } of THEMES) {
+        const ground = parseCssColor(tokens.get("--background")!).hex;
+        for (const pair of pairs) {
+          const result = measure(tokens, ground, pair);
+          if (typeof result === "string") continue; // reported by the assertion above
+          if (result.ratio < AA_TEXT) {
+            offenders.push(
+              `${name} ${pair[0]} on ${pair[1]}: ${result.ratio.toFixed(2)}:1 ` +
+                `(${result.fg} on ${result.bg}), needs ${AA_TEXT}:1`
+            );
+          }
+        }
+      }
+
+      expect(
+        offenders,
+        "Text below 4.5:1 is unreadable for a large number of people, and a token is the " +
+          "wrong place to compromise: one value here is every call site at once — `text-primary` " +
+          "alone has 121. Fix the token's lightness rather than the call site, and keep hue and " +
+          "chroma so the brand survives. Note the fix may be needed in only one theme: .dark " +
+          "chooses its own lightness for a dark ground and is usually already fine."
+      ).toEqual([]);
     });
   });
 
