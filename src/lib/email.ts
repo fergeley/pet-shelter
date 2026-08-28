@@ -359,11 +359,21 @@ export async function sendStaffApplicationAlert(
 ): Promise<EmailResult> {
   const subject = `[New Application] ${app.applicantName} applied for ${app.petName} (${app.id})`;
 
+  // The only two values in this alert that are resolved rather than passed straight through. Both
+  // halves below read them from here; neither re-derives a fallback of its own. Writing `|| "None"`
+  // twice by hand is precisely how the HTML half came to omit the applicant's own notes while the
+  // plain text carried them — see docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md. The HTML escapes
+  // at the point of use: `notes` is free text straight off a public form.
+  const fields = {
+    petId: app.petId || "N/A",
+    notes: app.applicantNotes || "None",
+  };
+
   const text = `
 New Adoption Application Submitted
 -----------------------------------
 Application ID: ${app.id}
-Pet: ${app.petName} (ID: ${app.petId || "N/A"})
+Pet: ${app.petName} (ID: ${fields.petId})
 Applicant: ${app.applicantName}
 Email: ${app.email}
 Phone: ${app.phone}
@@ -371,7 +381,7 @@ Address: ${app.address}
 Housing: ${app.housingType} (Fenced yard: ${app.hasFencedYard})
 Current Pets: ${app.currentPets}
 Experience: ${app.householdExperience}
-Notes: ${app.applicantNotes || "None"}
+Notes: ${fields.notes}
 
 Review in Admin Dashboard:
 https://hopeforstrays.org/admin/applications
@@ -382,14 +392,15 @@ https://hopeforstrays.org/admin/applications
     <p>A new adoption application has been submitted for <strong>${app.petName}</strong>.</p>
     <div class="card">
       <strong>Application Reference:</strong> ${app.id}<br/>
-      <strong>Target Pet:</strong> ${app.petName}<br/>
+      <strong>Target Pet:</strong> ${app.petName} (ID: ${escapeHtml(fields.petId)})<br/>
       <strong>Applicant:</strong> ${app.applicantName}<br/>
       <strong>Email:</strong> ${app.email}<br/>
       <strong>Phone:</strong> ${app.phone}<br/>
       <strong>Address:</strong> ${app.address}<br/>
       <strong>Housing:</strong> ${app.housingType} (Fenced: ${app.hasFencedYard})<br/>
       <strong>Experience:</strong> ${app.householdExperience}<br/>
-      <strong>Current Pets:</strong> ${app.currentPets}
+      <strong>Current Pets:</strong> ${app.currentPets}<br/>
+      <strong>Notes:</strong> ${escapeHtml(fields.notes)}
     </div>
     <p><a href="https://hopeforstrays.org/admin/applications" style="display:inline-block;background:${EMAIL_BRAND.primary};color:${EMAIL_BRAND.primaryForeground};padding:10px 18px;text-decoration:none;border-radius:6px;font-weight:600;">Open Coordinator Dashboard</a></p>
   `);

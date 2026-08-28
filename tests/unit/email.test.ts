@@ -325,3 +325,110 @@ describe("rendered email colour parity", () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * The staff alert had the same defect shape as the Sec 44(6) receipt: one application authored
+ * twice, once as plain text and once as HTML, with no shared source for the values. The HTML half
+ * omitted `applicantNotes` entirely — the most decision-relevant free-text field on the form — and
+ * dropped the pet ID from the pet row. A coordinator reading the HTML half saw neither.
+ *
+ * Background: docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
+ */
+describe("staff application alert — the two halves must agree", () => {
+  const baseApplication: AdoptionApplicationRecord = {
+    id: "app-alert-001",
+    petId: "pet-042",
+    petName: "Kopi",
+    applicantName: "Tan Ah Kow",
+    email: "tahkow@example.com",
+    phone: "012-3456789",
+    address: "123 Jalan SS2, Petaling Jaya",
+    housingType: "landed_terrace",
+    hasFencedYard: "yes",
+    currentPets: "none",
+    householdExperience: "experienced",
+    applicantNotes: "We have a fenced garden and I work from home.",
+    status: "SUBMITTED",
+    createdAt: "2026-08-15",
+    updatedAt: "2026-08-15",
+  };
+
+  /**
+   * The alert is only observable on the wire: sendStaffApplicationAlert returns a dispatch result,
+   * not a body. Drive the live path with a stubbed key and read both halves off the Resend payload.
+   */
+  async function renderStaffAlert(
+    overrides: Partial<AdoptionApplicationRecord> = {}
+  ): Promise<{ subject: string; text: string; html: string }> {
+    const originalEnv = process.env.RESEND_API_KEY;
+    process.env.RESEND_API_KEY = "test_key";
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "resend-msg-test" }),
+    } as unknown as Response);
+
+    try {
+      const result = await sendStaffApplicationAlert({ ...baseApplication, ...overrides });
+      expect(result.success).toBe(true);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      return JSON.parse(String(fetchSpy.mock.calls[0][1]?.body));
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalEnv) {
+        process.env.RESEND_API_KEY = originalEnv;
+      } else {
+        delete process.env.RESEND_API_KEY;
+      }
+    }
+  }
+
+  it("states the applicant's own notes in BOTH halves, not only the plain text", async () => {
+    const mail = await renderStaffAlert({
+      applicantNotes: "We have a fenced garden and I work from home.",
+    });
+
+    expect(mail.text).toContain("Notes: We have a fenced garden and I work from home.");
+    expect(
+      mail.html,
+      "A coordinator whose client renders the HTML half must still see what the applicant wrote."
+    ).toContain("<strong>Notes:</strong> We have a fenced garden and I work from home.");
+  });
+
+  it("states the pet ID in BOTH halves", async () => {
+    const mail = await renderStaffAlert({ petId: "pet-042", petName: "Kopi" });
+
+    expect(mail.text).toContain("Pet: Kopi (ID: pet-042)");
+    expect(
+      mail.html,
+      "Two shelter animals can share a name; the ID is what disambiguates the application."
+    ).toContain("Kopi (ID: pet-042)");
+  });
+
+  it("uses the same fallbacks in both halves when the optional fields are absent", async () => {
+    const mail = await renderStaffAlert({ applicantNotes: undefined, petId: "" });
+
+    for (const [half, body] of [["text", mail.text], ["html", mail.html]] as const) {
+      expect(body, `${half} half should fall back to "None" for missing notes`).toContain("None");
+      expect(body, `${half} half should fall back to "N/A" for a missing pet ID`).toContain("N/A");
+    }
+    expect(mail.text).toContain("Notes: None");
+    expect(mail.html).toContain("<strong>Notes:</strong> None");
+    expect(mail.text).toContain("(ID: N/A)");
+    expect(mail.html).toContain("(ID: N/A)");
+  });
+
+  it("escapes applicant-supplied markup before placing it in the HTML body", async () => {
+    const mail = await renderStaffAlert({
+      applicantNotes: '<script>alert("xss")</script> Ali & Sons "quoted"',
+    });
+
+    expect(mail.html).not.toContain("<script>");
+    expect(mail.html).toContain("&lt;script&gt;");
+    expect(mail.html).toContain("Ali &amp; Sons");
+    expect(mail.html).toContain("&quot;quoted&quot;");
+    // The plain-text half is not markup and is left verbatim.
+    expect(mail.text).toContain('<script>alert("xss")</script> Ali & Sons "quoted"');
+  });
+});
