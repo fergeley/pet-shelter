@@ -807,6 +807,47 @@ describe("design system guards", () => {
     ).toEqual([]);
   });
 
+  it("keeps the destructive slot and the danger tone the same red", () => {
+    // `--destructive` and `--tone-danger-text` mean the same thing — a destructive action and
+    // the danger tone are the same idea reached from two directions — and were maintained as
+    // two separate reds. That is this repo's recurring defect shape: one value written twice,
+    // kept in step by hand until it is not. They are now the same colour, and this is what
+    // stops them parting again.
+    //
+    // The duplication is deliberate rather than a `var()` alias: `:root` holds literal values
+    // everywhere else, and an assertion makes the coupling *visible* — change the danger tone
+    // and this fails, which forces the question "should destructive follow?" to be answered
+    // rather than silently assumed.
+    const problems: string[] = [];
+
+    for (const [theme, blockBody] of [[":root", rootBlock], [".dark", darkBlock]] as const) {
+      const tokens = readCssTokens(blockBody);
+      const destructive = tokens.get("--destructive");
+      const danger = tokens.get("--tone-danger-text");
+
+      if (!destructive || !danger) {
+        problems.push(`${theme} is missing ${!destructive ? "--destructive" : "--tone-danger-text"}`);
+        continue;
+      }
+
+      const destructiveHex = cssColorToHex(destructive);
+      const dangerHex = cssColorToHex(danger);
+      if (destructiveHex !== dangerHex) {
+        problems.push(
+          `${theme}: --destructive is ${destructiveHex} but --tone-danger-text is ${dangerHex}`
+        );
+      }
+    }
+
+    expect(
+      problems,
+      "A destructive control and a rejected application are the same red by design. Two " +
+        "separately maintained values gave the app a `text-destructive` that did not match its " +
+        "own danger tone, and left destructive sitting ΔEok 0.049 from the brand terracotta — " +
+        "close enough that a delete link read as a primary one. Change both, or neither."
+    ).toEqual([]);
+  });
+
   it("never overrides a receipt token in dark mode", () => {
     const overridden = [...darkBlock.matchAll(/(--receipt-[a-z-]+)\s*:/g)].map((m) => m[1]);
 
