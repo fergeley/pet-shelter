@@ -313,7 +313,9 @@ A class of inconsistency this codebase is structurally prone to, and it is **inv
 
 **The gap that remains is exactly the nested collections** — and that is not an oversight, it is a pending modeling decision. A scalar ports mechanically into a nullable column; `PetUpdate[]` and `MedicalTimelineEvent[]` require choosing between a `Json` column (cheap, unqueryable, no referential integrity) and a related table (queryable, indexable, migration cost). Until that call is made, treat those two as **fixture-only**.
 
-Same shape, related: `src/data/faqs.json` and `src/data/rehabNeeds.json` are committed bilingual fixtures with **no reader and no action** — L-B2 + L-B8 work per [Backend Module 03](../tutorials/TUTORIAL_BE_03_REHAB_NEEDS_API.md). The donate page and `PetsFaqSection` still hardcode their FAQ arrays inline.
+Same shape, related: `src/data/faqs.json` and `src/data/rehabNeeds.json` are committed bilingual fixtures. They **now have both** — `src/lib/server/faqCatalog.ts` and `src/lib/server/rehabNeedsCatalog.ts` read them, `getFaqsAction` / `getRehabNeedsAction` expose them, and their category tab strips are derived rather than hardcoded (`5832244`). Category labels resolve through `src/lib/presentation/categoryTabs.ts`, which is their single declaration. The L-B2 + L-B8 background is [Backend Module 03](../tutorials/TUTORIAL_BE_03_REHAB_NEEDS_API.md).
+
+What is still hardcoded is **the donate page**: `src/app/donate/page.tsx:107` holds its own monolingual `faqs` array with a `q`/`a` shape unrelated to `FaqItem`, rendered at `:382`. It is the last inline FAQ list, and unlike the two above it has no fixture behind it at all.
 
 > **The general rule this illustrates** is Rule 6 in §9: adding an optional field to `Pet` is a four-layer change (type → Zod → column → mapper), and skipping any of the last three fails silently. There is no compiler help here; the only guard is remembering.
 

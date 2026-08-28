@@ -71,11 +71,68 @@ inline. Both halves were already stale before this change — the readers and `g
 and that component has never held a FAQ array. It also talks about the donate page, which is a
 separate hardcoding. Correcting it is a doc job with its own scope, not a rider on this one.
 
+## Second pass — collapsing the label tables
+
+The parallel session responded to the drift above by moving category labels off the per-row
+fixture fields onto canonical tables — the right call, and it fixed the duplication this stream
+was about. But it landed the *same table three times*: in `categoryTabs.ts` and once in each
+catalog, with the `presentation/` copy typed `Record<string, …>` where the catalogs used
+`Record<FaqCategory, …>`. Same defect shape, new location.
+
+- [x] Compared all three before touching them — 14 entries, **zero divergence**, so this was
+      caught before it cost anything.
+- [x] One declaration each, in `src/lib/presentation/categoryTabs.ts`, keyed by `FaqCategory` /
+      `RehabNeedCategory`. Both catalogs import them; the two `*_DEFINITIONS` copies are gone.
+- [x] Exhaustiveness proven: an eighth union member is a compile error at the single
+      declaration. Under the old `Record<string, …>` it was accepted silently there.
+- [x] Rendering byte-identical — tab strips *and* per-item eyebrows on `/pets` and `/needs`.
+
+## What went wrong, and it was mine
+
+The exhaustiveness proof required breaking the union on purpose. Inject and `tsc` ran in one
+tool call; the revert ran in the **next**. In that ~2-minute gap the parallel session read the
+TS2741 as a real missing case and committed a fix for it — `4e87dee`, which added an invented
+`adoption_events` FAQ category to the Zod enum and the label table. Reverting the union then
+*inverted* the error to TS2353 and left **HEAD not typechecking** until `4b06451` removed both.
+
+I had this rule already recorded and broke it. The rule is now stronger: do not inject into the
+shared tree at all — use a detached worktree, the same technique that proved the tab work green
+in isolation earlier in this stream. `tasks/lessons.md` carries it, including the reciprocal
+check for whoever sees the error.
+
+## Handed off
+
+`docs/tasks/TARGET_LEGACY_ADMIN_TOKEN_REMOVAL.md` + `/remove-legacy-admin-token` — closes
+`TARGET_SECRET_HARDENING.md` §3.5. The audit moved the risk: nothing in `src/` issues the
+`admin_session` cookie, so removal is not the behavioural change §3.5 feared. The real
+deliverable is the `ADMIN_SECRET_KEY` decision, not the deletion.
+
 ## Landed
 
-`5832244` — 5 files, committed with `git commit -F <msg> -- <the five paths>`. The concurrent
-session had ten modified and four untracked files in the tree throughout, including a new
-`src/lib/presentation/emailTokens.ts` beside my new module; the pathspec kept all of it out.
+| commit | what |
+|---|---|
+| `5832244` | the wiring — 5 files, pathspec commit |
+| `ec055d2` | `tasks/` records; the target-doc closure was swept into the other session's `4952eb1` |
+| `4b06451` | removed the phantom `adoption_events` category; restored a red HEAD to green |
+| `f051905` | the lesson about deliberate breakage in a shared tree |
+| `777f8a3` | the next target and its slash command |
+
+All committed with `git add -- <paths>` + `git commit -F <msg> -- <the same paths>`, checking
+`git diff --cached --name-only` in a separate call first. The concurrent session held between
+four and fifteen files in the tree throughout; none rode along.
+
+**The label-table collapse itself is not in that table.** It was swept into the other session's
+`c257681` / `63e6b94` before I committed. The code is correct and in history; it is simply not
+attributable here, and rewriting shared history on a branch with an active writer costs more
+than a misleading commit message.
+
+Closed out: `docs/architecture/LAYERS.md:316` said these fixtures had "no reader and no action"
+and that `PetsFaqSection` hardcoded FAQ arrays. I left it in the first pass as out of scope; on
+closing the stream it was corrected, because it now contradicted the code directly. The one true
+half is preserved and sharpened: `src/app/donate/page.tsx:107` really does still hold an inline
+`faqs` array, and it is now the last one.
+
+Final state: `npx tsc --noEmit` 0 errors, `npm run test:all` **712 passing**.
 
 ---
 
