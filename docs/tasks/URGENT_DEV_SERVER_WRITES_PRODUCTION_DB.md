@@ -157,3 +157,57 @@ does not name the exports; identify them by probing argument shapes. Two traps w
   after an archive that had genuinely landed in Neon — the read path served fixtures. Query the
   database directly, and build the client the way `src/lib/server/prisma.ts` does
   (`new PrismaClient({ adapter: new PrismaPg(pool) })`); a bare constructor throws on this version.
+
+---
+
+## 8. Dispatch prompt
+
+```
+In C:\Users\User\pet-shelter, stop the dev server from using the production database.
+
+Read docs/tasks/URGENT_DEV_SERVER_WRITES_PRODUCTION_DB.md first.
+
+.env.local carries a Neon DATABASE_URL with NEON_BRANCH=production. `next dev` loads .env.local
+and src/lib/server/prisma.ts builds its pool straight from DATABASE_URL, so `npm run dev` on this
+machine reads and writes production. This is verified, not theoretical -- see §1.1.
+
+DO §3.1 FIRST, AND IT IS READ-ONLY. Before changing any code, establish whether the seeded demo
+users in src/lib/server/userStore.ts (admin@hopeforstrays.org / admin123, and the coordinator,
+staff and volunteer equivalents) exist in that Neon branch with matching password hashes. Those
+passwords are published in the repository. If they work against production, stop and report it --
+that is a live credential incident and it outranks everything else in the document. Report what
+you actually found either way.
+
+Then implement §3.2, which does not depend on the WSL blocker: make src/lib/server/prisma.ts
+refuse to construct a client when NODE_ENV !== "production" and the resolved DATABASE_URL is not
+local, unless ALLOW_REMOTE_DB=true is set.
+
+Do not invent the local check. prisma/env.ts already exports isLocalDatabaseUrl(), a deliberate
+allow-list of localhost / 127.0.0.1 / ::1 / host.docker.internal, and assertSeedTargetIsLocal()
+is the refusal it feeds. Reuse them, and read the comment above LOCAL_HOSTS explaining why it is
+an allow-list and not a deny-list before changing it. The refusal must name the host it rejected,
+because a silent fallback to fixtures is how this went unnoticed for so long.
+
+Note that prisma/ is outside the src/ path alias, so check how the app is expected to import from
+it -- if it cannot, move the shared predicate rather than copying it. A second copy of this rule
+is the exact defect shape this repo keeps producing.
+
+The app is designed to run with no database at all, so an unset DATABASE_URL is a working and safe
+local configuration. Do not add a hardcoded localhost fallback that papers over the refusal --
+src/lib/server/prisma.ts:13 already has one, and it is part of why this was invisible.
+
+Do NOT commit .env.local or any part of it, and do not put the Neon host or credential into any
+tracked file -- the endpoint id currently appears in no committed file and must not start now.
+Do NOT delete .env.local; find out what depends on it (prisma.config.ts, the Neon CLI, deployment)
+before touching it.
+
+Verify: npx tsc --noEmit, then npm run test:all. Re-establish the baseline count first, other work
+streams are active on this branch and it moves. Then prove the guard by running `npm run dev` with
+the real .env.local and showing it refuses, and again with DATABASE_URL unset and showing the app
+boots on fixtures. Report what you saw.
+
+This branch has concurrent sessions committing with `git add -A`. Run `git log --oneline -5` as
+well as `git diff --cached` before composing a commit, and commit by pathspec
+(`git add -- <paths>` then `git commit --only -F <msg> -- <the same paths>`); your work may already
+be in history under someone else's message.
+```
