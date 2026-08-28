@@ -115,6 +115,37 @@ top and an upstream. Noted here so the history is explicable, not so it gets fix
 
 ## 5. 🚀 Picking This Up
 
+### Start here — paste this to open the next session
+
+```text
+Read docs/tasks/HANDOFF_EMAIL_CORRECTNESS_AND_ESCAPING.md, then
+docs/tasks/TARGET_EMAIL_HTML_ESCAPING.md.
+
+Execute P1: convert sendStaffApplicationAlert ONLY to the tagged-template
+SafeHtml design in TARGET §3.1.
+
+- TARGET §3.2: every nested HTML template must be tagged too, not just the
+  outer one. There are 18 in the file; this builder has several.
+- TARGET §3.4: delete the existing escapeHtml(...) call sites as you convert,
+  or you double-escape to &amp;lt;.
+- Do NOT change the wrapEmailHtml signature yet. That is the last step, after
+  all five builders convert, so the 5 compile errors light up only what is
+  left.
+- Do NOT touch palette hex; that belongs to TARGET_EMAIL_COLOUR_PARITY.md.
+
+Test through the existing renderReceipt() fetch-spy helper in
+tests/unit/email.test.ts — do not invent a second mechanism. Invoke the
+test-harness skill before writing any test. Prove the new assertions bite by
+removing a converted row and watching them go red, inside a single
+run-then-restore tool call.
+
+Then run npm run test:all and report how many pre-existing assertions needed
+updating. That number sizes the remaining four builders.
+
+This branch has concurrent writers: check `git diff --cached --name-only` in
+its own tool call, commit with a pathspec, never `git add -A`, never stash.
+```
+
 **Read in this order**: `TARGET_EMAIL_HTML_ESCAPING.md` §1 and §3 → `src/lib/email.ts`
 `wrapEmailHtml` and `escapeHtml` → the `renderReceipt` helper in `tests/unit/email.test.ts`.
 
