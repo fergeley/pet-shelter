@@ -26,7 +26,10 @@ utility alone.
 
 The frame every page sits in: `background`, `foreground`, `card`, `popover`, `primary`, `secondary`,
 `muted`, `accent`, `accent-subtle`, `destructive`, `border`, `input`, `ring`, plus the `frame-*`,
-`brand-mark*` and `control-*` groups. Consume them as `bg-background`, `text-muted-foreground`,
+`brand-mark*` and `control-*` groups. `destructive` is not a colour of its own: it is
+the same red as `--tone-danger-text` in both themes, because a destructive control and a rejected
+application mean the same thing — `designSystemGuards` fails the build if the two part company. See
+[`TARGET_DESTRUCTIVE_BRAND_SEPARATION.md`](tasks/TARGET_DESTRUCTIVE_BRAND_SEPARATION.md). Consume them as `bg-background`, `text-muted-foreground`,
 `border-border`, and so on. Read the current values from `globals.css` — they are not duplicated here,
 because a copy is a copy that goes stale.
 
