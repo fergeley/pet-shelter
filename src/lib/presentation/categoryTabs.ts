@@ -1,3 +1,6 @@
+import { FaqCategory } from "@/types/faq";
+import { RehabNeedCategory } from "@/types/rehab";
+
 /**
  * Category tab strips, shared by the FAQ and rehabilitation-needs filters.
  *
@@ -12,6 +15,11 @@
  * Both strips used to hardcode their own copy of the list, and both had drifted
  * from the fixture labels they were meant to mirror. That is why this is a
  * module and not a second inline literal.
+ *
+ * It is also the single source of the category labels themselves. They were
+ * briefly authored three times — here and once in each catalog — which is the
+ * same duplication in a new place, one rename away from the drift it replaced.
+ * Both catalogs import the tables below; nothing else declares them.
  */
 
 /**
@@ -64,8 +72,20 @@ export function withAllTab(
   ];
 }
 
-/** Canonical bilingual labels for FAQ categories. */
-export const FAQ_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: string }> = {
+/** The two label languages every category carries. */
+export interface CategoryLabels {
+  labelEn: string;
+  labelMs: string;
+}
+
+/**
+ * Canonical bilingual labels for FAQ categories.
+ *
+ * Keyed by `FaqCategory` rather than `string`: an eighth member of that union
+ * is then a compile error here, instead of a category that silently renders as
+ * its own raw enum value.
+ */
+export const FAQ_CATEGORY_LABELS: Record<FaqCategory, CategoryLabels> = {
   tnrm: { labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
   sponsorship: { labelEn: "Sponsorship & Donations", labelMs: "Penajaan & Sumbangan" },
   adoption: { labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
@@ -75,8 +95,8 @@ export const FAQ_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: str
   medical: { labelEn: "Medical & Rehabilitation", labelMs: "Perubatan & Pemulihan" },
 };
 
-/** Canonical bilingual labels for Rehabilitation Need categories. */
-export const REHAB_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: string }> = {
+/** Canonical bilingual labels for rehabilitation-need categories. See above. */
+export const REHAB_CATEGORY_LABELS: Record<RehabNeedCategory, CategoryLabels> = {
   URGENT: { labelEn: "Urgent Needs", labelMs: "Keperluan Mendesak" },
   REGULAR: { labelEn: "Regular Needs", labelMs: "Keperluan Rutin" },
   LONG_TERM: { labelEn: "Long-term Improvements", labelMs: "Penambahbaikan Jangka Panjang" },
@@ -86,16 +106,24 @@ export const REHAB_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: s
   NUTRITION: { labelEn: "Nutrition & Feed", labelMs: "Pemakanan & Makanan Haiwan" },
 };
 
-/** Resolves localized category label for an FAQ item. */
+/**
+ * Localised label for one FAQ item's category.
+ *
+ * Takes `string` rather than `FaqCategory` because fixture rows are read from
+ * JSON: an unrecognised value has to render as *something*, and its own raw
+ * value is the most debuggable choice. The widening is confined to this lookup.
+ */
 export function getFaqCategoryLabel(category: string, isMs = false): string {
-  const entry = FAQ_CATEGORY_LABELS[category];
+  const entry = FAQ_CATEGORY_LABELS[category as FaqCategory] as CategoryLabels | undefined;
   if (!entry) return category;
   return isMs ? entry.labelMs : entry.labelEn;
 }
 
-/** Resolves localized category label for a Rehabilitation Need item. */
+/** Localised label for one rehabilitation need's category. See above. */
 export function getRehabNeedCategoryLabel(category: string, isMs = false): string {
-  const entry = REHAB_CATEGORY_LABELS[category];
+  const entry = REHAB_CATEGORY_LABELS[
+    category as RehabNeedCategory
+  ] as CategoryLabels | undefined;
   if (!entry) return category;
   return isMs ? entry.labelMs : entry.labelEn;
 }

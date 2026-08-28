@@ -42,7 +42,16 @@
   /* Hover wash for ghost / outline controls — one step lighter than `--secondary`. */
   --accent-subtle: #fff1ec;
   --accent-subtle-strong: #fbeee9;
-  --destructive: #b54043;
+  /* The same red as `--tone-danger-text`, and deliberately not a third one. A destructive
+     action and the danger tone mean the same thing, and two hand-maintained reds is how the
+     palette ends up with a "delete" that does not match "rejected". `designSystemGuards`
+     asserts the two stay equal, so this is a proven copy rather than a hopeful one — the
+     same arrangement the email hex mirror uses.
+     It also has to sit clear of the brand: at the old #b54043 it was ΔEok 0.049 from
+     `--primary`, near enough that `text-destructive` and `text-primary` read alike on cream.
+     This is 0.138 away, and 8.23:1 on card rather than 5.48:1.
+     See docs/tasks/TARGET_DESTRUCTIVE_BRAND_SEPARATION.md. */
+  --destructive: #9f0712;
   --destructive-foreground: #fffdfb;
   --border: #ecd7d0;
   --input: #f1e2dc;
@@ -184,7 +193,11 @@
   --accent-foreground: #221718;
   --accent-subtle: #2d2424;
   --accent-subtle-strong: #34292a;
-  --destructive: #f39aa4;
+  /* Tracks `--tone-danger-text` here too — see the note in `:root`. Note this does NOT fix the
+     dark theme's own problem: `--primary` (#eaa39b) and this are both light pinks, ΔEok 0.036
+     apart, so destructive and brand still read alike in dark mode. That needs the dark primary
+     re-picked, which is a separate decision — recorded in §7 of the target above. */
+  --destructive: #ffa2a2;
   --destructive-foreground: #221718;
   --border: #4a3c3c;
   --input: #433535;

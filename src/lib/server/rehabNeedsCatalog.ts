@@ -1,5 +1,6 @@
 import initialRehabNeedsData from "@/data/rehabNeeds.json";
 import { RehabNeed, RehabNeedCategory } from "@/types/rehab";
+import { REHAB_CATEGORY_LABELS } from "@/lib/presentation/categoryTabs";
 
 /**
  * Rehabilitation-house wishlist reads.
@@ -64,19 +65,12 @@ export function findServerRehabNeedById(id: string): RehabNeed | null {
   return serverRehabNeeds.find((n) => n.id.toLowerCase() === norm) || null;
 }
 
-const REHAB_NEED_CATEGORY_DEFINITIONS: Record<RehabNeedCategory, { labelEn: string; labelMs: string }> = {
-  URGENT: { labelEn: "Urgent Needs", labelMs: "Keperluan Mendesak" },
-  REGULAR: { labelEn: "Regular Needs", labelMs: "Keperluan Rutin" },
-  LONG_TERM: { labelEn: "Long-term Improvements", labelMs: "Penambahbaikan Jangka Panjang" },
-  TNRM_EQUIPMENT: { labelEn: "TNRM Equipment", labelMs: "Peralatan TNRM" },
-  MEDICAL: { labelEn: "Medical Supplies", labelMs: "Bekalan Perubatan" },
-  FACILITY: { labelEn: "Facility Maintenance", labelMs: "Penyelenggaraan Kemudahan" },
-  NUTRITION: { labelEn: "Nutrition & Feed", labelMs: "Pemakanan & Makanan Haiwan" },
-};
-
 /**
  * Distinct rehabilitation-need categories present in the dataset, in
- * first-appearance order, carrying both label languages derived from canonical category definitions.
+ * first-appearance order, carrying both label languages.
+ *
+ * Labels come from `@/lib/presentation/categoryTabs` — see the note on
+ * `getServerFaqCategories` for why they are not declared here.
  */
 export function getServerRehabCategories(): {
   category: RehabNeedCategory;
@@ -89,7 +83,7 @@ export function getServerRehabCategories(): {
   for (const item of serverRehabNeeds) {
     if (seen.has(item.category)) continue;
     seen.add(item.category);
-    const def = REHAB_NEED_CATEGORY_DEFINITIONS[item.category];
+    const def = REHAB_CATEGORY_LABELS[item.category];
     if (def) {
       categories.push({
         category: item.category,

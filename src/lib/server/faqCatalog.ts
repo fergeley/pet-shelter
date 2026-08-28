@@ -1,5 +1,6 @@
 import initialFaqsData from "@/data/faqs.json";
 import { FaqItem, FaqCategory } from "@/types/faq";
+import { FAQ_CATEGORY_LABELS } from "@/lib/presentation/categoryTabs";
 
 /**
  * Bilingual FAQ reads.
@@ -60,19 +61,14 @@ export function findServerFaqById(id: string): FaqItem | null {
   return serverFaqs.find((f) => f.id.toLowerCase() === norm) || null;
 }
 
-const FAQ_CATEGORY_DEFINITIONS: Record<FaqCategory, { labelEn: string; labelMs: string }> = {
-  tnrm: { labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
-  sponsorship: { labelEn: "Sponsorship & Donations", labelMs: "Penajaan & Sumbangan" },
-  adoption: { labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
-  visiting: { labelEn: "Visiting & Shelter Guidelines", labelMs: "Lawatan & Garis Panduan" },
-  get_involved: { labelEn: "Get Involved & CSR", labelMs: "Penglibatan & CSR" },
-  general: { labelEn: "General Inquiries", labelMs: "Pertanyaan Umum" },
-  medical: { labelEn: "Medical & Rehabilitation", labelMs: "Perubatan & Pemulihan" },
-};
-
 /**
  * Distinct FAQ categories present in the dataset, in first-appearance order,
- * carrying both label languages derived from canonical category definitions.
+ * carrying both label languages.
+ *
+ * The labels come from `@/lib/presentation/categoryTabs`, which is the single
+ * declaration of them. This module held an identical copy for one commit; two
+ * copies of a label table is exactly the duplication that produced the drift
+ * these readers were written to end.
  */
 export function getServerFaqCategories(): {
   category: FaqCategory;
@@ -85,7 +81,7 @@ export function getServerFaqCategories(): {
   for (const item of serverFaqs) {
     if (seen.has(item.category)) continue;
     seen.add(item.category);
-    const def = FAQ_CATEGORY_DEFINITIONS[item.category];
+    const def = FAQ_CATEGORY_LABELS[item.category];
     if (def) {
       categories.push({
         category: item.category,
