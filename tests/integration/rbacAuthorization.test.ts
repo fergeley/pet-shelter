@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from "vitest";
 import { getPrismaDouble, resetPrismaDouble, type PrismaDouble } from "./support/prismaDouble";
 import { mockCookieStore } from "../setup/nextMocks";
-import { signInAs, type Role } from "../setup/authSession";
+import { signInAs } from "../setup/authSession";
 
 /**
  * Tier 3a — RBAC on the Server Action surface, under `STRICT_PERSISTENCE=true`.

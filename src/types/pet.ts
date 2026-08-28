@@ -36,6 +36,7 @@ export interface MedicalTimelineEvent {
   description: string;
   descriptionMs?: string;
   veterinarian?: string;
+  vetId?: string;
   verified: boolean;
   badge?: string;
   badgeMs?: string;

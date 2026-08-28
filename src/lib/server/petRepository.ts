@@ -41,7 +41,10 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
       include: {
         updates: { orderBy: { date: "asc" } },
-        medicalTimeline: { orderBy: { date: "asc" } },
+        medicalTimeline: {
+          orderBy: { date: "asc" },
+          include: { vet: true },
+        },
       },
     });
     if (dbPets && dbPets.length > 0) {

@@ -102,6 +102,8 @@ export interface DbMedicalTimelineEventRecord {
   description: string;
   descriptionMs: string | null;
   veterinarian: string | null;
+  vetId?: string | null;
+  vet?: { name: string; licenseNumber: string; clinicName?: string | null } | null;
   verified: boolean;
   badge: string | null;
   badgeMs: string | null;
@@ -192,7 +194,8 @@ function mapDbMedicalTimelineEvent(row: DbMedicalTimelineEventRecord): MedicalTi
     category: row.category as MedicalTimelineEvent["category"],
     description: row.description,
     descriptionMs: row.descriptionMs ?? undefined,
-    veterinarian: row.veterinarian ?? undefined,
+    veterinarian: row.veterinarian || row.vet?.name || undefined,
+    vetId: row.vetId ?? undefined,
     verified: row.verified,
     badge: row.badge ?? undefined,
     badgeMs: row.badgeMs ?? undefined,
@@ -316,6 +319,7 @@ export interface MedicalTimelineEventPersistenceRow {
   description: string;
   descriptionMs: string | null;
   veterinarian: string | null;
+  vetId: string | null;
   verified: boolean;
   badge: string | null;
   badgeMs: string | null;
@@ -362,6 +366,7 @@ export function buildPetHistoryNestedCreate(pet: Pet): PetHistoryNestedCreate {
         description: e.description,
         descriptionMs: e.descriptionMs ?? null,
         veterinarian: e.veterinarian ?? null,
+        vetId: e.vetId ?? null,
         verified: e.verified,
         badge: e.badge ?? null,
         badgeMs: e.badgeMs ?? null,

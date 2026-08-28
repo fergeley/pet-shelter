@@ -87,9 +87,13 @@ model Pet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  applications    AdoptionApplication[]
-  updates         PetUpdate[]
-  medicalTimeline MedicalTimelineEvent[]
+  applications       AdoptionApplication[]
+  updates            PetUpdate[]
+  medicalTimeline    MedicalTimelineEvent[]
+  vetAssignments     VetPetAssignment[]
+  tagAssignments     PetTagAssignment[]
+  galleryMedia       PetGalleryImage[]
+  compatibilityRules PetCompatibilityRule[]
 
   @@index([species, status, isArchived])
   @@index([isArchived, status])
@@ -188,25 +192,28 @@ model PetUpdate {
 /// queried across pets, not in a JSON blob. Id and date conventions match
 /// PetUpdate above.
 model MedicalTimelineEvent {
-  id            String   @id
+  id            String        @id
   petId         String
-  pet           Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  pet           Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
   date          String
   title         String
   titleMs       String?
   // intake, diagnostic, treatment, vaccination, surgery, clearance
   category      String
-  description   String   @db.Text
-  descriptionMs String?  @db.Text
+  description   String        @db.Text
+  descriptionMs String?       @db.Text
   veterinarian  String?
-  verified      Boolean  @default(false)
+  vetId         String?
+  vet           Veterinarian? @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  verified      Boolean       @default(false)
   badge         String?
   badgeMs       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   @@index([petId, date])
   @@index([category, date])
+  @@index([vetId])
   @@map("medical_timeline_events")
 }
 
@@ -359,3 +366,112 @@ model Donation {
   @@index([donorEmail])
   @@map("donations")
 }
+
+/// Licensed veterinarian participating in shelter clinical operations.
+model Veterinarian {
+  id            String   @id @default(cuid())
+  name          String
+  licenseNumber String   @unique
+  clinicName    String?
+  phone         String?
+  email         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  specializations VetSpecialization[]
+  petAssignments  VetPetAssignment[]
+  timelineEvents  MedicalTimelineEvent[]
+
+  @@map("veterinarians")
+}
+
+/// Catalog of standard veterinary clinical procedures and compliance categories.
+model MedicalProcedureCategory {
+  id          String   @id // intake, diagnostic, treatment, vaccination, surgery, clearance
+  name        String
+  nameMs      String?
+  description String?  @db.Text
+
+  specializations VetSpecialization[]
+
+  @@map("medical_procedure_categories")
+}
+
+/// 5NF Join: Veterinarian Specializations (Vet x Procedure Category).
+/// Enforces that a vet is qualified/certified to perform procedures in this category.
+model VetSpecialization {
+  vetId        String
+  categoryId   String
+  certifiedAt  DateTime                  @default(now())
+  veterinarian Veterinarian              @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  category     MedicalProcedureCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([vetId, categoryId])
+  @@map("vet_specializations")
+}
+
+/// 5NF Join: Vet Care Assignments (Vet x Pet Primary Care).
+/// Establishes formal veterinary custody and attending physician assignment for a pet.
+model VetPetAssignment {
+  vetId        String
+  petId        String
+  assignedAt   DateTime     @default(now())
+  isPrimary    Boolean      @default(true)
+  veterinarian Veterinarian @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  pet          Pet          @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@id([vetId, petId])
+  @@map("vet_pet_assignments")
+}
+
+/// 4NF Normalization: Normalized lookup table for pet tags.
+model PetTag {
+  id          String             @id
+  name        String             @unique
+  category    String?            // Temperament, Physical, Medical, Lifestyle
+  assignments PetTagAssignment[]
+
+  @@map("pet_tags")
+}
+
+/// 4NF Join: Pet to Tag mapping.
+model PetTagAssignment {
+  petId String
+  tagId String
+  pet   Pet    @relation(fields: [petId], references: [id], onDelete: Cascade)
+  tag   PetTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([petId, tagId])
+  @@map("pet_tag_assignments")
+}
+
+/// 4NF Media: Normalized gallery images with explicit ordering and metadata.
+model PetGalleryImage {
+  id           String   @id @default(cuid())
+  petId        String
+  url          String
+  caption      String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  pet          Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId, displayOrder])
+  @@map("pet_gallery_images")
+}
+
+/// 5NF Join: Pet Compatibility Matrix (Pet x Housing Type x Cohabitant Type).
+/// Expresses multi-dimensional lifestyle compatibility constraints for the match engine.
+model PetCompatibilityRule {
+  id             String   @id @default(cuid())
+  petId          String
+  housingType    String   // condo_apartment, landed_no_yard, landed_fenced_yard
+  cohabitantType String   // toddlers, resident_dogs, resident_cats, elderly
+  isAllowed      Boolean  @default(true)
+  notes          String?  @db.Text
+  pet            Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([petId, housingType, cohabitantType])
+  @@index([petId])
+  @@map("pet_compatibility_rules")
+}
+
