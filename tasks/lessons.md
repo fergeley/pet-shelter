@@ -2,6 +2,13 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-28 — Domain lifecycle derivation beats static prose storage for temporal entities
+
+Rescues rarely have birth certificates; intake forms routinely capture estimates like `"2 years"` or `"4 months"`. Storing that prose string directly in database columns (`Pet.age`, `Pet.ageCategory`) creates silent data rot: an animal admitted as `"young"` at `"2 years"` remains frozen in time years later, compromising adoption matching engines, medical alerts, and gallery filters.
+
+**Rule:** decouple intake approximation from storage. Store canonical temporal anchors (`birthDate: String` (`YYYY-MM-DD`) and `birthDateIsEstimate: Boolean`) at the persistence boundary. Derive human-readable strings (`"2 years"`, `"4 bulan"`) and lifecycle stages (`"puppy_kitten"`, `"young"`, `"adult"`, `"senior"`) dynamically in a pure domain calculation module (`src/lib/domain/petAge.ts`) at read time. Projection layers (`petMappers.ts`) can supply computed properties seamlessly without breaking client components.
+
+
 ## 2026-08-28 — Never break the shared tree on purpose; the other session repairs it into history
 
 This repo's own rule is to break a guard once and watch it fail — a guard never seen red is not
