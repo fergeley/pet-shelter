@@ -16,6 +16,20 @@ enum Role {
   VOLUNTEER
 }
 
+enum PetStatus {
+  Available
+  Pending
+  Adopted
+  In_Rehabilitation @map("In Rehabilitation")
+}
+
+enum ApplicationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -39,7 +53,7 @@ model Pet {
   gender        String // Male, Female
   size          String // Small, Medium, Large
   weight        String
-  status        String   @default("Available") // Available, Pending, Adopted, In Rehabilitation ("Rehabilitation" is a legacy alias)
+  status        PetStatus @default(Available)
   adoptionFee   String
   description   String
   rescueStory   String
@@ -129,9 +143,9 @@ model AdoptionApplication {
   householdExperience   String   @default("experienced")
   experienceDescription String?  @db.Text
   applicantNotes        String?  @db.Text
-  message               String?  @db.Text
-  status                String   @default("SUBMITTED") // SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
-  adminNotes            String?  @db.Text
+  message               String?           @db.Text
+  status                ApplicationStatus @default(SUBMITTED)
+  adminNotes            String?           @db.Text
   adminReviewNotes      String?  @db.Text
   reviewedBy            String?
   createdAt             DateTime @default(now())

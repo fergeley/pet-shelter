@@ -335,8 +335,8 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       expect(payload.rehabProgressPercent).toBeNull();
     });
 
-    it("should preserve the caller's status spelling rather than silently rewriting it", () => {
-      expect(buildPetPersistencePayload(makeRehabPet({ status: ALIAS_REHAB })).status).toBe(ALIAS_REHAB);
+    it("should normalise the caller's status spelling to the canonical database enum on write", () => {
+      expect(buildPetPersistencePayload(makeRehabPet({ status: ALIAS_REHAB })).status).toBe("In_Rehabilitation");
     });
 
     it("should keep flattening medical and compatibility groups into columns", () => {
@@ -471,8 +471,9 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       expect(petModel).toMatch(/rehabProgressPercent\s+Int\?/);
     });
 
-    it("should document the rehabilitation status in the status column comment", () => {
-      expect(petModel).toMatch(/status\s+String\s+@default\("Available"\).*In Rehabilitation/);
+    it("should declare PetStatus enum and use it on the Pet model", () => {
+      expect(schema).toMatch(/enum PetStatus\s*\{[\s\S]*Available[\s\S]*In_Rehabilitation/);
+      expect(petModel).toMatch(/status\s+PetStatus\s+@default\(Available\)/);
     });
   });
 });

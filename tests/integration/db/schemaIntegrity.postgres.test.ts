@@ -113,7 +113,7 @@ describe("rehabilitation columns", () => {
         gender: "Female",
         size: "Medium",
         weight: "12 kg",
-        status: "In Rehabilitation",
+        status: "In_Rehabilitation",
         adoptionFee: "Free",
         description: "Schema probe.",
         rescueStory: "Schema probe.",

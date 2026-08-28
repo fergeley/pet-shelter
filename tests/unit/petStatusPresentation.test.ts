@@ -253,3 +253,23 @@ describe("PET_STATUS_SEQUENCE", () => {
     expect(PET_STATUS_SEQUENCE).not.toContain("Rehabilitation");
   });
 });
+
+describe("DB PetStatus Enum Mappings", () => {
+  it("maps domain and legacy status values to canonical Prisma database enums", async () => {
+    const { toDbPetStatus, fromDbPetStatus } = await import("@/lib/server/petMappers");
+
+    expect(toDbPetStatus("Available")).toBe("Available");
+    expect(toDbPetStatus("Pending")).toBe("Pending");
+    expect(toDbPetStatus("Adopted")).toBe("Adopted");
+    expect(toDbPetStatus("In Rehabilitation")).toBe("In_Rehabilitation");
+    expect(toDbPetStatus("Rehabilitation")).toBe("In_Rehabilitation");
+
+    expect(fromDbPetStatus("Available")).toBe("Available");
+    expect(fromDbPetStatus("Pending")).toBe("Pending");
+    expect(fromDbPetStatus("Adopted")).toBe("Adopted");
+    expect(fromDbPetStatus("In_Rehabilitation")).toBe("In Rehabilitation");
+    expect(fromDbPetStatus("In Rehabilitation")).toBe("In Rehabilitation");
+    expect(fromDbPetStatus("Rehabilitation")).toBe("In Rehabilitation");
+  });
+});
+

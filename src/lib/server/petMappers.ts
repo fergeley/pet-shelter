@@ -1,4 +1,30 @@
 import { MedicalTimelineEvent, Pet, PetUpdate } from "@/types/pet";
+import { PetStatus as PrismaPetStatus } from "@prisma/client";
+import { normalizePetStatus } from "@/lib/domain/stateMachine";
+
+/**
+ * Converts a domain PetStatus into the Prisma database enum.
+ * Normalizes legacy aliases (e.g. "Rehabilitation" -> In_Rehabilitation).
+ */
+export function toDbPetStatus(status: Pet["status"]): PrismaPetStatus {
+  const norm = normalizePetStatus(status);
+  if (norm === "In Rehabilitation") return PrismaPetStatus.In_Rehabilitation;
+  if (norm === "Pending") return PrismaPetStatus.Pending;
+  if (norm === "Adopted") return PrismaPetStatus.Adopted;
+  return PrismaPetStatus.Available;
+}
+
+/**
+ * Maps a persisted PetStatus database enum or legacy string to domain PetStatus.
+ */
+export function fromDbPetStatus(status: PrismaPetStatus | string): Pet["status"] {
+  if (status === "In_Rehabilitation" || status === "In Rehabilitation" || status === "Rehabilitation") {
+    return "In Rehabilitation";
+  }
+  if (status === "Pending") return "Pending";
+  if (status === "Adopted") return "Adopted";
+  return "Available";
+}
 
 /**
  * Translation between persisted `pets` rows and the domain `Pet` shape.
@@ -18,7 +44,7 @@ export interface DbPetRecord {
   gender: string;
   size: string;
   weight: string;
-  status: string;
+  status: PrismaPetStatus | string;
   adoptionFee: string;
   description: string;
   rescueStory: string;
@@ -90,7 +116,7 @@ export interface PetPersistencePayload {
   gender: string;
   size: string;
   weight: string;
-  status: string;
+  status: PrismaPetStatus;
   adoptionFee: string;
   description: string;
   rescueStory: string;
@@ -181,7 +207,7 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
     gender: p.gender as Pet["gender"],
     size: p.size as Pet["size"],
     weight: p.weight,
-    status: p.status as Pet["status"],
+    status: fromDbPetStatus(p.status),
     adoptionFee: p.adoptionFee,
     description: p.description,
     rescueStory: p.rescueStory,
@@ -227,7 +253,7 @@ export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
     gender: pet.gender,
     size: pet.size,
     weight: pet.weight,
-    status: pet.status,
+    status: toDbPetStatus(pet.status),
     adoptionFee: pet.adoptionFee,
     description: pet.description,
     rescueStory: pet.rescueStory,
