@@ -93,7 +93,6 @@ export const FAQ_CATEGORY_LABELS: Record<FaqCategory, CategoryLabels> = {
   get_involved: { labelEn: "Get Involved & CSR", labelMs: "Penglibatan & CSR" },
   general: { labelEn: "General Inquiries", labelMs: "Pertanyaan Umum" },
   medical: { labelEn: "Medical & Rehabilitation", labelMs: "Perubatan & Pemulihan" },
-  adoption_events: { labelEn: "Adoption Events & Drives", labelMs: "Acara & Kempen Adopsi" },
 };
 
 /** Canonical bilingual labels for rehabilitation-need categories. See above. */

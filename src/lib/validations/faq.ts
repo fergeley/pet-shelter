@@ -8,7 +8,6 @@ export const FAQ_CATEGORIES = [
   "get_involved",
   "general",
   "medical",
-  "adoption_events",
 ] as const;
 
 export const faqCategorySchema = z.enum(FAQ_CATEGORIES);
