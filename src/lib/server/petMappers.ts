@@ -1,6 +1,11 @@
 import { MedicalTimelineEvent, Pet, PetUpdate } from "@/types/pet";
 import { PetStatus as PrismaPetStatus } from "@prisma/client";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import {
+  computeAgeCategory,
+  formatAgeString,
+  approximateBirthDate,
+} from "@/lib/domain/petAge";
 
 /**
  * Converts a domain PetStatus into the Prisma database enum.
@@ -39,8 +44,10 @@ export interface DbPetRecord {
   name: string;
   species: string;
   breed: string;
-  age: string;
-  ageCategory: string;
+  birthDate?: string;
+  birthDateIsEstimate?: boolean;
+  age?: string;
+  ageCategory?: string;
   gender: string;
   size: string;
   weight: string;
@@ -111,8 +118,8 @@ export interface PetPersistencePayload {
   name: string;
   species: string;
   breed: string;
-  age: string;
-  ageCategory: string;
+  birthDate: string;
+  birthDateIsEstimate: boolean;
   gender: string;
   size: string;
   weight: string;
@@ -197,13 +204,20 @@ function mapDbMedicalTimelineEvent(row: DbMedicalTimelineEventRecord): MedicalTi
  * become `undefined` so optional domain fields stay absent rather than null.
  */
 export function mapDbPetToPet(p: DbPetRecord): Pet {
+  const birthDate = p.birthDate || (p.age ? approximateBirthDate(p.age, p.intakeDate).birthDate : p.intakeDate);
+  const birthDateIsEstimate = p.birthDateIsEstimate !== undefined ? p.birthDateIsEstimate : true;
+  const age = p.age || formatAgeString(birthDate).en;
+  const ageCategory = (p.ageCategory as Pet["ageCategory"]) || computeAgeCategory(birthDate);
+
   return {
     id: p.id,
     name: p.name,
     species: p.species as Pet["species"],
     breed: p.breed,
-    age: p.age,
-    ageCategory: p.ageCategory as Pet["ageCategory"],
+    birthDate,
+    birthDateIsEstimate,
+    age,
+    ageCategory,
     gender: p.gender as Pet["gender"],
     size: p.size as Pet["size"],
     weight: p.weight,
@@ -240,16 +254,18 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
 
 /**
  * Flattens a domain `Pet` into the column set written by both create and update.
- * The caller's status spelling is preserved verbatim — normalization is a read
- * and comparison concern, not a storage one.
+ * Normalizes status to Prisma enum and derives birth date.
  */
 export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
+  const birthDate = pet.birthDate || (pet.age ? approximateBirthDate(pet.age, pet.intakeDate).birthDate : pet.intakeDate);
+  const birthDateIsEstimate = pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true;
+
   return {
     name: pet.name,
     species: pet.species,
     breed: pet.breed,
-    age: pet.age,
-    ageCategory: pet.ageCategory,
+    birthDate,
+    birthDateIsEstimate,
     gender: pet.gender,
     size: pet.size,
     weight: pet.weight,

@@ -146,6 +146,8 @@ export const petBaseFormSchema = z.object({
   tags: z.array(z.string()).min(1, "Please provide at least 1 characteristic tag"),
   featured: z.boolean().default(false),
   intakeDate: z.string().min(4, "Intake date is required"),
+  birthDate: z.string().optional(),
+  birthDateIsEstimate: z.boolean().optional().default(true),
   
   // Medical
   vaccinated: z.boolean().default(true),

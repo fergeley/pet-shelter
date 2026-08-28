@@ -47,10 +47,10 @@ model Pet {
   id            String   @id @default(cuid())
   name          String
   species       String // dog, cat, other
-  breed         String
-  age           String
-  ageCategory   String // puppy_kitten, young, adult, senior
-  gender        String // Male, Female
+  breed               String
+  birthDate           String   @default("2024-01-01")
+  birthDateIsEstimate Boolean  @default(true)
+  gender              String // Male, Female
   size          String // Small, Medium, Large
   weight        String
   status        PetStatus @default(Available)

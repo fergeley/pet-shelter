@@ -76,6 +76,8 @@ export interface Pet {
   medicalTimeline?: MedicalTimelineEvent[];
   compatibility: PetCompatibility;
   intakeDate: string;
+  birthDate?: string;
+  birthDateIsEstimate?: boolean;
   adoptionFee: string;
   featured?: boolean;
   isArchived?: boolean;

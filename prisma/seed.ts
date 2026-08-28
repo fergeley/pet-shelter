@@ -171,14 +171,17 @@ async function main() {
     await prisma.petUpdate.deleteMany({ where: { petId: pet.id } });
     await prisma.medicalTimelineEvent.deleteMany({ where: { petId: pet.id } });
 
+    const birthDate = (pet as { birthDate?: string }).birthDate || "2024-01-01";
+    const birthDateIsEstimate = (pet as { birthDateIsEstimate?: boolean }).birthDateIsEstimate ?? true;
+
     await prisma.pet.upsert({
       where: { id: pet.id },
       update: {
         name: pet.name,
         species: pet.species,
         breed: pet.breed,
-        age: pet.age,
-        ageCategory: pet.ageCategory,
+        birthDate,
+        birthDateIsEstimate,
         gender: pet.gender,
         size: pet.size,
         weight: pet.weight,
@@ -212,8 +215,8 @@ async function main() {
         name: pet.name,
         species: pet.species,
         breed: pet.breed,
-        age: pet.age,
-        ageCategory: pet.ageCategory,
+        birthDate,
+        birthDateIsEstimate,
         gender: pet.gender,
         size: pet.size,
         weight: pet.weight,
