@@ -19,6 +19,14 @@ export function isStrictPersistence(): boolean {
 }
 
 /**
+ * True when the database is authoritative (either a real DATABASE_URL is configured,
+ * or STRICT_PERSISTENCE is explicitly enabled in integration tests).
+ */
+export function isDatabasePersistent(): boolean {
+  return Boolean(process.env.DATABASE_URL) || isStrictPersistence();
+}
+
+/**
  * How loudly a swallowed failure is reported when strict mode is *off*.
  *
  * The two levels mirror the pre-existing behaviour of the call sites, and the

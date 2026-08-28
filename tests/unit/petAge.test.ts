@@ -17,6 +17,11 @@ describe("Pet Age & Lifecycle Domain Math (petAge.ts)", () => {
     it("handles invalid dates safely by returning 0", () => {
       expect(computeAgeInMonths("invalid-date", "2026-01-15")).toBe(0);
     });
+
+    it("parses ISO date-only strings without timezone rollover offsets", () => {
+      expect(computeAgeInMonths("2024-06-15", "2025-06-15")).toBe(12);
+      expect(computeAgeInMonths("2024-06-15", "2025-06-14")).toBe(11);
+    });
   });
 
   describe("computeAgeCategory (Lifecycle Boundaries)", () => {

@@ -1,12 +1,13 @@
 import { prisma } from "@/lib/server/prisma";
-import { handlePersistenceError } from "@/lib/persistenceMode";
+import { handlePersistenceError, isDatabasePersistent } from "@/lib/persistenceMode";
 import { ShelterSettingsInput, ShelterSettingsOutput } from "@/lib/validations/settings";
 
 /**
- * Shelter Settings persistence and caching over the dual-layer store (L-B2).
+ * Shelter Settings persistence over the repository layer.
  *
- * Persists operational shelter configuration (name, address, hours, fees, banner)
- * to PostgreSQL via Prisma with an in-memory fallback cache for offline/test environments.
+ * Deterministic storage strategy:
+ * - When DATABASE_URL is set / active: pure Prisma persistence with PostgreSQL.
+ * - When offline / test mode: isolated in-memory fixture store for fast zero-dependency runs.
  */
 
 const DEFAULT_SETTINGS_ID = "default-settings";
@@ -47,71 +48,89 @@ export function getServerSettings(): ShelterSettingsOutput {
 }
 
 /**
- * Asynchronous read with database query and fallback cache update.
+ * Asynchronous read with database query or fallback to test fixture.
  */
 export async function getServerSettingsAsync(): Promise<ShelterSettingsOutput> {
-  try {
-    const row = await prisma.shelterSettings.findUnique({
-      where: { id: DEFAULT_SETTINGS_ID },
-    });
+  if (isDatabasePersistent()) {
+    try {
+      const row = await prisma.shelterSettings.findUnique({
+        where: { id: DEFAULT_SETTINGS_ID },
+      });
 
-    if (row) {
-      serverSettings = {
-        ...serverSettings,
-        shelterName: row.shelterName,
-        email: row.email,
-        phone: row.phone,
-        address: row.address,
-        operatingHours: row.operatingHours,
-        announcementBanner: row.announcementBanner ?? "",
-        adoptionFeeDog: row.adoptionFeeDog,
-        adoptionFeeCat: row.adoptionFeeCat,
-      };
+      if (row) {
+        return {
+          ...serverSettings,
+          shelterName: row.shelterName,
+          email: row.email,
+          phone: row.phone,
+          address: row.address,
+          operatingHours: row.operatingHours,
+          announcementBanner: row.announcementBanner ?? "",
+          adoptionFeeDog: row.adoptionFeeDog,
+          adoptionFeeCat: row.adoptionFeeCat,
+        };
+      }
+    } catch (err) {
+      handlePersistenceError("Prisma shelter settings query", err, "read");
+      return serverSettings;
     }
-  } catch (err) {
-    handlePersistenceError("Prisma shelter settings query", err, "read");
   }
 
   return serverSettings;
 }
 
 /**
- * Updates settings both in the database and the in-memory store.
+ * Updates settings in the database or the in-memory test store.
  */
 export async function updateServerSettings(data: ShelterSettingsInput): Promise<ShelterSettingsOutput> {
+  if (isDatabasePersistent()) {
+    try {
+      const updated = await prisma.shelterSettings.upsert({
+        where: { id: DEFAULT_SETTINGS_ID },
+        update: {
+          shelterName: data.shelterName,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          operatingHours: data.operatingHours,
+          announcementBanner: data.announcementBanner || null,
+          adoptionFeeDog: data.adoptionFeeDog,
+          adoptionFeeCat: data.adoptionFeeCat,
+        },
+        create: {
+          id: DEFAULT_SETTINGS_ID,
+          shelterName: data.shelterName,
+          email: data.email,
+          phone: data.phone,
+          address: data.address,
+          operatingHours: data.operatingHours,
+          announcementBanner: data.announcementBanner || null,
+          adoptionFeeDog: data.adoptionFeeDog,
+          adoptionFeeCat: data.adoptionFeeCat,
+        },
+      });
+
+      serverSettings = {
+        ...serverSettings,
+        ...data,
+        shelterName: updated.shelterName,
+        email: updated.email,
+        phone: updated.phone,
+        address: updated.address,
+        operatingHours: updated.operatingHours,
+        announcementBanner: updated.announcementBanner ?? "",
+        adoptionFeeDog: updated.adoptionFeeDog,
+        adoptionFeeCat: updated.adoptionFeeCat,
+      };
+      return serverSettings;
+    } catch (err) {
+      handlePersistenceError("Prisma shelter settings update", err, "write");
+    }
+  }
+
   serverSettings = {
     ...serverSettings,
     ...data,
   };
-
-  try {
-    await prisma.shelterSettings.upsert({
-      where: { id: DEFAULT_SETTINGS_ID },
-      update: {
-        shelterName: data.shelterName,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        operatingHours: data.operatingHours,
-        announcementBanner: data.announcementBanner || null,
-        adoptionFeeDog: data.adoptionFeeDog,
-        adoptionFeeCat: data.adoptionFeeCat,
-      },
-      create: {
-        id: DEFAULT_SETTINGS_ID,
-        shelterName: data.shelterName,
-        email: data.email,
-        phone: data.phone,
-        address: data.address,
-        operatingHours: data.operatingHours,
-        announcementBanner: data.announcementBanner || null,
-        adoptionFeeDog: data.adoptionFeeDog,
-        adoptionFeeCat: data.adoptionFeeCat,
-      },
-    });
-  } catch (err) {
-    handlePersistenceError("Prisma shelter settings update", err, "write");
-  }
-
   return serverSettings;
 }

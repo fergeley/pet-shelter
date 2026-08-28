@@ -4,15 +4,15 @@ import { validateApplicationTransition } from "@/lib/domain/stateMachine";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { SessionUser } from "@/lib/security/session";
 import { prisma } from "@/lib/server/prisma";
-import { handlePersistenceError } from "@/lib/persistenceMode";
+import { handlePersistenceError, isDatabasePersistent } from "@/lib/persistenceMode";
 import { markCachedPetAdopted } from "./petRepository";
 
 /**
- * Adoption-application reads and writes over the dual-layer store.
+ * Adoption-application reads and writes over the repository layer.
  *
- * Depends on `./petRepository` in one direction only: approving an application
- * adopts the pet. Pet writes never touch applications, which is what keeps the
- * two modules acyclic — do not add an import the other way.
+ * Deterministic storage strategy:
+ * - When DATABASE_URL is set / active: pure Prisma persistence with ACID transactions.
+ * - When offline / test mode: isolated in-memory fixture store for fast zero-dependency runs.
  */
 
 interface DbApplicationRecord {
@@ -63,11 +63,11 @@ export function getServerApplications(): AdoptionApplicationRecord[] {
 }
 
 export async function getServerApplicationsAsync(): Promise<AdoptionApplicationRecord[]> {
-  try {
-    const dbApps = await prisma.adoptionApplication.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    if (dbApps && dbApps.length > 0) {
+  if (isDatabasePersistent()) {
+    try {
+      const dbApps = await prisma.adoptionApplication.findMany({
+        orderBy: { createdAt: "desc" },
+      });
       return (dbApps as unknown as DbApplicationRecord[]).map((a: DbApplicationRecord) => ({
         id: a.id,
         petId: a.petId || "",
@@ -88,9 +88,10 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
         createdAt: a.createdAt.toString().split("T")[0],
         updatedAt: a.updatedAt.toString().split("T")[0],
       }));
+    } catch (err) {
+      handlePersistenceError("Prisma applications query", err, "read");
+      return serverApplications;
     }
-  } catch (err) {
-    handlePersistenceError("Prisma applications query", err, "read");
   }
   return serverApplications;
 }
@@ -101,31 +102,34 @@ export function findServerApplicationById(id: string): AdoptionApplicationRecord
 }
 
 export async function insertServerApplication(newApp: AdoptionApplicationRecord): Promise<void> {
-  serverApplications = [newApp, ...serverApplications];
-
-  try {
-    await prisma.adoptionApplication.create({
-      data: {
-        id: newApp.id,
-        petId: newApp.petId,
-        petName: newApp.petName,
-        petBreed: newApp.petBreed || null,
-        applicantName: newApp.applicantName,
-        email: newApp.email,
-        phone: newApp.phone,
-        address: newApp.address,
-        housingType: newApp.housingType,
-        hasFencedYard: newApp.hasFencedYard,
-        currentPets: newApp.currentPets,
-        currentPetDetails: newApp.currentPetDetails || null,
-        householdExperience: newApp.householdExperience,
-        applicantNotes: newApp.applicantNotes || null,
-        status: newApp.status,
-        adminReviewNotes: newApp.adminReviewNotes || null,
-      },
-    });
-  } catch (err) {
-    handlePersistenceError("Prisma application creation", err, "write");
+  if (isDatabasePersistent()) {
+    try {
+      await prisma.adoptionApplication.create({
+        data: {
+          id: newApp.id,
+          petId: newApp.petId,
+          petName: newApp.petName,
+          petBreed: newApp.petBreed || null,
+          applicantName: newApp.applicantName,
+          email: newApp.email,
+          phone: newApp.phone,
+          address: newApp.address,
+          housingType: newApp.housingType,
+          hasFencedYard: newApp.hasFencedYard,
+          currentPets: newApp.currentPets,
+          currentPetDetails: newApp.currentPetDetails || null,
+          householdExperience: newApp.householdExperience,
+          applicantNotes: newApp.applicantNotes || null,
+          status: newApp.status,
+          adminReviewNotes: newApp.adminReviewNotes || null,
+        },
+      });
+    } catch (err) {
+      handlePersistenceError("Prisma application creation", err, "write");
+      serverApplications = [newApp, ...serverApplications];
+    }
+  } else {
+    serverApplications = [newApp, ...serverApplications];
   }
 
   recordAuditLog({

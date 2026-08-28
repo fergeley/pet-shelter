@@ -2,6 +2,21 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-28 — ISO date-only parsing in JavaScript requires timezone-invariant extraction
+
+`new Date("YYYY-MM-DD")` is parsed by ECMAScript engines as UTC midnight (`00:00:00Z`). In timezones located west of UTC (negative offsets like UTC-1 to UTC-12), calling `.getDate()` or `.getMonth()` rolls the date backward by 1 day to the previous evening, causing silent 1-month or 1-day threshold calculation bugs on exact boundaries.
+
+**Rule:** never pass date-only strings (`YYYY-MM-DD`) directly to `new Date()` for calendar math. Extract the year, month, and day integers directly from string parts (`parseDateParts`) before doing month/year difference math to ensure 100% deterministic results across all server and client locales.
+
+## 2026-08-28 — Dual-layer persistence requires Chesterton's Fence analysis before refactoring fallbacks
+
+Dual-layer stores (`Prisma` with in-memory JSON fallback) seem like redundant code duplication and maintenance burden at first glance. However, ripping them out completely would either break sub-second, zero-dependency unit tests or silently break test doubles (`prismaDouble.ts`) that rely on query fallback behaviors.
+
+**Rule:** before simplifying fallback stores, discover their load-bearing invariants through test runs. Ensure that:
+1. Pure unit tests run without local DB timeouts via clean in-memory state.
+2. Tier 3 strict persistence integration tests (`STRICT_PERSISTENCE=true`) rethrow real database failures rather than masking them.
+3. Repositories maintain single-source-of-truth invariants without creating race conditions or phantom data resurrection.
+
 ## 2026-08-28 — Domain lifecycle derivation beats static prose storage for temporal entities
 
 Rescues rarely have birth certificates; intake forms routinely capture estimates like `"2 years"` or `"4 months"`. Storing that prose string directly in database columns (`Pet.age`, `Pet.ageCategory`) creates silent data rot: an animal admitted as `"young"` at `"2 years"` remains frozen in time years later, compromising adoption matching engines, medical alerts, and gallery filters.

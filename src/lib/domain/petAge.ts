@@ -7,16 +7,30 @@ import { AgeCategory } from "@/types/pet";
  * ensuring that adoption matching and category filters do not rot as animals age in the shelter.
  */
 
+function parseDateParts(dateOrStr: Date | string): { year: number; month: number; day: number } | null {
+  if (typeof dateOrStr === "string") {
+    const dateOnly = dateOrStr.split("T")[0];
+    const parts = dateOnly.split("-").map(Number);
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+      return { year: parts[0], month: parts[1] - 1, day: parts[2] };
+    }
+  }
+  const d = typeof dateOrStr === "string" ? new Date(dateOrStr) : dateOrStr;
+  if (isNaN(d.getTime())) return null;
+  return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+}
+
 /**
  * Computes exact difference in full months between a birth date and a target date.
+ * Timezone-invariant for standard YYYY-MM-DD date strings.
  */
 export function computeAgeInMonths(birthDateStr: string, asOf: Date | string = new Date()): number {
-  const birth = new Date(birthDateStr);
-  const target = typeof asOf === "string" ? new Date(asOf) : asOf;
-  if (isNaN(birth.getTime()) || isNaN(target.getTime())) return 0;
+  const birth = parseDateParts(birthDateStr);
+  const target = parseDateParts(asOf);
+  if (!birth || !target) return 0;
 
-  let months = (target.getFullYear() - birth.getFullYear()) * 12 + (target.getMonth() - birth.getMonth());
-  if (target.getDate() < birth.getDate()) {
+  let months = (target.year - birth.year) * 12 + (target.month - birth.month);
+  if (target.day < birth.day) {
     months -= 1;
   }
   return Math.max(0, months);
