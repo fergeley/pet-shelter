@@ -101,6 +101,9 @@ hex mirror uses, and for the same reason.
 
 ## 5. ⚠️ Still open: the dark theme has the same collision, and this does not fix it
 
+**Picked up in [`TARGET_DARK_BRAND_SEPARATION.md`](TARGET_DARK_BRAND_SEPARATION.md)**, which
+measured it properly: hue rotation does not fix it, lightness does, and the tone palette is healthy.
+
 Measured while doing the above, and **not** addressed:
 
 | dark theme | ΔEok |
@@ -115,9 +118,10 @@ theme was the one being measured.
 
 The fix is not in `--destructive`: it is that `.dark --primary` (`#eaa39b`) is a pink sitting on top
 of the danger hue. Re-picking it is another brand-colour decision — the third in this sequence — so it
-is recorded here rather than taken. Whoever picks it up should note that the dark primary has room to
-move that the light one did not: it scores 9.01:1 on the dark background, so it can afford to shift
-hue or lose chroma without approaching AA.
+is recorded here rather than taken. It scores 8.34:1 on card, so it has headroom the light one did
+not — but **not in the direction this section originally guessed**: the successor measured the hue
+circle and found rotation tops out at ΔEok 0.075 even at 60°, where it is no longer the brand colour.
+Lightness is the lever, not hue.
 
 A contrast guard cannot catch this class of problem at all — two colours can both pass AA against the
 background and still be indistinguishable from each other. If it is worth enforcing, the assertion is
