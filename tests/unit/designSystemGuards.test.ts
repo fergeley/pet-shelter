@@ -2,6 +2,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "fs";
 import { join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
+import { cssColorToHex, readCssTokens } from "../support/oklch";
+import {
+  DESIGN_TONES,
+  EMAIL_BRAND,
+  EMAIL_RECEIPT,
+  EMAIL_TONE,
+} from "@/lib/presentation/emailTokens";
 
 /**
  * Structural guards for the design system declared in `src/app/globals.css`.
@@ -60,9 +67,9 @@ const COLOUR_PREFIXES =
 /**
  * HTML email is built with literal hex on purpose: mail clients support neither
  * CSS custom properties nor Tailwind, so a token would arrive as an unstyled
- * colourless table. These two files are the only place that is true.
+ * colourless table. `emailTokens.ts` is the single hex mirror of globals.css tokens.
  */
-const HEX_ALLOWED = new Set(["src/lib/email.ts", "src/actions/settings.ts"]);
+const HEX_ALLOWED = new Set(["src/lib/presentation/emailTokens.ts"]);
 
 // ---------------------------------------------------------------------------
 // Source loading
@@ -318,6 +325,118 @@ describe("design system guards", () => {
         `${[...HEX_ALLOWED].join(" and ")}, which build HTML email — mail clients ` +
         "support neither custom properties nor Tailwind."
     ).toEqual([]);
+  });
+
+  /**
+   * The HTML-email hex mirror.
+   *
+   * `src/lib/email.ts` and `src/actions/settings.ts` cannot use a token: mail clients support
+   * neither custom properties nor `oklch()`. So parity cannot mean "reference the token" — it
+   * can only mean "a hex mirror of the token, provably equal to it". These are that proof.
+   *
+   * The converter is imported, not written here. An inline copy would be a second
+   * implementation of the same arithmetic, and — worse — the mirror's values were generated
+   * with it, so a converter that is wrong would be wrong in both places at once and agree
+   * with itself. `tests/unit/oklch.test.ts` pins the imported one against the sRGB primaries,
+   * which are external ground truth.
+   */
+  describe("the HTML-email hex mirror", () => {
+    const rootTokens = readCssTokens(rootBlock);
+
+    /**
+     * camelCase → the kebab-case tail of a token name.
+     *
+     * There is deliberately no `{ constant → token }` lookup table: a table would be the
+     * palette written a third time, which is the defect this whole mirror exists to remove.
+     * The key *is* the token name, and this is the rule that says so.
+     */
+    const kebab = (key: string) => key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+    /** Every mirrored value, paired with the `:root` token it claims to mirror. */
+    const MIRRORED: Array<{ path: string; token: string; hex: string }> = [
+      ...Object.entries(EMAIL_BRAND).map(([key, hex]) => ({
+        path: `EMAIL_BRAND.${key}`,
+        token: `--${kebab(key)}`,
+        hex,
+      })),
+      ...Object.entries(EMAIL_TONE).flatMap(([tone, slots]) =>
+        Object.entries(slots).map(([slot, hex]) => ({
+          path: `EMAIL_TONE.${tone}.${slot}`,
+          token: `--tone-${tone}-${kebab(slot)}`,
+          hex,
+        }))
+      ),
+      ...Object.entries(EMAIL_RECEIPT).map(([key, hex]) => ({
+        path: `EMAIL_RECEIPT.${key}`,
+        token: `--receipt-${kebab(key)}`,
+        hex,
+      })),
+    ];
+
+    it("finds the mirror and the tokens it is supposed to be comparing", () => {
+      // Guards the guard. An empty mirror, or a `:root` that stopped parsing, would make the
+      // assertion below iterate over nothing and pass while proving nothing at all.
+      expect(MIRRORED.length, "the mirror harvested almost nothing").toBeGreaterThanOrEqual(30);
+      expect(rootTokens.size, `${GLOBALS} :root parsed to almost no tokens`).toBeGreaterThan(60);
+    });
+
+    it("equals the computed value of every globals.css token it mirrors", () => {
+      // The assertion that makes the whole thing hold. Everything else in this describe block
+      // is about completeness; this is the one that says the colours are actually the same.
+      const offenders: string[] = [];
+
+      for (const { path, token, hex } of MIRRORED) {
+        const declaration = rootTokens.get(token);
+        if (declaration === undefined) {
+          // Never skipped. A token the mirror names but `:root` does not declare is a typo in
+          // the key, and silently passing over it is how a guard comes to enforce nothing.
+          offenders.push(`${path} mirrors ${token}, which :root does not declare`);
+          continue;
+        }
+        const expected = cssColorToHex(declaration);
+        if (hex.toLowerCase() !== expected) {
+          offenders.push(`${path} is ${hex}, but ${token} (${declaration}) computes to ${expected}`);
+        }
+      }
+
+      expect(
+        offenders,
+        "The email palette has drifted from the token layer. These two files are the only " +
+          "colour surface no theme can reach, so nothing else will report it: the shelter's " +
+          "app would go on being warm cream and terracotta while its email quietly went back " +
+          `to slate and sky. Recompute the value from ${GLOBALS} rather than editing it by eye.`
+      ).toEqual([]);
+    });
+
+    it("covers every tone the design system declares", () => {
+      // An eighth tone added to globals.css must not reach the inbox as the default sky
+      // badge. The mirror enumerating all seven is what makes that a build failure.
+      expect(
+        [...DESIGN_TONES],
+        "DESIGN_TONES in emailTokens.ts has fallen behind the tone taxonomy"
+      ).toEqual([...TONES]);
+
+      expect(
+        Object.keys(EMAIL_TONE).sort(),
+        "EMAIL_TONE is missing a tone, so a status mapped to it has no email colour"
+      ).toEqual([...TONES].sort());
+    });
+
+    it("mirrors the whole --receipt-* group", () => {
+      // The Sec 44(6) receipt is the most consequential thing this codebase sends, and the
+      // emailed and printed halves are supposed to be the same document. A --receipt-* token
+      // added for the printed one and not mirrored here is how they drift apart again.
+      const declared = [...rootTokens.keys()].filter((t) => t.startsWith("--receipt-")).sort();
+      const mirrored = Object.keys(EMAIL_RECEIPT)
+        .map((key) => `--receipt-${kebab(key)}`)
+        .sort();
+
+      expect(
+        mirrored,
+        "The emailed receipt mirrors the --receipt-* group as a whole, so that it and the " +
+          "printed receipt for the same donation stay the same document."
+      ).toEqual(declared);
+    });
   });
 
   // -------------------------------------------------------------------------

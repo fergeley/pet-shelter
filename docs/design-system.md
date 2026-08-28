@@ -76,8 +76,10 @@ Status → tone mapping lives in [`src/lib/presentation/`](../src/lib/presentati
 
 ### 1.3 The two deliberate exceptions
 
-- **HTML email** (`src/lib/email.ts`, `src/actions/settings.ts`) keeps literal hex. Mail clients
-  support neither custom properties nor Tailwind, so a token would arrive colourless.
+- **HTML email** (`src/lib/email.ts`, `src/actions/settings.ts`) uses the hex token mirror in
+  [`src/lib/presentation/emailTokens.ts`](../src/lib/presentation/emailTokens.ts). Mail clients
+  support neither custom properties nor Tailwind, so a token would arrive colourless; the mirror is
+  verified by `designSystemGuards.test.ts` to match computed `:root` tokens.
 - **The printed tax receipt** (`--receipt-*`) is fixed, and deliberately absent from `.dark`. A
   Sec 44(6) receipt is black ink on white paper in every theme and has to survive a monochrome
   printer.

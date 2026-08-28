@@ -5,6 +5,7 @@ import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/s
 import { getCurrentSession } from "@/lib/security/session";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import { EMAIL_BRAND, EMAIL_TONE } from "@/lib/presentation/emailTokens";
 import { Resend } from "resend";
 
 let serverSettings: ShelterSettingsInput = {
@@ -110,21 +111,21 @@ export async function sendTestEmailAction(input: {
       to: recipient,
       subject,
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-          <div style="background: #0f172a; color: #ffffff; padding: 20px; text-align: center;">
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid ${EMAIL_BRAND.border}; border-radius: 8px; overflow: hidden; background: ${EMAIL_BRAND.card};">
+          <div style="background: ${EMAIL_BRAND.primary}; color: ${EMAIL_BRAND.primaryForeground}; padding: 20px; text-align: center;">
             <h2 style="margin: 0; font-size: 18px;">🐾 Hope for Strays Animal Shelter</h2>
           </div>
-          <div style="padding: 24px; color: #1e293b;">
-            <span style="display:inline-block;background:#dcfce7;color:#15803d;padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;margin-bottom:12px;">Live Integration Verified</span>
+          <div style="padding: 24px; color: ${EMAIL_BRAND.foreground};">
+            <span style="display:inline-block;background:${EMAIL_TONE.success.surface};color:${EMAIL_TONE.success.text};padding:4px 10px;border-radius:4px;font-size:12px;font-weight:600;margin-bottom:12px;">Live Integration Verified</span>
             <h3 style="margin-top:0;">Test Email Delivery Successful!</h3>
             <p>${bodyContent}</p>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:6px;font-size:13px;margin:16px 0;">
+            <div style="background:${EMAIL_BRAND.muted};border:1px solid ${EMAIL_BRAND.border};padding:12px;border-radius:6px;font-size:13px;margin:16px 0;">
               <strong>Sender:</strong> ${fromEmail}<br/>
               <strong>Recipient:</strong> ${recipient}<br/>
               <strong>Dispatched by:</strong> ${session.email} (${session.role})<br/>
               <strong>Timestamp:</strong> ${new Date().toISOString()}
             </div>
-            <p style="font-size: 12px; color: #64748b;">If you received this message, your Resend API credentials and email dispatch pipeline are working 100% properly.</p>
+            <p style="font-size: 12px; color: ${EMAIL_BRAND.mutedForeground};">If you received this message, your Resend API credentials and email dispatch pipeline are working 100% properly.</p>
           </div>
         </div>
       `,
