@@ -91,18 +91,4 @@ export interface PetFilterState {
   isArchived?: boolean;
 }
 
-export interface AdoptionFormData {
-  petId: string;
-  petName: string;
-  applicantName: string;
-  applicantEmail: string;
-  applicantPhone: string;
-  applicantAddress: string;
-  housingType: 'own_house_yard' | 'rent_house_yard' | 'apartment' | 'condo' | 'other';
-  hasFencedYard: 'yes' | 'no' | 'not_applicable';
-  currentPets: 'none' | 'dogs' | 'cats' | 'both' | 'other';
-  currentPetDetails?: string;
-  householdExperience: 'first_time' | 'some_experience' | 'experienced';
-  applicantNotes?: string;
-  agreeToTerms: boolean;
-}
+

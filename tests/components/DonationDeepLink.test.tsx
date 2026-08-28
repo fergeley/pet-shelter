@@ -41,10 +41,7 @@ const selectedAmount = () => screen.getByText(/^RM \d+\.00/).textContent ?? "";
  * marks its chosen card with colour and a check icon alone.
  *
  * This is the widget's only *textual* rendering of the selection. The carousel
- * itself marks the chosen card with colour and a check icon and exposes no
- * `aria-pressed` or `aria-current`, so there is no accessible selected-state to
- * assert on — see the follow-on noted in
- * docs/tasks/TARGET_TEST_TIERS_3_4_5_EXECUTION.md.
+ * exposes `aria-pressed` on the chosen card button for assistive technology.
  */
 const dedicatedTo = () => {
   // A function matcher, because the headline is assembled from sibling
@@ -79,7 +76,10 @@ describe("DonationWidget deep linking", () => {
     it("dedicates nothing, leaving the general fund selected", () => {
       renderAt("");
 
-      expect(within(carousel()).getByRole("button", { name: /general sanctuary fund/i })).toBeInTheDocument();
+      expect(within(carousel()).getByRole("button", { name: /general sanctuary fund/i })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
     });
   });
 
@@ -88,6 +88,10 @@ describe("DonationWidget deep linking", () => {
       renderAt("sponsorPetId=pet-002&freq=monthly");
 
       expect(dedicatedTo()).toBe("Tiger");
+      expect(within(carousel()).getByRole("button", { name: /tiger/i })).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
     });
 
     it("ignores an id that matches no animal rather than crashing", () => {

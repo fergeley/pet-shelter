@@ -36,6 +36,22 @@ describe("PetChooserCarousel", () => {
   });
 
   describe("selection", () => {
+    it("exposes aria-pressed on the active general fund selection", () => {
+      renderCarousel("general");
+
+      expect(screen.getByRole("button", { name: /general sanctuary fund/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /bella/i })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: /tiger/i })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("exposes aria-pressed on the dedicated animal selection", () => {
+      renderCarousel("pet-001");
+
+      expect(screen.getByRole("button", { name: /bella/i })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: /general sanctuary fund/i })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: /tiger/i })).toHaveAttribute("aria-pressed", "false");
+    });
+
     it("hands the whole pet back when an animal is chosen", async () => {
       const { onSelectPet, user } = renderCarousel();
 

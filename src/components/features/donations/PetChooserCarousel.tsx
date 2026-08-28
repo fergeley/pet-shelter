@@ -102,6 +102,7 @@ export function PetChooserCarousel({
         <button
           type="button"
           onClick={() => onSelectPet(null)}
+          aria-pressed={isGeneralSelected}
           className={`shrink-0 w-52 sm:w-56 p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all snap-start cursor-pointer ${
             isGeneralSelected
               ? "border-primary bg-primary/10 ring-2 ring-primary shadow-xs"
@@ -151,6 +152,7 @@ export function PetChooserCarousel({
               data-pet-id={pet.id}
               type="button"
               onClick={() => onSelectPet(pet)}
+              aria-pressed={isSelected}
               className={`shrink-0 w-52 sm:w-56 p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all snap-start cursor-pointer ${
                 isSelected
                   ? "border-primary bg-primary/10 ring-2 ring-primary shadow-xs"
