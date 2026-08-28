@@ -152,6 +152,11 @@ exists. Add it with all three marked as production-required.
 
 ### 3.5 Recommended follow-on, flagged not done
 
+> **Raised 2026-08-28 as [`TARGET_LEGACY_ADMIN_TOKEN_REMOVAL.md`](TARGET_LEGACY_ADMIN_TOKEN_REMOVAL.md)**,
+> dispatchable as `/remove-legacy-admin-token`. That audit found the branch is reachable only by
+> hand: nothing in `src/` issues the cookie, so the "behavioural change" caveat below is weaker than
+> it reads. The open question it carries is what becomes of `ADMIN_SECRET_KEY`, not the deletion.
+
 The `admin_session` shared-secret branch in `verifyAdminSession()` is weak by construction: a static
 bearer token with no expiry, no subject, and no revocation, guarding `/api/upload`. Hardening the
 secret makes it *harder to guess*, not *sound*. Removing the branch entirely in favour of the signed
