@@ -5,9 +5,10 @@
 **Baseline**: 52 test files / 698 tests green · `npx tsc --noEmit` clean · `npm run lint` 0 errors
 **Predecessor**: `TARGET_DESTRUCTIVE_BRAND_SEPARATION.md` §5, which measured this and did not take it.
 
-> **Scope**: one token — `.dark --primary`. It is the last open item in the colour stream, it needs a
-> decision before any code changes, and the obvious fix (rotate the hue) **does not work**. The
-> numbers below say why, and what does.
+> **Scope**: one token — `.dark --primary`. It was the last open item in the colour stream, and the
+> obvious fix (rotate the hue) **does not work**. The numbers below say why, and what does.
+>
+> **✅ Done 2026-08-29 — see §8.** The stream is closed.
 
 ---
 
@@ -162,3 +163,49 @@ this one could commit it. That is not a problem to fix, but it changes how you w
 - **Re-measure before quoting any number in this document.** Every figure here was computed on the
   date in the header, against `globals.css` as it stood; the predecessor's headline numbers were
   already stale when its work began.
+
+---
+
+## 8. Outcome
+
+**Done.** `.dark --primary` `#eaa39b` → **`#d17469`**, `--primary-hover` `#f0b0a8` → `#dc7e73`.
+
+| dark theme | before | after |
+|---|---|---|
+| ΔEok `--primary` vs `--destructive` | 0.036 | **0.146** — now slightly better than light's 0.138 |
+| `text-primary` on `--card` | 8.34:1 | 5.21:1 ✅ |
+| `--primary-foreground` on `--primary` | 8.48:1 | 5.30:1 ✅ |
+
+`npm run test:all` 54 files / **713 tests** green · `tsc` clean · lint 0 errors. The contrast guard
+was verified to bite on an over-darkened value (L 58%, which drops `text-primary` to 3.84:1).
+
+### 8.1 Not the value §2 recommended, and why
+
+§2 proposed `#c17e76` — hold this theme's own hue and chroma, move only lightness. What shipped
+instead holds **`:root`'s** hue and chroma (27.9°, 0.118) and picks lightness for the dark ground:
+
+| | ΔE vs destructive | on card | ΔE vs light `--primary` |
+|---|---|---|---|
+| §2's `#c17e76` (dark's own H/C) | 0.148 | 5.32:1 | 0.097 |
+| shipped `#d17469` (light's H/C) | 0.147 | 5.21:1 | **0.090** |
+
+Numerically it is a wash. The reason to prefer it is that it states something true: **there is one
+brand colour, and a theme chooses its lightness, not its hue.** That is the rule the token layer is
+already built on — `TARGET_LIGHT_PRIMARY_CONTRAST.md` §1.2 leaned on it to argue the light theme's
+fix — and `.dark --primary` was the one token breaking it, sitting at its own hue with two thirds of
+the chroma. §2's value would have fixed the collision while preserving that drift.
+
+So the change is smaller than it looks: not "pick a new dark primary" but "stop the dark primary
+being a different colour".
+
+### 8.2 What was checked and deliberately left alone
+
+- **`--accent`** (`#d78d7c`) stays in the family: ΔEok 0.060 from the new primary, was 0.069.
+- **`--ring`** (`#f2bea7`) moves from 0.068 to 0.191 away — and that is an **improvement**. The focus
+  border on a primary button was previously near-invisible against its own fill; it now contrasts
+  with both the button and the background (11.21:1 on `--background`).
+- **The email mirror** was not touched, correctly: it mirrors `:root` only, by design
+  (`TARGET_EMAIL_COLOUR_PARITY.md` §3.2).
+- **The ΔE guard** of §5 was not built. The sweep in §1 said it would find nothing today beyond the
+  pair this target just fixed, and a blanket version would red `--ring` and `--accent` on day one.
+  Left as recorded insurance, not built speculatively.

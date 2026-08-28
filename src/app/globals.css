@@ -181,8 +181,19 @@
   --card-foreground: #f8efe9;
   --popover: #201a1b;
   --popover-foreground: #f8efe9;
-  --primary: #eaa39b;
-  --primary-hover: #f0b0a8;
+  /* The same brand colour as `:root`, re-lit for a dark ground: identical hue (27.9°) and
+     chroma (0.118), with only the lightness chosen for what it sits on. That is the rule the
+     token layer is built on, and this token was the one place breaking it — at #eaa39b it had
+     drifted to its own hue and two thirds of the chroma, which is to say a different, paler
+     colour that merely resembled the brand.
+     It also has to stay clear of `--destructive`: both were pale pinks ΔEok 0.036 apart, and a
+     destructive control read as a primary one. Rotating the hue could not fix that (0.075 even
+     at 60°, where it stops being the brand) because near L 80% pale colours converge —
+     lightness was the lever. This is 0.147 apart, and holds 5.21:1 as text on card.
+     See docs/tasks/TARGET_DARK_BRAND_SEPARATION.md. */
+  --primary: #d17469;
+  /* Hover moves *away* from the background, as in `:root` — there it darkens, here it lightens. */
+  --primary-hover: #dc7e73;
   --primary-foreground: #221718;
   --secondary: #382d2d;
   --secondary-hover: #433535;
