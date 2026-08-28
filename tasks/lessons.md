@@ -2,6 +2,33 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-28 — An import guard that reads specifiers does not care about `import type`
+
+`tests/unit/layerBoundaries.test.ts` builds its graph with a regex over import *specifiers*. It
+never parses the statement, so `import type { X } from "@/lib/server/y"` is an edge exactly like a
+value import — and the boundary fails on it. That is correct: the guard is about the layer you are
+coupled to, not the bytes that survive compilation. But it means the obvious way to keep two shapes
+in sync — `ReturnType<typeof getServerFaqCategories>` in the client component — is closed, and the
+error arrives at test time rather than from `tsc`.
+
+**Rule:** when a "use client" module needs the *shape* of something a server module returns, declare
+it structurally in `src/lib/presentation/` and let both sides satisfy it. Do not reach for
+`import type` as a loophole; there isn't one. And before claiming a guard covers a case, inject the
+violation and watch it go red — the type-only form was verified this way, not assumed.
+
+## 2026-08-28 — The trap a brief warns you about can be wrong in the brief
+
+`/fix-category-tabs` spent a numbered trap on the "all" tab: do not drop it, losing it is the
+quietest way to break this. The same paragraph then gave one literal tab for both components —
+`"All Topics"` / `"Semua Topik"` — and `RehabNeedsSection` actually said `"All Wishlist Items"` /
+`"Semua Barangan Keperluan"`. Following the warning literally would have committed the exact silent
+relabel it was written to prevent. The brief also framed the defect as dead tabs when the category
+sets were already right and 7 of 9 *labels* had drifted.
+
+**Rule:** a brief's warnings are claims about the tree, with the same status as its file paths — read
+the values out of the source before trusting either. Being told where the trap is does not mean the
+sentence naming it is accurate.
+
 ## 2026-08-28 — On this branch, a target doc goes stale in hours
 
 `TARGET_PERSISTENCE_TARGETING.md` P-2 asked which of two things Tier 3 should be. The concurrent
