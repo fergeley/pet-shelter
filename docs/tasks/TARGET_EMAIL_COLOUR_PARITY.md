@@ -186,10 +186,33 @@ the part that will silently come back if the fix is "update both files".
 
 ## 6. Out of scope
 
-- **Contrast assertions.** Still worth their own target, and cheaper after §3.1 lands: with a working
-  oklch → linear-sRGB step, WCAG relative luminance is a few more lines. Note the pre-existing
-  `badgeClass` comment claimed AAA for pairings closer to AA, so this should be measured before it is
-  promised anywhere.
+- **Contrast assertions.** Still worth their own target, and now cheaper still: the converter landed
+  in `tests/support/oklch.ts`, and WCAG relative luminance is a few lines on top of its linear-sRGB
+  step.
+
+  **Measured 2026-08-28**, off the rendered emails, so the numbers are no longer a guess:
+
+  | Pairing | Ratio | |
+  |---|---|---|
+  | body copy on the message card | 16.28:1 | AAA |
+  | all seven tone badges (`text` on `surface`) | 6.84 – 14.27:1 | AA / AAA |
+  | receipt ink, body, values on paper | 7.72 – 17.72:1 | AAA |
+  | receipt labels (`--receipt-ink-faint`) on paper | 4.83:1 | AA |
+  | receipt total (`--receipt-ink-accent`) on paper | 5.36:1 | AA |
+  | footer fine print on muted | 6.70:1 | AA |
+  | **`--primary-foreground` on `--primary`** | **3.00:1** | **below AA for body text** |
+
+  Everything clears AA except the last, and that one is **not an email defect** — it is the app's own
+  token pair. `button.tsx` renders `bg-primary text-primary-foreground` at `text-xs` (12px) semibold,
+  which is the same 3.00:1 below AA's 4.5:1. In the email it affects the `.btn-track` label (14px
+  bold); the header band is 20px bold and so clears AA's 3:1 large-text threshold.
+
+  Deliberately **not** "fixed" here: the email mirrors the token, and picking a different colour for
+  the button would break the parity this task exists to establish while leaving the app unchanged. The
+  fix belongs in `globals.css` — darken `--primary`, or give solid controls a darker foreground — and
+  it changes every button in the app, so it is a design decision (`docs/design-system.md` §9.4), not a
+  drive-by edit. This also retires the claim §8 of the design-system doc was hedging: the tone badges
+  are genuinely AA-or-better; the primary button is not.
 - **Dark-mode email.** §3.2.
 - **`.tone-chip` metrics.** Not mechanically detectable; belongs to the component / visual-regression
   tier.
