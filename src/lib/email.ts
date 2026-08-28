@@ -221,6 +221,19 @@ function wrapEmailHtml(content: string): string {
 }
 
 /**
+ * Escapes free text before it is interpolated into an HTML email body. Donor- and applicant-typed
+ * fields arrive here straight from a public form, so they cannot be trusted as markup.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
  * 1. Sends confirmation email to the public adopter upon submitting an adoption application.
  */
 export async function sendApplicationConfirmationEmail(
@@ -537,14 +550,49 @@ ${SHELTER_NAME}
   });
 }
 
+/** The payment rails a donation can arrive on, read off the receipt that renders them. */
+type PaymentMethod = DonationReceipt["paymentMethod"];
+
+/**
+ * Payment-rail labels for the statutory Sec 44(6) receipt.
+ *
+ * Exhaustive by construction. Keyed off `DonationReceipt["paymentMethod"]` — the exact union the
+ * templates below render — so a fourth rail added to that type fails the build here rather than
+ * silently receipting the donation as something it was not. A card donation was previously
+ * receipted as a bank transfer in the HTML half; see
+ * docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
+ *
+ * `online_banking` deliberately does not name a bank: the receipt carries no bank field, so the
+ * old "(Maybank)" in the plain-text half was an unverifiable claim on a tax document.
+ */
+const PAYMENT_RAIL_LABELS: Record<PaymentMethod, string> = {
+  duitnow_qr: "DuitNow QR (PayNet)",
+  online_banking: "Direct Bank Transfer",
+  card: "Credit / Debit Card",
+};
+
 /**
  * 5. Sends official Malaysian tax-deductible e-Receipt for rescue donations and pet sponsorships.
  */
 export async function sendDonationReceiptEmail(
   receipt: DonationReceipt
 ): Promise<EmailResult> {
-  const subject = `🐾 Official Donation Receipt: RM ${receipt.amountMYR} - ${receipt.receiptNumber} (${SHELTER_NAME})`;
-  const frequencyLabel = receipt.frequency === "monthly" ? "Monthly Recurring Partner" : "One-Time Contribution";
+  // Single source of truth for every value both halves of this receipt state. The plain-text and
+  // HTML bodies below read from here and never re-derive a value of their own — one field resolved
+  // twice, by hand, in two languages is exactly what let the two halves disagree about how the
+  // donor paid.
+  const fields = {
+    frequencyLabel:
+      receipt.frequency === "monthly" ? "Monthly Recurring Partner" : "One-Time Contribution",
+    amount: `RM ${receipt.amountMYR.toFixed(2)}`,
+    paymentRail: PAYMENT_RAIL_LABELS[receipt.paymentMethod],
+    donorPhone: receipt.donorPhone ?? "",
+    taxIdOrIc: receipt.taxIdOrIc ?? "",
+    targetPetName: receipt.targetPetName ?? "",
+    notes: receipt.notes ?? "",
+  };
+
+  const subject = `🐾 Official Donation Receipt: ${fields.amount} - ${receipt.receiptNumber} (${SHELTER_NAME})`;
 
   const plainText = `
 OFFICIAL DONATION RECEIPT & TAX DEDUCTION DOSSIER
@@ -557,17 +605,17 @@ LHDN Tax Exemption Reference: ${receipt.taxDeductibleRef}
 
 Receipt No: ${receipt.receiptNumber}
 Date Issued: ${receipt.date}
-Contribution Frequency: ${frequencyLabel}
+Contribution Frequency: ${fields.frequencyLabel}
 
 DONOR INFORMATION:
 - Issued To: ${receipt.donorName}
 - Email: ${receipt.donorEmail}
-${receipt.donorPhone ? `- Phone: ${receipt.donorPhone}\n` : ""}${receipt.taxIdOrIc ? `- NRIC / Passport / SSM: ${receipt.taxIdOrIc}\n` : ""}
+${fields.donorPhone ? `- Phone: ${fields.donorPhone}\n` : ""}${fields.taxIdOrIc ? `- NRIC / Passport / SSM: ${fields.taxIdOrIc}\n` : ""}
 SPONSORSHIP ALLOCATION:
 - Allocation: ${receipt.tierName}
-${receipt.targetPetName ? `- Dedicated Animal: ${receipt.targetPetName}\n` : ""}- Payment Rail: ${receipt.paymentMethod === "duitnow_qr" ? "DuitNow QR Instant Standard (PayNet)" : receipt.paymentMethod === "online_banking" ? "Direct Bank Transfer (Maybank)" : "Credit / Debit Card"}
-${receipt.notes ? `- Donor Message: "${receipt.notes}"\n` : ""}
-TOTAL CONTRIBUTION RECEIVED: RM ${receipt.amountMYR}.00
+${fields.targetPetName ? `- Dedicated Animal: ${fields.targetPetName}\n` : ""}- Payment Rail: ${fields.paymentRail}
+${fields.notes ? `- Donor Message: "${fields.notes}"\n` : ""}
+TOTAL CONTRIBUTION RECEIVED: ${fields.amount}
 
 * Under Subsection 44(6) of the Income Tax Act 1967 (Malaysia), donations to Pertubuhan Kebajikan Hope for Strays are eligible for income tax deductions.
 * This receipt is computer-generated and valid without signature.
@@ -585,7 +633,7 @@ Thank you for your life-saving generosity and support of our shelter animals!
     </div>
 
     <p>Dear <strong>${receipt.donorName}</strong>,</p>
-    <p>We gratefully acknowledge receipt of your gift of <strong style="font-size: 16px; color: #0f172a;">RM ${receipt.amountMYR}.00</strong> (${frequencyLabel}) to <strong>${SHELTER_NAME}</strong>.</p>
+    <p>We gratefully acknowledge receipt of your gift of <strong style="font-size: 16px; color: #0f172a;">${fields.amount}</strong> (${fields.frequencyLabel}) to <strong>${SHELTER_NAME}</strong>.</p>
 
     <div class="card" style="background:#f8fafc; border-left: 4px solid #16a34a; padding: 18px; margin: 20px 0;">
       <table style="width:100%; font-size: 13px; border-collapse: collapse;">
@@ -595,29 +643,34 @@ Thank you for your life-saving generosity and support of our shelter animals!
         </tr>
         <tr>
           <td style="padding: 4px 0; color: #64748b;"><strong>Email / Contact:</strong></td>
-          <td style="padding: 4px 0; color: #1e293b;">${receipt.donorEmail} ${receipt.donorPhone ? `(${receipt.donorPhone})` : ""}</td>
+          <td style="padding: 4px 0; color: #1e293b;">${receipt.donorEmail} ${fields.donorPhone ? `(${fields.donorPhone})` : ""}</td>
         </tr>
-        ${receipt.taxIdOrIc ? `
+        ${fields.taxIdOrIc ? `
         <tr>
           <td style="padding: 4px 0; color: #64748b;"><strong>Tax ID / NRIC / SSM:</strong></td>
-          <td style="padding: 4px 0; font-family: monospace; font-weight: 600; color: #1e293b;">${receipt.taxIdOrIc}</td>
+          <td style="padding: 4px 0; font-family: monospace; font-weight: 600; color: #1e293b;">${fields.taxIdOrIc}</td>
         </tr>` : ""}
         <tr>
           <td style="padding: 4px 0; color: #64748b;"><strong>Allocation Fund:</strong></td>
           <td style="padding: 4px 0; font-weight: 600; color: #1e293b;">${receipt.tierName}</td>
         </tr>
-        ${receipt.targetPetName ? `
+        ${fields.targetPetName ? `
         <tr>
           <td style="padding: 4px 0; color: #64748b;"><strong>Dedicated Pet:</strong></td>
-          <td style="padding: 4px 0; font-weight: 600; color: #0284c7;">🐾 ${receipt.targetPetName}</td>
+          <td style="padding: 4px 0; font-weight: 600; color: #0284c7;">🐾 ${fields.targetPetName}</td>
         </tr>` : ""}
         <tr>
           <td style="padding: 4px 0; color: #64748b;"><strong>Payment Rail:</strong></td>
-          <td style="padding: 4px 0; color: #1e293b;">${receipt.paymentMethod === "duitnow_qr" ? "DuitNow QR Instant Rail (PayNet)" : "Direct Bank Transfer"}</td>
+          <td style="padding: 4px 0; color: #1e293b;">${fields.paymentRail}</td>
         </tr>
+        ${fields.notes ? `
+        <tr>
+          <td style="padding: 4px 0; color: #64748b;"><strong>Donor Message:</strong></td>
+          <td style="padding: 4px 0; color: #1e293b; font-style: italic;">&quot;${escapeHtml(fields.notes)}&quot;</td>
+        </tr>` : ""}
         <tr style="border-top: 1px solid #e2e8f0;">
           <td style="padding: 10px 0 4px 0; font-size: 15px; font-weight: 700; color: #0f172a;"><strong>Total Received:</strong></td>
-          <td style="padding: 10px 0 4px 0; font-size: 18px; font-weight: 800; color: #16a34a;">RM ${receipt.amountMYR}.00</td>
+          <td style="padding: 10px 0 4px 0; font-size: 18px; font-weight: 800; color: #16a34a;">${fields.amount}</td>
         </tr>
       </table>
     </div>
@@ -649,4 +702,3 @@ Thank you for your life-saving generosity and support of our shelter animals!
     entityId: receipt.receiptNumber,
   });
 }
-
