@@ -131,3 +131,117 @@ The branch has concurrent writers and the shared git index is routinely non-empt
 - Check `git diff --cached --name-only` in its **own** tool call before composing a commit.
 - Commit with a pathspec: `git add -- <paths>` then `git commit -F <msg> -- <the same paths>`.
   See `TARGET_EMAIL_COLOUR_PARITY.md` §7 for why, and for the `GIT_INDEX_FILE` trap to avoid.
+
+---
+
+## 7. Landed
+
+`98e8a97` — *fix(email): state one payment rail in both halves of the tax receipt*. Two files:
+`src/lib/email.ts` and `tests/unit/email.test.ts`. Nothing else was touched.
+
+Both templates now read from one `fields` object built above them — the formatted amount, the
+frequency label, the payment rail, and the optional rows `donorPhone` / `taxIdOrIc` /
+`targetPetName` / `notes`. Neither half re-derives a value of its own.
+
+### 7.1 The settled labels
+
+| `paymentMethod` | Label, identical in both halves |
+|---|---|
+| `duitnow_qr` | DuitNow QR (PayNet) |
+| `online_banking` | Direct Bank Transfer |
+| `card` | Credit / Debit Card |
+
+- **DuitNow** — "DuitNow QR (PayNet)" is PayNet's actual product name. Both invented variants,
+  "Instant Standard" and "Instant Rail", are gone.
+- **`online_banking`** — the bank name is dropped. The receipt DTO carries no bank field, so the
+  old "(Maybank)" in the plain-text half was an unverifiable claim on a statutory document. That is
+  the same defect class as §1.1: a value stated on a tax receipt that nothing in the record backs.
+  It was found while settling §1.2 and fixed in the same commit.
+
+### 7.2 The mapping is keyed off the rendered type, not the enum
+
+§3 asked for `Record<PaymentMethod, string>`. The delivered `PaymentMethod` is
+`DonationReceipt["paymentMethod"]` (`src/types/sponsorship.ts:26`), **not**
+`z.infer<typeof paymentMethodEnum>`. That matters: the union is written out in five places in this
+repo — `src/types/sponsorship.ts`, `src/lib/server/donationLedger.ts`,
+`src/lib/client/sponsorshipStore.ts`, and `src/lib/validations/donation.ts` twice (the zod enum at
+line 12 and a hand-written copy at line 64). Keying the exhaustiveness guard off any copy other than
+the one the template actually renders yields a mapping that compiles while the rendered field
+drifts — the guard would be decorative.
+
+### 7.3 One user-visible side effect
+
+`RM ${receipt.amountMYR}.00` string concatenation was replaced with `toFixed(2)`. The old form
+rendered an RM 250.50 donation as **"RM 250.5.00"** — in both halves and in the subject line. This
+document did not record that defect; it was found while consolidating the amount into `fields`.
+
+The correction changes the subject line for whole amounts from `RM 250` to `RM 250.00`. That is the
+only user-visible change outside the payment-rail statement, and it is deliberate: one formatter for
+one value.
+
+### 7.4 Donor notes reach the HTML escaped
+
+`receipt.notes` now renders in the HTML half, through a new `escapeHtml()` helper placed beside
+`wrapEmailHtml()`. The field is up to 500 characters of free text arriving from a public form
+(`src/lib/validations/donation.ts:45`), so it cannot be trusted as markup. The plain-text half is
+left verbatim — it is not markup. This is the only field in the file that is escaped; see §8.5.
+
+### 7.5 Tests
+
+For all three rails, both halves are asserted to contain the expected label and **neither of the
+other two**. Mutation-tested: reintroducing the two-branch ternary fails exactly the `card` case and
+nothing else. Also covered: the donor message present and absent, escaping of donor-supplied markup,
+and a fractional amount rendering identically in both halves.
+
+§5 held — no palette hex value was touched by `98e8a97`.
+
+---
+
+## 8. Follow-up — the read-only audit of the other four builders
+
+§3's last item was carried out as an audit at `98e8a97`. Nothing was changed. It is recorded here as
+work, not as done.
+
+### 8.1 `sendStaffApplicationAlert` — the same defect shape 🔴
+
+The plain text renders `Notes: ${app.applicantNotes || "None"}` and
+`Pet: ${app.petName} (ID: ${app.petId})`. The HTML omitted **both**. A coordinator who reads the
+HTML half — which is the half most clients show — never sees what the applicant wrote about their
+household, and has no pet ID to reconcile the application against.
+
+This is §1.3 again, in the email that decides whether an application is followed up.
+
+> A separate stream picked this up while the audit was being written. If
+> `sendStaffApplicationAlert` already resolves a small `fields` object above both halves and escapes
+> it at the point of use, that fix has landed and this item is closed; check the builder before
+> starting.
+
+### 8.2 `sendInterviewInvitationEmail` — clean
+
+Resolves `meetingTypeLabel` once above both templates and reads it from there in each half. This is
+the pattern `sendDonationReceiptEmail` adopted in `98e8a97`, and it predates the fix — the receipt
+was the outlier, not the norm.
+
+### 8.3 `sendApplicationConfirmationEmail` — clean
+
+The submission summary is parallel and consistent between the two halves.
+
+### 8.4 `sendApplicationStatusUpdateEmail` — asymmetric by design, with a content gap
+
+The HTML carries status-specific prose per branch; the plain text is a single summary. That
+asymmetry is deliberate and the two halves do not contradict each other, so it is not the §1 defect.
+
+But a plain-text reader of a **REJECTED** decision receives `Status: REJECTED` and none of the
+explanation the HTML gives — no statement that the decision turned on the animal's temperament and
+needs, no encouragement to look at other rescues. A content gap on the least welcome email the
+shelter sends. Lower priority than §8.1, and a copy decision rather than a correctness one.
+
+### 8.5 Systemic — free text still enters HTML unescaped
+
+`escapeHtml()` exists now, but `receipt.notes` is the only caller. Every other free-text field is
+still interpolated raw into an HTML body: `applicantNotes`, `coordinatorNotes`, `currentPets`,
+`address`, `donorName`, `tierName`. All of them arrive from a public or admin form.
+
+The helper sits next to `wrapEmailHtml()` for whoever takes this on. It is one task across the file,
+not five separate ones, and it is not this one's — a correctness fix to a statutory document should
+not be held behind an escaping sweep, for the same reason §5 keeps the palette out.

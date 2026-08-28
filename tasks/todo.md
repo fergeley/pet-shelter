@@ -229,3 +229,106 @@ a network-reachable endpoint whether or not a UI calls it:
 Not demonstrated on the dev server: the "before" behaviour. Reproducing it would have meant
 reinstating the bypass in a working tree that a concurrent session commits with `git add -A`. The
 before/after control comes from the test run instead, which is where it belongs.
+
+---
+
+# The tax receipt stated two different payment rails
+
+Executing `docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md`. Branch `feat/tnrm-rehabilitation`.
+Landed `98e8a97`.
+
+Appended rather than prepended: two other streams own the sections above and one of them is still
+open.
+
+## Critique of the brief as given
+
+The brief was right about the defect and about its root cause. Four things in it needed correcting,
+and one of them would have shipped a guard that did not guard.
+
+- [x] **Keying the exhaustive mapping off the zod enum would have been decorative.** §3 asks for
+      `Record<PaymentMethod, string>` next to a §1 that introduces `paymentMethod` as
+      `z.enum([...])` from `src/lib/validations/donation.ts:12`. But the templates render a
+      `DonationReceipt`, and that union is spelled out **five** times in this repo:
+      `types/sponsorship.ts:26`, `lib/server/donationLedger.ts:56`,
+      `lib/client/sponsorshipStore.ts:56`, and `lib/validations/donation.ts` twice — the enum at
+      line 12 and a hand-written copy at line 64. A record keyed off the enum compiles green while
+      the rendered field drifts. `PaymentMethod` is therefore `DonationReceipt["paymentMethod"]`:
+      the exact union the code below it renders.
+- [x] **The brief missed a second wrong number on the same receipt.** `RM ${amountMYR}.00` was
+      string concatenation, so an RM 250.50 donation was receipted as **"RM 250.5.00"** — both
+      halves and the subject line. Not in §1, not in §3; found while consolidating the amount into
+      the shared object. Fixed with `toFixed(2)`.
+- [x] **"(Maybank)" was the same defect as the card bug, one line up.** §1 treats the
+      `online_banking` row as correct in the plain text and only wrong in the HTML. The receipt DTO
+      carries no bank field, so the plain-text half was naming a bank it could not know — an
+      unverifiable claim on a document filed with LHDN. The label is now "Direct Bank Transfer" with
+      no bank named.
+- [x] **§4's guard check runs the wrong way round.** It asks for proof that the build fails when a
+      value is *removed* from the enum. The failure that matters is a value being *added* — that is
+      the case that used to fall through to "Direct Bank Transfer" silently. Proved in that
+      direction: a fourth rail on the union produced `src/lib/email.ts(568,7): error TS2741`, then
+      reverted.
+
+Everything else in §1 checks out against `98e8a97^`, line references included: the plain-text
+ternary at 568, the donor message at 569, and the two-branch HTML ternary at 616.
+
+## Work
+
+- [x] `src/lib/email.ts` — one `fields` object above both templates carrying the formatted amount,
+      the frequency label, the payment rail and the four optional rows. Neither half re-derives a
+      value.
+- [x] `PAYMENT_RAIL_LABELS: Record<PaymentMethod, string>` replaces both ternaries. DuitNow settled
+      as "DuitNow QR (PayNet)" — PayNet's actual product name, with both invented variants gone —
+      and `online_banking` as "Direct Bank Transfer".
+- [x] `escapeHtml()` added beside `wrapEmailHtml()`; `receipt.notes` now renders in the HTML half,
+      escaped. It is up to 500 characters of free text off a public form.
+- [x] `tests/unit/email.test.ts` — for all three rails, both halves must contain the expected label
+      and neither of the other two, plus the donor message present/absent, escaping, and a
+      fractional amount.
+- [x] Palette hex values untouched, per §5.
+- [ ] The remaining four builders were audited read-only; nothing was fixed. Recorded as §8 of the
+      task doc, not as done here.
+
+## Review
+
+Verified green: `npx tsc --noEmit` 0 errors · `tests/unit/email.test.ts` 15/15.
+
+Verified by execution, not inspection:
+
+- **The exhaustiveness guard bites.** A fourth rail added to `DonationReceipt["paymentMethod"]`
+  produced `src/lib/email.ts(568,7): error TS2741` on the record literal, and was reverted. A
+  ternary would have compiled.
+- **The test detects the original defect and only that defect.** Reintroducing the two-branch
+  ternary fails exactly the `card` case — not the DuitNow case, not the bank-transfer case. The
+  assertion that earns its place is the negative one: each half must contain *neither of the other
+  two* labels.
+- **A human read all three.** One receipt per payment method rendered, plain text and HTML side by
+  side. All three agree, which is the check arithmetic cannot make — §4 asked for it precisely
+  because a wrong label is still a well-formed string.
+
+One user-visible side effect, recorded rather than buried: the subject line for whole amounts moves
+from `RM 250` to `RM 250.00`. That is `toFixed(2)` doing its job, and the alternative was keeping a
+formatter that renders RM 250.50 as "RM 250.5.00".
+
+## Follow-up left open
+
+The audit of the other four builders (§8 of the task doc) found one builder with the same defect
+shape and one systemic gap:
+
+- `sendStaffApplicationAlert` renders the applicant's notes and the pet ID in the plain text and
+  omitted both from the HTML. A separate stream is on it; if the builder already resolves a `fields`
+  object above both halves, that has landed.
+- `sendInterviewInvitationEmail` and `sendApplicationConfirmationEmail` are clean — the former
+  already used the resolve-once pattern the receipt has now adopted.
+- `sendApplicationStatusUpdateEmail` is asymmetric by design, but a plain-text reader of a REJECTED
+  decision gets `Status: REJECTED` and none of the explanation. A content gap, not a contradiction.
+- Every other free-text field (`applicantNotes`, `coordinatorNotes`, `currentPets`, `address`,
+  `donorName`, `tierName`) still enters HTML unescaped. `escapeHtml()` now exists for whoever takes
+  that on; it is one task across the file, and holding a statutory-document fix behind it would have
+  been the same mistake as mixing in the palette.
+
+## Landed
+
+`98e8a97` — 2 files. This entry and the task-doc close-out are documentation only; no code changed
+while writing them. `src/lib/email.ts` and `tests/unit/email.test.ts` were deliberately left out of
+the doc commit's pathspec — a concurrent stream is editing both.
