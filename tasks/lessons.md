@@ -2,6 +2,24 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-28 — Email clients cannot parse `oklch()` or `var()`, but the mirror must be mathematically provable
+
+HTML email cannot consume CSS custom properties or modern color spaces (`oklch()`). The design system must provide a `#rrggbb` hex mirror for email templates and server settings (`src/lib/presentation/emailTokens.ts`). However, hand-written tables rot into divergent palettes.
+
+**Rule:** compute the color conversion (OKLCH → OKLab → LMS → linear sRGB → gamma-corrected sRGB) inside static guard tests (`tests/unit/designSystemGuards.test.ts`) and assert that every token mirror entry matches `globals.css` `:root` computed hex values. Pin the mathematical converter against external ground truths (e.g. published sRGB primaries).
+
+## 2026-08-28 — Environment-keyed dev bypasses in security gatekeepers create silent production holes
+
+`getAdminActorOrThrow()` previously bypassed authentication when `NODE_ENV !== "production"`. Because Next.js Server Actions are public, network-reachable endpoints regardless of UI exposure, this allowed unauthenticated mutations on all dev, preview, staging, and CI deployments.
+
+**Rule:** security gatekeepers must be invariant across all environments. Tests requiring administrative privileges must authenticate explicitly (e.g. via `signInAsAdmin()` setting test session cookies) rather than having production bypass branches embedded in runtime security code.
+
+## 2026-08-28 — Accessible button states must match visual selection across dynamic routers
+
+Interactive carousels and filter toggles (such as `PetChooserCarousel`) that allow users to select items or general funds must programmatically expose their active state to screen readers via boolean `aria-pressed` or `aria-selected` attributes, especially when preselected via URL search parameters.
+
+**Rule:** visual active classes (`ring-2`, `bg-primary`, etc.) are invisible to assistive tech; component unit tests must assert `aria-pressed="true"` on the selected option and `aria-pressed="false"` on unselected options.
+
 ## 2026-08-28 — An import guard that reads specifiers does not care about `import type`
 
 `tests/unit/layerBoundaries.test.ts` builds its graph with a regex over import *specifiers*. It
