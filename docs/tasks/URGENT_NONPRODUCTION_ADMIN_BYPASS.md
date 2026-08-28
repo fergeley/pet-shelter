@@ -156,7 +156,7 @@ Report what you actually saw.
 - **Do not weaken `verifyAdminSession()`.** It was just changed in `1dfb8c9`. The sealed-session
   branch, the legacy-token branch, the timing-safe comparison and the fail-closed `catch` all stay.
 - **Do not touch `LEGACY_ADMIN_TOKEN_PRINCIPAL`.** It is a different concern — removing the legacy
-  shared-secret branch is [`TARGET_SECRET_HARDENING.md`](../archives/tasks/TARGET_SECRET_HARDENING.md)
+  shared-secret branch is [`TARGET_SECRET_HARDENING.md`](./TARGET_SECRET_HARDENING.md)
   §3.5.
 - **Do not make the 11 tests green by deleting them, loosening their assertions, or mocking
   `verifyAdminSession` to always pass.** Each of those moves the hole rather than closing it.

@@ -47,7 +47,7 @@ export type AdminPrincipal = SessionUser & { authMethod: AdminAuthMethod };
  * authorizes a mutation without naming a person.
  *
  * Removing this branch outright is tracked as
- * `docs/archives/tasks/TARGET_SECRET_HARDENING.md` §3.5.
+ * `docs/tasks/TARGET_SECRET_HARDENING.md` §3.5.
  */
 export const LEGACY_ADMIN_TOKEN_PRINCIPAL: AdminPrincipal = {
   id: "legacy-admin-token",
@@ -81,7 +81,7 @@ export async function verifyAdminSession(): Promise<AdminPrincipal | null> {
     // NOTE: this shared-secret branch is a static bearer token with no expiry,
     // subject, or revocation. Hardening the secret makes it harder to guess,
     // not sound; removing it in favour of the signed session is tracked as a
-    // follow-on (docs/archives/tasks/TARGET_SECRET_HARDENING.md §3.5).
+    // follow-on (docs/tasks/TARGET_SECRET_HARDENING.md §3.5).
     //
     // Reached only when the session branch did not authorize, so it can never
     // mask a real admin -- but it CAN be reached while a lower-privileged

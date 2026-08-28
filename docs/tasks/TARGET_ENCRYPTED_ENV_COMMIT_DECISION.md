@@ -63,7 +63,7 @@ holds only dead values:
 
 - `SESSION_SECRET` — forges any staff session cookie
 - `ADMIN_SECRET_KEY` — the legacy `admin_session` bearer token, no expiry, no revocation
-  (see `docs/archives/tasks/TARGET_SECRET_HARDENING.md` §3.5)
+  (see `docs/tasks/TARGET_SECRET_HARDENING.md` §3.5)
 - `STAFF_INVITE_SECRET` — the only gate on registering an account that can read applicant
   PII under PDPA 2010
 - `ADMIN_PASSWORD`
