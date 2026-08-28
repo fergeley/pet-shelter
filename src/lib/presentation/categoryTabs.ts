@@ -63,3 +63,40 @@ export function withAllTab(
     })),
   ];
 }
+
+/** Canonical bilingual labels for FAQ categories. */
+export const FAQ_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: string }> = {
+  tnrm: { labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
+  sponsorship: { labelEn: "Sponsorship & Donations", labelMs: "Penajaan & Sumbangan" },
+  adoption: { labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
+  visiting: { labelEn: "Visiting & Shelter Guidelines", labelMs: "Lawatan & Garis Panduan" },
+  get_involved: { labelEn: "Get Involved & CSR", labelMs: "Penglibatan & CSR" },
+  general: { labelEn: "General Inquiries", labelMs: "Pertanyaan Umum" },
+  medical: { labelEn: "Medical & Rehabilitation", labelMs: "Perubatan & Pemulihan" },
+};
+
+/** Canonical bilingual labels for Rehabilitation Need categories. */
+export const REHAB_CATEGORY_LABELS: Record<string, { labelEn: string; labelMs: string }> = {
+  URGENT: { labelEn: "Urgent Needs", labelMs: "Keperluan Mendesak" },
+  REGULAR: { labelEn: "Regular Needs", labelMs: "Keperluan Rutin" },
+  LONG_TERM: { labelEn: "Long-term Improvements", labelMs: "Penambahbaikan Jangka Panjang" },
+  TNRM_EQUIPMENT: { labelEn: "TNRM Equipment", labelMs: "Peralatan TNRM" },
+  MEDICAL: { labelEn: "Medical Supplies", labelMs: "Bekalan Perubatan" },
+  FACILITY: { labelEn: "Facility Maintenance", labelMs: "Penyelenggaraan Kemudahan" },
+  NUTRITION: { labelEn: "Nutrition & Feed", labelMs: "Pemakanan & Makanan Haiwan" },
+};
+
+/** Resolves localized category label for an FAQ item. */
+export function getFaqCategoryLabel(category: string, isMs = false): string {
+  const entry = FAQ_CATEGORY_LABELS[category];
+  if (!entry) return category;
+  return isMs ? entry.labelMs : entry.labelEn;
+}
+
+/** Resolves localized category label for a Rehabilitation Need item. */
+export function getRehabNeedCategoryLabel(category: string, isMs = false): string {
+  const entry = REHAB_CATEGORY_LABELS[category];
+  if (!entry) return category;
+  return isMs ? entry.labelMs : entry.labelEn;
+}
+

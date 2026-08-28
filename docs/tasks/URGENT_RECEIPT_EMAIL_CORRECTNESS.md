@@ -4,6 +4,7 @@
 **Branch**: `feat/tnrm-rehabilitation`
 **Found at**: `285295e`, while auditing `src/lib/email.ts` for `TARGET_EMAIL_COLOUR_PARITY.md`
 **File**: `src/lib/email.ts`, `sendDonationReceiptEmail()` (from line 543)
+**Status**: fixed in `98e8a97` — see §7. §3's last item was audited only, not fixed; findings in §8.
 
 > This is not the colour work. `TARGET_EMAIL_COLOUR_PARITY.md` is a brand-consistency task and can
 > wait. **This is a factual error on a statutory document and should not.** The two are separated on
@@ -79,29 +80,40 @@ files that guard exempts.
 
 ## 3. Do this
 
-- [ ] **Extract the field values once**, above both templates: a small object holding the resolved
+- [x] **Extract the field values once**, above both templates: a small object holding the resolved
       payment-rail label, the formatted amount, and the optional rows (`taxIdOrIc`, `targetPetName`,
       `notes`). Both representations read from it. This is the fix — the two edits below are what it
       makes impossible to get wrong again.
-- [ ] **Give `paymentMethod` one exhaustive mapping.** A `Record<PaymentMethod, string>` rather than
+      *Delivered as `fields`, and it also carries `frequencyLabel` and `donorPhone`, which were
+      resolved twice by hand as well.*
+- [x] **Give `paymentMethod` one exhaustive mapping.** A `Record<PaymentMethod, string>` rather than
       a ternary chain, so a fourth rail added to the enum is a type error here instead of silently
       becoming "Direct Bank Transfer".
-- [ ] Settle the DuitNow product name (§1.2) and use the settled value in both halves.
-- [ ] Render `receipt.notes` in the HTML, matching the plain text.
-- [ ] **Test it.** For each of the three `paymentMethod` values, assert the rendered text and HTML
+      *Keyed off `DonationReceipt["paymentMethod"]`, not the zod enum — see §7.*
+- [x] Settle the DuitNow product name (§1.2) and use the settled value in both halves.
+- [x] Render `receipt.notes` in the HTML, matching the plain text. *Escaped; see §7.*
+- [x] **Test it.** For each of the three `paymentMethod` values, assert the rendered text and HTML
       each contain the expected label and do not contain either of the other two. That single test
       is what turns this from "fixed" into "cannot recur". `tests/unit/email.test.ts` already exists.
 - [ ] Re-read the remaining four builders in `email.ts` for the same text/HTML divergence — the root
       cause is structural, so assume the other templates have it until checked.
+      **Audited at `98e8a97`, not fixed** — one builder has the same defect and one field class is
+      unsafe across the whole file. Findings and remaining work in §8. This box stays open until
+      that work lands.
 
 ## 4. Verification
 
-- [ ] `npm test` green, with the new payment-rail cases.
-- [ ] `npx tsc --noEmit` clean.
-- [ ] Render one receipt per payment method and read both halves side by side. Arithmetic will not
+- [x] `npm test` green, with the new payment-rail cases. *`tests/unit/email.test.ts` 15/15.*
+- [x] `npx tsc --noEmit` clean.
+- [x] Render one receipt per payment method and read both halves side by side. Arithmetic will not
       catch a wrong *label*; a human reading it will.
-- [ ] Confirm the exhaustive mapping actually fails the build when a value is removed from the enum —
+      *Done — one receipt per method, both halves read side by side. All three agree.*
+- [x] Confirm the exhaustive mapping actually fails the build when a value is removed from the enum —
       the house pattern: prove the guard bites before trusting it.
+      *Exercised in the opposite direction: a fourth rail was added to the union, which produced
+      `src/lib/email.ts(568,7): error TS2741` on the record literal, and was then reverted. Adding
+      is the direction that matters here — it is the case that used to fall through to "Direct Bank
+      Transfer" silently.*
 
 ## 5. Explicitly not in this task
 

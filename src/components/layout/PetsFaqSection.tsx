@@ -10,6 +10,7 @@ import {
   CategoryTab,
   DerivedCategory,
   withAllTab,
+  getFaqCategoryLabel,
 } from "@/lib/presentation/categoryTabs";
 
 /**
@@ -126,7 +127,7 @@ export function PetsFaqSection({
                   >
                     <div className="space-y-1">
                       <span className="text-3xs font-bold uppercase tracking-wider text-primary block">
-                        {isMs ? faq.categoryLabelMs : faq.categoryLabel}
+                        {getFaqCategoryLabel(faq.category, isMs)}
                       </span>
                       <h3 className="font-heading text-base sm:text-lg font-bold text-foreground leading-snug">
                         {isMs ? faq.questionMs : faq.question}

@@ -64,15 +64,19 @@ export function findServerRehabNeedById(id: string): RehabNeed | null {
   return serverRehabNeeds.find((n) => n.id.toLowerCase() === norm) || null;
 }
 
+const REHAB_NEED_CATEGORY_DEFINITIONS: Record<RehabNeedCategory, { labelEn: string; labelMs: string }> = {
+  URGENT: { labelEn: "Urgent Needs", labelMs: "Keperluan Mendesak" },
+  REGULAR: { labelEn: "Regular Needs", labelMs: "Keperluan Rutin" },
+  LONG_TERM: { labelEn: "Long-term Improvements", labelMs: "Penambahbaikan Jangka Panjang" },
+  TNRM_EQUIPMENT: { labelEn: "TNRM Equipment", labelMs: "Peralatan TNRM" },
+  MEDICAL: { labelEn: "Medical Supplies", labelMs: "Bekalan Perubatan" },
+  FACILITY: { labelEn: "Facility Maintenance", labelMs: "Penyelenggaraan Kemudahan" },
+  NUTRITION: { labelEn: "Nutrition & Feed", labelMs: "Pemakanan & Makanan Haiwan" },
+};
+
 /**
  * Distinct rehabilitation-need categories present in the dataset, in
- * first-appearance order, carrying both label languages through from the
- * fixture.
- *
- * A category *filter* needs the populated categories, not the full
- * `REHAB_NEED_CATEGORIES` enum in `@/lib/validations/rehab` — a tab that
- * matches nothing is a dead control. `RehabNeedsSection` hardcodes an
- * equivalent list today; this is the server-side source it should read instead.
+ * first-appearance order, carrying both label languages derived from canonical category definitions.
  */
 export function getServerRehabCategories(): {
   category: RehabNeedCategory;
@@ -85,11 +89,14 @@ export function getServerRehabCategories(): {
   for (const item of serverRehabNeeds) {
     if (seen.has(item.category)) continue;
     seen.add(item.category);
-    categories.push({
-      category: item.category,
-      labelEn: item.categoryLabel,
-      labelMs: item.categoryLabelMs,
-    });
+    const def = REHAB_NEED_CATEGORY_DEFINITIONS[item.category];
+    if (def) {
+      categories.push({
+        category: item.category,
+        labelEn: def.labelEn,
+        labelMs: def.labelMs,
+      });
+    }
   }
 
   return categories;

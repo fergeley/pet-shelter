@@ -12,8 +12,6 @@ export type RehabUrgencyLevel = "Critical" | "High" | "Normal" | "Low";
 export interface RehabNeed {
   id: string;
   category: RehabNeedCategory;
-  categoryLabel: string;
-  categoryLabelMs: string;
   name: string;
   nameMs: string;
   description: string;

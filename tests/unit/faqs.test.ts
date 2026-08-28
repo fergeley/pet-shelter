@@ -76,8 +76,6 @@ describe("FAQ Data Layer & Server Actions", () => {
         expect(faq.questionMs.trim().length).toBeGreaterThan(0);
         expect(faq.answer.trim().length).toBeGreaterThan(0);
         expect(faq.answerMs.trim().length).toBeGreaterThan(0);
-        expect(faq.categoryLabel.trim().length).toBeGreaterThan(0);
-        expect(faq.categoryLabelMs.trim().length).toBeGreaterThan(0);
       }
     });
   });

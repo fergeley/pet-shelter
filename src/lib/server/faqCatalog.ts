@@ -60,14 +60,19 @@ export function findServerFaqById(id: string): FaqItem | null {
   return serverFaqs.find((f) => f.id.toLowerCase() === norm) || null;
 }
 
+const FAQ_CATEGORY_DEFINITIONS: Record<FaqCategory, { labelEn: string; labelMs: string }> = {
+  tnrm: { labelEn: "TNRM & Coexistence", labelMs: "TNRM & Kewujudan Bersama" },
+  sponsorship: { labelEn: "Sponsorship & Donations", labelMs: "Penajaan & Sumbangan" },
+  adoption: { labelEn: "Adoption & Fostering", labelMs: "Adopsi & Asuhan" },
+  visiting: { labelEn: "Visiting & Shelter Guidelines", labelMs: "Lawatan & Garis Panduan" },
+  get_involved: { labelEn: "Get Involved & CSR", labelMs: "Penglibatan & CSR" },
+  general: { labelEn: "General Inquiries", labelMs: "Pertanyaan Umum" },
+  medical: { labelEn: "Medical & Rehabilitation", labelMs: "Perubatan & Pemulihan" },
+};
+
 /**
  * Distinct FAQ categories present in the dataset, in first-appearance order,
- * carrying both label languages through from the fixture.
- *
- * A category *filter* needs the populated categories, not the full
- * `FAQ_CATEGORIES` enum in `@/lib/validations/faq` — a tab that matches nothing
- * is a dead control. `PetsFaqSection` hardcodes an equivalent list today; this
- * is the server-side source it should read instead.
+ * carrying both label languages derived from canonical category definitions.
  */
 export function getServerFaqCategories(): {
   category: FaqCategory;
@@ -80,11 +85,14 @@ export function getServerFaqCategories(): {
   for (const item of serverFaqs) {
     if (seen.has(item.category)) continue;
     seen.add(item.category);
-    categories.push({
-      category: item.category,
-      labelEn: item.categoryLabel,
-      labelMs: item.categoryLabelMs,
-    });
+    const def = FAQ_CATEGORY_DEFINITIONS[item.category];
+    if (def) {
+      categories.push({
+        category: item.category,
+        labelEn: def.labelEn,
+        labelMs: def.labelMs,
+      });
+    }
   }
 
   return categories;

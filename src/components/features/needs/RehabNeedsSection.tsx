@@ -24,6 +24,7 @@ import {
   CategoryTab,
   DerivedCategory,
   withAllTab,
+  getRehabNeedCategoryLabel,
 } from "@/lib/presentation/categoryTabs";
 
 /**
@@ -174,7 +175,7 @@ export function RehabNeedsSection({
               <div className="space-y-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="eyebrow bg-muted px-2.5 py-1 rounded-md">
-                    {isMs ? item.categoryLabelMs : item.categoryLabel}
+                    {getRehabNeedCategoryLabel(item.category, isMs)}
                   </span>
                   {getUrgencyBadge(item.urgencyLevel)}
                 </div>

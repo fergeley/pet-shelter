@@ -2,8 +2,6 @@
   {
     "id": "need-001",
     "category": "URGENT",
-    "categoryLabel": "Urgent Needs",
-    "categoryLabelMs": "Keperluan Mendesak",
     "name": "Veterinary Recovery Wet Food (Royal Canin Recovery / Hill's a/d)",
     "nameMs": "Makanan Basah Pemulihan Klinikal (Royal Canin Recovery / Hill's a/d)",
     "description": "Critical for postoperative dogs and cats unable to chew solid kibble during immediate trauma recovery.",
@@ -17,8 +15,6 @@
   {
     "id": "need-002",
     "category": "URGENT",
-    "categoryLabel": "Urgent Needs",
-    "categoryLabelMs": "Keperluan Mendesak",
     "name": "Antiseptic Hospital-Grade Disinfectant (F10 SC / Chlorhexidine 4%)",
     "nameMs": "Disinfektan Gred Hospital Veterinar (F10 SC / Klorheksidina 4%)",
     "description": "Veterinary disinfectant effective against Parvovirus, ringworm, bacterial infections, and wound washing.",
@@ -31,8 +27,6 @@
   {
     "id": "need-003",
     "category": "URGENT",
-    "categoryLabel": "Urgent Needs",
-    "categoryLabelMs": "Keperluan Mendesak",
     "name": "Sterile Gauze Rolls, Cohesive Bandages (VetWrap) & Saline 0.9%",
     "nameMs": "Kasa Steril, Pembalut VetWrap & Larutan Garam Salina 0.9%",
     "description": "Daily wound dressing changes for road-accident strays with fractures, lacerations, and abrasions.",
@@ -45,8 +39,6 @@
   {
     "id": "need-004",
     "category": "REGULAR",
-    "categoryLabel": "Regular Needs",
-    "categoryLabelMs": "Keperluan Rutin",
     "name": "High-Protein Puppy & Adult Dog Kibble (20kg Unopened Bags)",
     "nameMs": "Kibble Protein Tinggi Anak & Dewasa Anjing (Beg 20kg Belum Dibuka)",
     "description": "Daily staple nutrition for 40+ recovering dogs residing at our Rehabilitation House in Petaling Jaya.",
@@ -59,8 +51,6 @@
   {
     "id": "need-005",
     "category": "REGULAR",
-    "categoryLabel": "Regular Needs",
-    "categoryLabelMs": "Keperluan Rutin",
     "name": "Heavy-Duty Absorbent Disposable Pee Pads (60cm x 90cm)",
     "nameMs": "Pelapik Kencing Serap Cecair Pakai Buang (60cm x 90cm)",
     "description": "Essential for indoor recovery crates, paralyzed rescues, and post-surgery quarantine hygiene.",
@@ -73,8 +63,6 @@
   {
     "id": "need-006",
     "category": "REGULAR",
-    "categoryLabel": "Regular Needs",
-    "categoryLabelMs": "Keperluan Rutin",
     "name": "Clean Fleece Blankets, Bath Towels & Stainless Steel Food Bowls",
     "nameMs": "Selimut 'Fleece' Bersih, Tuala Mandi & Mangkuk Makanan Tahan Karat",
     "description": "Soft bedding for post-surgical warmth and non-porous hygiene bowls that prevent bacterial buildup.",
@@ -87,8 +75,6 @@
   {
     "id": "need-007",
     "category": "LONG_TERM",
-    "categoryLabel": "Long-term Improvements",
-    "categoryLabelMs": "Penambahbaikan Jangka Panjang",
     "name": "Modular Stainless Steel Quarantine Kennels (Grade 304)",
     "nameMs": "Sangkar Kuarantin Modular Keluli Tahan Karat (Gred 304)",
     "description": "Rust-proof, medical-grade recovery cages with removable waste trays for infected and infectious rescue triage.",
@@ -101,8 +87,6 @@
   {
     "id": "need-008",
     "category": "LONG_TERM",
-    "categoryLabel": "Long-term Improvements",
-    "categoryLabelMs": "Penambahbaikan Jangka Panjang",
     "name": "High-Capacity Commercial Washer & Dryer for Bedding Sanitization",
     "nameMs": "Mesin Basuh & Pengering Komersial Kapasiti Tinggi untuk Sanitasi",
     "description": "Daily washing of 80+ soiled blankets and towels with hot water sanitize cycles to eliminate ringworm & parvovirus.",
@@ -115,8 +99,6 @@
   {
     "id": "need-009",
     "category": "TNRM_EQUIPMENT",
-    "categoryLabel": "TNRM Equipment",
-    "categoryLabelMs": "Peralatan TNRM",
     "name": "Humane Wire Drop Traps & Tru-Catch Style Trapping Cages",
     "nameMs": "Perangkap 'Drop Trap' Berperikemanusiaan & Sangkar Perangkap Wayar",
     "description": "Spring-loaded and gravity-release humane traps designed specifically for timid or trap-shy feral dogs and cats.",
@@ -129,8 +111,6 @@
   {
     "id": "need-010",
     "category": "TNRM_EQUIPMENT",
-    "categoryLabel": "TNRM Equipment",
-    "categoryLabelMs": "Peralatan TNRM",
     "name": "Transfer Cages with Sliding Guillotine Dividers",
     "nameMs": "Sangkar Transit dengan Pemisah Gelongsor 'Guillotine'",
     "description": "Enables safe, stress-free transfer of unneutered strays from field traps into veterinary clinic transport crates.",
@@ -143,8 +123,6 @@
   {
     "id": "need-011",
     "category": "TNRM_EQUIPMENT",
-    "categoryLabel": "TNRM Equipment",
-    "categoryLabelMs": "Peralatan TNRM",
     "name": "Kevlar-Reinforced Bite-Proof Handling Gloves & Trap Canvas Covers",
     "nameMs": "Sarung Tangan Kalis Gigitan Bertetulang Kevlar & Kain Penutup Sangkar",
     "description": "Essential volunteer field safety equipment and opaque breathable canvas covers that instantly calm stressed animals.",

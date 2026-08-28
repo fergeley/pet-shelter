@@ -2,8 +2,6 @@
   {
     "id": "faq-001",
     "category": "tnrm",
-    "categoryLabel": "TNRM & Coexistence",
-    "categoryLabelMs": "TNRM & Kewujudan Bersama",
     "question": "What is TNRM and why doesn't Hope For Strays UM just relocate or remove strays from campus?",
     "questionMs": "Apakah itu TNRM dan mengapa Hope For Strays UM tidak memindahkan sahaja haiwan terbiar keluar dari kampus?",
     "answer": "TNRM stands for Trap-Neuter-Return-Manage. Scientific evidence worldwide shows that simply catching and relocating strays creates a 'Vacuum Effect' — when animals are removed from an area with food and shelter, unsterilized strays from surrounding neighborhoods quickly migrate in and breed at higher rates. Through TNRM, we sterilize and vaccinate the resident population, notch their ears for identification, and manage their feeding stations. Over time, the population naturally stabilizes and declines without aggression or continuous influx.",
@@ -12,8 +10,6 @@
   {
     "id": "faq-002",
     "category": "tnrm",
-    "categoryLabel": "TNRM & Coexistence",
-    "categoryLabelMs": "TNRM & Kewujudan Bersama",
     "question": "Why is an animal's left ear notched or tipped? Is it painful?",
     "questionMs": "Mengapakah telinga kiri haiwan jalanan ditakuk/dipotong sedikit? Adakah ia menyakitkan?",
     "answer": "Ear-notching (a clean 0.5cm straight clip on the left ear tip) is the universal, internationally recognized mark of a neutered community animal. It is performed by a licensed veterinary surgeon while the animal is under deep general anesthesia during spay/neuter surgery, so the animal feels no pain. It heals quickly and allows rescue teams, campus security, and council officers to identify sterile animals from a safe distance, preventing traumatic re-trapping or redundant surgery.",
@@ -22,8 +18,6 @@
   {
     "id": "faq-003",
     "category": "tnrm",
-    "categoryLabel": "TNRM & Coexistence",
-    "categoryLabelMs": "TNRM & Kewujudan Bersama",
     "question": "How do I report an injured, sick, or unneutered stray animal on UM campus or nearby in Selangor?",
     "questionMs": "Bagaimanakah cara melaporkan haiwan jalanan yang cedera, sakit, atau belum dimandulkan di kampus UM atau Selangor?",
     "answer": "If you spot a stray in urgent distress on Universiti Malaya campus or Petaling Jaya: (1) Take a clear photo or video showing the animal and its exact surroundings/landmark, (2) Note whether the left ear has a notch, (3) Do not chase or corner the animal, and (4) Send the photo, exact Google Maps live location, and a brief description to our Volunteer TNRM Hotline via WhatsApp (+6012-345 6789). Our field rescue volunteers prioritize emergencies based on medical urgency.",
@@ -32,8 +26,6 @@
   {
     "id": "faq-004",
     "category": "sponsorship",
-    "categoryLabel": "Sponsorship & Donations",
-    "categoryLabelMs": "Penajaan & Sumbangan",
     "question": "How does personal animal sponsorship work (e.g. RM30/month), and what perks do I receive?",
     "questionMs": "Bagaimanakah sistem penajaan haiwan secara peribadi (cth. RM30/bulan) berfungsi, dan apakah faedah yang saya terima?",
     "answer": "Under our personalized sponsorship program (inspired by international wildlife adoptee models), you can choose a specific rescue dog or cat (e.g. Kopi, Milo, Bella) to support. Under the RM30/month 'Rescue Companion' tier, your donation directly funds their daily nutrition, clinical wound dressing, and shelter boarding. In return, you receive: (1) A personalized digital Certificate of Sponsorship, (2) Monthly photo and video progress updates dispatched via WhatsApp or Email, and (3) An invitation to schedule occasional supervised visits to spend time with your sponsored animal at our Petaling Jaya sanctuary, subject to availability and shelter safety guidelines.",
@@ -42,8 +34,6 @@
   {
     "id": "faq-005",
     "category": "sponsorship",
-    "categoryLabel": "Sponsorship & Donations",
-    "categoryLabelMs": "Penajaan & Sumbangan",
     "question": "Is my donation tax-deductible in Malaysia, and how do I receive an official e-Receipt?",
     "questionMs": "Adakah sumbangan saya layak mendapat pelepasan cukai di Malaysia, dan bagaimana saya menerima e-Resit rasmi?",
     "answer": "Yes! Hope For Strays (Persatuan Harapan Haiwan Terbiar) is a registered welfare society approved under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: LHDN.01/35/42/51/179-6.4912). When you make a donation or sponsorship pledge through our website with your Full Name and Malaysian IC / Passport / SSM Company Number, an official computerized tax-exempt e-Receipt with full LHDN reference numbers is generated instantly and sent to your email.",
@@ -52,8 +42,6 @@
   {
     "id": "faq-006",
     "category": "adoption",
-    "categoryLabel": "Adoption & Fostering",
-    "categoryLabelMs": "Adopsi & Asuhan",
     "question": "Can I adopt an animal that is currently listed as 'In Rehabilitation'?",
     "questionMs": "Bolehkah saya mengangkat anak haiwan yang berstatus 'In Rehabilitation' (Dalam Pemulihan)?",
     "answer": "Yes, through our 'Foster-to-Adopt' pre-adoption matching track! If you feel a deep connection with an animal undergoing recovery, you can submit an application. Our veterinary and behavioral team will review your household setup. If approved, you can visit the animal during their recovery phase, bond with them, and transition them into your home once their veterinarian grants final discharge clearance.",
@@ -62,8 +50,6 @@
   {
     "id": "faq-007",
     "category": "visiting",
-    "categoryLabel": "Visiting & Shelter Guidelines",
-    "categoryLabelMs": "Lawatan & Garis Panduan",
     "question": "Can the public or university students visit the Rehabilitation House to meet the animals?",
     "questionMs": "Bolehkah orang awam atau pelajar universiti melawat Rumah Pemulihan untuk bertemu haiwan?",
     "answer": "Yes! Our sanctuary and rehabilitation house in Petaling Jaya is open to the public Tuesday through Sunday, 10:00 AM to 5:00 PM (Closed on Mondays for deep sanitization and veterinary rounds). Walk-in visitors can meet our adoptable and recovering animals in our outdoor yard. For sponsored animal bonding sessions or group student visits, we recommend booking a slot 48 hours in advance via WhatsApp so our volunteer coordinators can dedicate time for you.",
@@ -72,8 +58,6 @@
   {
     "id": "faq-008",
     "category": "get_involved",
-    "categoryLabel": "Get Involved & CSR",
-    "categoryLabelMs": "Penglibatan & CSR",
     "question": "How can corporate organizations or university clubs collaborate with Hope For Strays UM for CSR?",
     "questionMs": "Bagaimanakah organisasi korporat atau kelab universiti boleh bekerjasama dengan Hope For Strays UM untuk program CSR?",
     "answer": "We actively host structured Corporate Social Responsibility (CSR) and University Club volunteering days! Programs include: (1) Hands-on shelter workdays (dog walking, kennel sanitization, fence painting), (2) TNRM awareness and education campus booth collaborations, (3) Corporate donation matching drives, and (4) In-kind sponsorship of Rehabilitation House equipment. Contact our Partnership Coordinator via WhatsApp or email info@hopeforstrays.org to receive our CSR collaboration dossier.",

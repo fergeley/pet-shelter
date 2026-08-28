@@ -10,8 +10,6 @@ export type FaqCategory =
 export interface FaqItem {
   id: string;
   category: FaqCategory;
-  categoryLabel: string;
-  categoryLabelMs: string;
   question: string;
   questionMs: string;
   answer: string;

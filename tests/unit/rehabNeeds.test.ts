@@ -85,8 +85,6 @@ describe("Rehabilitation Needs Data Layer & Server Actions", () => {
         expect(need.nameMs.trim().length).toBeGreaterThan(0);
         expect(need.description.trim().length).toBeGreaterThan(0);
         expect(need.descriptionMs.trim().length).toBeGreaterThan(0);
-        expect(need.categoryLabel.trim().length).toBeGreaterThan(0);
-        expect(need.categoryLabelMs.trim().length).toBeGreaterThan(0);
         expect(need.quantityNeeded.trim().length).toBeGreaterThan(0);
       }
     });

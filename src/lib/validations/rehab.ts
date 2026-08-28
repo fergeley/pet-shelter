@@ -19,8 +19,6 @@ export const rehabUrgencyLevelSchema = z.enum(REHAB_URGENCY_LEVELS).or(z.string(
 export const rehabNeedSchema = z.object({
   id: z.string().min(1, "Need ID is required"),
   category: rehabNeedCategorySchema,
-  categoryLabel: z.string().min(1, "Category label is required"),
-  categoryLabelMs: z.string().min(1, "Malay category label is required"),
   name: z.string().min(1, "Need name is required"),
   nameMs: z.string().min(1, "Malay need name is required"),
   description: z.string().min(1, "Description is required"),
