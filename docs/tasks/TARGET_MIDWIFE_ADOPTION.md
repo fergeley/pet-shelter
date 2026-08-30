@@ -45,6 +45,11 @@ Nothing has ever invoked `midwife` through the real dispatcher. All fifteen drif
 four litmus tests drove the spec by pasting a routing preamble into `general-purpose`, because
 agents are enumerated at startup and the file was created mid-session.
 
+**That reason is false, measured 2026-08-31:** five agents added mid-session became available
+to the Agent tool immediately, no restart. Enumeration is live; the hand-driven tests were
+working around something that was not happening. What is still unobserved is the *router's*
+choice, which is the thing this target actually asks for.
+
 **Do:** restart Claude Code. Run `/agents` and confirm `midwife` is listed. Then give a session a
 GRAVE-shaped task *without naming the agent* — something touching production data, a contract, or
 a change no existing test covers — and see whether it routes there on its own.
