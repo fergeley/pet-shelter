@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "child_process";
+import { tmpdir } from "os";
 import { join, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -40,6 +41,10 @@ function ask(agent: string | null, tool: string, toolInput: ToolInput): "ALLOW" 
   const out = execFileSync("node", [GUARD], {
     input: JSON.stringify(payload),
     encoding: "utf8",
+    // Redirect the liveness log. Without this, running the suite writes lines
+    // indistinguishable from a real agent invocation, and the trigger in
+    // tasks/open/agent-guard-never-observed-firing.md stops meaning anything.
+    env: { ...process.env, AGENT_GUARD_LOG: join(tmpdir(), "agent-guard-test.log") },
   });
   if (!out.trim()) return "ALLOW";
   const decision = JSON.parse(out).hookSpecificOutput?.permissionDecision;

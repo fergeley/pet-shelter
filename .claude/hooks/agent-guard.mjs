@@ -21,7 +21,9 @@ import { join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
-const LOG = join(tmpdir(), "claude-agent-guard.log");
+// `AGENT_GUARD_LOG` redirects this, so tests/unit/agentGuard.test.ts writes its own file
+// instead of salting the shared one — otherwise a line here stops meaning "an agent ran".
+const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.log");
 
 /** Read-only git subcommands. Anything not on this list is a write until proven otherwise. */
 const GIT_READS = new Set([
