@@ -27,8 +27,9 @@ The four tests are in `CLAUDE.md` and run before this file loads. Two refinement
 - **Diff size is not gravity.** One character in a permission check is GRAVE; a 400-line fixture
   is TRIVIAL.
 - **Re-verify a veto entry only when test 0 might actually fire on it.** `triage-rules.md` says
-  not to cite it as evidence, but re-running all seven verifications before a typo fix costs more
-  than the typo. Check the entries the task plausibly touches.
+  not to cite it as evidence, but re-running every verification in it before a typo fix costs more
+  than the typo. Check the entries the task plausibly touches — and if that file describes doors
+  this task cannot reach, it has told you nothing you needed.
 
 Re-triage the moment the task turns out to be other than what was asked. That is the normal case,
 not a failure — see escalation below.
@@ -217,17 +218,38 @@ irreversible and you are ignorant of its effect.**
 The ledger contract — two categories, one file per entry, what goes where — is `tasks/README.md`.
 Read it rather than a copy of it here.
 
-**Claims.** A GRAVE task writes `tasks/open/CLAIM-<task>.md` at the start, carrying:
+**Claims.** Two separate obligations — conflating them is what let two sessions build the same
+ROUTINE change invisibly to each other:
+
+- **Check** before *any* lane that writes a file, including TRIVIAL and FAST. One command:
+  `grep -l "<the path you will touch>" tasks/open/CLAIM-*.md`. It costs nothing and it is the only
+  thing standing between you and a silent double-build. Re-check at the start of each task, not
+  once per session — claims appear while you work. **Glob it. Re-reading the claim you already
+  know about is not checking for claims**, and is the failure that feels most like diligence.
+- **Write** one for ROUTINE and GRAVE, at the start, and delete it at close:
 
 ```
-session: <id>          updated: <UTC timestamp, refreshed each phase>
+session: <id>          updated: <date -u +%Y-%m-%dT%H:%M:%SZ — UTC, refreshed each phase>
 phase:   <0-4>         paths:   <pathspec you expect to touch>
 ```
 
-Delete it at close. **A claim whose `updated` is more than 4 hours old, with no commit touching its
-paths, may be taken over** — record the takeover in the file. A crashed session must not convert
-into a permanent work stoppage, and claims that overlap on `paths` are a collision to resolve
-before starting, not after.
+**Staleness is derived, never read.** The `updated` field is advisory and must never be the basis
+for a takeover — a hand-typed stamp is wrong in both directions (a local time stamped `Z` reads
+hours in the *future* and stays fresh forever; a correct old stamp reads dead while its holder is
+committing). The heartbeat is the claim file's own commit time, which cannot be typed wrong:
+
+```
+git log -1 --format=%cI -- tasks/open/CLAIM-<task>.md
+```
+
+Refreshing `updated` each phase means re-committing the file, so that timestamp *is* the holder's
+pulse. **A claim is stale only if its file has not been committed in 4 hours.** Record any takeover
+in the file. A crashed session must not become a permanent work stoppage — and a live one must
+never be evicted by arithmetic on a field it typed itself.
+
+**Overlapping `paths` is a collision to resolve before starting.** If you find one mid-build,
+neither revert nor continue silently: append an attributed note to their claim without rewriting
+it, log the collision, and surface who should own it.
 
 **A GRAVE task that ends with no ledger write is an emitted error:**
 `LEDGER ERROR — GRAVE task closed with no ledger write`. Silent state loss is the one failure that

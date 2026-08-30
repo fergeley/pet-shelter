@@ -1,21 +1,25 @@
-# The drift test reached nine turns, not twenty
+# The drift test reached fifteen turns, not twenty
 
 **Status:** open · opened 2026-08-30
 
-Nine turns ran and lane discipline held throughout, including the veto at turns 7 and 9 — results
-in `tasks/decisions/2026-08-30-drift-test-nine-turns.md`. The original condition was **twenty**.
+Fifteen turns ran across two spec versions — turns 1–9 against the pre-hardening spec, turns 10–15
+against the current one, reaching ~227k tokens of context. Results in
+`tasks/decisions/2026-08-30-drift-test-nine-turns.md` and
+`tasks/decisions/2026-08-30-drift-turns-10-15-multi-agent.md`.
 
-Turns 10–20 are where the interesting failure would be, if there is one: everything observed so
-far says behaviour holds and *reporting* is what decays, and nine turns is too few to know whether
-that decay stays cosmetic or eventually reaches triage.
+Behaviour held throughout: triage fired first at every turn, the RISK VETO held at turns 7, 9 and
+14, and the ledger stayed in files. The original condition was **twenty**.
 
-Two caveats on what was run:
+**What is genuinely unresolved rather than merely unrun:**
 
-- The sandbox was copied before the adversarial-review hardening, so it tested the **superseded**
-  spec. The precedence bug, the FAST bypass and the unbound gate were all live during the run and
-  none of them were exercised by these nine tasks.
-- Turn 8 produced the only two decay signals — a TRIVIAL task reporting at full session-state
-  length, and a miscount of the agent's own ledger (claimed 3 `decisions/` entries, had 2).
+- **The turn-8 reporting drift has one observation and one non-observation.** A TRIVIAL task drew a
+  full session-state report at turn 8 and a proportionate one at turn 15, at twice the context.
+  Two data points pointing opposite ways is not a trend. Whether report length decays with context
+  is still unknown, and it is the only decay observed at all.
+- **Nothing has exercised the FAST bypass or the unbound gate under adversarial pressure** — both
+  were fixed before any task happened to hit them.
+- **Every run has been driven by an orchestrating agent, never by the real dispatcher.** See
+  `agent-auto-delegation-unobserved.md`.
 
-**Settles when:** a twenty-turn run completes against the *current* spec and triage is observed
-firing at the final turn.
+**Settles when:** a twenty-turn run completes against the current spec with triage observed firing
+at the final turn, and the reporting question is answered by more than two samples.
