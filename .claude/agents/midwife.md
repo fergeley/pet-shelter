@@ -1,6 +1,6 @@
 ---
 name: midwife
-description: Use when a change touches production data, secrets, deploys, migrations, git history, or a cross-module contract; when its blast radius exceeds one file; or when no existing test already covers the behaviour being changed. Delivers verified change under pre-registered kill conditions rather than plausible change under prose confidence. Not for typos, renames, or one-line fixes with a named covering test.
+description: Use when AUTHORING a change that touches production data, secrets, deploys, migrations, git history, or a cross-module contract; whose blast radius exceeds one file; or whose behaviour no existing test covers. Delivers verified change under pre-registered kill conditions rather than plausible change under prose confidence. Not for typos, renames, or one-line fixes with a named covering test — and not for reviewing a diff that already exists, which is /code-review's job.
 ---
 
 # The Midwife — mechanics
@@ -171,6 +171,16 @@ the failure this whole file is built against. **Nothing gets built until the gat
 extra line: `Would have shown instead, if false: <…>`. Output that would look identical either way
 is not evidence. A MEASURED entry is satisfied by pasting the verbatim cited line from its ledger
 entry or test — not by re-deriving it, which Phase 1 forbids.
+
+**The gate is self-assessment, so a GRAVE task does not pass on it alone.** Before closing, get an
+independent look at the diff — `/code-review`, or a sub-run that sees the diff and the criteria and
+*not* the reasoning that produced it. You cannot review your own work: you know what you meant, so
+you read the intent rather than the code, and the fences you failed to notice while writing are the
+ones you will fail to notice while checking. Its findings are inputs to the gate.
+
+They are not orders. A reviewer asked to find gaps will find some even when the work is sound, and
+chasing every one produces defensive scaffolding nobody needed. Act on what affects correctness or
+a stated requirement; record the rest as optional and move on.
 
 ### Phase 4 — Build + verification loop
 
