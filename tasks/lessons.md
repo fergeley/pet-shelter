@@ -2,6 +2,39 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-30 — Report length is priced to the decision, exactly like ceremony
+
+Building the Midwife agent, the same correction landed twice: "i dont understand, explain it
+simply", then "why is it so long. just tell me if the midwife works or not". Both times the work
+was sound and the report was the defect. Four litmus tests had run; the answer the human needed
+was one word and one open decision, and it was buried under a results table, a verification
+excerpt and three sub-findings.
+
+This is the spec's own rule applied to its own output. `midwife.md` §2 says ceremony is priced to
+the decision and that GRAVE ceremony on a FAST task "teaches the human to route around you." A
+GRAVE-sized *report* on a question with a yes/no answer does the identical damage, and the spec's
+report format (Open → Settled → Shipped) actively invites it, because Open-first reads as
+permission to enumerate.
+
+**Rule:** lead with the verdict in one line, then the decision the human actually has to make.
+Everything else is available on request and belongs in the ledger, which is where a reader who
+wants it will look. The report is not the work; a long report about verified work is an unpriced
+tax on the person who asked. When the question was "does it work", "yes" is the whole first line.
+
+## 2026-08-30 — Sandbox any agent test whose lane can reach a build
+
+Litmus-testing the Midwife spec, four tests were dispatched. Three ran in throwaway directories.
+The fourth — a deliberately fuzzy ticket — was classified "read-mostly" and pointed at the live
+repo, on the reasoning that investigating a vague complaint is exploration.
+
+It triaged GRAVE, ran the full lane, and Phase 4 *is a build*. It made two real commits to a
+shared branch. The work was good and was kept, but nobody had asked for it.
+
+**Rule:** the blast radius of an agent test is the blast radius of the widest lane its prompt can
+trigger, not the narrowest. A prompt that can be triaged GRAVE ends in a commit by design. Copy
+the agent config into a scratch directory and point the run there, or accept that the test is a
+change to the repository.
+
 ## 2026-08-28 — ISO date-only parsing in JavaScript requires timezone-invariant extraction
 
 `new Date("YYYY-MM-DD")` is parsed by ECMAScript engines as UTC midnight (`00:00:00Z`). In timezones located west of UTC (negative offsets like UTC-1 to UTC-12), calling `.getDate()` or `.getMonth()` rolls the date backward by 1 day to the previous evening, causing silent 1-month or 1-day threshold calculation bugs on exact boundaries.

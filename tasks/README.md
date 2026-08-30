@@ -1,0 +1,63 @@
+# The ledger
+
+The Midwife's memory (`.claude/agents/midwife.md` §5). **Two categories, one file per entry.**
+
+**This is data, not agent configuration.** The format is defined by the agent spec; only content
+lives here. That separation is what lets the agent move between repos and lets a human read what
+it knows without opening its config.
+
+| Directory | Holds | Test |
+|---|---|---|
+| `open/` | Live kill conditions, unresolved threads, conclusions reached without evidence. | *Is this still unknown, or known-without-proof?* |
+| `decisions/` | Settled: a choice with its rationale, obituaries of killed designs, fired kill conditions and what they killed. | *Could someone reasonably reverse this later and need to know why it was chosen?* |
+
+There is no third category. A third category is where the first two go to diverge.
+
+`lessons.md` and `todo.md` are **repo files, not ledger** — a pattern is appended to `lessons.md`
+after a human correction, and a work stream may live in `todo.md`, but neither is read as state and
+neither may hold a decision or an open question.
+
+## Why one file per entry
+
+Several Claude Code sessions run against this repo at once, and any of them may invoke the agent.
+When the ledger was two newest-first files, every session appended to the *same region of the same
+two files* — a guaranteed conflict whose losing write is silent. A lost ledger entry is worse than
+a lost code edit: the tree can reconstruct the code, nothing can reconstruct the reasoning.
+
+One file per entry makes the conflict impossible by construction. Two sessions never touch the
+same path, and git merges the directories without a merge driver, a lock, or a protocol.
+
+## Shape
+
+    open/<slug>.md                    decisions/YYYY-MM-DD-<slug>.md
+
+```markdown
+# <title, as a sentence>
+
+**Status:** open | ASSERTED · opened YYYY-MM-DD        ← open/ only
+**Decided:** YYYY-MM-DD                                 ← decisions/ only
+
+<the entry>
+
+**Settles when:** <what would close it>                 ← open/ only, required
+```
+
+- **`ASSERTED`** means reasoned, never observed. No later step may cite it as established
+  (invariant 2). `open` means genuinely unresolved.
+- **Read the ledger at session start:** `cat tasks/open/*.md`. Read `decisions/` when a fence
+  sweep or a design question needs it — that is what Phase 1's "search before you list" means.
+
+## Rules
+
+- **Delete an open entry when it closes.** It moves to `decisions/` or it disappears. This
+  directory is worthless the moment it becomes append-only; its whole value is that everything in
+  it is still live.
+- **Never rewrite an entry in `decisions/`.** A reversal is a *new* dated entry naming the one it
+  reverses. That includes stale paths: an old entry describing a superseded layout stays as
+  written, because it was true when written.
+- **Live kill conditions go in `open/` before the spike runs and are immutable.** A post-hoc edit
+  is an automatic DIED.
+- **A claim is just an open entry.** A session starting a GRAVE task writes
+  `open/CLAIM-<task>.md` and deletes it at close. Reading `open/` at session start therefore shows
+  what every other session is working on — no lock, no new concept. For live back-and-forth, use
+  cross-session messaging rather than leaving notes here.
