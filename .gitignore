@@ -79,3 +79,6 @@ obsidian-api.http
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Claude Code worktrees (per-session isolated checkouts)
+.claude/worktrees/
