@@ -218,38 +218,20 @@ irreversible and you are ignorant of its effect.**
 The ledger contract — two categories, one file per entry, what goes where — is `tasks/README.md`.
 Read it rather than a copy of it here.
 
-**Claims.** Two separate obligations — conflating them is what let two sessions build the same
-ROUTINE change invisibly to each other:
+**Isolation before coordination.** File collisions are solved by running each session in its own
+worktree — `claude --worktree <name>` — which the harness *enforces*: it blocks edits, commands and
+git redirects that reach the main checkout. Prefer that to any protocol written here. A rule the
+environment enforces beats a rule you have to remember, which is the whole argument of this file.
 
-- **Check** before *any* lane that writes a file, including TRIVIAL and FAST. One command:
-  `grep -l "<the path you will touch>" tasks/open/CLAIM-*.md`. It costs nothing and it is the only
-  thing standing between you and a silent double-build. Re-check at the start of each task, not
-  once per session — claims appear while you work. **Glob it. Re-reading the claim you already
-  know about is not checking for claims**, and is the failure that feels most like diligence.
-- **Write** one for ROUTINE and GRAVE, at the start, and delete it at close:
-
-```
-session: <id>          updated: <date -u +%Y-%m-%dT%H:%M:%SZ — UTC, refreshed each phase>
-phase:   <0-4>         paths:   <pathspec you expect to touch>
-```
-
-**Staleness is derived, never read.** The `updated` field is advisory and must never be the basis
-for a takeover — a hand-typed stamp is wrong in both directions (a local time stamped `Z` reads
-hours in the *future* and stays fresh forever; a correct old stamp reads dead while its holder is
-committing). The heartbeat is the claim file's own commit time, which cannot be typed wrong:
-
-```
-git log -1 --format=%cI -- tasks/open/CLAIM-<task>.md
-```
-
-Refreshing `updated` each phase means re-committing the file, so that timestamp *is* the holder's
-pulse. **A claim is stale only if its file has not been committed in 4 hours.** Record any takeover
-in the file. A crashed session must not become a permanent work stoppage — and a live one must
-never be evicted by arithmetic on a field it typed itself.
-
-**Overlapping `paths` is a collision to resolve before starting.** If you find one mid-build,
-neither revert nor continue silently: append an attributed note to their claim without rewriting
-it, log the collision, and surface who should own it.
+**Only when sessions share one tree** does the fallback apply. Before writing a file, in any lane:
+`grep -l "<path>" tasks/open/CLAIM-*.md` — **glob it; re-reading the claim you already know about
+is not checking for claims**, and is the failure that feels most like diligence. For ROUTINE and
+GRAVE, write `tasks/open/CLAIM-<task>.md` carrying `session`, `phase` and `paths`, and delete it at
+close. **Staleness is derived, never read:** `git log -1 --format=%cI` on the claim file is the
+holder's pulse, and it is stale only if uncommitted for four hours — a hand-typed stamp is wrong in
+both directions and will evict live sessions. On a collision found mid-build, neither revert nor
+continue silently: append an attributed note to their claim without rewriting it, and surface who
+should own it.
 
 **A GRAVE task that ends with no ledger write is an emitted error:**
 `LEDGER ERROR — GRAVE task closed with no ledger write`. Silent state loss is the one failure that

@@ -2,6 +2,65 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-08-30 — Check the platform before hand-rolling a mechanism that sounds generic
+
+Spent a long session building a multi-session coordination protocol for the Midwife agent: claim
+files, path-overlap detection, a staleness rule, a takeover rule. Hardened it three separate times
+in one evening as testing exposed defects in each version. Then searched for prior art, only
+because the human said to, and found that Claude Code ships worktree isolation the harness
+*enforces* with four blocking checks, agent teams whose shared task list uses real file locking for
+claims, Stop hooks that block a turn until a script passes, and `/goal` conditions re-evaluated
+every turn. Every one is stronger than what was built, because they are enforced rather than
+remembered.
+
+The tell was there the whole time: the problem had a generic name. "Two workers must not edit the
+same file" is not a property of this repo, and problems that aren't yours usually aren't yours to
+solve.
+
+**Rule:** before building any mechanism whose description contains a generic noun — locking,
+isolation, gating, scheduling, review, retry, coordination — spend one search on whether the
+platform or ecosystem already has it. Do it *before* the first design, not after the third
+hardening pass. The cost is one search; the cost of skipping it was hours of well-engineered
+answer to a question that was already answered. Related: [[measure-fallout-before-writing-task-docs]].
+
+## 2026-08-30 — A "this always wins" precedence clause can void the layer beneath it
+
+The agent spec split into an always-loaded constitution of absolute invariants plus a mechanics
+file whose entire job was carving exceptions to them. The mechanics file opened with what read as
+good hygiene: *"if this file and an invariant disagree, the invariant wins."*
+
+That single line made every exception illegal. "TRIVIAL: no ledger" lost to "write the ledger
+before close." Incident mode's one question lost to "halting is for one-way doors only." The whole
+principle the mechanics existed to express — ceremony priced to decision gravity — was formally
+void, and nothing in the file was self-evidently broken.
+
+It had already caused real drift: the invariant said "three failed hypotheses", the mechanics said
+"three **distinct** failed hypotheses", precedence resolved toward the invariant, and the single
+word carrying the entire anti-gaming mechanism was silently non-binding.
+
+**Rule:** when a document says another document always wins, check what the losing document is
+*for*. If its purpose is to qualify the winner, the clause is not hygiene, it is a deletion. Write
+"X states the default; Y narrows it only where Y says so explicitly and names it," and require
+every narrowing to be marked so an unmarked conflict reads as a bug rather than as silent defeat.
+
+## 2026-08-30 — Rules are lossy compression of the failures that produced them
+
+Reconstructed an agent spec from its nine stated rules when the original prose was unavailable. The
+rules came back intact. The *mechanisms they were derived from* did not — and they came back
+specifically in their **pre-fix** form, because a fix leaves no trace in the rule it produced. The
+fence-sweep step was reinvented at build time, which is exactly where it had been before someone
+moved it to analysis time to stop post-gate redesigns.
+
+The sharpest instance: "three failed hypotheses kill the design" does not say the hypotheses must
+be *distinct*. That missing word was the whole anti-reward-hacking mechanism, and nothing in the
+rule's text could have revealed it was gone.
+
+**Rule:** a rule is a compressed artifact of a failure. Rebuilding from rules alone reproduces the
+policy and loses the reason, so the rebuild silently reverts every fix that was folded into
+wording. When reconstructing anything from its summary, treat the middle details as *drafts that
+have not been reviewed*, say so explicitly, and get them diffed against the source before relying
+on them. Keep the failure next to the rule — see the `**Why:**` shape used throughout this file.
+
 ## 2026-08-30 — Report length is priced to the decision, exactly like ceremony
 
 Building the Midwife agent, the same correction landed twice: "i dont understand, explain it
