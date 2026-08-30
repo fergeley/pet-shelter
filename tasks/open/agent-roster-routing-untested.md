@@ -1,34 +1,35 @@
-# Six agent descriptions now compete in a dispatcher that has never been observed routing
+# Nothing in this repo has been observed routing: not the five agents, not the skill
 
-**Status:** ASSERTED · opened 2026-08-31
+**Status:** ASSERTED · opened 2026-08-31 · absorbs `agent-auto-delegation-unobserved.md`
 
-`.claude/agents/` went from one file to six on 2026-08-31 (see
-`tasks/decisions/2026-08-31-agent-roster-ported-and-pruned.md`). Each description was written to be
-disjoint from the others, and three were tightened after a first pass specifically to stop them
-poaching: `ui-critic` now excludes general diff review, `test-writer` now excludes deciding whether
-a change is safe, `schema-auditor` now excludes authoring the change it surveys. That disjointness
-is **reasoned, not observed.**
+`.claude/agents/` holds five workers — `spike-runner`, `test-writer`, `schema-auditor`,
+`ui-critic`, `atomic-commit` — and the mechanics are a sixth entry point, the `midwife` **skill**
+(`tasks/decisions/2026-08-31-midwife-is-a-skill-not-an-agent.md`). Six descriptions compete for the
+model's attention. Each was written to be disjoint, and three were narrowed after a first pass
+caught them poaching. **That disjointness is reasoned, not observed.**
 
-**MEASURED, 2026-08-31:** all five new agents became available to the Agent tool *in the session
-that created them*, with no restart. This falsifies the stated reason in
-`docs/tasks/TARGET_MIDWIFE_ADOPTION.md` T1 — "agents are enumerated at startup and the file was
-created mid-session" — which is why every earlier test drove the spec by hand. Enumeration is live.
-**Availability is not routing:** being listed proves the file parsed and registered, and proves
-nothing about which agent a router picks for an unlabelled task.
+**MEASURED, 2026-08-31:** registration is live in both containers. Five agents added mid-session
+became available to the Agent tool with no restart, and `midwife` appeared in the skills list the
+moment its file moved. This falsified the premise the closed entry was built on. **Registration is
+not routing:** being listed proves the file parsed, and proves nothing about what gets picked for
+an unlabelled task. External reports say auto-selection "fires only sometimes".
 
-The plausible collisions, in order of likelihood after the tightening:
+Live collisions, worst first:
 
-1. `midwife` vs. `spike-runner` — both match "test this assumption". The intended split is that
-   `spike-runner` requires the assumption *and* its kill condition to already exist. Untightened,
-   because narrowing `spike-runner` further would make it unreachable.
-2. `test-writer` vs. `midwife` — "no existing test covers this" appears in both descriptions and
-   is load-bearing in midwife's, so it cannot be removed there.
-3. `schema-auditor` vs. `midwife` on a schema change, which is also a RISK VETO door and must end
-   up GRAVE either way.
-4. `ui-critic` vs. `/code-review` on a UI diff.
+1. `midwife` (skill) vs. `spike-runner` (agent) — both match "test this assumption". The intended
+   split is that `spike-runner` requires the assumption *and* its kill condition to already exist.
+   Left untightened deliberately: narrowing `spike-runner` further makes it unreachable.
+2. `test-writer` vs. `midwife` — "no existing test covers this" is load-bearing in both and cannot
+   be removed from either.
+3. `schema-auditor` vs. `midwife` on a schema change, which is a RISK VETO door and ends GRAVE
+   either way — so this one is safe to lose.
+4. `ui-critic` vs. `/code-review` on a UI diff. Worst case is two reviews.
 
-**Settles when:** a session gives a task shaped for exactly one of these, without naming an agent,
-and the transcript shows which one the router picked — for at least the top two pairs. Until then
-no claim that "the roster routes cleanly" may be cited as established. This does not settle
-`agent-auto-delegation-unobserved.md`, which asks the prior question of whether the router
-delegates at all; that one settles first.
+The conversion changed the *cost* of collision 1 and 2, not their likelihood: a wrong skill
+invocation continues in the same conversation and is free to correct, where a wrong delegation
+spends a context window.
+
+**Settles when:** a session is given a task shaped for exactly one of these, without naming it, and
+the transcript shows what was picked — for at least the top two. Until then, **name the agent or
+skill explicitly** and treat routing as a bonus; no claim that "the roster routes cleanly" may be
+cited as established.

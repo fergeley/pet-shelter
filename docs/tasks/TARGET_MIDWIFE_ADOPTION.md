@@ -13,9 +13,9 @@ doc**; a target doc's own baseline is the first thing to go stale.
 
 ```bash
 # spec weight
-cat CLAUDE.md .claude/agents/midwife.md .claude/templates/*.md tasks/README.md | wc -l   # 597
-wc -l < CLAUDE.md                                                                        # 56
-wc -l < .claude/agents/midwife.md                                                        # 242
+cat CLAUDE.md .claude/skills/midwife/SKILL.md .claude/templates/*.md tasks/README.md | wc -l  # 597
+wc -l < CLAUDE.md                                                                            # 56
+wc -l < .claude/skills/midwife/SKILL.md                                                      # 242
 
 # ledger
 ls tasks/decisions | wc -l   # 12
@@ -35,28 +35,35 @@ grep AGENT_TEAMS .claude/settings*.json # unset — agent teams disabled
 six months, the four-layer split failed. It is at 597 lines having absorbed two hardening passes;
 the trajectory must stay downward.
 
+**Drift, 2026-08-31:** spec 607, ledger 15 decisions / 8 open, suite unchanged. The +10 on the
+spec is `fa93de3` and `60ce541`; the agent roster and the skill conversion added zero to this
+scope. The condition is a six-month trajectory, not a per-commit ratchet — but this is the wrong
+direction, and the baseline numbers above stay at their registered 2026-08-30 values on purpose.
+
 ---
 
 ## §2 Targets, in order
 
-### T1 — Prove auto-delegation works *(blocks everything else)*
+### T1 — Invocation is explicit *(closed 2026-08-31 — T2 is now the front of the queue)*
 
-Nothing has ever invoked `midwife` through the real dispatcher. All fifteen drift turns and all
-four litmus tests drove the spec by pasting a routing preamble into `general-purpose`, because
-agents are enumerated at startup and the file was created mid-session.
+The mechanics are a **skill**, not an agent: `.claude/skills/midwife/SKILL.md`, invoked by the
+resident triage in `CLAUDE.md`. That dissolved this target rather than answering it. Rationale:
+`tasks/decisions/2026-08-31-midwife-is-a-skill-not-an-agent.md`.
 
-**That reason is false, measured 2026-08-31:** five agents added mid-session became available
-to the Agent tool immediately, no restart. Enumeration is live; the hand-driven tests were
-working around something that was not happening. What is still unobserved is the *router's*
-choice, which is the thing this target actually asks for.
+Two things it settled *by construction*, which outranks settling them by measurement:
 
-**Do:** restart Claude Code. Run `/agents` and confirm `midwife` is listed. Then give a session a
-GRAVE-shaped task *without naming the agent* — something touching production data, a contract, or
-a change no existing test covers — and see whether it routes there on its own.
+- **`CLAUDE.md` inheritance.** A subagent starts in a fresh, isolated context. `SKILL.md` opens by
+  asserting "`CLAUDE.md` holds the invariants and the four triage tests; both are loaded already" —
+  guaranteed in the main conversation, unverified in a subagent. The old open entry flagged exactly
+  this. The assertion can no longer be false.
+- **The halt.** §3's only legal halt is "STOP and await the human". A subagent hands back to the
+  *main agent*, which has the authority to answer a one-way-door question itself. In the main
+  conversation the halt reaches the human, as written.
 
-**Settles:** `tasks/open/agent-auto-delegation-unobserved.md`.
-**If it fails:** the `description` frontmatter is the thing to fix; it was rewritten in
-router-evaluable terms precisely for this, and that rewrite is untested.
+**Demoted, non-blocking.** Whether the router auto-delegates to the five remaining agents is still
+unobserved, and the field reports auto-selection fires only sometimes. **Name them explicitly and
+treat routing as a bonus.** One cheap measurement is still worth taking —
+`tasks/open/agent-roster-routing-untested.md` — but nothing waits on it.
 
 ### T2 — Move sessions onto worktrees
 
