@@ -19,6 +19,19 @@ import { SponsorshipModal } from "./SponsorshipModal";
 import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+
+/**
+ * i18n keys for the lifecycle band names. The year range printed beside each name is derived
+ * from `AGE_BAND_MIN_MONTHS`, not written here — hand-written ranges drifted from the maths and
+ * left both 3 and 7 claimed by two filter options at once (PS-114).
+ */
+const AGE_BAND_LABEL_KEYS: Record<(typeof AGE_BANDS)[number], string> = {
+  puppy_kitten: "pets.puppyKitten",
+  young: "pets.young",
+  adult: "pets.adult",
+  senior: "pets.senior",
+};
 
 interface PetGalleryProps {
   initialPets?: Pet[];
@@ -215,10 +228,11 @@ export function PetGallery({
                 className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
                 <option value="all">{isMs ? "Semua Umur" : "All Ages"}</option>
-                <option value="puppy_kitten">{isMs ? "Anak Haiwan (< 1 thn)" : "Puppy / Kitten (< 1 yr)"}</option>
-                <option value="young">{isMs ? "Muda (1 – 3 thn)" : "Young (1 – 3 yrs)"}</option>
-                <option value="adult">{isMs ? "Dewasa (3 – 7 thn)" : "Adult (3 – 7 yrs)"}</option>
-                <option value="senior">{isMs ? "Warga Emas (7+ thn)" : "Senior (7+ yrs)"}</option>
+                {AGE_BANDS.map((band) => (
+                  <option key={band} value={band}>
+                    {`${t(AGE_BAND_LABEL_KEYS[band])} (${formatAgeBandRange(band, isMs ? "ms" : "en")})`}
+                  </option>
+                ))}
               </select>
             </div>
 

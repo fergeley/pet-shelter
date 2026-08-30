@@ -26,6 +26,7 @@ import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
 import { Pet } from "@/types/pet";
 import initialPetsData from "@/data/pets.json";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { PetChooserCarousel } from "./PetChooserCarousel";
 
@@ -46,7 +47,9 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const basePets: Pet[] =
     initialPets.length > 0
       ? initialPets
-      : ((initialPetsData as unknown as Pet[]).filter((p) => !p.isArchived));
+      : (initialPetsData as unknown as Pet[])
+          .map((p) => withDerivedAge(p))
+          .filter((p) => !p.isArchived);
 
   const [pets, setPets] = useState<Pet[]>(basePets);
 

@@ -5,6 +5,7 @@ import { recordAuditLog } from "@/lib/domain/auditLog";
 import { SessionUser } from "@/lib/security/session";
 import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError } from "@/lib/persistenceMode";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import {
   DbPetRecord,
   buildPetCreatePayload,
@@ -21,7 +22,9 @@ import {
  */
 
 function freshPets(): Pet[] {
-  return structuredClone(initialPetsData) as Pet[];
+  // Ages are recomputed on load: the fixture's stored `age` strings are frozen prose and rot
+  // against the calendar, so the fallback store would otherwise disagree with the DB path (PS-114).
+  return (structuredClone(initialPetsData) as Pet[]).map((pet) => withDerivedAge(pet));
 }
 
 let serverPets: Pet[] = freshPets();

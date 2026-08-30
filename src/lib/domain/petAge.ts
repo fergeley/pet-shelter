@@ -37,18 +37,76 @@ export function computeAgeInMonths(birthDateStr: string, asOf: Date | string = n
 }
 
 /**
- * Derives the standardized AgeCategory based on age in months:
- * - < 12 months: puppy_kitten
- * - 12 to < 36 months (1 - <3 years): young
- * - 36 to < 96 months (3 - <8 years): adult
- * - 96+ months (8+ years): senior
+ * Lifecycle bands, as the inclusive lower bound of each in whole months.
+ *
+ * **This table is the only definition of a band boundary.** `computeAgeCategory` reads it, and
+ * so does every user-facing band label via `formatAgeBandRange` — so a boundary cannot be moved
+ * in the maths and left stale in the copy that describes it to a user. It previously could:
+ * the gallery advertised "Senior (7+ yrs)" against a 96-month senior boundary, and both 3 and 7
+ * were claimed by two adjacent filter options at once (PS-114).
+ */
+export const AGE_BAND_MIN_MONTHS = {
+  puppy_kitten: 0,
+  young: 12,
+  adult: 36,
+  senior: 96,
+} as const satisfies Record<AgeCategory, number>;
+
+/** Bands in ascending age order. */
+export const AGE_BANDS = ["puppy_kitten", "young", "adult", "senior"] as const;
+
+/**
+ * Derives the standardized AgeCategory from `AGE_BAND_MIN_MONTHS` — the highest band whose
+ * lower bound the pet has reached.
  */
 export function computeAgeCategory(birthDateStr: string, asOf: Date | string = new Date()): AgeCategory {
   const months = computeAgeInMonths(birthDateStr, asOf);
-  if (months < 12) return "puppy_kitten";
-  if (months < 36) return "young";
-  if (months < 96) return "adult";
-  return "senior";
+  let band: AgeCategory = AGE_BANDS[0];
+  for (const candidate of AGE_BANDS) {
+    if (months >= AGE_BAND_MIN_MONTHS[candidate]) band = candidate;
+  }
+  return band;
+}
+
+/**
+ * Renders the whole-year range a band covers, e.g. `3 – 7 yrs`, derived from
+ * `AGE_BAND_MIN_MONTHS`. Ranges are half-open in months and therefore never overlap: the upper
+ * edge is the last whole year still inside the band, not the next band's first year.
+ */
+export function formatAgeBandRange(band: AgeCategory, locale: "en" | "ms" = "en"): string {
+  const unit = locale === "ms" ? "thn" : "yrs";
+  const index = AGE_BANDS.indexOf(band);
+  const minYears = AGE_BAND_MIN_MONTHS[band] / 12;
+  const next = AGE_BANDS[index + 1];
+
+  if (next === undefined) return `${minYears}+ ${unit}`;
+  if (minYears === 0) return locale === "ms" ? "< 1 thn" : "< 1 yr";
+
+  const maxYears = AGE_BAND_MIN_MONTHS[next] / 12 - 1;
+  return minYears === maxYears ? `${minYears} ${unit}` : `${minYears} – ${maxYears} ${unit}`;
+}
+
+/**
+ * Returns the pet with `birthDate`, `age` and `ageCategory` recomputed from the calendar.
+ *
+ * Applied wherever a stored pet record enters the app, so that a hand-written `age` string in a
+ * fixture cannot outlive its accuracy. Before PS-114 the fallback store served `pets.json`
+ * verbatim and one pet already read "4 months" at five months old.
+ */
+export function withDerivedAge<T extends {
+  birthDate?: string;
+  intakeDate: string;
+  age?: string;
+  ageCategory?: string;
+}>(pet: T, asOf: Date | string = new Date()): T {
+  const birthDate = deriveBirthDate(pet);
+
+  return {
+    ...pet,
+    birthDate,
+    age: formatAgeString(birthDate, asOf).en,
+    ageCategory: computeAgeCategory(birthDate, asOf),
+  };
 }
 
 /**
@@ -70,6 +128,15 @@ export function formatAgeString(
   const en = `${years} ${years === 1 ? "year" : "years"}`;
   const ms = `${years} tahun`;
   return { en, ms };
+}
+
+/**
+ * Resolves the birth date to reckon from: the stored one, else one approximated from a legacy
+ * age string, else the intake date. Shared by the read mapper, the persistence payload builder
+ * and `withDerivedAge`, which previously carried three copies of this expression.
+ */
+export function deriveBirthDate(pet: { birthDate?: string; age?: string; intakeDate: string }): string {
+  return pet.birthDate || (pet.age ? approximateBirthDate(pet.age, pet.intakeDate).birthDate : pet.intakeDate);
 }
 
 /**

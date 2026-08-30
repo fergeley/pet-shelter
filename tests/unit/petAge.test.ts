@@ -4,6 +4,9 @@ import {
   computeAgeCategory,
   formatAgeString,
   approximateBirthDate,
+  formatAgeBandRange,
+  withDerivedAge,
+  AGE_BANDS,
 } from "@/lib/domain/petAge";
 
 describe("Pet Age & Lifecycle Domain Math (petAge.ts)", () => {
@@ -71,6 +74,66 @@ describe("Pet Age & Lifecycle Domain Math (petAge.ts)", () => {
       const formatted = formatAgeString("2025-08-01", "2026-08-01");
       expect(formatted.en).toBe("1 year");
       expect(formatted.ms).toBe("1 tahun");
+    });
+  });
+
+  /**
+   * PS-114. The band edges used to be prose typed into the gallery and the admin form, and they
+   * had drifted from the maths: "Senior (7+ yrs)" against a 96-month boundary, with 3 and 7 each
+   * claimed by two adjacent filter options. These two tests are the guard — they fail if a label
+   * and `computeAgeCategory` ever disagree again.
+   */
+  describe("age band labels agree with the maths", () => {
+    /** Does the advertised range string claim this whole-year age? Unit-agnostic (yrs / thn). */
+    function claims(range: string, years: number): boolean {
+      const r = range.replace(/\s*(yrs?|thn)\s*$/, "").trim();
+      let m = r.match(/^<\s*(\d+)$/);
+      if (m) return years < Number(m[1]);
+      m = r.match(/^(\d+)\+$/);
+      if (m) return years >= Number(m[1]);
+      m = r.match(/^(\d+)\s*[–-]\s*(\d+)$/);
+      if (m) return years >= Number(m[1]) && years <= Number(m[2]);
+      m = r.match(/^(\d+)$/);
+      if (m) return years === Number(m[1]);
+      throw new Error(`unparsable band range: "${range}"`);
+    }
+
+    it.each(["en", "ms"] as const)("claims every whole-year age exactly once (%s)", (locale) => {
+      for (let years = 0; years <= 30; years++) {
+        const hits = AGE_BANDS.filter((band) => claims(formatAgeBandRange(band, locale), years));
+        expect(hits, `age ${years}y is claimed by ${hits.length} bands: [${hits.join(", ")}]`).toHaveLength(1);
+      }
+    });
+
+    it("advertises the band that computeAgeCategory actually assigns", () => {
+      for (let years = 0; years <= 30; years++) {
+        const advertised = AGE_BANDS.find((band) => claims(formatAgeBandRange(band), years));
+        expect(computeAgeCategory(`${2026 - years}-06-15`, "2026-06-15"), `at ${years}y`).toBe(advertised);
+      }
+    });
+  });
+
+  describe("withDerivedAge", () => {
+    it("recomputes an age string that has gone stale against the calendar", () => {
+      const stale = {
+        birthDate: "2026-03-22",
+        intakeDate: "2026-03-22",
+        age: "4 months",
+        ageCategory: "puppy_kitten",
+      };
+      const fresh = withDerivedAge(stale, "2026-08-30");
+      expect(fresh.age).toBe("5 months");
+      expect(fresh.ageCategory).toBe("puppy_kitten");
+    });
+
+    it("re-files a pet whose stored category no longer matches its birth date", () => {
+      const stale = { birthDate: "2018-06-15", intakeDate: "2019-01-01", age: "5 years", ageCategory: "adult" };
+      expect(withDerivedAge(stale, "2026-08-30").ageCategory).toBe("senior");
+    });
+
+    it("falls back to a birth date approximated from a legacy age string", () => {
+      const legacy = { intakeDate: "2026-06-12", age: "2 years" };
+      expect(withDerivedAge(legacy, "2026-06-12").birthDate).toBe("2024-06-12");
     });
   });
 

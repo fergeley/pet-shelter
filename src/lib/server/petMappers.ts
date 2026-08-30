@@ -4,7 +4,7 @@ import { normalizePetStatus } from "@/lib/domain/stateMachine";
 import {
   computeAgeCategory,
   formatAgeString,
-  approximateBirthDate,
+  deriveBirthDate,
 } from "@/lib/domain/petAge";
 
 /**
@@ -207,10 +207,12 @@ function mapDbMedicalTimelineEvent(row: DbMedicalTimelineEventRecord): MedicalTi
  * become `undefined` so optional domain fields stay absent rather than null.
  */
 export function mapDbPetToPet(p: DbPetRecord): Pet {
-  const birthDate = p.birthDate || (p.age ? approximateBirthDate(p.age, p.intakeDate).birthDate : p.intakeDate);
+  const birthDate = deriveBirthDate(p);
   const birthDateIsEstimate = p.birthDateIsEstimate !== undefined ? p.birthDateIsEstimate : true;
-  const age = p.age || formatAgeString(birthDate).en;
-  const ageCategory = (p.ageCategory as Pet["ageCategory"]) || computeAgeCategory(birthDate);
+  // Always derived, never read back from the row. `age`/`ageCategory` have not been columns
+  // since 6108d82; preferring a stored value here only ever served stale fixture data (PS-114).
+  const age = formatAgeString(birthDate).en;
+  const ageCategory = computeAgeCategory(birthDate);
 
   return {
     id: p.id,
@@ -260,7 +262,7 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
  * Normalizes status to Prisma enum and derives birth date.
  */
 export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
-  const birthDate = pet.birthDate || (pet.age ? approximateBirthDate(pet.age, pet.intakeDate).birthDate : pet.intakeDate);
+  const birthDate = deriveBirthDate(pet);
   const birthDateIsEstimate = pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true;
 
   return {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Pet } from "@/types/pet";
 import initialPetsData from "@/data/pets.json";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import {
   PetFormInput,
   sortHistoryByDate,
@@ -16,13 +17,14 @@ export function usePetStore() {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          return JSON.parse(saved);
+          // A browser's saved copy is older than the fixture and rots the same way (PS-114).
+          return (JSON.parse(saved) as Pet[]).map((pet) => withDerivedAge(pet));
         }
       } catch (e) {
         console.error("Failed to load pets from storage", e);
       }
     }
-    return initialPetsData as Pet[];
+    return (initialPetsData as Pet[]).map((pet) => withDerivedAge(pet));
   });
 
   const [isLoaded, setIsLoaded] = useState(false);

@@ -19,6 +19,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, X, Loader2, Star } from "lucide-react";
+import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+
+/** Admin UI is English-only; the year range beside each name comes from the domain (PS-114). */
+const ADMIN_AGE_BAND_NAMES: Record<(typeof AGE_BANDS)[number], string> = {
+  puppy_kitten: "Puppy / Kitten",
+  young: "Young",
+  adult: "Adult",
+  senior: "Senior",
+};
 
 interface PetFormDialogProps {
   open: boolean;
@@ -284,10 +293,11 @@ export function PetFormDialog({
                   {...register("ageCategory")}
                   className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground"
                 >
-                  <option value="puppy_kitten">Puppy / Kitten</option>
-                  <option value="young">Young (1-3 yrs)</option>
-                  <option value="adult">Adult (3-7 yrs)</option>
-                  <option value="senior">Senior (7+ yrs)</option>
+                  {AGE_BANDS.map((band) => (
+                    <option key={band} value={band}>
+                      {`${ADMIN_AGE_BAND_NAMES[band]} (${formatAgeBandRange(band)})`}
+                    </option>
+                  ))}
                 </select>
               </div>
 
