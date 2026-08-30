@@ -104,9 +104,9 @@ guards are proven in a scratch copy and never in this tree.
 
 ## Sub-runs need permission
 
-Spawning sub-agents requires the human to ask for it in this setup. When Phase 2 calls for an
-isolated sub-run and none is available, run the spike in-session and record
-`Context-isolated: no` on the verdict rather than claiming isolation you did not have.
+Spawning sub-agents needs the human to ask, so `spike-runner` existing is not the same as it being
+available. When Phase 2 calls for isolation and none was granted, run the spike in-session and
+record `Context-isolated: no` on the verdict rather than claiming isolation you did not have.
 
 ---
 

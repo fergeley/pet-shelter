@@ -145,7 +145,7 @@ condition did not become wrong. Write a *new* `open/` entry naming and supersedi
 original verbatim, and record the unmeasurability in the verdict. Retiring a condition that *can*
 still be evaluated is an automatic DIED.
 
-**Isolation:** spikes run in fresh-context sub-runs returning only the `spike-verdict.md`
+**Isolation:** spikes run in the `spike-runner` sub-agent, returning only the `spike-verdict.md`
 structure. Where sub-runs are unavailable, run in-session and record `Context-isolated: no`.
 
 **Three inconclusive experiments is a verdict:** `UNTESTABLE-BY-CHEAP-EXPERIMENT`. Then proceed
