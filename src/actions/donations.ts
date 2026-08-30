@@ -15,7 +15,10 @@ import {
   DonationRecord,
   ReceiptIssuanceError,
   issueDonationReceipt,
+  listDonationsOrThrow,
 } from "@/lib/server/donationLedger";
+import { getCurrentSession } from "@/lib/security/session";
+import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 
 /**
  * Renders an issued receipt for the donor-facing confirmation and the emailed PDF.
@@ -169,5 +172,76 @@ export async function submitDonationPledgeAction(
     const errorMsg =
       err instanceof Error ? err.message : "Failed to process donation pledge";
     return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Upper bound on one export. Not a page size — the export is a single statutory
+ * document and paging it would put the truncation back where nobody sees it.
+ */
+const RECEIPT_EXPORT_LIMIT = 1000;
+
+/**
+ * The LHDN receipts export, served from the donation ledger.
+ *
+ * ## Why this exists
+ *
+ * The export used to be assembled in the browser from `fetchAuditLogsAction(250)` —
+ * the 250 most recent audit rows *of any kind*. Pet edits, logins and application
+ * approvals consume that budget, so on a shelter with ordinary admin traffic older
+ * receipts fell off the annual return while the UI reported success. The export
+ * engine predates the ledger: it landed 2026-08-16, `donationLedger.ts` on
+ * 2026-08-27, the `Donation` model on 2026-08-29. It read the audit trail because
+ * that was the only source of donation data at the time.
+ *
+ * ## An outage must not read as "no donations"
+ *
+ * The read goes through `listDonationsOrThrow`, not `listDonations`. The latter
+ * returns `[]` on any read failure, so a Neon outage would arrive here as a
+ * successful, empty statutory return — indistinguishable from a shelter that took
+ * no donations, and wrong in a way nobody downstream can detect.
+ *
+ * ## Truncation is observed, not inferred
+ *
+ * We ask the ledger for one row more than we will return. `records.length > bounded`
+ * is then a fact about the data rather than a guess from `length === limit`, which
+ * cannot tell a full page from an exact fit. The caller is expected to surface
+ * `truncated` — a receipt missing from a tax filing is the defect this replaces,
+ * and moving the cap without reporting it would only change the number at which
+ * the same silence begins.
+ *
+ * Returns `DonationReceiptDTO`, mapped by the same `toReceiptDTO` the donor-facing
+ * confirmation and the receipt email use, so the three cannot disagree about what a
+ * receipt says. The exact integer sen becomes ringgit at that one boundary.
+ */
+export async function fetchDonationReceiptsAction(
+  limit = RECEIPT_EXPORT_LIMIT
+): Promise<{
+  success: boolean;
+  data?: DonationReceiptDTO[];
+  truncated?: boolean;
+  error?: string;
+}> {
+  try {
+    const session = await getCurrentSession();
+    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+    // A non-finite limit crosses the RPC boundary as easily as a good one, and
+    // NaN propagates silently all the way to `{success: true, data: []}` — a clean
+    // "no donations" answer to a malformed request, on a tax export.
+    const bounded = Number.isFinite(limit)
+      ? Math.min(Math.max(1, Math.floor(limit)), RECEIPT_EXPORT_LIMIT)
+      : RECEIPT_EXPORT_LIMIT;
+    const records = await listDonationsOrThrow(bounded + 1);
+
+    return {
+      success: true,
+      data: records.slice(0, bounded).map(toReceiptDTO),
+      truncated: records.length > bounded,
+    };
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : "Failed to read the donation ledger";
+    return { success: false, error: msg };
   }
 }

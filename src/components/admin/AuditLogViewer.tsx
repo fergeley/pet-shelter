@@ -22,7 +22,8 @@ import { useAuditLogController, AuditTabFilter } from "@/hooks/useAuditLogContro
 
 export function AuditLogViewer() {
   const { state, handlers } = useAuditLogController();
-  const { filteredLogs, counts, activeTab, isLoading, error, filter, exportNotice } = state;
+  const { filteredLogs, counts, activeTab, isLoading, error, filter, exportNotice, isExporting } =
+    state;
   const { setFilter, setActiveTab, loadLogs, handleExportReceiptsCsv, handleExportAuditTrailCsv } = handlers;
 
   const tabs: { id: AuditTabFilter; label: string; icon: LucideIcon; count: number }[] = [
@@ -54,7 +55,10 @@ export function AuditLogViewer() {
             variant="outline"
             size="xs"
             onClick={handleExportReceiptsCsv}
-            disabled={isLoading}
+            // The export is a server round trip now. Without this, a second click
+            // clears the notice the first one set -- including the truncation
+            // warning that deliberately does not auto-dismiss.
+            disabled={isLoading || isExporting}
             className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
             title="Export official donation receipts formatted for Malaysian LHDN Section 44(6) tax reporting"
           >
