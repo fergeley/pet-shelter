@@ -2,6 +2,13 @@
 name: atomic-commit
 description: Splits the current working-tree diff into coherent conventional commits and emits the exact pathspec-scoped git commands to make them, grouped by change and not by file. Use when finished work spans more than one concern and needs to land as reviewable history. It emits commands for the caller to run; it does not run them, does not push, and never proposes broad staging.
 tools: Read, Bash, Grep, Glob
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: node
+          args: ["${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-guard.mjs"]
 ---
 
 # Atomic commit

@@ -2,6 +2,13 @@
 name: schema-auditor
 description: Audits prisma/schema.prisma and the repositories under src/lib/server for normalization defects, missing indexes, N+1 access patterns, and drift between the Prisma types and what the callers actually rely on. Read-only and offline — it has no shell, never connects to a database, and never runs a migration. Use when a data model is suspected of lying, or to survey a schema change before someone authors it. Authoring the change is midwife's; this agent only finds and quotes.
 tools: Read, Grep, Glob
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: node
+          args: ["${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-guard.mjs"]
 ---
 
 # Schema auditor

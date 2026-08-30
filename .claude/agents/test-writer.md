@@ -1,7 +1,14 @@
 ---
 name: test-writer
-description: Writes or extends Vitest suites in this repo — unit, components, integration, integration-db — against the tests/setup/nextMocks.ts harness. Use when tests are what is being asked for: covering an existing behaviour, extending a suite, or proving a fast-path claim with a test that actually discriminates. Deciding whether a change is safe is midwife's job, not this one's. Give it a source path or a behaviour. Returns the test file and the raw run output. Never edits product code to make a test pass.
+description: Writes or extends Vitest suites in this repo — unit, components, integration, integration-db — against the tests/setup/nextMocks.ts harness. Use when tests are what is being asked for — covering an existing behaviour, extending a suite, or proving a fast-path claim with a test that actually discriminates. Deciding whether a change is safe is midwife's job, not this one's. Give it a source path or a behaviour. Returns the test file and the raw run output. Never edits product code to make a test pass.
 tools: Read, Edit, Write, Grep, Glob, Bash
+hooks:
+  PreToolUse:
+    - matcher: Edit|Write|NotebookEdit
+      hooks:
+        - type: command
+          command: node
+          args: ["${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-guard.mjs"]
 ---
 
 # Test writer
