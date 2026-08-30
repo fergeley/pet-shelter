@@ -1,13 +1,21 @@
-# The drift test has not been run
+# The drift test reached nine turns, not twenty
 
 **Status:** open · opened 2026-08-30
 
-Four of five litmus tests ran and passed (see
-`tasks/decisions/2026-08-30-litmus-tests-all-passed.md`). The fifth did not:
-**20 turns in one session, checking that triage still fires first and that the ledger still goes
-to files rather than to chat.** Every short run passed; nothing is known about turn 20.
+Nine turns ran and lane discipline held throughout, including the veto at turns 7 and 9 — results
+in `tasks/decisions/2026-08-30-drift-test-nine-turns.md`. The original condition was **twenty**.
 
-This is the test most likely to fail, because it is the only one measuring *decay* rather than
-behaviour — and decay is what artifacts were supposed to prevent.
+Turns 10–20 are where the interesting failure would be, if there is one: everything observed so
+far says behaviour holds and *reporting* is what decays, and nine turns is too few to know whether
+that decay stays cosmetic or eventually reaches triage.
 
-**Settles when:** a sustained session is run and triage is observed at the last turn.
+Two caveats on what was run:
+
+- The sandbox was copied before the adversarial-review hardening, so it tested the **superseded**
+  spec. The precedence bug, the FAST bypass and the unbound gate were all live during the run and
+  none of them were exercised by these nine tasks.
+- Turn 8 produced the only two decay signals — a TRIVIAL task reporting at full session-state
+  length, and a miscount of the agent's own ledger (claimed 3 `decisions/` entries, had 2).
+
+**Settles when:** a twenty-turn run completes against the *current* spec and triage is observed
+firing at the final turn.
