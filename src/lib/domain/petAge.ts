@@ -98,7 +98,11 @@ export function withDerivedAge<T extends {
   intakeDate: string;
   age?: string;
   ageCategory?: string;
-}>(pet: T, asOf: Date | string = new Date()): T {
+}>(pet: T, asOf: Date | string = new Date()): T & {
+  birthDate: string;
+  age: string;
+  ageCategory: AgeCategory;
+} {
   const birthDate = deriveBirthDate(pet);
 
   return {
