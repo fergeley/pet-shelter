@@ -131,9 +131,12 @@ import {
   formatReceiptNumber,
   isLedgerPersistent,
   issueDonationReceipt,
+  listDonations,
+  listDonationsOrThrow,
   receiptScopeFor,
   resetDonationLedger,
 } from "@/lib/server/donationLedger";
+import { prisma } from "@/lib/server/prisma";
 import { senFromRinggit } from "@/lib/domain/money";
 
 const AUGUST = new Date("2026-08-15T04:00:00Z"); // 12:00 MYT, 15 Aug 2026
@@ -316,5 +319,36 @@ describe("persistent mode (DATABASE_URL set)", () => {
     expect(error).toBeInstanceOf(ReceiptIssuanceError);
     expect((error as ReceiptIssuanceError).cause).toBeDefined();
     expect((error as ReceiptIssuanceError).message).not.toContain("Unique constraint");
+  });
+});
+
+/**
+ * The two reads differ only in what they do with a failure, and that difference is
+ * load-bearing rather than stylistic.
+ *
+ * `listDonations` swallowing a read error into `[]` is right for a dashboard: an
+ * empty panel during an outage is degraded, and the next refresh repairs it. It is
+ * wrong for the LHDN export, where `[]` is not a degraded view but a *claim* — that
+ * the shelter received no donations — and it is indistinguishable from the truthful
+ * version of that claim. Nobody downstream can tell an outage from an empty year.
+ *
+ * This is the sign on that fence. Delete either test and the export goes back to
+ * being able to file an outage as a tax return.
+ */
+describe("read policy: the export must be able to see a failure", () => {
+  beforeEach(() => {
+    vi.stubEnv("DATABASE_URL", "postgresql://user:pw@localhost:5432/pet_shelter");
+  });
+
+  it("listDonations swallows a read failure, for the dashboard", async () => {
+    vi.mocked(prisma.donation.findMany).mockRejectedValueOnce(new Error("neon unreachable"));
+
+    await expect(listDonations(10)).resolves.toEqual([]);
+  });
+
+  it("listDonationsOrThrow propagates it, for the statutory export", async () => {
+    vi.mocked(prisma.donation.findMany).mockRejectedValueOnce(new Error("neon unreachable"));
+
+    await expect(listDonationsOrThrow(10)).rejects.toThrow("neon unreachable");
   });
 });

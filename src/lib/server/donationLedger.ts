@@ -318,16 +318,8 @@ export async function issueDonationReceipt(
  * asymmetry is deliberate and mirrors the read/write split in `handlePersistenceError`.
  */
 export async function listDonations(limit = 200): Promise<DonationRecord[]> {
-  if (!isLedgerPersistent()) {
-    return memoryDonations.slice(0, limit);
-  }
-
   try {
-    const rows = await prisma.donation.findMany({
-      orderBy: { issuedAt: "desc" },
-      take: limit,
-    });
-    return rows.map(toRecord);
+    return await listDonationsOrThrow(limit);
   } catch (err) {
     console.warn(
       "[Donation Ledger] Receipt listing failed:",
@@ -335,6 +327,33 @@ export async function listDonations(limit = 200): Promise<DonationRecord[]> {
     );
     return [];
   }
+}
+
+/**
+ * The same read, with the swallow removed. **Use this for the statutory export.**
+ *
+ * `listDonations` above returns `[]` on any read failure, which is right for a
+ * dashboard: a panel that renders empty during a Neon outage is degraded, and the
+ * next refresh fixes it. It is wrong for the LHDN export, where an empty result is
+ * not a degraded view but a *claim* — that the shelter received no donations — and
+ * it is indistinguishable from the truthful version of that claim. An operator
+ * filing an annual return cannot tell the two apart, and the failure is silent on
+ * both sides.
+ *
+ * So the export reads through here and reports the failure instead. This is the
+ * read half of the asymmetry the model comment describes, split by *consequence of
+ * being wrong* rather than by caller.
+ */
+export async function listDonationsOrThrow(limit = 200): Promise<DonationRecord[]> {
+  if (!isLedgerPersistent()) {
+    return memoryDonations.slice(0, limit);
+  }
+
+  const rows = await prisma.donation.findMany({
+    orderBy: { issuedAt: "desc" },
+    take: limit,
+  });
+  return rows.map(toRecord);
 }
 
 /** Looks up a single receipt by its human-facing number. */
