@@ -60,7 +60,9 @@ Another Claude session works this branch concurrently and stages files. Conseque
 - Never `git stash` (it pulls their work out from under a running process), never `reset --hard`,
   never force-push, never rewrite history on a shared branch.
 - Do not break a guard "to prove it works" in this tree; the other session repairs the breakage
-  into history. Use a scratch copy (`.claude/agents/midwife.md` §4).
+  into history. Use a scratch copy (`.claude/agents/midwife.md` §3, Phase 1).
+- Commit with a pathspec — `git add -- <paths>` then `git commit -F <msg> -- <the same paths>` —
+  so its staged work stays staged rather than riding along.
 
 ## 6. Anything outbound or published
 
@@ -93,15 +95,12 @@ reasoning-only. *(Verified 2026-08-30 — unit tiers are unaffected, they run in
 
 ## The working tree is shared with a live writer
 
-Another Claude session works this repo concurrently and stages files.
+The rules are §5 above; this is the evidence for why they are not theoretical.
 
-- **It reads your breakage as a real defect and repairs it into history.** An intentionally broken
-  guard, left in the tree across two tool calls, has been diagnosed and "fixed" by it — leaving a
-  commit that describes fixing a defect which never existed. Prove guards in a scratch copy.
-- **The index is not yours.** It leaves files staged between commits, so `git add <mine> && git
-  commit` in one call commits its work under your message. Check `git diff --cached --name-only`
-  in a *separate* call, and commit with a pathspec.
-- **Never `git stash`** — it takes that session's uncommitted and untracked work with it.
+An intentionally broken guard, left in the tree across two tool calls, was diagnosed by the other
+session as a genuine defect and "fixed" — landing a commit whose message describes repairing a
+defect that never existed. Nothing broke, but the history now records a fiction. That is why
+guards are proven in a scratch copy and never in this tree.
 
 ## Sub-runs need permission
 
