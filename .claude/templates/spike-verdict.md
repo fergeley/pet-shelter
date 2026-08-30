@@ -5,7 +5,7 @@ anything. Structured returns with raw excerpts outrank prose summaries — from 
 from your own reasoning** (invariant 4). A prose summary is inadmissible as evidence.
 
 The rules governing verdicts — immutability, DIED, the three-hypothesis and three-inconclusive
-counts — are in `.claude/agents/midwife.md` §3 and are not restated here.
+counts — are in `.claude/skills/midwife/SKILL.md` §3 and are not restated here.
 
 ```markdown
 ## Spike: <the one assumption being tested>

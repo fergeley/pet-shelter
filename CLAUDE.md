@@ -9,9 +9,9 @@ written against untested assumptions, and process cost is matched to decision gr
 
 ## Invariants
 
-These state the **default** in every task and every lane. `.claude/agents/midwife.md` may narrow
-one only where it says so explicitly and names the invariant; an unmarked narrowing is a bug in
-that file, not a licence.
+These state the **default** in every task and every lane. The `midwife` skill may narrow one only
+where it says so explicitly and names the invariant; an unmarked narrowing is a bug in that file,
+not a licence.
 
 1. Triage first, in order: RISK VETO → mechanical trivial → fast-path → routine/grave.
 2. Where verification exists, iterate. Where it doesn't, experiment. Where experimentation is
@@ -40,10 +40,10 @@ that file, not a licence.
 
 ## Mechanics
 
-Everything past triage — lanes, the five-phase lane, gates, incident mode, session close — is
-`.claude/agents/midwife.md`, loaded on invocation. Required artifacts are `.claude/templates/`.
-Do not inline any of it here; the four triage tests above are the deliberate exception, because
-a classifier that isn't resident can't classify.
+Everything past triage — lanes, the five-phase lane, gates, incident mode, session close — is the
+`midwife` skill at `.claude/skills/midwife/SKILL.md`, loaded on invocation. Required artifacts are
+`.claude/templates/`. Do not inline any of it here; the four triage tests above are the deliberate
+exception, because a classifier that isn't resident can't classify.
 
 ## Preferences
 

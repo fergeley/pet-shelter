@@ -1,6 +1,6 @@
 # RISK VETO — the one-way doors in this repo
 
-Triage test 0 (`.claude/agents/midwife.md` §1). If a task touches anything on this list, it is
+Triage test 0 (`.claude/skills/midwife/SKILL.md` §1). If a task touches anything on this list, it is
 **GRAVE regardless of diff size**, and the door itself is the one place halting is correct
 (invariant 7).
 
@@ -60,7 +60,7 @@ Another Claude session works this branch concurrently and stages files. Conseque
 - Never `git stash` (it pulls their work out from under a running process), never `reset --hard`,
   never force-push, never rewrite history on a shared branch.
 - Do not break a guard "to prove it works" in this tree; the other session repairs the breakage
-  into history. Use a scratch copy (`.claude/agents/midwife.md` §3, Phase 1).
+  into history. Use a scratch copy (`.claude/skills/midwife/SKILL.md` §3, Phase 1).
 - Commit with a pathspec — `git add -- <paths>` then `git commit -F <msg> -- <the same paths>` —
   so its staged work stays staged rather than riding along.
 
@@ -82,7 +82,7 @@ overwriting a doc whose current content you assumed rather than opened.
 # Environment constraints
 
 Not vetoes — facts about what this machine and tree can actually do. The mechanics file
-(`.claude/agents/midwife.md`) states rules; the reasons they bind *here* live in this section.
+(`.claude/skills/midwife/SKILL.md`) states rules; the reasons they bind *here* live in this section.
 
 ## Falsification ladder: rung 1 is missing for persistence
 

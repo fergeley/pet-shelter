@@ -1,6 +1,6 @@
 # The ledger
 
-The Midwife's memory (`.claude/agents/midwife.md` §5). **Two categories, one file per entry.**
+The Midwife's memory (`.claude/skills/midwife/SKILL.md` §5). **Two categories, one file per entry.**
 
 **This is data, not agent configuration.** The format is defined by the agent spec; only content
 lives here. That separation is what lets the agent move between repos and lets a human read what
