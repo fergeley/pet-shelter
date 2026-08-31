@@ -6,9 +6,9 @@ import { fileURLToPath } from "url";
 
 /**
  * `.claude/hooks/agent-guard.mjs` is the only enforcement any sub-agent has.
- * Three of them declare contracts in prose — `schema-auditor` "never connects
+ * Three of them declare contracts in prose â€” `schema-auditor` "never connects
  * to a database", `atomic-commit` "emits commands, does not run them",
- * `test-writer` "never edits product code" — and this script is what turns
+ * `test-writer` "never edits product code" â€” and this script is what turns
  * those into denials.
  *
  * It is invoked by Claude Code, not by this repo, so nothing else here
@@ -69,9 +69,19 @@ describe("agent guard", () => {
       expect(ask("schema-auditor", "Bash", { command: "ls" })).toBe("DENY");
     });
 
-    it("leaves reading alone", () => {
+    it("denies every other execution path, not just the one named Bash", () => {
+      // The premise of this guard is that a declared `tools:` list may not be
+      // enforced. Naming one shell leaves the rest open to the production URL,
+      // and this environment also exposes PowerShell.
+      expect(ask("schema-auditor", "PowerShell", { command: "ls" })).toBe("DENY");
+      expect(ask("schema-auditor", "BashOutput", {})).toBe("DENY");
+      expect(ask("schema-auditor", "WebFetch", {})).toBe("DENY");
+    });
+
+    it("leaves the three tools it declares alone", () => {
       expect(ask("schema-auditor", "Read", { file_path: repoFile("prisma/schema.prisma") })).toBe("ALLOW");
       expect(ask("schema-auditor", "Grep", {})).toBe("ALLOW");
+      expect(ask("schema-auditor", "Glob", {})).toBe("ALLOW");
     });
   });
 
@@ -102,8 +112,33 @@ describe("agent guard", () => {
       expect(ask("atomic-commit", "Bash", { command: "git some-new-plumbing-verb" })).toBe("DENY");
     });
 
-    it("does not fire on the word git inside a string", () => {
-      expect(ask("atomic-commit", "Bash", { command: 'echo "remember to git add"' })).toBe("ALLOW");
+    it("finds git wherever it appears, not only after a separator", () => {
+      // Anchoring on separators let every one of these through, and each writes
+      // the index that another session is using.
+      expect(ask("atomic-commit", "Bash", { command: "for f in a b; do git add -- $f; done" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "if true; then git commit -m x; fi" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "env git commit -m x" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: 'sh -c "git commit -m x"' })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "ls | xargs git add" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "time git push" })).toBe("DENY");
+    });
+
+    it("denies the word git inside a string too, because failing closed is the point", () => {
+      // The cost of this false positive is one confusing denial with a message
+      // that says what to do. The cost of the false negative it replaces is a
+      // commit in shared history.
+      expect(ask("atomic-commit", "Bash", { command: 'echo "remember to git add"' })).toBe("DENY");
+    });
+
+    it("does not read -C on a non-git command as a checkout redirect", () => {
+      expect(ask("atomic-commit", "Bash", { command: "ls -C" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "sort -C file.txt" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "git diff | grep -C 3 foo" })).toBe("ALLOW");
+    });
+
+    it("covers the other shell tool this environment exposes", () => {
+      expect(ask("atomic-commit", "PowerShell", { command: "git commit -m x" })).toBe("DENY");
+      expect(ask("atomic-commit", "PowerShell", { command: "git status" })).toBe("ALLOW");
     });
   });
 
