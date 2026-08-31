@@ -305,3 +305,43 @@ which one moved, and put the number on it.
 **And:** a guard that passes on its first run has proved nothing. This one's 62 tests were all green
 immediately; a 12-mutant run then showed 11 real kills and one test that passed whether or not the
 code worked. Mutate before believing — it costs one throwaway script.
+
+## 2026-09-01 — "Installed" is not "enforcing": check the mechanism can reach what it needs
+
+The commit-msg hook was installed at the human's request and verified three ways — executable,
+LF-only, exit 1 on a bad message, and a real `git commit` that git actually rejected. All true, and
+all measured inside the worktree that carries the linter. In the **main checkout** the same
+installed hook does nothing: it resolves `$(git rev-parse --show-toplevel)/scripts/commit-msg.mjs`
+and exits 0 when that file is absent, and the file exists only on the unmerged branch that
+introduced it. The enforcement mechanism shipped on the same branch as the thing it enforces, so it
+is inert exactly while you believe you are covered.
+
+Two adjacent traps found the same day. Git resolves hooks against the **common** git directory, so
+a worktree does not isolate them — installing from `.claude/worktrees/` arms the main checkout and
+every other worktree at once. And `core.autocrlf=true` checks shell hooks out with CRLF, making the
+shebang `#!/bin/sh\r`, which is a bad interpreter on any POSIX host; that one was invisible on this
+machine and would have surfaced only in CI or on someone else's laptop.
+
+**Rule:** this extends *"moving a rule into a mechanism requires naming who enforces it"* by one
+step — having named the enforcer and installed it, verify it can **reach its dependencies from
+every checkout that will run it**, not just from the one you built it in. The check is one line
+(`test -f <the dependency> && echo enforcing || echo inert`) and it belongs in the ledger entry
+next to the install. Prefer failing open when the dependency is missing, or a partial checkout
+turns into a hook that blocks every commit for a reason nobody can read — but then say out loud,
+in writing, that fail-open means unenforced.
+
+## 2026-09-01 — Diverged copies drift in different directions, so reconciling needs a decision
+
+The commit convention lived in three files and all three disagreed: `CONTRIBUTING.md` gave
+scopeless examples (`feat: add …`), `WHERE_CODE_GOES.md` required a scope, and
+`.claude/agents/atomic-commit.md` specified a body wrap of 80 that nothing else mentioned. This is
+the repo's known "anything written twice diverges" shape, with a wrinkle worth naming: they had not
+drifted *together* away from an original, they had drifted **three different ways**. There was no
+majority to trust and no most-recent copy to promote.
+
+**Rule:** when consolidating duplicated knowledge, do not diff the copies and take the common
+denominator — that silently picks a winner per disagreement and records none of the reasoning. Each
+divergence is a decision that was never made. Enumerate them, decide each one explicitly, write the
+decision down with its cost, and only then collapse to one copy and leave pointers. Here that
+produced two settled conflicts (rule 3 binds on the summary; rule 2 is two-tier) whose rationale is
+now the most useful part of the standard.
