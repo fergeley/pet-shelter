@@ -69,7 +69,7 @@ export default function RootLayout({
         playfairDisplayHeading.variable
       )}
     >
-      <body className="min-h-full bg-frame text-foreground font-sans p-2.5 sm:p-5 md:p-8 lg:p-10">
+      <body className="m-0 min-h-full bg-frame text-foreground font-sans">
         <Script
           id="theme-init"
           strategy="beforeInteractive"
@@ -90,7 +90,7 @@ export default function RootLayout({
         <LanguageProvider defaultLanguage="en">
           <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
             {/* Centered Application Frame with Softer Gray Tones */}
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl border border-frame-border bg-frame-panel shadow-xs flex flex-col min-h-[calc(100vh-1.25rem)] sm:min-h-[calc(100vh-2.5rem)] md:min-h-[calc(100vh-4rem)]">
+            <div className="w-full border border-frame-border bg-frame-panel shadow-xs flex flex-col min-h-screen">
               <Navbar />
               <main className="flex-1 w-full">{children}</main>
               <Footer />
