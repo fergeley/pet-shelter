@@ -3,7 +3,7 @@
 //
 // Each agent declares a contract in prose ("read-only", "emits commands, does not run them").
 // This turns three of those into denials. It is wired from each agent's own frontmatter, NOT from
-// settings.json, so it binds only that agent â€” the concurrent session on this branch pays nothing,
+// settings.json, so it binds only that agent — the concurrent session on this branch pays nothing,
 // and nothing here changes how a human session behaves. Same reasoning as `.claude/hooks/pre-commit`
 // being written but not installed: a check that binds every session is not a unilateral call.
 //
@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 // `AGENT_GUARD_LOG` redirects this, so tests/unit/agentGuard.test.ts writes its own file
-// instead of salting the shared one â€” otherwise a line here stops meaning "an agent ran".
+// instead of salting the shared one — otherwise a line here stops meaning "an agent ran".
 const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.log");
 
 /** Read-only git subcommands. Anything not on this list is a write until proven otherwise. */
@@ -70,7 +70,7 @@ try {
 
 const agent = input.agent_type;
 const tool = input.tool_name;
-if (!agent) allow(); // main conversation â€” this guard has no opinion
+if (!agent) allow(); // main conversation — this guard has no opinion
 
 log(`${agent} ${tool}`);
 
@@ -118,7 +118,7 @@ if (agent === "atomic-commit" && SHELL_TOOLS.has(tool)) {
   const writes = gitWrites(String(input.tool_input?.command ?? ""));
   if (writes.length) {
     deny(
-      `atomic-commit emits git commands, it does not run them â€” refusing 'git ${writes.join("', 'git ")}'. ` +
+      `atomic-commit emits git commands, it does not run them — refusing 'git ${writes.join("', 'git ")}'. ` +
       "The index is shared with another session, so staging and committing belong to the caller. " +
       "Return the command block instead.",
     );
@@ -133,7 +133,7 @@ if (agent === "test-writer" && (tool === "Edit" || tool === "Write" || tool === 
     const insideRepo = rel !== "" && !rel.startsWith("../");
     if (insideRepo && !rel.startsWith("tests/")) {
       deny(
-        `test-writer may not write product code â€” '${rel}' is outside tests/. If the code cannot be ` +
+        `test-writer may not write product code — '${rel}' is outside tests/. If the code cannot be ` +
         "tested without changing it, that is the finding: return it to the caller. Scratch files " +
         "belong in the session scratchpad, outside the repo.",
       );

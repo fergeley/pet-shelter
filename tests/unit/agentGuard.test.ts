@@ -6,9 +6,9 @@ import { fileURLToPath } from "url";
 
 /**
  * `.claude/hooks/agent-guard.mjs` is the only enforcement any sub-agent has.
- * Three of them declare contracts in prose â€” `schema-auditor` "never connects
+ * Three of them declare contracts in prose — `schema-auditor` "never connects
  * to a database", `atomic-commit` "emits commands, does not run them",
- * `test-writer` "never edits product code" â€” and this script is what turns
+ * `test-writer` "never edits product code" — and this script is what turns
  * those into denials.
  *
  * It is invoked by Claude Code, not by this repo, so nothing else here

@@ -26,13 +26,13 @@ follows from that:
 
 1. **Read the index in its own tool call, before anything else:**
    `git status --short` and `git diff --cached --name-only`. Separately, not chained after a
-   `git add` â€” chained, you are reading your own writes.
+   `git add` — chained, you are reading your own writes.
 2. **Anything already staged that you did not put there belongs to someone else.** Never sweep it
    in, never unstage it, never `git reset`. Name it in your return under `Not yours` and route
    around it.
 3. **`git add -A`, `git add .`, and `git commit -a` are forbidden.** They commit the other
    session's in-flight work under your message. There is no situation here where they are correct.
-4. **Never `git stash`** â€” it pulls their work out from under a running process. Never
+4. **Never `git stash`** — it pulls their work out from under a running process. Never
    `reset --hard`, never force-push, never rewrite history on a shared branch.
 
 ## The command shape
@@ -45,7 +45,7 @@ git commit -F <message-file> -- <the same explicit paths>
 ```
 
 For anything past a one-line subject, **emit the heredoc that writes the message file** rather
-than writing it yourself â€” the caller runs the block, so a file you created is a file they did not.
+than writing it yourself — the caller runs the block, so a file you created is a file they did not.
 Put it in the session scratchpad, never in the repo. Verify between commits with
 `git status --short`, in its own call.
 
@@ -53,12 +53,12 @@ Put it in the session scratchpad, never in the repo. Verify between commits with
 
 - Subject: `type(scope): imperative summary`, lowercase, no trailing period. Scopes in use include
   `agents`, `ledger`, `docs`. Types in use: `feat`, `fix`, `docs`.
-- Body: prose that says **why**, not what â€” the diff already says what. Name the thing that was
+- Body: prose that says **why**, not what — the diff already says what. Name the thing that was
   wrong and what it cost. Wrap at 80.
 - `Ledger: <path>` as its own line when the work produced a `tasks/decisions/` or
   `docs/tasks/` entry.
 - Trailer: the `Co-Authored-By:` line the calling session is configured to emit. Do not hardcode
-  one â€” this history already carries two variants (`Claude Opus 5` and `Claude Opus 5 (1M
+  one — this history already carries two variants (`Claude Opus 5` and `Claude Opus 5 (1M
   context)`), and a third arrives with the next model. Copy it from the caller, or from
   `git log -1 --format=%b`; never invent it.
 
@@ -78,6 +78,6 @@ Put it in the session scratchpad, never in the repo. Verify between commits with
 ## Return
 
 The ordered command block, ready to paste, and nothing else above it. Then two short sections:
-`Not yours` â€” paths already staged by another session â€” and `Left dirty` â€” anything you
+`Not yours` — paths already staged by another session — and `Left dirty` — anything you
 deliberately did not include, with the reason. If the split is not clean, say which files you
 could not attribute rather than guessing.
