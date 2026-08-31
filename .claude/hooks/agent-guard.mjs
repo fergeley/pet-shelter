@@ -1,26 +1,38 @@
 #!/usr/bin/env node
 // PreToolUse guard for the sub-agents in `.claude/agents/`.
 //
-// Each agent declares a contract in prose ("read-only", "emits commands, does not run them").
-// This turns three of those into denials. It is wired from each agent's own frontmatter, NOT from
-// settings.json, so it binds only that agent — the concurrent session on this branch pays nothing,
-// and nothing here changes how a human session behaves. Same reasoning as `.claude/hooks/pre-commit`
+// It enforces exactly two rules, and both are **irreversible at the step**: once `schema-auditor`
+// reaches a database or `atomic-commit` writes git history, no later check can undo it. That is the
+// whole test for whether a rule belongs here.
+//
+// Rules about the *end state* — "this agent left product code modified" — are deliberately NOT
+// here. Both shapes were built and removed. A step-level path rule blocked `test-writer` from
+// mutating product code to watch a test fail, which is the only way to prove a test discriminates,
+// while leaving the same write through Bash untouched. A `SubagentStop` end-state check fixed that
+// but mitigated a hazard that only exists because two sessions share one working tree — and a
+// worktree per session dissolves it instead, for free.
+// See tasks/decisions/2026-08-31-worktrees-are-free-and-the-guard-was-the-wrong-layer.md.
+//
+// Wired from each agent's own frontmatter, NOT from settings.json, so it binds only the two agents
+// that have a rule — the concurrent session on this branch pays nothing, and an agent with no rule
+// gets no hook rather than a hook that always allows. Same reasoning as `.claude/hooks/pre-commit`
 // being written but not installed: a check that binds every session is not a unilateral call.
 //
 // `jq` is not installed on this machine; node is, and this is a node project, so node it is.
 //
-// Liveness: every invocation appends to <tmp>/claude-agent-guard.log. Frontmatter hooks have an
-// open bug report (anthropics/claude-code#18392) and a silent no-op would look exactly like a
-// working guard. The log is how you tell the difference:
+// Liveness: every invocation appends to <tmp>/claude-agent-guard.log. Frontmatter hooks come from
+// the agent definition as it stood when the SESSION started, so a hook wired mid-session never
+// fires, and a silent no-op looks exactly like a working guard
+// (tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md). The log is how you
+// tell the difference:
 //     cat "$TMPDIR/claude-agent-guard.log"    (Windows: %TEMP%\claude-agent-guard.log)
-// No line after an agent has run means the hook never fired and the contract is still prose.
+// No line after `schema-auditor` or `atomic-commit` has run means the hook never fired and the
+// contract is still prose.
 
 import { readFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve, relative, isAbsolute } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const REPO = resolve(fileURLToPath(import.meta.url), "..", "..", "..");
 // `AGENT_GUARD_LOG` redirects this, so tests/unit/agentGuard.test.ts writes its own file
 // instead of salting the shared one — otherwise a line here stops meaning "an agent ran".
 const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.log");
@@ -31,19 +43,6 @@ const GIT_READS = new Set([
   "rev-parse", "rev-list", "merge-base", "cat-file", "ls-files", "ls-tree",
   "symbolic-ref", "for-each-ref", "check-ignore", "var", "help", "grep",
 ]);
-
-function allow() { process.exit(0); }
-
-function deny(reason) {
-  process.stdout.write(JSON.stringify({
-    hookSpecificOutput: {
-      hookEventName: "PreToolUse",
-      permissionDecision: "deny",
-      permissionDecisionReason: reason,
-    },
-  }));
-  process.exit(0);
-}
 
 /** Everything `schema-auditor` may touch. Anything else, including any shell, is denied. */
 const SCHEMA_AUDITOR_TOOLS = new Set(["Read", "Grep", "Glob"]);
@@ -59,6 +58,19 @@ const SHELL_TOOLS = new Set(["Bash", "PowerShell", "BashOutput", "KillShell"]);
 
 function log(line) {
   try { appendFileSync(LOG, `${new Date().toISOString()} ${line}\n`); } catch { /* never block on logging */ }
+}
+
+function allow() { process.exit(0); }
+
+function deny(reason) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: reason,
+    },
+  }));
+  process.exit(0);
 }
 
 let input;
@@ -108,9 +120,9 @@ if (agent === "schema-auditor" && !SCHEMA_AUDITOR_TOOLS.has(tool)) {
   // naming one shell leaves every other execution path open to the production connection string.
   deny(
     `schema-auditor declares no shell and no '${tool}'. prisma.config.ts resolves the Neon ` +
-    "PRODUCTION url at load, " +
-    "so every Prisma CLI call starts from a production connection string. Read the schema file and " +
-    "grep the callers instead. See tasks/decisions/2026-08-31-schema-auditor-has-no-shell.md.",
+    "PRODUCTION url at load, so every Prisma CLI call starts from a production connection string. " +
+    "Read the schema file and grep the callers instead. " +
+    "See tasks/decisions/2026-08-31-schema-auditor-has-no-shell.md.",
   );
 }
 
@@ -122,22 +134,6 @@ if (agent === "atomic-commit" && SHELL_TOOLS.has(tool)) {
       "The index is shared with another session, so staging and committing belong to the caller. " +
       "Return the command block instead.",
     );
-  }
-}
-
-if (agent === "test-writer" && (tool === "Edit" || tool === "Write" || tool === "NotebookEdit")) {
-  const raw = String(input.tool_input?.file_path ?? "");
-  if (raw) {
-    const abs = isAbsolute(raw) ? raw : resolve(input.cwd || REPO, raw);
-    const rel = relative(REPO, abs).replaceAll("\\", "/");
-    const insideRepo = rel !== "" && !rel.startsWith("../");
-    if (insideRepo && !rel.startsWith("tests/")) {
-      deny(
-        `test-writer may not write product code — '${rel}' is outside tests/. If the code cannot be ` +
-        "tested without changing it, that is the finding: return it to the caller. Scratch files " +
-        "belong in the session scratchpad, outside the repo.",
-      );
-    }
   }
 }
 
