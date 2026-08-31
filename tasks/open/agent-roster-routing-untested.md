@@ -8,11 +8,18 @@
 model's attention. Each was written to be disjoint, and three were narrowed after a first pass
 caught them poaching. **That disjointness is reasoned, not observed.**
 
-**MEASURED, 2026-08-31:** registration is live in both containers. Five agents added mid-session
+**FALSIFIED 2026-08-31 (later the same day):** the paragraph below is wrong, and is left as
+written because it was believed when written. A new agent file created mid-session returned
+`Agent type not found`, and neither a body nor a frontmatter edit to an existing agent took effect.
+Definitions are snapshotted at session start —
+`tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md`. The premise it
+falsified (`registration is not routing`) still holds; only the liveness claim is dead.
+
+~~**MEASURED, 2026-08-31:** registration is live in both containers. Five agents added mid-session
 became available to the Agent tool with no restart, and `midwife` appeared in the skills list the
 moment its file moved. This falsified the premise the closed entry was built on. **Registration is
 not routing:** being listed proves the file parsed, and proves nothing about what gets picked for
-an unlabelled task. External reports say auto-selection "fires only sometimes".
+an unlabelled task. External reports say auto-selection "fires only sometimes".~~
 
 Live collisions, worst first:
 

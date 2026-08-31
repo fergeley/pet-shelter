@@ -280,3 +280,41 @@ not produce confidence.
 how you would *see* it fire. If the answer is "the harness, and I would not see it", the rule is
 still prose — record it as ASSERTED and give it an agent-checkable trigger. A guard that logs every
 invocation costs one line and converts an unfalsifiable claim into a `cat`.
+
+## 2026-08-31 — You cannot test an agent change in the session that makes it
+
+A `Stop` hook was wired into `.claude/agents/spike-runner.md`, the agent was run three times, and
+the liveness log gained nothing. The obvious reading — "frontmatter `Stop` hooks do not fire on this
+version" — was wrong, and would have killed a sound design. Two further probes found the real cause:
+a marker appended to the agent's *body* was also ignored, and a brand-new agent file returned
+`Agent type not found`. Definitions are snapshotted at session start
+(`tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md`), so all three runs
+executed the pre-edit definition while reporting success.
+
+The trap is that the failure is **silent and looks like a verdict**. An empty log is exactly what a
+broken mechanism produces, so the measurement appears to have worked.
+
+**Rule:** before concluding that a mechanism does not fire, prove the run actually loaded the version
+you wrote. Change something *observable in the output* — a marker line in the body — and check for it
+in the same run. If the marker is missing, the instrument is stale and the measurement is void, not
+negative. And for anything the harness loads rather than the build: ship it in an observe mode that
+logs what it would have done, and flip it to enforcing only after a *later* session's log proves it
+fires.
+
+## 2026-08-31 — A blocker measured in one context is not a blocker until you re-run it in yours
+
+Worktrees were rejected for a year's worth of reasoning on one number: `node_modules` is 987 MB and
+a worktree carries no gitignored files, so no test can run inside one. Both halves are true. The
+conclusion is false, because `.claude/worktrees/` sits inside the repo and Node resolves
+`node_modules` by walking up — `npm test` runs 664 tests green in a worktree that has no
+`node_modules` of its own. The command took 0.68s to disprove and was never run, and in the meantime
+a 335-line hook was built to mitigate the hazard worktrees would have dissolved.
+
+The tell was there: the entry rejecting worktrees quoted `du -sh` and `git rev-list --count`, but no
+command that actually *tried* the thing. Measured inputs, reasoned conclusion, recorded as if the
+conclusion were measured too.
+
+**Rule:** before building a mitigation, run the alternative you rejected — once, for real. An
+inference from two measured facts is still an inference, and it inherits the evidence class of the
+weakest link, not the strongest. If a rejected option would make the work unnecessary, the cost of
+testing it is the cheapest thing on the table.
