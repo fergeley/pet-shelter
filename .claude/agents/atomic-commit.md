@@ -46,18 +46,19 @@ than writing it yourself — the caller runs the block, so a file you created is
 Put it in the session scratchpad, never in the repo. Verify between commits with
 `git status --short`, in its own call.
 
-## Message convention, as this repo actually writes them
+## Message convention
 
-- Subject: `type(scope): imperative summary`, lowercase, no trailing period. Scopes in use include
-  `agents`, `ledger`, `docs`. Types in use: `feat`, `fix`, `docs`.
-- Body: prose that says **why**, not what — the diff already says what. Name the thing that was
-  wrong and what it cost. Wrap at 80.
-- `Ledger: <path>` as its own line when the work produced a `tasks/decisions/` or
-  `docs/tasks/` entry.
-- Trailer: the `Co-Authored-By:` line the calling session is configured to emit. Do not hardcode
-  one — this history already carries two variants (`Claude Opus 5` and `Claude Opus 5 (1M
-  context)`), and a third arrives with the next model. Copy it from the caller, or from
-  `git log -1 --format=%b`; never invent it.
+**`docs/reference/COMMIT_MESSAGES.md` is the standard.** Read it; do not restate it here and do
+not infer the convention from `git log`, because 0 of the 203 commits that predate the standard
+pass it. The summary after the colon is **capitalized** and imperative, the subject stops at 72
+characters, and the body wraps at 72.
+
+Two things that are this agent's job rather than the standard's:
+
+- Check your proposed message with `node scripts/commit-msg.mjs --stdin` before emitting it. A
+  message you propose that the hook would reject is a command block the caller cannot run.
+- The `Co-Authored-By:` trailer is the calling session's, not yours. Copy it from the caller or
+  from `git log -1 --format=%b`; never hardcode one. This history already carries two variants.
 
 ## Splitting rules
 

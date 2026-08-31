@@ -31,6 +31,15 @@ drifts. What the descriptions cannot say:
 - Reviewing a diff that already exists is `/code-review`, never an agent here.
 - Spawning any of them still needs the human to ask (`.claude/templates/triage-rules.md`).
 
+## Commits
+
+- The standard is `docs/reference/COMMIT_MESSAGES.md` — Chris Beams' seven rules over this repo's
+  Conventional Commits grammar. It is the only copy. Read it before writing a message; do not
+  infer the convention from `git log`, which predates it.
+- Check a message with `node scripts/commit-msg.mjs --stdin` (or `npm run commit:check -- <file>`).
+- Write the message to a file and use `git commit -F`, never `-m`. Five commits in this history
+  have a bare `@` as their subject because a PowerShell here-string handed its delimiter to `-m`.
+
 ## Verification
 
 - Run the relevant local verification before reporting a change complete. If a check cannot run,

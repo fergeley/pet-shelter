@@ -59,6 +59,8 @@ could not see `import "x";` statements.
 - **No barrel files.** Import the concrete path: `@/lib/server/petRepository`, never a
   re-exporting `index.ts`. Barrels were added once and removed the next commit.
 - **Conventional Commits with a scope**: `feat(ui):`, `refactor(lib):`, `docs:`, `build:`.
+  The full standard — Beams' seven rules, the type and scope sets, and the linter that
+  enforces them — is [`docs/reference/COMMIT_MESSAGES.md`](../reference/COMMIT_MESSAGES.md).
 
 ---
 

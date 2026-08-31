@@ -9,6 +9,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 ### 🚀 Getting Started & Setup
 - **[Installation & Local Development Guide](setup.md)**: Prerequisites, environment configuration, database seeding, and development workflow.
 - **[Contributing Guidelines](../.github/CONTRIBUTING.md)**: Coding standards, branch strategy, PR workflow, and architectural rules.
+- **[Commit Messages](reference/COMMIT_MESSAGES.md)**: The commit standard for humans and agents alike — Beams' seven rules over this repo's Conventional Commits grammar, the enforcing linter, and the measured baseline.
 - **[Design System & UI Tokens](design-system.md)**: Design philosophy, typography, colors, component guidelines, and accessibility.
 
 ---
