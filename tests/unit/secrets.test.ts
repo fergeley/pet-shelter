@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   DEV_SECRET_DEFAULTS,
   SecretConfigurationError,
@@ -293,5 +295,66 @@ describe("assertSecretsConfigured", () => {
 
       expect(warn).toHaveBeenCalledTimes(3);
     });
+  });
+});
+
+/**
+ * `.env.example` is the file an operator copies into a real environment.
+ *
+ * `resolveSecret` recognises an unchanged copy by comparing the value against
+ * its own `DEV_SECRET_DEFAULTS` — that is the entire mechanism, and it works
+ * only while the two files publish the same strings. A placeholder unique to
+ * `.env.example` (`"replace-me-with-a-random-32-plus-character-secret"`, 49
+ * characters, which is what this file used to carry) clears every other rule:
+ * it is set, it is not the dev default, and it is longer than the minimum. It
+ * boots green in production while looking obviously fake to a human.
+ *
+ * These tests pin the two lists together so that hole cannot reopen.
+ */
+describe(".env.example authentication secrets", () => {
+  const documented: Record<string, string> = {};
+
+  {
+    const raw = readFileSync(resolve(__dirname, "../../.env.example"), "utf8");
+    for (const line of raw.split(/\r?\n/)) {
+      if (line.trimStart().startsWith("#")) continue;
+      const match = /^\s*([A-Z0-9_]+)\s*=\s*"?(.*?)"?\s*$/.exec(line);
+      if (match) documented[match[1]] = match[2];
+    }
+  }
+
+  const SECRETS = [
+    ["SESSION_SECRET", DEV_SECRET_DEFAULTS.SESSION_SECRET, 32],
+    ["ADMIN_SECRET_KEY", DEV_SECRET_DEFAULTS.ADMIN_SECRET_KEY, 16],
+    ["STAFF_INVITE_SECRET", DEV_SECRET_DEFAULTS.STAFF_INVITE_SECRET, 16],
+  ] as const;
+
+  beforeEach(() => {
+    resetSecretWarnings();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it.each(SECRETS)("documents %s as the development default, not a novel placeholder", (name, devDefault) => {
+    expect(documented[name]).toBe(devDefault);
+  });
+
+  it.each(SECRETS)("refuses to boot production with the documented %s", (name, devDefault, minLength) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(name, documented[name]);
+
+    expect(() => resolveSecret(name, { devDefault, minLength })).toThrow(SecretConfigurationError);
+  });
+
+  it("names EMAIL_FROM rather than the unread SENDER_EMAIL", () => {
+    // src/lib/email.ts and src/actions/settings.ts both read EMAIL_FROM. An
+    // operator who sets the documented name instead leaves the From-address on
+    // Resend's shared sandbox sender, which does not deliver to arbitrary
+    // recipients — a silent failure with no error anywhere.
+    expect(documented).toHaveProperty("EMAIL_FROM");
+    expect(documented).not.toHaveProperty("SENDER_EMAIL");
   });
 });
