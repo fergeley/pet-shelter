@@ -2,7 +2,31 @@
 
 **Date**: 2026-09-01
 **Branch**: `feat/commit-message-standard` (branched from `feat/tnrm-rehabilitation` at `28159f3`)
-**Baseline**: 60 test files / 829 tests green · `npx tsc --noEmit` clean · `npm run lint` 0 errors
+**Baseline** *(re-measured 2026-09-02 at `78609a1`)*: 60 test files / **830** tests green across the
+`unit`, `integration` and `components` projects · `npx tsc --noEmit` clean · `npm run lint` 0 errors
+(5 warnings)
+
+> **Reproduce it in this order, or the number is meaningless:**
+>
+> ```bash
+> npx prisma generate      # NOT optional — see below
+> npx vitest run --project=unit --project=integration --project=components
+> ```
+>
+> Skip the generate step and this repo reports **11 failures** across `petHistory`,
+> `rehabilitation`, `petStatusPresentation` and `setupMocks`, all of the shape
+> `TypeError: Cannot read properties of undefined (reading 'Available')` — `PrismaPetStatus` comes
+> back `undefined`. That is a stale generated client, not a regression, and CI never sees it
+> because every CI job runs `npx prisma generate` first.
+>
+> This is not a one-time setup step. **`node_modules` is shared with the main checkout and every
+> worktree**, so a concurrent session running an install or a generate against another branch
+> invalidates your client mid-session. Observed twice while writing this document: the same suite
+> went green, then red, then green again with no source change between runs. **Treat CI, not a
+> local run, as the authority on green.**
+>
+> `integration-db` is excluded deliberately: `DATABASE_URL` resolves to the **production** Neon
+> branch, so that tier is not safe to run locally at all.
 **Predecessor commit**: `c7d5db2 docs(ledger): Record the commit-msg hook install`
 
 > **Scope**: this records the follow-on to adopting Chris Beams' seven rules as the commit standard
@@ -26,6 +50,15 @@ Pinned to `28159f3` on purpose. A bare `npm run commit:audit` walks `HEAD` and n
 branch's own compliant commits, so it reports a larger denominator and slightly lower percentages —
 that is adoption working, not the table rotting. **Re-run the pinned command before building on this
 section anyway**; this repo has shipped target docs whose baseline had already gone stale.
+
+**A single rev and a range are not interchangeable, and the difference is easy to misread.**
+`28159f3` audits every commit *reachable from* that rev — a fixed set of 203, immune to whatever
+lands later. `28159f3..HEAD` audits everything on this branch *since* that point, which after a
+merge also sweeps in the base branch's grandfathered commits and reports a much worse ratio
+(`7/12` at the time of writing) for a branch whose own commits are all clean. Both numbers are
+correct; they answer different questions. The gate in CI deliberately uses
+`origin/<base>..HEAD`, which excludes anything already reachable from the base branch, so merging
+the base in never dilutes it — that range reported `7/7` in run `33644884010`.
 
 **Zero of the 203 commits that predate the standard pass it.**
 

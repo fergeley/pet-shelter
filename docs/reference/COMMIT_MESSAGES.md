@@ -152,7 +152,25 @@ Bypass a single commit with `git commit --no-verify`; remove it with
 `node scripts/install-git-hooks.mjs --uninstall commit-msg`.
 
 **CI** — the `commits` job lints every commit a pull request adds, and only those. Pre-standard
-history is never re-linted, so the job cannot go red for commits nobody is writing any more.
+history is never re-linted, so the job cannot go red for commits nobody is writing any more. It
+uses the range `origin/<base>..HEAD`, which excludes everything already reachable from the base
+branch — so merging the base into a feature branch never dilutes the result.
+
+**What nothing lints: merge commits.** The audit passes `--no-merges`, and the hook skips any
+subject beginning `Merge `, `Revert `, `fixup!`, `squash!` or `amend!`. Git generates those, and
+failing a developer's commit over wording they did not write is how a hook gets uninstalled. The
+consequence is that a merge commit's message — including the part a human *does* write, explaining
+why the merge was taken and how a conflict was resolved — is governed by nothing but judgement.
+Write it as if it were linted. An empty range also passes, and does so confusingly: it exits 0
+while printing `0 commits linted` and `clean (no errors): 0/0 (0%)`. The `0%` reads like a failure
+and the exit code says success; the exit code is the truthful one. Read the count before believing
+either.
+
+**On whether the hook is live here:** §7 describes the repo default, which is opt-in and off. It
+has since been installed for this machine — see
+`tasks/decisions/2026-09-01-commit-msg-hook-installed-repo-wide.md` and
+`docs/tasks/TARGET_COMMIT_STANDARD_ADOPTION.md` §1.1 for what that does and does not protect. Do
+not infer from this section that no hook is armed.
 
 ## 8. The measured baseline
 
