@@ -1,5 +1,12 @@
 // Hope for Strays - Prisma Schema for PostgreSQL
 // Multi-Tier Pet Shelter & Adoption Platform
+//
+// !! DO NOT RUN `prisma db push` AGAINST PRODUCTION !!
+// Live Postgres has drifted ahead of this file: it carries Pet.rehabProgressPercent,
+// Pet.rehabStage, Pet.rehabStageMs and the medical_timeline_events / pet_updates tables,
+// none of which are declared here. `db push` would DROP all of them.
+// Apply additive `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` migrations by hand until the
+// rehab branch lands and this file is reconciled. See docs/qr-codes.md.
 
 generator client {
   provider = "prisma-client-js"
@@ -60,6 +67,9 @@ model Pet {
   goodWithCats    Boolean        @default(true)
   goodWithKids    Boolean        @default(true)
   energyLevel     String         @default("Moderate")
+
+  // Dedicated donation QR for a specific medical fund drive (overrides shelter default)
+  customQrUrl     String?
 
   // Soft deletion & audit
   isArchived      Boolean        @default(false)
@@ -135,6 +145,13 @@ model ShelterSettings {
   announcementBanner String?
   adoptionFeeDog     String   @default("Free")
   adoptionFeeCat     String   @default("Free")
+
+  // Donation QR codes (uploaded images) + DuitNow payload used to auto-generate one
+  duitNowQrUrl       String?
+  tngQrUrl           String?
+  bankQrUrl          String?
+  paymentPayload     String?
+
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")

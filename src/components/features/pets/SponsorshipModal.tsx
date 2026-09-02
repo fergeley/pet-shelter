@@ -28,6 +28,7 @@ import {
   useSponsorshipController,
   UseSponsorshipControllerProps,
 } from "@/hooks/useSponsorshipController";
+import { DonationQrPanel } from "@/components/features/donations/DonationQrPanel";
 
 export function SponsorshipModal(props: UseSponsorshipControllerProps) {
   const { open, onOpenChange, targetPet } = props;
@@ -243,48 +244,13 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-                  {/* DuitNow QR Visual Box */}
-                  <div className="border-2 border-[#ed008c] bg-white text-zinc-900 p-4 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
-                    <div className="text-[11px] font-extrabold uppercase tracking-widest text-[#ed008c] mb-0.5">
-                      DuitNow QR
-                    </div>
-                    <div className="text-[10px] text-zinc-600 font-semibold mb-2">
-                      National QR Standard (PayNet Malaysia)
-                    </div>
-
-                    {/* QR Code SVG */}
-                    <div className="w-36 h-36 border border-zinc-300 p-2 bg-white flex items-center justify-center relative rounded-md">
-                      <svg viewBox="0 0 100 100" className="w-full h-full text-zinc-900 fill-current">
-                        <rect x="0" y="0" width="30" height="30" fill="#18181b" />
-                        <rect x="5" y="5" width="20" height="20" fill="white" />
-                        <rect x="10" y="10" width="10" height="10" fill="#18181b" />
-
-                        <rect x="70" y="0" width="30" height="30" fill="#18181b" />
-                        <rect x="75" y="5" width="20" height="20" fill="white" />
-                        <rect x="80" y="10" width="10" height="10" fill="#18181b" />
-
-                        <rect x="0" y="70" width="30" height="30" fill="#18181b" />
-                        <rect x="5" y="75" width="20" height="20" fill="white" />
-                        <rect x="10" y="80" width="10" height="10" fill="#18181b" />
-
-                        <rect x="40" y="10" width="10" height="10" fill="#18181b" />
-                        <rect x="55" y="15" width="10" height="10" fill="#18181b" />
-                        <rect x="35" y="35" width="30" height="30" fill="#ed008c" />
-                        <rect x="42" y="42" width="16" height="16" fill="white" />
-                        <rect x="46" y="46" width="8" height="8" fill="#ed008c" />
-                        <rect x="70" y="45" width="10" height="10" fill="#18181b" />
-                        <rect x="45" y="75" width="10" height="10" fill="#18181b" />
-                        <rect x="65" y="75" width="25" height="15" fill="#18181b" />
-                      </svg>
-                    </div>
-
-                    <div className="text-[10px] font-bold text-zinc-800 mt-2">
-                      Hope for Strays Shelter Selangor
-                    </div>
-                    <div className="text-[9px] text-zinc-500 font-mono">
-                      Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc.
-                    </div>
-                  </div>
+                  {/* DuitNow QR — shared with the /donate widget */}
+                  <DonationQrPanel
+                    compact
+                    petCustomQrUrl={targetPet?.customQrUrl}
+                    petName={targetPet?.name}
+                    instructions="Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc."
+                  />
 
                   {/* Manual Bank Account Details */}
                   <div className="space-y-3 text-xs">

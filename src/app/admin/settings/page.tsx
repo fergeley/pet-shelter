@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
 import { useSettingsStore } from "@/lib/settingsStore";
 import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
+import { useAdminAuth } from "@/lib/adminAuth";
+import { DonationQrSettings } from "@/components/admin/DonationQrSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +25,20 @@ import {
   Key,
   ShieldCheck,
   AlertTriangle,
+  QrCode,
   Eye,
   EyeOff,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const { settings, saveSettings, resetToDefaultSettings } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "email" | "storage">("general");
+  const { user } = useAdminAuth();
+  // Display-only gate. `updateShelterSettings` re-checks the role server-side,
+  // so a tampered client cannot write these fields.
+  const canEditQr = (user?.role ?? "").toUpperCase() === "ADMIN";
+  const [activeTab, setActiveTab] = useState<
+    "general" | "email" | "storage" | "donation"
+  >("general");
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
@@ -43,16 +52,18 @@ export default function AdminSettingsPage() {
     error?: string;
   } | null>(null);
 
+  const form = useForm<ShelterSettingsInput>({
+    resolver: zodResolver(shelterSettingsSchema),
+    defaultValues: settings,
+  });
+
   const {
     register,
     handleSubmit,
     reset,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<ShelterSettingsInput>({
-    resolver: zodResolver(shelterSettingsSchema),
-    defaultValues: settings,
-  });
+  } = form;
 
   useEffect(() => {
     reset(settings);
@@ -156,6 +167,19 @@ export default function AdminSettingsPage() {
         >
           <HardDrive className="size-4" />
           Media Storage Provider
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("donation")}
+          className={`pb-3 px-1 border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === "donation"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <QrCode className="size-4" />
+          Donation &amp; QR Codes
         </button>
       </div>
 
@@ -446,6 +470,11 @@ export default function AdminSettingsPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* TAB 4: Donation & QR Codes */}
+        {activeTab === "donation" && (
+          <DonationQrSettings form={form} canEdit={canEditQr} />
         )}
 
         {/* Form Footer / Save Actions */}

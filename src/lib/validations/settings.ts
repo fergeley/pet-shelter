@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { optionalQrPayload, optionalUploadedImageUrl } from "@/lib/validations/qrImage";
 
 export const shelterSettingsSchema = z.object({
   shelterName: z.string().min(2, "Shelter name is required"),
@@ -9,6 +10,13 @@ export const shelterSettingsSchema = z.object({
   announcementBanner: z.string().optional().default(""),
   adoptionFeeDog: z.string().min(1, "Dog adoption fee is required"),
   adoptionFeeCat: z.string().min(1, "Cat adoption fee is required"),
+
+  // Donation QR codes. Each is either an /uploads/... path or an https URL;
+  // paymentPayload is a DuitNow/bank string we render to an SVG QR ourselves.
+  duitNowQrUrl: optionalUploadedImageUrl,
+  tngQrUrl: optionalUploadedImageUrl,
+  bankQrUrl: optionalUploadedImageUrl,
+  paymentPayload: optionalQrPayload,
 
   // Email Configuration (Optional overrides)
   resendApiKey: z.string().optional().default(""),
