@@ -53,8 +53,8 @@ Put it in the session scratchpad, never in the repo. Verify between commits with
 
 **`docs/reference/COMMIT_MESSAGES.md` is the standard.** Read it; do not restate it here and do
 not infer the convention from `git log`, because 0 of the 203 commits that predate the standard
-pass it. The summary after the colon is **capitalized** and imperative, the subject stops at 72
-characters, and the body wraps at 72.
+pass it. Check a message with `node scripts/commit-msg.mjs --stdin` instead of repeating the
+limits here; a fourth copy of them is precisely how the convention drifts.
 
 Two things that are this agent's job rather than the standard's:
 
