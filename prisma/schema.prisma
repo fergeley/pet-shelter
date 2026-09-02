@@ -87,7 +87,13 @@ model Pet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Cost of this animal's care programme, in integer sen, used as the
+  /// denominator of the sponsorship progress shown on its profile. Null means
+  /// "no animal-specific target", and the shelter-wide default applies.
+  sponsorshipGoalSen Int?
+
   applications       AdoptionApplication[]
+  sponsorships       PetSponsorship[]
   updates            PetUpdate[]
   medicalTimeline    MedicalTimelineEvent[]
   vetAssignments     VetPetAssignment[]
@@ -271,6 +277,11 @@ model ShelterSettings {
   announcementBanner String?
   adoptionFeeDog     String   @default("Free")
   adoptionFeeCat     String   @default("Free")
+
+  /// Fallback care-cost target in integer sen (RM 1,500.00) for any animal
+  /// without a `Pet.sponsorshipGoalSen` of its own.
+  defaultSponsorshipGoalSen Int @default(150000)
+
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")
@@ -475,3 +486,83 @@ model PetCompatibilityRule {
   @@map("pet_compatibility_rules")
 }
 
+
+/// A supporter's standing commitment to fund one animal's care.
+///
+/// ## Why this is not a `Donation`
+///
+/// `Donation` is an issued receipt: append-only, immutable, and evidence that
+/// money arrived. A sponsorship is the opposite kind of record — a commitment
+/// that has a lifecycle, can be waiting on a bank transfer, and can be
+/// cancelled. Modelling it as a mutable `Donation` would have meant putting a
+/// status column on a statutory document, which is exactly what that model's
+/// comment forbids.
+///
+/// The two meet at reconciliation: when a coordinator matches the transfer,
+/// `issueDonationReceipt()` writes the `Donation` and its gapless number is
+/// copied onto `receiptNumber` here. Until that happens this row carries no
+/// receipt number, because nothing has verified that any money moved — the
+/// supporter was shown a DuitNow QR and told us they paid.
+///
+/// ## Money
+///
+/// `amountSen` is an integer count of sen, as everywhere else. See
+/// `src/lib/domain/money.ts`.
+model PetSponsorship {
+  id      String @id @default(cuid())
+
+  /// Nullable, and paired with a denormalised name. Pets are still served from
+  /// `src/data/pets.json` through an in-memory store when the database is empty,
+  /// so a sponsorship can legitimately name an animal that has no row here. The
+  /// snapshot is also what keeps the record readable after a rename or an
+  /// archive, the same reasoning as `AdoptionApplication.petName`.
+  petId   String?
+  pet     Pet?    @relation(fields: [petId], references: [id], onDelete: SetNull)
+  petName String
+
+  sponsorName  String
+  sponsorEmail String
+  sponsorPhone String?
+  /// Reserved for a future supporter account. Checkout is guest-only today and
+  /// always leaves this null.
+  userId       String?
+
+  tierId   String
+  /// Tier name as displayed when the commitment was made, snapshotted for the
+  /// same reason as `Donation.tierName`.
+  tierName String
+  /// "one_time" or "monthly". A plain String, matching `Donation.frequency`,
+  /// constrained at the Zod boundary rather than by a database enum.
+  frequency String @default("one_time")
+  /// Integer sen. RM 80.00 is stored as 8000.
+  amountSen Int
+
+  paymentMethod String
+  /// PENDING_PAYMENT -> ACTIVE | CANCELLED | EXPIRED. Only ACTIVE counts toward
+  /// the public supporter tally and the funding total.
+  status        String @default("PENDING_PAYMENT")
+
+  /// Handed to the supporter at checkout so they can quote it on their transfer.
+  /// Prefixed HFS-PLG, deliberately unlike a receipt number: a coordinator
+  /// reading a bank statement must be able to tell a claim from a receipt.
+  pledgeRef     String  @unique
+  /// The `Donation.receiptNumber` issued for this commitment, once reconciled.
+  /// Unique, so a second reconciliation cannot attach a second receipt to the
+  /// same money.
+  receiptNumber String? @unique
+
+  reconciledAt DateTime?
+  reconciledBy String?
+  cancelledAt  DateTime?
+
+  taxIdOrIc String?
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Serves the per-animal supporter count and funding total.
+  @@index([petId, status])
+  @@index([sponsorEmail])
+  @@map("pet_sponsorships")
+}

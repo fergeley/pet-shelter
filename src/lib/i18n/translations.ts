@@ -151,6 +151,12 @@ export interface TranslationDictionary {
     noUpdates: string;
     whatsAppUs: string;
     sponsorCare: string;
+    sponsoredBySupporters: string;
+    sponsoredByOneSupporter: string;
+    fullySponsored: string;
+    sponsorAnyway: string;
+    fundingProgress: string;
+    fundingProgressLabel: string;
     careProgram: string;
     sponsorSupported: string;
     tabAbout: string;
@@ -504,6 +510,12 @@ export const translations: Record<Language, TranslationDictionary> = {
       noUpdates: "No progress updates have been recorded yet.",
       whatsAppUs: "WhatsApp Us",
       sponsorCare: "Sponsor Care",
+      sponsoredBySupporters: "Currently sponsored by {count} supporters",
+      sponsoredByOneSupporter: "Currently sponsored by 1 supporter",
+      fullySponsored: "Fully Sponsored — View Others",
+      sponsorAnyway: "Sponsor anyway",
+      fundingProgress: "{funded} of {goal} raised for care",
+      fundingProgressLabel: "{percent}% of care costs funded",
       careProgram: "Care Program",
       sponsorSupported: "Sponsor Supported",
       tabAbout: "About Me",
@@ -855,6 +867,12 @@ export const translations: Record<Language, TranslationDictionary> = {
       noUpdates: "Tiada kemas kini kemajuan direkodkan setakat ini.",
       whatsAppUs: "Hubungi WhatsApp",
       sponsorCare: "Taja Rawatan",
+      sponsoredBySupporters: "Kini ditaja oleh {count} penyumbang",
+      sponsoredByOneSupporter: "Kini ditaja oleh 1 penyumbang",
+      fullySponsored: "Tajaan Penuh — Lihat Haiwan Lain",
+      sponsorAnyway: "Taja juga",
+      fundingProgress: "{funded} daripada {goal} terkumpul untuk rawatan",
+      fundingProgressLabel: "{percent}% kos rawatan telah terkumpul",
       careProgram: "Program Rawatan",
       sponsorSupported: "Perlu Penajaan",
       tabAbout: "Tentang Saya",

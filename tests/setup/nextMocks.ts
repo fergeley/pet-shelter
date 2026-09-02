@@ -284,13 +284,22 @@ export function resetNextMocks(): void {
 beforeEach(async () => {
   resetNextMocks();
 
-  const [fallbackState, userStore, auditLog, rateLimit, idempotency, donationLedger] = await Promise.all([
+  const [
+    fallbackState,
+    userStore,
+    auditLog,
+    rateLimit,
+    idempotency,
+    donationLedger,
+    sponsorshipLedger,
+  ] = await Promise.all([
     import("@/lib/server/fallbackState"),
     import("@/lib/server/userStore"),
     import("@/lib/domain/auditLog"),
     import("@/lib/security/rateLimit"),
     import("@/lib/security/idempotency"),
     import("@/lib/server/donationLedger"),
+    import("@/lib/server/sponsorshipLedger"),
   ]);
 
   fallbackState.resetServerStore();
@@ -298,5 +307,6 @@ beforeEach(async () => {
   rateLimit.resetRateLimitStore();
   idempotency.resetIdempotencyStore();
   donationLedger.resetDonationLedger();
+  sponsorshipLedger.resetSponsorshipLedger();
   await userStore.resetUserStore();
 });
