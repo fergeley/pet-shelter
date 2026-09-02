@@ -13,13 +13,15 @@ import {
   Wallet,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+// Statutory identifiers live in one module so a registration change cannot be
+// half-applied across the site — enforced by tests/unit/shelterIdentity.test.ts.
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   TransparencySnapshot,
   formatLongDate,
   formatMYR,
 } from "@/lib/domain/transparency";
-import { ALLOCATION_SCOPE, ALLOCATION_PALETTE_CSS } from "./palette";
 import { ExpenseAllocationChart } from "./ExpenseAllocationChart";
 import { ImpactStatHighlights } from "./ImpactStatHighlights";
 import { RecentPurchasesFeed } from "./RecentPurchasesFeed";
@@ -49,7 +51,7 @@ function LedgerSourceNotice({ source }: { source: TransparencySnapshot["source"]
   return (
     <div
       role="status"
-      className="border-b border-amber-500/40 bg-amber-50 px-6 py-3 text-center text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+      className="border-b border-warning-border bg-warning-surface px-6 py-3 text-center text-xs font-semibold text-warning-text"
     >
       <span className="inline-flex items-center gap-2">
         <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
@@ -70,9 +72,7 @@ export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnaps
   const hasLedger = snapshot.totalSen > 0;
 
   return (
-    <div className={`${ALLOCATION_SCOPE} flex min-h-screen flex-col bg-background`}>
-      {/* Categorical palette, defined once for every chart on this page. */}
-      <style>{ALLOCATION_PALETTE_CSS}</style>
+    <div className={`flex min-h-screen flex-col bg-background`}>
 
       <LedgerSourceNotice source={snapshot.source} />
 
@@ -97,11 +97,13 @@ export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnaps
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-3 text-xs font-semibold sm:text-sm">
               <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/60 px-3 py-1 text-foreground">
-                <ShieldCheck className="size-4 text-emerald-600" />
-                {t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}
+                <ShieldCheck className="size-4 text-success-accent" />
+                {t("donations.rosBadge", "ROS Reg: {regNo}", {
+                  regNo: PUBLIC_ROS_REGISTRATION_NO,
+                })}
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/30 bg-emerald-950/10 px-3 py-1 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
-                <Award className="size-4 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-success-border bg-success-surface px-3 py-1 text-success-text">
+                <Award className="size-4 text-success-accent" />
                 {t("donations.lhdnBadge", "LHDN Tax Deductible: Sec 44(6) ITA 1967")}
               </span>
               {snapshot.lastExpenseDate && (

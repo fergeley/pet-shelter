@@ -1,5 +1,7 @@
 "use client";
 
+import { LHDN_TAX_DEDUCTIBLE_REF, PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
+import React, { Suspense } from "react";
 import Link from "next/link";
 import {
   ShieldCheck,
@@ -13,6 +15,7 @@ import {
   Award,
   ArrowRight,
   HeartHandshake,
+  Loader2,
 } from "lucide-react";
 import { DonationWidget } from "./DonationWidget";
 import { AllocationSummary } from "@/components/features/transparency/AllocationSummary";
@@ -27,10 +30,10 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 /**
  * Donate page body.
  *
- * Split out of `app/donate/page.tsx` so that page can be a Server Component and
- * render the allocation figures into the HTML. When this was the page itself,
- * the summary had to fetch on mount, which cost the section its first paint and
- * hid it from crawlers.
+ * Split out of `app/donate/page.tsx` so that route can be a Server Component and
+ * render the allocation figures into the HTML. As a client page it would have had
+ * to fetch them on mount, costing the section its first paint and hiding it from
+ * crawlers.
  */
 export function DonatePageView({
   allocation,
@@ -94,8 +97,8 @@ export function DonatePageView({
     {
       q: isMs ? "Adakah sumbangan saya layak mendapat potongan cukai di Malaysia?" : "Is my contribution tax-deductible in Malaysia?",
       a: isMs
-        ? "Ya! Pertubuhan Kebajikan Hope for Strays merupakan organisasi kebajikan yang diluluskan pengecualian cukai di bawah Seksyen 44(6) Akta Cukai Pendapatan 1967 (No. Rujukan Kelulusan: LHDN.01/35/42/51/179-6.4912). Semua sumbangan tunai layak untuk potongan cukai rasmi individu dan korporat."
-        : "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: LHDN.01/35/42/51/179-6.4912). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
+        ? "Ya! Pertubuhan Kebajikan Hope for Strays merupakan organisasi kebajikan yang diluluskan pengecualian cukai di bawah Seksyen 44(6) Akta Cukai Pendapatan 1967 (No. Rujukan Kelulusan: " + LHDN_TAX_DEDUCTIBLE_REF + "). Semua sumbangan tunai layak untuk potongan cukai rasmi individu dan korporat."
+        : "Yes! Pertubuhan Kebajikan Hope for Strays is an approved tax-exempt non-profit organisation under Subsection 44(6) of the Income Tax Act 1967 (Approval Ref: " + LHDN_TAX_DEDUCTIBLE_REF + "). All monetary donations are eligible for official tax deductions on your individual or corporate tax return.",
     },
     {
       q: isMs ? "Bagaimanakah saya menerima resit rasmi potongan cukai?" : "How do I receive my official tax receipt?",
@@ -153,11 +156,11 @@ export function DonatePageView({
             {/* Official Credentials Banner */}
             <div className="pt-3 flex flex-wrap items-center justify-center gap-3 text-xs sm:text-sm font-semibold">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
-                <ShieldCheck className="size-4 text-emerald-600" />
-                {t("donations.rosBadge", "ROS Reg: PPM-012-10-18042016")}
+                <ShieldCheck className="size-4 text-success-accent" />
+                {t("donations.rosBadge", "ROS Reg: {regNo}", { regNo: PUBLIC_ROS_REGISTRATION_NO })}
               </span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-950/10 dark:bg-emerald-950/40 border border-emerald-600/30 rounded-lg text-emerald-800 dark:text-emerald-300">
-                <Award className="size-4 text-emerald-600" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-success-surface border border-success-accent/30 rounded-lg text-success-text ">
+                <Award className="size-4 text-success-accent" />
                 {t("donations.lhdnBadge", "LHDN Tax Deductible: Sec 44(6) ITA 1967")}
               </span>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-muted/60 border border-border rounded-lg text-foreground">
@@ -172,7 +175,16 @@ export function DonatePageView({
       {/* 2. Interactive Giving Engine */}
       <section className="py-12 sm:py-16 bg-muted/20">
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-5xl mx-auto">
-          <DonationWidget />
+          <Suspense
+          fallback={
+              <div className="flex min-h-[300px] items-center justify-center p-12 text-muted-foreground border border-border bg-card rounded-2xl">
+                <Loader2 className="size-6 animate-spin mr-2" />
+                <span>{isMs ? "Memuatkan borang sumbangan..." : "Loading donation form..."}</span>
+              </div>
+            }
+          >
+            <DonationWidget />
+          </Suspense>
         </div>
       </section>
 
@@ -194,8 +206,8 @@ export function DonatePageView({
           </div>
 
           {/* Allocation and impact figures are derived from the shared expense
-              ledger, the same source /transparency renders. This page used to
-              hard-code its own percentages and drifted away from the ledger. */}
+              ledger — the same source /transparency renders. This page used to
+              hard-code its own percentages, which drifted from the ledger. */}
           <AllocationSummary
             allocation={allocation}
             impactStats={impactStats}
@@ -237,7 +249,7 @@ export function DonatePageView({
                 <ul className="space-y-2.5 text-xs sm:text-sm text-foreground/90">
                   {cat.items.map((item, itemIdx) => (
                     <li key={itemIdx} className="flex items-start gap-2">
-                      <CheckCircle2 className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <CheckCircle2 className="size-4 text-success-accent shrink-0 mt-0.5" />
                       <span>{item}</span>
                     </li>
                   ))}

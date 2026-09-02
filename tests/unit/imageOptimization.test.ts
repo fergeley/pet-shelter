@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { optimizeImageForUpload, isWebPSupported } from "@/lib/imageOptimization";
+import { optimizeImageForUpload, isWebPSupported } from "@/lib/client/imageOptimization";
 
 describe("Client-Side Image Optimization Utility", () => {
   it("should detect WebP support safely in non-browser/test environment", () => {

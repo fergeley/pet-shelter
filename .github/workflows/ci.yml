@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+# A new push supersedes an in-flight run on the same ref. Playwright and the
+# jsdom suite are the slow jobs, and there is no value in finishing them for a
+# commit that has already been replaced.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Every tier except `integration-db` is designed to run with no database at
+  # all, which is also how the application behaves. Only the job that needs
+  # Postgres provisions it.
+  NODE_VERSION: "22"
+
+jobs:
+  static:
+    name: Static & architecture analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # `postinstall` already runs this, but an npm cache hit can skip it and
+      # leave `@prisma/client` unbuilt, which fails typecheck rather than tests.
+      - run: npx prisma generate
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Layer boundaries
+        run: node docs/architecture/layer-graph.mjs
+
+  unit-and-components:
+    name: Unit, integration & component tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      # Tiers 1-4. `test:all` deliberately excludes `integration-db`, so this
+      # job needs no service container and no secret.
+      - name: Unit, strict-integration and component suites
+        run: npm run test:all
+
+  database:
+    name: Strict persistence against Postgres
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: pet_shelter
+        ports: ["5432:5432"]
+        # Without this the first migration races the server's startup and fails
+        # with a connection refused that looks like a broken schema.
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # Matches docker-compose.yml and the localhost-pinned db:*:local / test:db
+      # scripts, which hardcode this password. When CI used a different one,
+      # `npm run test:db` overrode DATABASE_URL with the script's value and the
+      # probes failed 28P01 against a database that was running fine.
+      DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Apply the schema and seed the catalogue
+        # schemaIntegrity.postgres.test.ts verifies a seed round-trip — it reads
+        # the fixture pets back out and counts their updates and timeline events
+        # — so an empty database fails it with "No fixture pets found" rather
+        # than telling you anything about the schema.
+        run: |
+          npx prisma db push
+          npm run db:seed
+      - name: Tier 3b probes
+        run: npm run test:db
+
+  e2e:
+    name: Playwright golden paths
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: pet_shelter
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      # Matches docker-compose.yml and the localhost-pinned db:*:local / test:db
+      # scripts, which hardcode this password. When CI used a different one,
+      # `npm run test:db` overrode DATABASE_URL with the script's value and the
+      # probes failed 28P01 against a database that was running fine.
+      DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public
+      # The specs seal their own admin session cookie, so this must match what
+      # the server verifies with. Any value over 32 characters works; it is a
+      # throwaway for a throwaway database.
+      SESSION_SECRET: ci-only-session-secret-not-used-anywhere-else-0000
+      E2E_PORT: "3100"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - name: Apply the schema and seed the catalogue
+        # The golden paths assert on named fixture animals and applicants, so an
+        # empty database would fail them for the wrong reason.
+        run: |
+          npx prisma db push
+          npm run db:seed
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run the golden paths
+        run: npm run test:e2e
+      - name: Upload the report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

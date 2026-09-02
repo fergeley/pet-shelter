@@ -30,7 +30,7 @@ import {
   readTransparencySnapshot,
   updateExpenseItem,
   upsertImpactStat,
-} from "@/lib/domain/transparencyStore";
+} from "@/lib/server/transparencyRepository";
 
 /**
  * Server actions for the transparency admin editor.

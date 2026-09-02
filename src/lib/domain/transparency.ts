@@ -27,14 +27,6 @@ export interface ExpenseCategoryMeta {
   labelMs: string;
   blurb: string;
   blurbMs: string;
-  /**
-   * Categorical chart colours, validated with the data-viz palette checker
-   * (adjacent-pair CVD ΔE ≥ 8 and normal-vision ΔE ≥ 15 in both modes).
-   * Light-mode slots 3–5 sit below 3:1 against the cream surface, so the
-   * chart always ships direct labels plus a table view as the relief.
-   */
-  color: string;
-  colorDark: string;
 }
 
 /**
@@ -50,8 +42,6 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategoryMeta[] = [
       "Emergency trauma surgery, spay/neuter operations, core vaccinations and diagnostic lab work.",
     blurbMs:
       "Pembedahan trauma kecemasan, pemandulan, vaksinasi teras dan ujian makmal diagnostik.",
-    color: "#2a78d6",
-    colorDark: "#3987e5",
   },
   {
     key: "FOOD_NUTRITION",
@@ -61,8 +51,6 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategoryMeta[] = [
       "High-protein kibble, newborn milk replacer and veterinary recovery diets for every resident.",
     blurbMs:
       "Kibble berprotein tinggi, susu gantian anak haiwan dan diet pemulihan veterinar.",
-    color: "#eb6834",
-    colorDark: "#d95926",
   },
   {
     key: "SHELTER_MAINTENANCE",
@@ -72,8 +60,6 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategoryMeta[] = [
       "Sanctuary rent, utilities, kennel repairs, bedding and veterinary-grade sanitation.",
     blurbMs:
       "Sewa pusat perlindungan, utiliti, pembaikan reban, alas tidur dan sanitasi gred veterinar.",
-    color: "#1baf7a",
-    colorDark: "#199e70",
   },
   {
     key: "RESCUE_TNRM",
@@ -83,8 +69,6 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategoryMeta[] = [
       "Humane trapping, colony sterilisation, ear-notching, microchipping and rescue transport.",
     blurbMs:
       "Perangkap berperikemanusiaan, pemandulan koloni, takuk telinga, mikrocip dan pengangkutan.",
-    color: "#eda100",
-    colorDark: "#c98500",
   },
   {
     key: "STAFF_CARE",
@@ -94,8 +78,6 @@ export const EXPENSE_CATEGORIES: readonly ExpenseCategoryMeta[] = [
       "Night-shift caretaker stipends, rabies pre-exposure vaccination and handling certification.",
     blurbMs:
       "Elaun penjaga syif malam, vaksinasi rabies pra-pendedahan dan pensijilan pengendalian.",
-    color: "#e87ba4",
-    colorDark: "#d55181",
   },
 ] as const;
 

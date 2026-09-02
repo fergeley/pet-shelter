@@ -38,8 +38,8 @@ export function ThemeToggle({ className = "", showLabel = false }: ThemeTogglePr
   if (!isClient) {
     return (
       <div className={`inline-flex items-center gap-2 ${className}`}>
-        <div className="relative inline-flex h-7 w-13 items-center rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 p-0.5 opacity-60">
-          <div className="size-5 rounded-full bg-white dark:bg-zinc-900 shadow-xs" />
+        <div className="segmented relative h-7 w-13 opacity-60">
+          <div className="segmented-thumb size-5" />
         </div>
       </div>
     );
@@ -55,26 +55,26 @@ export function ThemeToggle({ className = "", showLabel = false }: ThemeTogglePr
         title={isDark ? "Switch to light mode" : "Switch to dark mode"}
         onClick={handleToggle}
         onKeyDown={handleKeyDown}
-        className="relative inline-flex h-7 w-13 shrink-0 cursor-pointer items-center rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 p-0.5 transition-colors duration-200 ease-in-out focus:outline-hidden focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2"
+        className="segmented relative h-7 w-13 shrink-0 cursor-pointer transition-colors duration-200 ease-in-out focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         {/* Track Icons */}
-        <span className="absolute left-1.5 flex items-center justify-center text-amber-600 dark:text-zinc-500 pointer-events-none transition-opacity">
+        <span className="absolute left-1.5 flex items-center justify-center text-warning-accent pointer-events-none transition-opacity dark:text-muted-foreground/60">
           <Sun className="size-3.5" />
         </span>
-        <span className="absolute right-1.5 flex items-center justify-center text-zinc-400 dark:text-amber-300 pointer-events-none transition-opacity">
+        <span className="absolute right-1.5 flex items-center justify-center text-muted-foreground/60 pointer-events-none transition-opacity dark:text-warning-accent">
           <Moon className="size-3.5" />
         </span>
 
         {/* Sliding Thumb */}
         <span
-          className={`pointer-events-none flex size-5.5 items-center justify-center rounded-full bg-white dark:bg-zinc-900 shadow-xs transition-transform duration-200 ease-in-out ${
+          className={`segmented-thumb pointer-events-none flex size-5.5 items-center justify-center transition-transform duration-200 ease-in-out ${
             isDark ? "translate-x-6" : "translate-x-0"
           }`}
         >
           {isDark ? (
-            <Moon className="size-3 text-amber-300 fill-amber-300/30" />
+            <Moon className="size-3 text-warning-accent fill-warning-accent/30" />
           ) : (
-            <Sun className="size-3 text-amber-600 fill-amber-600/30" />
+            <Sun className="size-3 text-warning-accent fill-warning-accent/30" />
           )}
         </span>
       </button>

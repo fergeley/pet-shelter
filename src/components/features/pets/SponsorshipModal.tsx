@@ -1,5 +1,6 @@
 "use client";
 
+import { LHDN_TAX_DEDUCTIBLE_REF, STATUTORY_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
   RotateCw,
   Heart,
   Building2,
+  Sparkles,
 } from "lucide-react";
 import {
   useSponsorshipController,
@@ -166,17 +168,17 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                             <span className="font-heading text-lg font-bold text-foreground">
                               RM {tier.amount}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
+                            <span className="text-3xs font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
                               {tier.badgeText}
                             </span>
                           </div>
                           <div className="text-xs font-bold text-foreground line-clamp-1">{tier.name}</div>
-                          <div className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">
+                          <div className="text-2xs text-muted-foreground mt-1 leading-snug line-clamp-2">
                             {tier.description}
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2 border-t border-border/60 text-[10px] text-primary font-medium">
+                        <div className="mt-3 pt-2 border-t border-border/60 text-3xs text-primary font-medium">
                           {tier.impactMetrics}
                         </div>
                       </button>
@@ -226,6 +228,30 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                     </div>
                   </div>
                 </div>
+
+                {/* RM30/mo Rescue Companion Tier Highlights */}
+                {(frequency === "monthly" || selectedTier.id === "kibble") && (
+                  <div className="border border-primary/30 bg-primary/5 p-4 rounded-xl space-y-2.5">
+                    <div className="flex items-center gap-1.5 font-heading text-xs font-bold text-foreground">
+                      <Sparkles className="size-3.5 text-primary" />
+                      <span>Rescue Companion Perks — {targetPet ? targetPet.name : "Shelter Rescues"}</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
+                        <span className="font-bold text-foreground text-2xs block">📸 Monthly Updates</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">WhatsApp & Email progress reports</span>
+                      </div>
+                      <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
+                        <span className="font-bold text-foreground text-2xs block">🏅 Digital Certificate</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">Official e-Certificate of Sponsorship</span>
+                      </div>
+                      <div className="p-2.5 bg-background border border-primary/20 rounded-lg space-y-0.5">
+                        <span className="font-bold text-foreground text-2xs block">🐾 Sanctuary Visits</span>
+                        <span className="text-3xs text-muted-foreground leading-tight block">Arranged visiting privileges</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 2. Malaysian Payment Rail (DuitNow QR + Direct Bank Transfer) */}
@@ -244,44 +270,44 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                   {/* DuitNow QR Visual Box */}
-                  <div className="border-2 border-[#ed008c] bg-white text-zinc-900 p-4 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
-                    <div className="text-[11px] font-extrabold uppercase tracking-widest text-[#ed008c] mb-0.5">
+                  <div className="border-2 border-brand-duitnow bg-receipt-paper text-receipt-ink p-4 rounded-xl flex flex-col items-center justify-center text-center shadow-sm">
+                    <div className="text-2xs font-extrabold uppercase tracking-widest text-brand-duitnow mb-0.5">
                       DuitNow QR
                     </div>
-                    <div className="text-[10px] text-zinc-600 font-semibold mb-2">
+                    <div className="text-3xs text-receipt-ink-muted font-semibold mb-2">
                       National QR Standard (PayNet Malaysia)
                     </div>
 
                     {/* QR Code SVG */}
-                    <div className="w-36 h-36 border border-zinc-300 p-2 bg-white flex items-center justify-center relative rounded-md">
-                      <svg viewBox="0 0 100 100" className="w-full h-full text-zinc-900 fill-current">
-                        <rect x="0" y="0" width="30" height="30" fill="#18181b" />
+                    <div className="w-36 h-36 border border-receipt-rule p-2 bg-receipt-paper flex items-center justify-center relative rounded-md">
+                      <svg viewBox="0 0 100 100" className="w-full h-full text-receipt-ink fill-current">
+                        <rect x="0" y="0" width="30" height="30" fill="var(--receipt-ink)" />
                         <rect x="5" y="5" width="20" height="20" fill="white" />
-                        <rect x="10" y="10" width="10" height="10" fill="#18181b" />
+                        <rect x="10" y="10" width="10" height="10" fill="var(--receipt-ink)" />
 
-                        <rect x="70" y="0" width="30" height="30" fill="#18181b" />
+                        <rect x="70" y="0" width="30" height="30" fill="var(--receipt-ink)" />
                         <rect x="75" y="5" width="20" height="20" fill="white" />
-                        <rect x="80" y="10" width="10" height="10" fill="#18181b" />
+                        <rect x="80" y="10" width="10" height="10" fill="var(--receipt-ink)" />
 
-                        <rect x="0" y="70" width="30" height="30" fill="#18181b" />
+                        <rect x="0" y="70" width="30" height="30" fill="var(--receipt-ink)" />
                         <rect x="5" y="75" width="20" height="20" fill="white" />
-                        <rect x="10" y="80" width="10" height="10" fill="#18181b" />
+                        <rect x="10" y="80" width="10" height="10" fill="var(--receipt-ink)" />
 
-                        <rect x="40" y="10" width="10" height="10" fill="#18181b" />
-                        <rect x="55" y="15" width="10" height="10" fill="#18181b" />
-                        <rect x="35" y="35" width="30" height="30" fill="#ed008c" />
+                        <rect x="40" y="10" width="10" height="10" fill="var(--receipt-ink)" />
+                        <rect x="55" y="15" width="10" height="10" fill="var(--receipt-ink)" />
+                        <rect x="35" y="35" width="30" height="30" fill="var(--brand-duitnow)" />
                         <rect x="42" y="42" width="16" height="16" fill="white" />
-                        <rect x="46" y="46" width="8" height="8" fill="#ed008c" />
-                        <rect x="70" y="45" width="10" height="10" fill="#18181b" />
-                        <rect x="45" y="75" width="10" height="10" fill="#18181b" />
-                        <rect x="65" y="75" width="25" height="15" fill="#18181b" />
+                        <rect x="46" y="46" width="8" height="8" fill="var(--brand-duitnow)" />
+                        <rect x="70" y="45" width="10" height="10" fill="var(--receipt-ink)" />
+                        <rect x="45" y="75" width="10" height="10" fill="var(--receipt-ink)" />
+                        <rect x="65" y="75" width="25" height="15" fill="var(--receipt-ink)" />
                       </svg>
                     </div>
 
-                    <div className="text-[10px] font-bold text-zinc-800 mt-2">
+                    <div className="text-3xs font-bold text-receipt-ink-soft mt-2">
                       Hope for Strays Shelter Selangor
                     </div>
-                    <div className="text-[9px] text-zinc-500 font-mono">
+                    <div className="text-3xs text-receipt-ink-faint font-mono">
                       Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc.
                     </div>
                   </div>
@@ -289,19 +315,19 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                   {/* Manual Bank Account Details */}
                   <div className="space-y-3 text-xs">
                     <div className="p-3.5 border border-border bg-card rounded-lg space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                      <div className="eyebrow flex items-center gap-1">
                         <Building2 className="size-3" /> Beneficiary Organization
                       </div>
                       <div className="font-bold text-foreground text-sm">Pertubuhan Kebajikan Hope for Strays</div>
-                      <div className="text-[11px] text-muted-foreground">ROS Registration: PPM-021-10-18082021</div>
+                      <div className="text-2xs text-muted-foreground">ROS Registration: {STATUTORY_ROS_REGISTRATION_NO}</div>
                     </div>
 
                     <div className="p-3.5 border border-border bg-card rounded-lg space-y-1">
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold">Maybank Account Details</div>
+                      <div className="eyebrow">Maybank Account Details</div>
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <span className="font-mono font-bold text-foreground text-base tracking-wider block">5140 1234 5678</span>
-                          <span className="text-[10px] text-muted-foreground">Malayan Banking Berhad (PJ Branch)</span>
+                          <span className="text-3xs text-muted-foreground">Malayan Banking Berhad (PJ Branch)</span>
                         </div>
                         <Button
                           type="button"
@@ -310,15 +336,15 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                           onClick={handleCopyMaybank}
                           className="h-8 px-3 text-xs font-semibold gap-1.5"
                         >
-                          {copiedBank ? <CheckCircle2 className="size-3.5 text-emerald-600" /> : <Copy className="size-3.5" />}
+                          {copiedBank ? <CheckCircle2 className="size-3.5 text-success-accent" /> : <Copy className="size-3.5" />}
                           {copiedBank ? "Copied!" : "Copy"}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-emerald-950/10 dark:bg-emerald-950/40 p-2.5 rounded-md border border-emerald-600/20">
-                      <ShieldCheck className="size-4 text-emerald-600 shrink-0" />
-                      <span>Official LHDN Tax-Exempt Reference: <strong>LHDN.01/35/42/51/179-6.4912</strong></span>
+                    <div className="flex items-center gap-2 text-2xs text-muted-foreground bg-success-surface p-2.5 rounded-md border border-success-accent/20">
+                      <ShieldCheck className="size-4 text-success-accent shrink-0" />
+                      <span>Official LHDN Tax-Exempt Reference: <strong>{LHDN_TAX_DEDUCTIBLE_REF}</strong></span>
                     </div>
                   </div>
                 </div>
@@ -411,8 +437,8 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
           ) : (
             /* E-Receipt View */
             <div className="space-y-6">
-              <div className="bg-emerald-900/10 border border-emerald-600/30 p-4 rounded-xl flex items-start gap-3">
-                <CheckCircle2 className="size-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div className="bg-success-surface border border-success-accent/30 p-4 rounded-xl flex items-start gap-3">
+                <CheckCircle2 className="size-5 text-success-accent shrink-0 mt-0.5" />
                 <div>
                   <h4 className="font-heading text-sm font-bold text-foreground">
                     Sponsorship Confirmed! Thank You for Saving Rescue Lives.
@@ -424,65 +450,65 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
               </div>
 
               {/* Printable Official Receipt Dossier */}
-              <div id="donation-receipt-print" className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-zinc-900 pb-4">
+              <div id="donation-receipt-print" className="receipt p-6 sm:p-8 space-y-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-receipt-ink pb-4">
                   <div>
-                    <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-zinc-900">
+                    <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-receipt-ink">
                       Hope for Strays Animal Sanctuary
                     </h3>
-                    <p className="text-xs text-zinc-600">
+                    <p className="text-xs text-receipt-ink-muted">
                       No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
                     </p>
-                    <p className="text-[11px] text-zinc-500">
+                    <p className="text-2xs text-receipt-ink-faint">
                       ROS Reg: {completedReceipt.shelterRegistrationNo} • Tax Exemption: {completedReceipt.taxDeductibleRef}
                     </p>
                   </div>
 
                   <div className="text-left sm:text-right">
-                    <span className="inline-block px-2.5 py-1 bg-zinc-900 text-white font-mono text-xs font-bold uppercase rounded-sm">
+                    <span className="inline-block px-2.5 py-1 bg-receipt-ink text-receipt-paper font-mono text-xs font-bold uppercase rounded-sm">
                       Official e-Receipt
                     </span>
-                    <div className="font-mono text-xs font-bold text-zinc-800 mt-1">
+                    <div className="font-mono text-xs font-bold text-receipt-ink-soft mt-1">
                       {completedReceipt.receiptNumber}
                     </div>
-                    <div className="text-[11px] text-zinc-500">{completedReceipt.date}</div>
+                    <div className="text-2xs text-receipt-ink-faint">{completedReceipt.date}</div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-zinc-500">Issued To</div>
-                    <div className="font-bold text-zinc-900 text-sm">{completedReceipt.donorName}</div>
-                    <div className="text-zinc-600">{completedReceipt.donorEmail}</div>
-                    {completedReceipt.donorPhone && <div className="text-zinc-600">{completedReceipt.donorPhone}</div>}
-                    {completedReceipt.taxIdOrIc && <div className="text-zinc-600 font-mono">IC/SSM: {completedReceipt.taxIdOrIc}</div>}
+                    <div className="text-3xs uppercase font-bold text-receipt-ink-faint">Issued To</div>
+                    <div className="font-bold text-receipt-ink text-sm">{completedReceipt.donorName}</div>
+                    <div className="text-receipt-ink-muted">{completedReceipt.donorEmail}</div>
+                    {completedReceipt.donorPhone && <div className="text-receipt-ink-muted">{completedReceipt.donorPhone}</div>}
+                    {completedReceipt.taxIdOrIc && <div className="text-receipt-ink-muted font-mono">IC/SSM: {completedReceipt.taxIdOrIc}</div>}
                   </div>
 
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-zinc-500">Sponsorship Allocation</div>
-                    <div className="font-bold text-zinc-900 text-sm">{completedReceipt.tierName}</div>
+                    <div className="text-3xs uppercase font-bold text-receipt-ink-faint">Sponsorship Allocation</div>
+                    <div className="font-bold text-receipt-ink text-sm">{completedReceipt.tierName}</div>
                     {completedReceipt.targetPetName && (
-                      <div className="text-zinc-700 font-medium">🐾 Dedicated Pet: {completedReceipt.targetPetName}</div>
+                      <div className="text-receipt-ink-soft font-medium">🐾 Dedicated Pet: {completedReceipt.targetPetName}</div>
                     )}
-                    <div className="text-zinc-500">Payment: DuitNow National Instant Rail</div>
+                    <div className="text-receipt-ink-faint">Payment: DuitNow National Instant Rail</div>
                     {completedReceipt.frequency && (
-                      <div className="text-zinc-500 uppercase text-[10px]">Type: {completedReceipt.frequency.replace("_", " ")}</div>
+                      <div className="text-receipt-ink-faint uppercase text-3xs">Type: {completedReceipt.frequency.replace("_", " ")}</div>
                     )}
                   </div>
                 </div>
 
                 {completedReceipt.notes && (
-                  <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-md text-xs text-zinc-700 italic">
+                  <div className="p-3 receipt-panel border rounded-md text-xs italic">
                     &ldquo;{completedReceipt.notes}&rdquo;
                   </div>
                 )}
 
-                <div className="border-t border-b border-zinc-200 py-3 flex items-center justify-between font-heading">
-                  <span className="text-sm font-bold text-zinc-900">Total Contribution Received</span>
-                  <span className="text-2xl font-extrabold text-emerald-700">RM {completedReceipt.amountMYR}.00</span>
+                <div className="border-t border-b border-receipt-rule py-3 flex items-center justify-between font-heading">
+                  <span className="text-sm font-bold text-receipt-ink">Total Contribution Received</span>
+                  <span className="text-2xl font-extrabold receipt-accent">RM {completedReceipt.amountMYR}.00</span>
                 </div>
 
-                <div className="text-[10px] text-zinc-500 leading-relaxed italic">
+                <div className="text-3xs text-receipt-ink-faint leading-relaxed italic">
                   * This receipt is computer-generated and valid for income tax deduction under Subsection 44(6) of the Malaysian Income Tax Act 1967.
                 </div>
               </div>

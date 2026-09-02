@@ -10,7 +10,7 @@ import {
   formatMYR,
 } from "@/lib/domain/transparency";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-import { ALLOCATION_SCOPE, ALLOCATION_PALETTE_CSS, categoryVar } from "./palette";
+import { categoryVar } from "./palette";
 
 /**
  * Compact allocation + impact summary for pages other than /transparency.
@@ -67,8 +67,7 @@ export function AllocationSummary({
   }
 
   return (
-    <div className={`${ALLOCATION_SCOPE} space-y-8`}>
-      <style>{ALLOCATION_PALETTE_CSS}</style>
+    <div className={`space-y-8`}>
 
       {/* Provenance travels with the figures. Without this the donate page would
           present the development sample split under "computed live from our
@@ -76,7 +75,7 @@ export function AllocationSummary({
       {source === "sample" && (
         <p
           role="status"
-          className="rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-2.5 text-center text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+          className="rounded-lg border border-warning-border bg-warning-surface px-4 py-2.5 text-center text-xs font-semibold text-warning-text"
         >
           {isMs
             ? "Data contoh pembangunan — angka ini bukan rekod perbelanjaan sebenar."

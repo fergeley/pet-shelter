@@ -1,25 +1,30 @@
-import { EXPENSE_CATEGORIES } from "@/lib/domain/transparency";
+import type { ExpenseCategoryKey } from "@/lib/domain/transparency";
 
 /**
- * CSS custom properties for the categorical expense palette.
+ * Chart colour for one expense category.
  *
- * Series colours live in variables rather than inline `style` so the light/dark
- * pair swaps with the `.dark` class the ThemeProvider toggles — no JS re-render,
- * no flash of the wrong palette on first paint. Every consumer scopes them under
- * `ALLOCATION_SCOPE` so one definition serves the full-size chart and the compact
- * donate-page summary alike.
+ * The palette lives in `src/app/globals.css` as `--expense-*` tokens, alongside
+ * every other colour in the system, so it flips with `.dark` exactly like the
+ * rest of the theme — no `<style>` block, no scope class, and no hex in a
+ * TypeScript file (see `tests/unit/designSystemGuards.test.ts`).
+ *
+ * These five are categorical: they carry IDENTITY, not state, so they are
+ * deliberately NOT drawn from the semantic tones — a spending category is never
+ * "success" or "warning". Their order is a colourblind-safety property rather
+ * than a cosmetic one; see the comment on the tokens themselves.
  */
+const TOKEN_BY_CATEGORY: Record<ExpenseCategoryKey, string> = {
+  MEDICAL: "--expense-medical",
+  FOOD_NUTRITION: "--expense-food",
+  SHELTER_MAINTENANCE: "--expense-shelter",
+  RESCUE_TNRM: "--expense-rescue",
+  STAFF_CARE: "--expense-staff",
+};
 
-export const ALLOCATION_SCOPE = "tv-alloc";
-
-/** Built once at module load: the categories are a compile-time constant. */
-export const ALLOCATION_PALETTE_CSS: string = (() => {
-  const light = EXPENSE_CATEGORIES.map((c) => `--tv-${c.key}: ${c.color};`).join(" ");
-  const dark = EXPENSE_CATEGORIES.map((c) => `--tv-${c.key}: ${c.colorDark};`).join(" ");
-  return `.${ALLOCATION_SCOPE} { ${light} } .dark .${ALLOCATION_SCOPE} { ${dark} }`;
-})();
-
-/** The variable reference for one category, e.g. `var(--tv-MEDICAL)`. */
+/** `var(--expense-…)` for a category, for use in an inline `style`. */
 export function categoryVar(key: string): string {
-  return `var(--tv-${key})`;
+  const token = TOKEN_BY_CATEGORY[key as ExpenseCategoryKey];
+  // An unknown category should not paint a random colour; fall back to the
+  // neutral border token so a stray row is visibly unstyled rather than wrong.
+  return `var(${token ?? "--color-border"})`;
 }

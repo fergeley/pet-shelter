@@ -22,6 +22,10 @@ export interface TranslationDictionary {
     available: string;
     pending: string;
     adopted: string;
+    inRehabilitation: string;
+    rehabStage: string;
+    rehabProgress: string;
+    sponsorMe: string;
     dog: string;
     cat: string;
     other: string;
@@ -143,8 +147,28 @@ export interface TranslationDictionary {
     sanctuaryAddress: string;
     applyToAdopt: string;
     adoptionPending: string;
+    underCareNotice: string;
+    updatesTitle: string;
+    noUpdates: string;
     whatsAppUs: string;
     sponsorCare: string;
+    sponsoredBySupporters: string;
+    sponsoredByOneSupporter: string;
+    fullySponsored: string;
+    sponsorAnyway: string;
+    fundingProgress: string;
+    fundingProgressLabel: string;
+    careProgram: string;
+    sponsorSupported: string;
+    tabAbout: string;
+    tabStatus: string;
+    tabUpdates: string;
+    tabSupport: string;
+    sponsorPetPerksTitle: string;
+    sponsorPetPerksDesc: string;
+    fosterInquiryTitle: string;
+    fosterInquiryDesc: string;
+    fosterWhatsAppBtn: string;
   };
   medicalTimeline: {
     title: string;
@@ -296,6 +320,14 @@ export interface TranslationDictionary {
     faqsTitle: string;
     faqsSubtitle: string;
     meetAnimalsCTA: string;
+    choosePetTitle: string;
+    choosePetSubtitle: string;
+    generalSanctuaryFund: string;
+    generalSanctuaryFundDesc: string;
+    companionTierTitle: string;
+    perkMonthlyUpdates: string;
+    perkDigitalCertificate: string;
+    perkSanctuaryVisits: string;
   };
   bulletins: {
     badge: string;
@@ -349,6 +381,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       available: "Available",
       pending: "Pending",
       adopted: "Adopted",
+      inRehabilitation: "In Rehabilitation",
+      rehabStage: "Rehabilitation Stage",
+      rehabProgress: "Recovery Progress",
+      sponsorMe: "Sponsor Me",
       dog: "Dog",
       cat: "Cat",
       other: "Other",
@@ -385,7 +421,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       loading: "Loading...",
       verified: "Verified",
       taxExemptBadge: "LHDN Tax Deductible (Sec 44(6) ITA 1967)",
-      rosBadge: "ROS Reg: PPM-012-10-18042016",
+      rosBadge: "ROS Reg: {regNo}",
     },
     hero: {
       badge: "Selangor Animal Welfare & Rescue Sanctuary",
@@ -470,8 +506,29 @@ export const translations: Record<Language, TranslationDictionary> = {
       sanctuaryAddress: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor • Open Tue–Sun: 10:00 AM – 5:00 PM",
       applyToAdopt: "Apply to Adopt",
       adoptionPending: "Adoption Pending",
+      underCareNotice:
+        "Under veterinary care — not yet available for adoption. Sponsorship funds this animal's treatment.",
+      updatesTitle: "Progress Updates",
+      noUpdates: "No progress updates have been recorded yet.",
       whatsAppUs: "WhatsApp Us",
       sponsorCare: "Sponsor Care",
+      sponsoredBySupporters: "Currently sponsored by {count} supporters",
+      sponsoredByOneSupporter: "Currently sponsored by 1 supporter",
+      fullySponsored: "Fully Sponsored — View Others",
+      sponsorAnyway: "Sponsor anyway",
+      fundingProgress: "{funded} of {goal} raised for care",
+      fundingProgressLabel: "{percent}% of care costs funded",
+      careProgram: "Care Program",
+      sponsorSupported: "Sponsor Supported",
+      tabAbout: "About Me",
+      tabStatus: "Status & Health",
+      tabUpdates: "Updates Feed",
+      tabSupport: "Support & Inquiry",
+      sponsorPetPerksTitle: "Monthly Rescue Companion (RM 30/mo)",
+      sponsorPetPerksDesc: "Sponsor this rescue animal monthly to receive personalized updates and help fund ongoing care.",
+      fosterInquiryTitle: "Foster-to-Adopt & Care Inquiry",
+      fosterInquiryDesc: "This animal is in clinical rehabilitation. Inquire about temporary fostering or meet-and-greet when recovered.",
+      fosterWhatsAppBtn: "Inquire via WhatsApp",
     },
     medicalTimeline: {
       title: "Rescue Intake & Medical Care Timeline",
@@ -581,7 +638,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       badge: "Direct Rescue Giving & Sponsorship",
       title: "Fuel Lifesaving Medical Care & Nutrition for Rescued Strays",
       subtitle: "Every ringgit directly supports emergency surgeries, core vaccinations, and wholesome meals at our Petaling Jaya sanctuary. Because of your generosity, 100% of our rescued animals are rehomed through our Free Adoption policy.",
-      rosBadge: "ROS Reg: PPM-012-10-18042016",
+      rosBadge: "ROS Reg: {regNo}",
       lhdnBadge: "LHDN Tax Deductible: Sec 44(6) ITA 1967",
       freeAdoptionGuarantee: "100% Free Adoption Guarantee",
       widgetTitle: "Make a Tax-Deductible Gift",
@@ -609,7 +666,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       pledgeBtn: "Complete Donation Pledge & Generate e-Receipt",
       pledgeProcessing: "Recording Tax-Deductible Pledge...",
       receiptTitle: "Official Donation e-Receipt",
-      receiptSubtitle: "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: LHDN.01/35/42/51/179-6.4912",
+      receiptSubtitle: "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
       printReceiptBtn: "Print Official Receipt",
       transparencyTitle: "Financial Accountability",
       transparencySubtitle: "Where Your Donation Goes",
@@ -623,6 +680,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       faqsTitle: "Clear Answers",
       faqsSubtitle: "Frequently Asked Questions About Donations",
       meetAnimalsCTA: "Meet Our Adoptable Animals",
+      choosePetTitle: "Dedicate Sponsorship to a Specific Animal",
+      choosePetSubtitle: "Select an animal under sanctuary care or sponsor our general rescue fund",
+      generalSanctuaryFund: "General Sanctuary Fund",
+      generalSanctuaryFundDesc: "Allocates funds flexibly where urgently needed most across all animals",
+      companionTierTitle: "Rescue Companion & Updates",
+      perkMonthlyUpdates: "Monthly Photo & Video Progress Report",
+      perkDigitalCertificate: "Personalized Digital Sponsorship Certificate",
+      perkSanctuaryVisits: "Invitation to arrange occasional sanctuary visits",
     },
     bulletins: {
       badge: "Community & Rescue Bulletins",
@@ -645,7 +710,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       closedMondays: "Closed Mondays for sanctuary deep cleaning",
       locationContactTitle: "Location & Contact",
       address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-      rosReg: "ROS Reg: PPM-012-10-18042016",
+      rosReg: "ROS Reg: {regNo}",
       privacyNotice: "Privacy Notice (PDPA)",
       adoptionTerms: "Adoption Terms",
       staffPortal: "Staff Portal",
@@ -674,6 +739,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       available: "Tersedia",
       pending: "Sedang Diproses",
       adopted: "Telah Diadopsi",
+      inRehabilitation: "Dalam Pemulihan",
+      rehabStage: "Peringkat Pemulihan",
+      rehabProgress: "Kemajuan Pemulihan",
+      sponsorMe: "Tajai Saya",
       dog: "Anjing",
       cat: "Kucing",
       other: "Lain-lain",
@@ -710,7 +779,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       loading: "Memuatkan...",
       verified: "Disahkan",
       taxExemptBadge: "Pelepasan Cukai LHDN (Sek 44(6) ACP 1967)",
-      rosBadge: "No. ROS: PPM-012-10-18042016",
+      rosBadge: "No. ROS: {regNo}",
     },
     hero: {
       badge: "Pusat Kebajikan & Penyelamatan Haiwan Selangor",
@@ -795,8 +864,29 @@ export const translations: Record<Language, TranslationDictionary> = {
       sanctuaryAddress: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor • Buka Sel–Ahad: 10:00 PG – 5:00 PTG",
       applyToAdopt: "Mohon untuk Mengangkat Anak",
       adoptionPending: "Adopsi Sedang Diproses",
+      underCareNotice:
+        "Dalam rawatan veterinar — belum tersedia untuk adopsi. Tajaan membiayai rawatan haiwan ini.",
+      updatesTitle: "Kemas Kini Kemajuan",
+      noUpdates: "Tiada kemas kini kemajuan direkodkan setakat ini.",
       whatsAppUs: "Hubungi WhatsApp",
       sponsorCare: "Taja Rawatan",
+      sponsoredBySupporters: "Kini ditaja oleh {count} penyumbang",
+      sponsoredByOneSupporter: "Kini ditaja oleh 1 penyumbang",
+      fullySponsored: "Tajaan Penuh — Lihat Haiwan Lain",
+      sponsorAnyway: "Taja juga",
+      fundingProgress: "{funded} daripada {goal} terkumpul untuk rawatan",
+      fundingProgressLabel: "{percent}% kos rawatan telah terkumpul",
+      careProgram: "Program Rawatan",
+      sponsorSupported: "Perlu Penajaan",
+      tabAbout: "Tentang Saya",
+      tabStatus: "Status & Kesihatan",
+      tabUpdates: "Kemas Kini Kemajuan",
+      tabSupport: "Sokong & Pertanyaan",
+      sponsorPetPerksTitle: "Rakan Penaja Bulanan (RM 30/bln)",
+      sponsorPetPerksDesc: "Taja haiwan reskue ini setiap bulan untuk menerima kemas kini peribadi dan membiayai rawatan berterusan.",
+      fosterInquiryTitle: "Pertanyaan Asuhan & Penjagaan",
+      fosterInquiryDesc: "Haiwan ini sedang dalam pemulihan klinikal. Hubungi untuk asuhan sementara atau suai kenal selepas pulih.",
+      fosterWhatsAppBtn: "Pertanyaan melalui WhatsApp",
     },
     medicalTimeline: {
       title: "Garis Masa Penyelamatan & Penjagaan Veterinar",
@@ -906,7 +996,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       badge: "Sumbangan & Penajaan Terus",
       title: "Taja Rawatan Perubatan & Makanan untuk Haiwan Terbiar",
       subtitle: "Setiap ringgit disalurkan terus bagi pembedahan kecemasan, vaksinasi teras, dan makanan berkhasiat di pusat perlindungan Petaling Jaya kami. Berkat kemurahan hati anda, 100% haiwan reskue kami diserahkan melalui polisi Adopsi Percuma.",
-      rosBadge: "No. ROS: PPM-012-10-18042016",
+      rosBadge: "No. ROS: {regNo}",
       lhdnBadge: "Pengecualian Cukai LHDN: Sek 44(6) ACP 1967",
       freeAdoptionGuarantee: "Jaminan Adopsi 100% Percuma",
       widgetTitle: "Buat Sumbangan Dikecualikan Cukai",
@@ -934,7 +1024,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       pledgeBtn: "Sempurnakan Ikrar Sumbangan & Jana e-Resit",
       pledgeProcessing: "Merekodkan Ikrar Sumbangan...",
       receiptTitle: "e-Resit Sumbangan Rasmi",
-      receiptSubtitle: "Diluluskan Di Bawah Subseksyen 44(6) Akta Cukai Pendapatan 1967 • No. Rujukan: LHDN.01/35/42/51/179-6.4912",
+      receiptSubtitle: "Diluluskan Di Bawah Subseksyen 44(6) Akta Cukai Pendapatan 1967 • No. Rujukan: {taxRef}",
       printReceiptBtn: "Cetak Resit Rasmi",
       transparencyTitle: "Akauntabiliti Kewangan",
       transparencySubtitle: "Ke Mana Sumbangan Anda Disalurkan",
@@ -948,6 +1038,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       faqsTitle: "Jawapan Telus",
       faqsSubtitle: "Soalan Lazim Mengenai Sumbangan",
       meetAnimalsCTA: "Kenali Haiwan Sedia Diadopsi",
+      choosePetTitle: "Dedikasikan Penajaan Kepada Haiwan Tertentu",
+      choosePetSubtitle: "Pilih haiwan di pusat perlindungan atau taja dana reskue am",
+      generalSanctuaryFund: "Dana Am Pusat Perlindungan",
+      generalSanctuaryFundDesc: "Menyalurkan dana ke bahagian paling mendesak untuk semua haiwan",
+      companionTierTitle: "Rakan Penaja Reskue & Kemas Kini",
+      perkMonthlyUpdates: "Laporan Kemajuan Foto & Video Bulanan",
+      perkDigitalCertificate: "Sijil Penajaan Digital Rasmi",
+      perkSanctuaryVisits: "Jemputan untuk mengatur lawatan suai kenal berkala",
     },
     bulletins: {
       badge: "Buletin Komuniti & Reskue",
@@ -970,7 +1068,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       closedMondays: "Tutup pada hari Isnin untuk sanitasi menyeluruh",
       locationContactTitle: "Lokasi & Hubungan",
       address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-      rosReg: "No. ROS: PPM-012-10-18042016",
+      rosReg: "No. ROS: {regNo}",
       privacyNotice: "Notis Privasi (PDPA)",
       adoptionTerms: "Syarat Adopsi",
       staffPortal: "Portal Staf",

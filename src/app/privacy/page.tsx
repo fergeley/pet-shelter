@@ -1,3 +1,4 @@
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
@@ -36,7 +37,7 @@ export default function PrivacyPolicyPage() {
             Personal Data Protection & Privacy Notice
           </h1>
           <p className="text-sm text-muted-foreground">
-            Last Updated: August 2026 • Persatuan Harapan Haiwan Terbiar Selangor (ROS Reg: PPM-012-10-18042016)
+            Last Updated: August 2026 • Persatuan Harapan Haiwan Terbiar Selangor (ROS Reg: {PUBLIC_ROS_REGISTRATION_NO})
           </p>
         </div>
 

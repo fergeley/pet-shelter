@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DonatePageView } from "@/components/features/donations/DonatePageView";
-import { readAllocationSummary } from "@/lib/domain/transparencyStore";
+import { readAllocationSummary } from "@/lib/server/transparencyRepository";
 
 export const metadata: Metadata = {
   title: "Donate & Sponsor a Rescue | Hope for Strays",

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { TransparencyPageView } from "@/components/features/transparency";
-import { readTransparencySnapshot } from "@/lib/domain/transparencyStore";
+import { readTransparencySnapshot } from "@/lib/server/transparencyRepository";
 
 export const metadata: Metadata = {
   title: "Where Your Money Goes | Hope for Strays",

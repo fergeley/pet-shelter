@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAdminAuth } from "@/lib/adminAuth";
+import { useAdminAuth } from "@/lib/client/adminAuth";
 import { TRANSPARENCY_EDITOR_ROLES } from "@/lib/security/rbac";
 import {
   EXPENSE_CATEGORIES,
@@ -29,11 +29,7 @@ import {
   formatReportPeriod,
   parseRinggitToSen,
 } from "@/lib/domain/transparency";
-import {
-  ALLOCATION_SCOPE,
-  ALLOCATION_PALETTE_CSS,
-  categoryVar,
-} from "@/components/features/transparency/palette";
+import { categoryVar } from "@/components/features/transparency/palette";
 import {
   createExpenseItemAction,
   createFinancialReportAction,
@@ -263,8 +259,7 @@ export function TransparencyEditor() {
   ];
 
   return (
-    <div className={`${ALLOCATION_SCOPE} max-w-5xl space-y-6`}>
-      <style>{ALLOCATION_PALETTE_CSS}</style>
+    <div className={`max-w-5xl space-y-6`}>
 
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -281,7 +276,7 @@ export function TransparencyEditor() {
       </div>
 
       {snapshot && snapshot.source !== "database" && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-400/50 bg-amber-50 p-4 text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="flex items-start gap-2 rounded-lg border border-warning-border bg-warning-surface p-4 text-xs font-semibold text-warning-text">
           <Database className="mt-0.5 size-4 shrink-0" />
           {snapshot.source === "sample" ? (
             <span>
@@ -307,9 +302,9 @@ export function TransparencyEditor() {
           role="status"
           className={`flex items-start gap-2 rounded-lg border p-4 text-xs font-semibold ${
             banner.kind === "success"
-              ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+              ? "border-success-border bg-success-surface text-success-text "
               : banner.kind === "warning"
-                ? "border-amber-400/50 bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+                ? "border-warning-border bg-warning-surface text-warning-text "
                 : "border-destructive/40 bg-destructive/10 text-destructive"
           }`}
         >
@@ -621,7 +616,7 @@ function ExpensesTab({
                 <p className="truncate text-sm font-semibold text-foreground">
                   {item.title}
                   {!item.isPublished && (
-                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-muted-foreground">
                       Hidden
                     </span>
                   )}
@@ -773,7 +768,7 @@ function ImpactTab({
               disabled={!!editingKey}
               required
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-2xs text-muted-foreground">
               Lowercase letters, digits and underscores. Reusing a key overwrites
               that card rather than adding a second one.
             </p>
@@ -895,7 +890,7 @@ function ImpactTab({
                 {stat.period}
               </p>
               {!stat.isPublished && (
-                <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <span className="mt-1 inline-block rounded bg-muted px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-muted-foreground">
                   Hidden
                 </span>
               )}
@@ -1166,7 +1161,7 @@ function ReportsTab({
               <p className="truncate text-sm font-semibold text-foreground">
                 {report.title}
                 {!report.isPublished && (
-                  <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-muted-foreground">
                     Hidden
                   </span>
                 )}

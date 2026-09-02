@@ -79,7 +79,7 @@ export function ExpenseAllocationChart({ allocation, totalSen }: Props) {
             {/* Inline label only where it demonstrably fits; below 14% of the
                 track it goes to the card beneath rather than being clipped. */}
             {slice.percent >= MIN_PERCENT_FOR_INLINE_LABEL && (
-              <span className="hidden text-[11px] font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)] sm:block">
+              <span className="hidden text-2xs font-bold text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.35)] sm:block">
                 {slice.percent}%
               </span>
             )}
@@ -119,7 +119,7 @@ export function ExpenseAllocationChart({ allocation, totalSen }: Props) {
                 <div className="font-heading text-xl font-extrabold tabular-nums text-foreground">
                   {slice.percent}%
                 </div>
-                <div className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+                <div className="text-2xs font-semibold tabular-nums text-muted-foreground">
                   {formatMYR(slice.totalSen)}
                 </div>
               </div>

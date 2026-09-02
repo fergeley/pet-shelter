@@ -1,5 +1,5 @@
 {
-  "_comment": "Development sample dataset for the financial transparency page. Consumed by prisma/seed.ts and, in NON-PRODUCTION only, by the runtime fallback in src/lib/domain/transparencyStore.ts. Never substituted in production: presenting invented expenses as verified spending is the one thing this page must not do. Amounts are in sen (1/100 MYR); dates are ISO-8601 YYYY-MM-DD; the linked PDFs are generated placeholders.",
+  "_comment": "Development sample dataset for the financial transparency page. Consumed by prisma/seed.ts and, in NON-PRODUCTION only, by the runtime fallback in src/lib/server/transparencyRepository.ts. Never substituted in production: presenting invented expenses as verified spending is the one thing this page must not do. Amounts are in sen (1/100 MYR); dates are ISO-8601 YYYY-MM-DD; the linked PDFs are generated placeholders.",
   "expenses": [
     {
       "id": "exp-med-2026-08",

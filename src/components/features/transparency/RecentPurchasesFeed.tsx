@@ -187,7 +187,7 @@ export function RecentPurchasesFeed({
                           {formatMYR(item.amountSen)}
                         </span>
                         {item.receiptRef && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                          <span className="inline-flex items-center gap-1 text-2xs font-semibold text-success-text">
                             <BadgeCheck className="size-3.5" aria-hidden="true" />
                             {item.receiptRef}
                           </span>

@@ -53,7 +53,7 @@ Data flows across 4 distinct layers:
                            ▼
 ┌────────────────────────────────────────────────────────┐
 │  Layer 3: Mutation & Security (Server Actions)         │
-│  src/actions/pets.ts & src/lib/auth.ts                 │
+│  src/actions/pets.ts & src/lib/security/adminSession.ts│
 └──────────────────────────┬─────────────────────────────┘
                            ▼
 ┌────────────────────────────────────────────────────────┐
@@ -70,7 +70,7 @@ Data flows across 4 distinct layers:
 | **Data Seed** | [`src/data/pets.json`](file:///c:/Users/User/pet-shelter/src/data/pets.json) | Lines 27–55 | 8 seeded rescues with realistic clinical records |
 | **i18n Dictionary** | [`src/lib/i18n/translations.ts`](file:///c:/Users/User/pet-shelter/src/lib/i18n/translations.ts) | Lines 1–320 | Bilingual dictionaries (`en` & `ms`) with 100% key parity |
 | **State Context** | [`src/components/LanguageProvider.tsx`](file:///c:/Users/User/pet-shelter/src/components/LanguageProvider.tsx) | Lines 18–115 | Lazy state initialization, cookie sync, and `useLanguage()` |
-| **Timeline Engine** | [`src/lib/medicalTimeline.ts`](file:///c:/Users/User/pet-shelter/src/lib/medicalTimeline.ts) | Lines 9–123 | Normalization, sorting, and deterministic synthetic timeline generation |
+| **Timeline Engine** | [`src/lib/domain/medicalTimeline.ts`](file:///c:/Users/User/pet-shelter/src/lib/domain/medicalTimeline.ts) | Lines 9–123 | Normalization, sorting, and deterministic synthetic timeline generation |
 | **Timeline UI** | [`src/components/MedicalTimeline.tsx`](file:///c:/Users/User/pet-shelter/src/components/MedicalTimeline.tsx) | Lines 24–180 | Category filtering (*Intake, Diagnostics, Surgery, Clearance*) |
 | **Database Store** | [`src/lib/serverStore.ts`](file:///c:/Users/User/pet-shelter/src/lib/serverStore.ts) | Lines 160–330 | Dual-layer persistence (Prisma PostgreSQL + in-memory fallback) |
 | **Server Actions** | [`src/actions/pets.ts`](file:///c:/Users/User/pet-shelter/src/actions/pets.ts) | Lines 20–250 | Public catalog queries, admin pet mutations, and cache revalidation |
@@ -166,7 +166,7 @@ Write a server action with RBAC session verification and path cache revalidation
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { verifyAdminSession } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import { addPetMedicalMilestone } from "@/lib/serverStore";
 import { MedicalTimelineEvent } from "@/types/pet";
 

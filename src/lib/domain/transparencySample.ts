@@ -1,4 +1,7 @@
-import baseline from "@/data/transparency.json";
+// Relative, not "@/": prisma/seed.ts imports this module through tsx, which does
+// not resolve the tsconfig path alias. Keeping it relative is what lets the seed
+// script and the app share one normalisation instead of each writing their own.
+import baseline from "../../data/transparency.json";
 import {
   ExpenseCategoryKey,
   ExpenseItemRecord,

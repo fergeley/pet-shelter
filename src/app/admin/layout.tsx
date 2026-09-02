@@ -1,19 +1,22 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useAdminAuth } from "@/lib/adminAuth";
-import { 
-  PawPrint, 
-  Dog, 
-  FileText, 
-  Settings, 
-  LogOut, 
-  ExternalLink, 
+import { useAdminAuth } from "@/lib/client/adminAuth";
+import { getVolunteerFormLinks } from "@/actions/settings";
+import { isUsableFormUrl } from "@/lib/volunteerFormUrl";
+import {
+  PawPrint,
+  Dog,
+  FileText,
+  Settings,
+  LogOut,
+  ExternalLink,
   Bell,
   ShieldCheck,
-  Wallet
+  Wallet,
+  ClipboardList
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -25,8 +28,31 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated, isLoading, logout } = useAdminAuth();
+  const [volunteerResponsesUrl, setVolunteerResponsesUrl] = useState("");
 
   const isLoginPage = pathname === "/admin/login";
+
+  // Volunteer intake lives in an external Google Form; admins and volunteer
+  // coordinators get a direct shortcut to its responses sheet. Roles arrive in mixed
+  // case from the legacy session payload, so normalise before comparing.
+  const normalisedRole = (user?.role ?? "").toUpperCase();
+  const canOpenVolunteerResponses =
+    normalisedRole === "ADMIN" || normalisedRole === "COORDINATOR";
+
+  useEffect(() => {
+    if (!isAuthenticated || !canOpenVolunteerResponses) return;
+    let active = true;
+    getVolunteerFormLinks()
+      .then((links) => {
+        if (active) setVolunteerResponsesUrl(links.volunteerFormResponsesUrl);
+      })
+      .catch(() => {
+        // Non-fatal: the shortcut simply stays hidden.
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, canOpenVolunteerResponses]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isLoginPage) {
@@ -77,7 +103,7 @@ export default function AdminLayout({
               <span className="font-heading text-lg font-bold tracking-tight text-foreground">
                 Hope for Strays
               </span>
-              <span className="bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-foreground/80 border border-border">
+              <span className="bg-muted px-2 py-0.5 text-3xs font-bold uppercase tracking-wider text-foreground/80 border border-border">
                 Staff Admin
               </span>
             </div>
@@ -89,6 +115,19 @@ export default function AdminLayout({
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-2.5">
+          {canOpenVolunteerResponses && isUsableFormUrl(volunteerResponsesUrl) && (
+            <a
+              href={volunteerResponsesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="volunteer-responses-shortcut"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border px-3 py-1.5 bg-background"
+            >
+              <ClipboardList className="size-3.5" />
+              Open Volunteer Form Responses
+            </a>
+          )}
+
           <Link
             href="/"
             target="_blank"

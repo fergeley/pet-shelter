@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { categoryVar } from "@/components/features/transparency/palette";
 import {
   EXPENSE_CATEGORIES,
   ExpenseItemRecord,
@@ -52,7 +55,7 @@ const prismaMock = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
+vi.mock("@/lib/server/prisma", () => ({ prisma: prismaMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 const sessionMock = vi.hoisted(() => ({ getCurrentSession: vi.fn() }));
@@ -98,7 +101,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
   makeDatabaseUnreachable();
-  const store = await import("@/lib/domain/transparencyStore");
+  const store = await import("@/lib/server/transparencyRepository");
   store.resetTransparencyMemory();
 });
 
@@ -507,20 +510,40 @@ describe("Baseline dataset integrity", () => {
 });
 
 describe("Category metadata", () => {
-  it("gives every category a bilingual label and a light/dark colour", () => {
+  it("gives every category a bilingual label", () => {
     for (const cat of EXPENSE_CATEGORIES) {
       expect(cat.label.length).toBeGreaterThan(0);
       expect(cat.labelMs.length).toBeGreaterThan(0);
-      expect(cat.color).toMatch(/^#[0-9a-f]{6}$/i);
-      expect(cat.colorDark).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 
-  it("assigns a distinct colour to every category in both modes", () => {
-    const light = EXPENSE_CATEGORIES.map((c) => c.color);
-    const dark = EXPENSE_CATEGORIES.map((c) => c.colorDark);
-    expect(new Set(light).size).toBe(light.length);
-    expect(new Set(dark).size).toBe(dark.length);
+  it("maps every category to its own colour token, declared in both themes", () => {
+    // The palette lives in globals.css rather than in this module, so the guard
+    // that matters is no longer "is it a hex" but "does each category resolve to
+    // a distinct token that the theme actually defines in light AND dark". A
+    // token declared in only one block would silently fall back in the other.
+    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+
+    // Anchored to the block declarations at the start of a line: `.dark` also
+    // appears earlier inside `@custom-variant dark (&:is(.dark *))`, and slicing
+    // on a bare indexOf produced an empty `:root` section that passed nothing.
+    const rootStart = css.search(/^:root \{/m);
+    const darkStart = css.search(/^\.dark \{/m);
+    expect(rootStart).toBeGreaterThan(-1);
+    expect(darkStart).toBeGreaterThan(rootStart);
+
+    const root = css.slice(rootStart, darkStart);
+    const dark = css.slice(darkStart);
+
+    const vars = EXPENSE_CATEGORIES.map((c) => categoryVar(c.key));
+    expect(new Set(vars).size).toBe(vars.length);
+
+    for (const cssVar of vars) {
+      const token = cssVar.slice("var(".length, -1);
+      expect(token).toMatch(/^--expense-[a-z]+$/);
+      expect(root).toContain(`${token}:`);
+      expect(dark).toContain(`${token}:`);
+    }
   });
 
   it("looks categories up by key and rejects unknown ones", () => {
@@ -655,7 +678,7 @@ describe("Validation schemas", () => {
 
 describe("isDatabaseUnavailable", () => {
   it("recognises the codes that mean the database cannot be used", async () => {
-    const { isDatabaseUnavailable } = await import("@/lib/domain/transparencyStore");
+    const { isDatabaseUnavailable } = await import("@/lib/server/transparencyRepository");
 
     // P1001 verified empirically against Prisma 7 with an unreachable server.
     expect(isDatabaseUnavailable({ code: "P1001" })).toBe(true);
@@ -665,7 +688,7 @@ describe("isDatabaseUnavailable", () => {
   });
 
   it("treats a rejected write as a real error, not an offline database", async () => {
-    const { isDatabaseUnavailable } = await import("@/lib/domain/transparencyStore");
+    const { isDatabaseUnavailable } = await import("@/lib/server/transparencyRepository");
 
     expect(isDatabaseUnavailable({ code: "P2002" })).toBe(false); // unique violation
     expect(isDatabaseUnavailable({ code: "P2025" })).toBe(false); // record not found
@@ -745,7 +768,7 @@ describe("readTransparencySnapshot - database path", () => {
       ],
     });
 
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
     const snapshot = await readTransparencySnapshot();
 
     expect(snapshot.source).toBe("database");
@@ -766,7 +789,7 @@ describe("readTransparencySnapshot - database path", () => {
       ],
     });
 
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
     const snapshot = await readTransparencySnapshot();
 
     expect(snapshot.expenses).toHaveLength(1);
@@ -782,7 +805,7 @@ describe("readTransparencySnapshot - database path", () => {
   it("bounds the public query and asks only for published rows", async () => {
     wireDatabase();
     const { readTransparencySnapshot, PUBLIC_FEED_LIMIT } = await import(
-      "@/lib/domain/transparencyStore"
+      "@/lib/server/transparencyRepository"
     );
     await readTransparencySnapshot();
 
@@ -800,7 +823,7 @@ describe("readTransparencySnapshot - database path", () => {
   it("uses the wider admin limit and includes drafts when asked", async () => {
     wireDatabase();
     const { readTransparencySnapshot, ADMIN_LEDGER_LIMIT } = await import(
-      "@/lib/domain/transparencyStore"
+      "@/lib/server/transparencyRepository"
     );
     await readTransparencySnapshot({ includeUnpublished: true });
 
@@ -816,7 +839,7 @@ describe("readTransparencySnapshot - database path", () => {
   it("treats a reachable but empty database as an empty ledger, not sample data", async () => {
     wireDatabase({ expenses: [], grouped: [], reports: [], stats: [] });
 
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
     const snapshot = await readTransparencySnapshot();
 
     expect(snapshot.source).toBe("database");
@@ -832,7 +855,7 @@ describe("readTransparencySnapshot - database path", () => {
       grouped: [{ category: "PARTY_FUND", _sum: { amountSen: 1 }, _count: { _all: 1 } }],
     });
 
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
     const snapshot = await readTransparencySnapshot();
 
     expect(snapshot.expenses).toEqual([]);
@@ -843,7 +866,7 @@ describe("readTransparencySnapshot - database path", () => {
 describe("readTransparencySnapshot - failure handling", () => {
   it("falls back to the labelled sample dataset outside production", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
 
     const snapshot = await readTransparencySnapshot();
 
@@ -855,7 +878,7 @@ describe("readTransparencySnapshot - failure handling", () => {
     vi.stubEnv("NODE_ENV", "production");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
     const snapshot = await readTransparencySnapshot();
 
     expect(snapshot.source).toBe("unavailable");
@@ -877,7 +900,7 @@ describe("Write failures", () => {
     prismaMock.expenseItem.create.mockRejectedValue(rejected);
 
     const { createExpenseItem, readTransparencySnapshot } = await import(
-      "@/lib/domain/transparencyStore"
+      "@/lib/server/transparencyRepository"
     );
 
     await expect(
@@ -897,7 +920,7 @@ describe("Write failures", () => {
 
   it("falls back to memory only when the database is genuinely unavailable", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    const { createExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const { createExpenseItem } = await import("@/lib/server/transparencyRepository");
 
     const result = await createExpenseItem({
       category: "MEDICAL",
@@ -912,7 +935,7 @@ describe("Write failures", () => {
 
   it("refuses to fall back to memory in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    const { createExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const { createExpenseItem } = await import("@/lib/server/transparencyRepository");
 
     await expect(
       createExpenseItem({
@@ -938,7 +961,7 @@ describe("Write failures", () => {
     prismaMock.expenseItem.findUnique.mockResolvedValue(null);
 
     const { deleteExpenseItem, updateExpenseItem } = await import(
-      "@/lib/domain/transparencyStore"
+      "@/lib/server/transparencyRepository"
     );
 
     await expect(deleteExpenseItem("gone")).resolves.toBeNull();
@@ -974,7 +997,7 @@ describe("Write failures", () => {
     };
     prismaMock.expenseItem.delete.mockResolvedValue(row);
 
-    const { deleteExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const { deleteExpenseItem } = await import("@/lib/server/transparencyRepository");
     const removed = await deleteExpenseItem("db-9");
 
     // A cuid alone resolves to nothing once the row is gone; the amount and
@@ -1000,7 +1023,7 @@ describe("Write failures", () => {
     prismaMock.expenseItem.findUnique.mockResolvedValue(previous);
     prismaMock.expenseItem.update.mockResolvedValue({ ...previous, amountSen: 999999 });
 
-    const { updateExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const { updateExpenseItem } = await import("@/lib/server/transparencyRepository");
     const result = await updateExpenseItem("db-8", { amountSen: 999999 });
 
     expect(result?.before?.amountSen).toBe(100);
@@ -1009,7 +1032,7 @@ describe("Write failures", () => {
 
   it("rejects a duplicate financial report", async () => {
     vi.stubEnv("NODE_ENV", "development");
-    const { createFinancialReport } = await import("@/lib/domain/transparencyStore");
+    const { createFinancialReport } = await import("@/lib/server/transparencyRepository");
 
     const report = {
       year: 2025,
@@ -1101,7 +1124,7 @@ describe("Transparency server actions", () => {
   it("surfaces an admin impact-stat edit on the public snapshot", async () => {
     sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
     const { saveImpactStatAction } = await import("@/actions/transparency");
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
 
     const before = await readTransparencySnapshot();
     expect(
@@ -1150,7 +1173,7 @@ describe("Transparency server actions", () => {
   it("moves the published allocation when an admin adds an expense", async () => {
     sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
     const { createExpenseItemAction } = await import("@/actions/transparency");
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
 
     const before = await readTransparencySnapshot();
     const medicalBefore = before.allocation.find((s) => s.key === "MEDICAL")?.percent ?? 0;
@@ -1173,7 +1196,7 @@ describe("Transparency server actions", () => {
   it("hides an unpublished expense from the public snapshot", async () => {
     sessionMock.getCurrentSession.mockResolvedValue(COORDINATOR);
     const { createExpenseItemAction } = await import("@/actions/transparency");
-    const { readTransparencySnapshot } = await import("@/lib/domain/transparencyStore");
+    const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
 
     await createExpenseItemAction({
       category: "STAFF_CARE",

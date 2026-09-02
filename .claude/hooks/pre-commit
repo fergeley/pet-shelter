@@ -1,0 +1,53 @@
+#!/bin/sh
+# The Midwife — Layer 4, strongest form: a check the model cannot forget because it
+# is not the model's job any more.
+#
+# NOT INSTALLED. This file is inert where it sits. To install:
+#     cp .claude/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# To remove:  rm .git/hooks/pre-commit
+#
+# Installing affects EVERY session working this repo, including the concurrent one on this
+# branch. That is why it is not installed by default. Bypass a single commit with --no-verify.
+
+set -e
+fail=0
+say() { printf '\033[31mpre-commit:\033[0m %s\n' "$1" >&2; fail=1; }
+
+# Compare against HEAD, or against the empty tree when there is no HEAD yet (initial commit).
+if git rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  against=HEAD
+else
+  against=$(git hash-object -t tree /dev/null)
+fi
+
+staged=$(git diff --cached --name-only --diff-filter=ACM "$against")
+[ -z "$staged" ] && exit 0
+
+# 1. Secret-bearing files must never be staged, gitignored or not.
+for f in $staged; do
+  case "$f" in
+    .env|.env.*|*/.env|*/.env.*|obsidian-api.http)
+      say "staged secret-bearing file: $f" ;;
+  esac
+done
+
+# 2. Secret-shaped literals in the staged diff. Patterns, never values.
+diff=$(git diff --cached -U0 --diff-filter=ACM "$against" | grep '^+' | grep -v '^+++' || true)
+printf '%s' "$diff" | grep -qE 'postgres(ql)?://[^ "'"'"']*:[^ @"'"'"']+@' \
+  && say "a database URL with inline credentials is being committed"
+printf '%s' "$diff" | grep -qE '\bre_[A-Za-z0-9_-]{20,}' \
+  && say "a Resend API key literal is being committed"
+printf '%s' "$diff" | grep -qE '^\+\s*(ADMIN_SECRET_KEY|SESSION_SECRET|RESEND_API_KEY|DATABASE_URL(_UNPOOLED)?)\s*=\s*\S' \
+  && say "a secret assignment with a value is being committed"
+
+# 3. Direct commits to the default branch.
+branch=$(git symbolic-ref --short -q HEAD || echo "(detached)")
+if [ "$branch" = "master" ] || [ "$branch" = "main" ]; then
+  say "committing directly to $branch — branch first"
+fi
+
+if [ "$fail" -ne 0 ]; then
+  printf '\nBlocked. Fix, or bypass deliberately with: git commit --no-verify\n' >&2
+  exit 1
+fi
+exit 0

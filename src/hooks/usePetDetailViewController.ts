@@ -2,28 +2,40 @@
 
 import { useState } from "react";
 import { Pet } from "@/types/pet";
-import { usePetStore } from "@/lib/petStore";
+import { usePetStore } from "@/lib/client/petStore";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
+import { usePetSponsorshipSummary } from "@/hooks/usePetSponsorshipSummary";
+import { shouldShowSocialProof } from "@/lib/domain/petSponsorship";
+
+export type PetDetailTab = "about" | "status" | "updates" | "support";
 
 export interface UsePetDetailViewControllerProps {
   initialPet: Pet;
+  initialTab?: PetDetailTab;
 }
 
-export function usePetDetailViewController({ initialPet }: UsePetDetailViewControllerProps) {
+export function usePetDetailViewController({ initialPet, initialTab = "about" }: UsePetDetailViewControllerProps) {
   const { pets } = usePetStore();
 
   // Hydrate with client store version if available
   const pet = pets.find((p) => p.id === initialPet.id) || initialPet;
-  const isAvailable = pet.status === "Available";
+  const statusPresentation = getPetStatusPresentation(pet.status);
+  const isAvailable = statusPresentation.isAdoptable;
 
-  // Modals & Links
+  // Tabs & Modals
+  const [activeTab, setActiveTab] = useState<PetDetailTab>(initialTab);
   const [isAdoptionOpen, setIsAdoptionOpen] = useState(false);
   const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  // WhatsApp Inquiry URL pre-filled
-  const waMessage = encodeURIComponent(
-    `Hello Hope for Strays Selangor! I am interested in inquiring about adopting ${pet.name} (${pet.breed}, Ref: ${pet.id}). Could you let me know about visiting arrangements?`
-  );
+  // WhatsApp Inquiry URL pre-filled based on status
+  const waMessage = statusPresentation.isInRehabilitation
+    ? encodeURIComponent(
+        `Hello Hope for Strays Selangor! I saw ${pet.name} (${pet.breed}, Ref: ${pet.id}) who is currently in rehabilitation. I would like to inquire about foster-to-adopt or visiting care.`
+      )
+    : encodeURIComponent(
+        `Hello Hope for Strays Selangor! I am interested in inquiring about adopting ${pet.name} (${pet.breed}, Ref: ${pet.id}). Could you let me know about visiting arrangements?`
+      );
   const waUrl = `https://wa.me/60127876543?text=${waMessage}`;
 
   const handleShare = async () => {
@@ -49,20 +61,35 @@ export function usePetDetailViewController({ initialPet }: UsePetDetailViewContr
     }
   };
 
+  // Loaded after mount: this profile is prerendered, so a figure read during
+  // render would be frozen at build time.
+  const { summary: sponsorshipSummary, refresh: refreshSponsorship } =
+    usePetSponsorshipSummary(pet.id);
+
+  const showSocialProof = sponsorshipSummary ? shouldShowSocialProof(sponsorshipSummary) : false;
+  const isFullySponsored = sponsorshipSummary?.isFullyFunded ?? false;
+
   return {
     state: {
       pet,
       pets,
       isAvailable,
+      statusPresentation,
+      activeTab,
       isAdoptionOpen,
       isSponsorshipOpen,
       copiedLink,
       waUrl,
+      sponsorshipSummary,
+      showSocialProof,
+      isFullySponsored,
     },
     handlers: {
+      setActiveTab,
       setIsAdoptionOpen,
       setIsSponsorshipOpen,
       handleShare,
+      refreshSponsorship,
     },
   };
 }

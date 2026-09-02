@@ -1,7 +1,7 @@
 export type Species = 'dog' | 'cat' | 'other';
 export type Gender = 'Male' | 'Female';
 export type PetSize = 'Small' | 'Medium' | 'Large';
-export type PetStatus = 'Available' | 'Pending' | 'Adopted';
+export type PetStatus = 'Available' | 'Pending' | 'Adopted' | 'In Rehabilitation' | 'Rehabilitation';
 export type AgeCategory = 'puppy_kitten' | 'young' | 'adult' | 'senior';
 export type EnergyLevel = 'Low' | 'Moderate' | 'High';
 
@@ -36,9 +36,21 @@ export interface MedicalTimelineEvent {
   description: string;
   descriptionMs?: string;
   veterinarian?: string;
+  vetId?: string;
   verified: boolean;
   badge?: string;
   badgeMs?: string;
+}
+
+export interface PetUpdate {
+  id: string;
+  date: string;
+  title: string;
+  titleMs?: string;
+  content: string;
+  contentMs?: string;
+  image?: string;
+  category?: 'medical' | 'rehabilitation' | 'milestone' | 'socialization';
 }
 
 export interface Pet {
@@ -57,10 +69,16 @@ export interface Pet {
   image: string;
   galleryImages?: string[];
   status: PetStatus;
+  rehabStage?: string;
+  rehabStageMs?: string;
+  rehabProgressPercent?: number;
+  updates?: PetUpdate[];
   medical: PetMedicalInfo;
   medicalTimeline?: MedicalTimelineEvent[];
   compatibility: PetCompatibility;
   intakeDate: string;
+  birthDate?: string;
+  birthDateIsEstimate?: boolean;
   adoptionFee: string;
   featured?: boolean;
   isArchived?: boolean;
@@ -76,18 +94,4 @@ export interface PetFilterState {
   isArchived?: boolean;
 }
 
-export interface AdoptionFormData {
-  petId: string;
-  petName: string;
-  applicantName: string;
-  applicantEmail: string;
-  applicantPhone: string;
-  applicantAddress: string;
-  housingType: 'own_house_yard' | 'rent_house_yard' | 'apartment' | 'condo' | 'other';
-  hasFencedYard: 'yes' | 'no' | 'not_applicable';
-  currentPets: 'none' | 'dogs' | 'cats' | 'both' | 'other';
-  currentPetDetails?: string;
-  householdExperience: 'first_time' | 'some_experience' | 'experienced';
-  applicantNotes?: string;
-  agreeToTerms: boolean;
-}
+

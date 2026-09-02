@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Pet } from "@/types/pet";
-import { petFormSchema, PetFormInput } from "@/lib/validations/pet";
+import { Pet, PetStatus } from "@/types/pet";
+import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
+import { normalizePetStatus, getAllowedPetStatusTransitions } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import {
   Dialog,
@@ -18,6 +19,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, X, Loader2, Star } from "lucide-react";
+import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+
+/** Admin UI is English-only; the year range beside each name comes from the domain (PS-114). */
+const ADMIN_AGE_BAND_NAMES: Record<(typeof AGE_BANDS)[number], string> = {
+  puppy_kitten: "Puppy / Kitten",
+  young: "Young",
+  adult: "Adult",
+  senior: "Senior",
+};
 
 interface PetFormDialogProps {
   open: boolean;
@@ -42,6 +52,7 @@ export function PetFormDialog({
     handleSubmit,
     setValue,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<PetFormInput>({
     resolver: zodResolver(petFormSchema),
@@ -88,7 +99,10 @@ export function PetFormDialog({
         gender: editingPet.gender,
         size: editingPet.size,
         weight: editingPet.weight,
-        status: editingPet.status,
+        // Normalized: the legacy `Rehabilitation` alias matches no <option> below, so a
+        // controlled select would fall back to the first one — silently rewriting an animal
+        // under care to Available on the next save.
+        status: normalizePetStatus(editingPet.status),
         adoptionFee: editingPet.adoptionFee,
         description: editingPet.description,
         rescueStory: editingPet.rescueStory,
@@ -96,6 +110,9 @@ export function PetFormDialog({
         tags: editingPet.tags,
         featured: editingPet.featured || false,
         intakeDate: editingPet.intakeDate,
+        rehabStage: editingPet.rehabStage,
+        rehabStageMs: editingPet.rehabStageMs,
+        rehabProgressPercent: editingPet.rehabProgressPercent,
         isArchived: editingPet.isArchived ?? false,
         deletedAt: editingPet.deletedAt || null,
         vaccinated: editingPet.medical.vaccinated,
@@ -135,6 +152,9 @@ export function PetFormDialog({
         tags: ["Vaccinated", "Friendly"],
         featured: false,
         intakeDate: new Date().toISOString().split("T")[0],
+        rehabStage: undefined,
+        rehabStageMs: undefined,
+        rehabProgressPercent: undefined,
         isArchived: false,
         deletedAt: null,
         vaccinated: true,
@@ -165,6 +185,28 @@ export function PetFormDialog({
     const newTags = tags.filter((t) => t !== tagToRemove);
     setTags(newTags);
     setValue("tags", newTags, { shouldValidate: true });
+  };
+
+  // Rehabilitation details are only collected — and only valid — while the pet is under care.
+  const statusField = register("status");
+  const watchedStatus = watch("status");
+  const isUnderRehabilitation = isRehabilitationStatus(watchedStatus);
+
+  const allowedStatusOptions = useMemo(() => {
+    if (editingPet?.status) {
+      return getAllowedPetStatusTransitions(editingPet.status);
+    }
+    return ["Available", "Pending", "Adopted", "In Rehabilitation"] as PetStatus[];
+  }, [editingPet?.status]);
+
+  const handleStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    statusField.onChange(event);
+    const next = event.target.value as Pet["status"];
+    if (!isRehabilitationStatus(next)) {
+      setValue("rehabStage", undefined, { shouldValidate: true });
+      setValue("rehabStageMs", undefined, { shouldValidate: true });
+      setValue("rehabProgressPercent", undefined, { shouldValidate: true });
+    }
   };
 
   const onSubmit = async (data: PetFormInput) => {
@@ -251,10 +293,11 @@ export function PetFormDialog({
                   {...register("ageCategory")}
                   className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground"
                 >
-                  <option value="puppy_kitten">Puppy / Kitten</option>
-                  <option value="young">Young (1-3 yrs)</option>
-                  <option value="adult">Adult (3-7 yrs)</option>
-                  <option value="senior">Senior (7+ yrs)</option>
+                  {AGE_BANDS.map((band) => (
+                    <option key={band} value={band}>
+                      {`${ADMIN_AGE_BAND_NAMES[band]} (${formatAgeBandRange(band)})`}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -282,12 +325,21 @@ export function PetFormDialog({
                 <Label htmlFor="status" className="text-sm font-semibold">Adoption Status *</Label>
                 <select
                   id="status"
-                  {...register("status")}
+                  {...statusField}
+                  onChange={handleStatusChange}
                   className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground font-semibold"
                 >
-                  <option value="Available">Available</option>
-                  <option value="Pending">Pending Application</option>
-                  <option value="Adopted">Adopted (Happy Tail)</option>
+                  {allowedStatusOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt === "Pending"
+                        ? "Pending Application"
+                        : opt === "Adopted"
+                        ? "Adopted (Happy Tail)"
+                        : opt === "In Rehabilitation"
+                        ? "In Rehabilitation (Under Care)"
+                        : "Available"}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -296,6 +348,55 @@ export function PetFormDialog({
                 <Input id="adoptionFee" placeholder="e.g. Free" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
               </div>
             </div>
+
+            {isUnderRehabilitation && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border border-dashed border-border p-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabStage" className="text-sm font-semibold">Rehabilitation Stage</Label>
+                  <Input
+                    id="rehabStage"
+                    placeholder="e.g. Post-operative physiotherapy"
+                    className="text-sm py-2"
+                    {...register("rehabStage")}
+                  />
+                  {errors.rehabStage && (
+                    <p className="text-xs text-destructive">{errors.rehabStage.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabStageMs" className="text-sm font-semibold">Peringkat Pemulihan (BM)</Label>
+                  <Input
+                    id="rehabStageMs"
+                    placeholder="cth. Fisioterapi selepas pembedahan"
+                    className="text-sm py-2"
+                    {...register("rehabStageMs")}
+                  />
+                  {errors.rehabStageMs && (
+                    <p className="text-xs text-destructive">{errors.rehabStageMs.message}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="rehabProgressPercent" className="text-sm font-semibold">Progress (%)</Label>
+                  <Input
+                    id="rehabProgressPercent"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    placeholder="0-100"
+                    className="text-sm py-2 font-mono"
+                    {...register("rehabProgressPercent", {
+                      setValueAs: (v) => (v === "" || v === null || v === undefined ? undefined : Number(v)),
+                    })}
+                  />
+                  {errors.rehabProgressPercent && (
+                    <p className="text-xs text-destructive">{errors.rehabProgressPercent.message}</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 2. Photo & Visuals */}
@@ -479,7 +580,7 @@ export function PetFormDialog({
             <div className="flex items-center gap-2.5 pt-2 border-t border-border/60">
               <input type="checkbox" id="featured" {...register("featured")} className="size-4.5 accent-foreground" />
               <Label htmlFor="featured" className="text-sm font-semibold cursor-pointer flex items-center gap-1.5">
-                <Star className="size-4 text-amber-500 fill-amber-500/20" />
+                <Star className="size-4 text-warning-accent fill-warning-accent/20" />
                 Feature on Homepage Showcase
               </Label>
             </div>

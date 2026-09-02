@@ -102,7 +102,7 @@ Create the Server Action that verifies staff session, validates with Zod, writes
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { verifyAdminSession } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import { addPetMedicalMilestone } from "@/lib/serverStore";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { medicalMilestoneSchema, MedicalMilestoneInput } from "@/lib/validations/pet";

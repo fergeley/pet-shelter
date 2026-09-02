@@ -25,9 +25,9 @@ import {
   insertServerApplication,
   atomicUpdateApplicationStatus,
   deleteServerApplication,
-  findServerPetById,
   findServerApplicationById,
-} from "@/lib/serverStore";
+} from "@/lib/server/applicationRepository";
+import { findServerPetById } from "@/lib/server/petRepository";
 import {
   sendApplicationConfirmationEmail,
   sendStaffApplicationAlert,
