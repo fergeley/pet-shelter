@@ -480,3 +480,79 @@ deleted when they flake.
 test. Give whole-tree scans an explicit timeout, and prove the timeout is wired by mutating it to
 `{ timeout: 1 }` and watching it fail; an ignored option is indistinguishable from a generous one.
 
+## 2026-09-02 — Verify what a checker reads, not only what it decides
+
+The commit-msg linter enforced its seven rules correctly and was still wrong, because it was not
+reading the bytes git commits. Two instances, found by review after it had merged and been armed:
+
+- It stripped every line starting with `#`. `git commit -F` — the path this repo mandates — uses
+  `cleanup=whitespace`, which **keeps** comment lines; only an editor session uses `cleanup=strip`.
+  So a body made of `#` lines reported "no body", and a 90-column `#` line escaped the wrap check.
+- It tested rule 4 against the untrimmed subject, so `"Add the button. "` passed while
+  `"Add the button."` failed. Git trims the line, then commits the period the rule forbids.
+
+Both are the same defect: the checker's input was not the artifact's input. Every rule test in the
+suite was correct, and every one of them was asked about the wrong string.
+
+**Rule:** when a gate protects a downstream artifact, prove the gate reads what the artifact will
+contain, and prove it by producing the artifact — a scratch `git init`, one `commit -F`, and
+`git log -1 --format=%B` settled this in under a minute. Reading the tool's documentation about
+cleanup modes would not have; the default differs by invocation path.
+
+## 2026-09-02 — Tests and mutants both only check the rules you thought of
+
+Four holes in that linter survived 62 tests and 12 killed mutants. That is not a failure of either
+technique, it is their shape: unit tests assert the rules the author imagined, and mutation testing
+asks whether those tests discriminate against the code the author wrote. Neither can produce an
+input nobody considered — a subject with a trailing space, a body of comment lines, an unclosed
+fence, a summary opening on a backtick.
+
+An adversarial read of the *inputs* found all four in one pass.
+
+**Rule:** a green suite plus killed mutants means "the rules I wrote are enforced and my tests can
+tell". It does not mean the rule set is complete. Before trusting a guard, enumerate the input
+shapes rather than the rules: empty, whitespace-only, leading and trailing padding, the comment
+character, an unterminated delimiter, a non-letter first character. Then check the new tests fail
+against the old code — 9 of the 14 written here did, and the other 5 were controls that must pass
+both ways.
+
+## 2026-09-02 — An exemption that cannot be turned off is a hole
+
+Rule 6 exempted fenced code blocks by toggling a boolean on each ``` line. An unbalanced fence —
+one stray line in prose — latched it on and silently excused every remaining line, trailers
+included, from the wrap check. Nothing reset it and nothing reported it. The exemption was not
+wrong; its inability to recover was.
+
+**Rule:** any state machine that suppresses a check needs a defined end, and a report when it does
+not reach one. Count the delimiters first and refuse to trust unpaired ones, rather than toggling
+optimistically and hoping the input closes. The same shape appears wherever a guard has an "unless"
+— a skip flag, an ignore comment, a fixture that disables an assertion.
+
+## 2026-09-02 — A destructive helper in a shared location must prove provenance
+
+`install-git-hooks.mjs` wrote `.git/hooks/commit-msg` unconditionally and `--uninstall` removed
+whatever carried that name. Hooks live in the **common** git directory — the fact the script's own
+docstring stressed — so the file it clobbers may belong to the main checkout, another worktree, or
+husky. Its stated goal, not installing a hook the human did not ask for, was enforced by nothing but
+the argument the caller typed. Naming no hook with `--uninstall` printed the roster and exited 0,
+which reads exactly like a successful removal.
+
+**Rule:** before overwriting or deleting a file in a location you share, prove you wrote it —
+compare against the source you would install — and refuse otherwise, with `--force` as the
+deliberate way through. A no-op that exits 0 is worse than an error, because the caller believes it
+worked. Test this in a throwaway repo, never against the live artifact.
+
+## 2026-09-02 — `.gitignore` does not untrack a tracked file
+
+A concurrent session reported that `.env.example` was force-added on two local worktree branches
+only, absent from master and every pushed branch, and asked which branch should carry a fix. It is
+tracked on all of them, and has been since 2026-08-26. `.gitignore:34` (`.env*`) matches the path,
+so `git status` and `git check-ignore` both call it ignored — while it is tracked, committed, and
+present in every tree.
+
+The wrong conclusion was about to send a correct fix to the wrong branch.
+
+**Rule:** ignore rules apply to *untracked* files only. To answer "is this file in this branch",
+ask the tree — `git ls-tree -r --name-only <ref> | grep -x '<path>'` — never the ignore machinery
+and never `git status`. When a peer reports a repository fact, re-derive it before acting: this one
+was three commands, and two of the three claims did not survive.
