@@ -3,7 +3,7 @@
  *
  * Every number the public "Where Your Money Goes" page shows is DERIVED here
  * from the expense ledger. Nothing is a hard-coded percentage: the allocation
- * chart, the category totals and the donate-page summary all read the same
+ * chart, the donate-page summary and the admin preview all read the same
  * computation, so they cannot drift apart.
  *
  * Pure module — no Prisma, no React, no server imports. Fully unit-testable.
@@ -154,6 +154,13 @@ export interface ImpactStatRecord {
   isPublished: boolean;
 }
 
+/** Per-category aggregate over the WHOLE published ledger. */
+export interface CategoryTotal {
+  key: ExpenseCategoryKey;
+  totalSen: number;
+  itemCount: number;
+}
+
 export interface AllocationSlice {
   key: ExpenseCategoryKey;
   meta: ExpenseCategoryMeta;
@@ -163,16 +170,31 @@ export interface AllocationSlice {
   itemCount: number;
 }
 
+/**
+ * Where the figures came from.
+ *
+ * - `database`  — real rows. The only value the public page treats as verified.
+ * - `sample`    — the bundled development dataset. NEVER produced in production.
+ * - `unavailable` — the ledger could not be read; show an honest empty state
+ *   rather than inventing numbers on a page about financial honesty.
+ */
+export type TransparencySource = "database" | "sample" | "unavailable";
+
 export interface TransparencySnapshot {
+  /** A bounded, newest-first window of the ledger — not necessarily every row. */
   expenses: ExpenseItemRecord[];
   reports: FinancialReportRecord[];
   impactStats: ImpactStatRecord[];
+  /** Derived from every published row, not just the window above. */
   allocation: AllocationSlice[];
   totalSen: number;
+  /** Total published entries in the ledger, which may exceed `expenses.length`. */
+  expenseCount: number;
+  /** True when the ledger holds more entries than this window carries. */
+  hasMoreExpenses: boolean;
   /** ISO date of the most recent published expense, or null when the ledger is empty. */
   lastExpenseDate: string | null;
-  /** Where the data came from — surfaced in the admin UI so a fallback is never mistaken for live data. */
-  source: "database" | "fallback";
+  source: TransparencySource;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -193,6 +215,8 @@ export function isIsoDate(value: string): boolean {
   // Date.UTC normalises overflow, so a round-trip mismatch means the day does
   // not exist in that month.
   const asDate = new Date(Date.UTC(y, m - 1, d));
+  // Date.UTC maps years 0-99 onto 1900+y, which would reject "0026-01-01".
+  if (y < 100) asDate.setUTCFullYear(y);
   return (
     asDate.getUTCFullYear() === y &&
     asDate.getUTCMonth() === m - 1 &&
@@ -200,15 +224,33 @@ export function isIsoDate(value: string): boolean {
   );
 }
 
-/** Formats sen as Malaysian ringgit, e.g. 145000 -> "RM 1,450". */
+/**
+ * Formats sen as Malaysian ringgit, e.g. 145000 -> "RM 1,450".
+ *
+ * Grouping is done by hand rather than with `toLocaleString`, for the same
+ * reason `formatTimestampDate` avoids `toLocaleDateString`: these amounts are
+ * rendered on the server and hydrated in the browser, and `Intl` output depends
+ * on the runtime's ICU data. Identical output on both sides is worth more here
+ * than locale flexibility, and the format is fixed anyway.
+ */
 export function formatMYR(amountSen: number, opts: { withCents?: boolean } = {}): string {
-  const withCents = opts.withCents ?? amountSen % 100 !== 0;
-  const ringgit = amountSen / 100;
-  const formatted = ringgit.toLocaleString("en-MY", {
-    minimumFractionDigits: withCents ? 2 : 0,
-    maximumFractionDigits: withCents ? 2 : 0,
-  });
-  return `RM ${formatted}`;
+  // `amountSen` is an integer column, but this is exported and reachable from a
+  // form field, so a non-integer or NaN must not produce "RM 14.50.5" or
+  // "RM NaN.NaN" — splitting whole from cents assumes a whole number of sen.
+  if (!Number.isFinite(amountSen)) return "RM 0";
+  const sen = Math.round(amountSen);
+
+  const withCents = opts.withCents ?? sen % 100 !== 0;
+  const sign = sen < 0 ? "-" : "";
+  const abs = Math.abs(sen);
+
+  const whole = withCents ? Math.floor(abs / 100) : Math.round(abs / 100);
+  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const body = withCents
+    ? `${grouped}.${String(abs % 100).padStart(2, "0")}`
+    : grouped;
+
+  return `${sign}RM ${body}`;
 }
 
 /** Parses a user-typed ringgit amount ("1,450" / "1450.75") into sen. */
@@ -242,6 +284,24 @@ export function formatLongDate(isoDate: string, isMs = false): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   const names = isMs ? MONTHS_MS : MONTHS_EN;
   return `${d} ${names[m - 1]} ${y}`;
+}
+
+/**
+ * Formats the calendar date of an ISO timestamp, in UTC.
+ *
+ * Deliberately does NOT use `new Date(...).toLocaleDateString()`: that renders
+ * in the *runtime's* timezone, so a UTC server and a UTC+8 browser disagree
+ * about the day for any timestamp near midnight — which both shows the wrong
+ * date and produces a React hydration mismatch.
+ */
+export function formatTimestampDate(isoTimestamp: string, isMs = false): string {
+  const datePart = isoTimestamp.slice(0, 10);
+  if (isIsoDate(datePart)) return formatLongDate(datePart, isMs);
+
+  // Not an ISO-8601 string; fall back to a UTC-normalised parse.
+  const parsed = new Date(isoTimestamp);
+  if (Number.isNaN(parsed.getTime())) return isoTimestamp;
+  return formatLongDate(parsed.toISOString().slice(0, 10), isMs);
 }
 
 /** Label for a report row: "August 2026" for monthly, "Annual 2025" otherwise. */
@@ -286,30 +346,30 @@ function largestRemainderPercents(values: number[], total: number): number[] {
 }
 
 /**
- * Aggregates published expenses into per-category allocation slices, ordered
- * largest-first. Categories with no spend are dropped rather than shown as a
- * zero-width segment the reader cannot hover.
+ * Builds allocation slices from per-category aggregates.
+ *
+ * Kept separate from `computeAllocation` so the database path can aggregate
+ * with a `groupBy` over the entire ledger while shipping only a bounded window
+ * of rows to the browser. Both paths produce identical figures.
  */
-export function computeAllocation(items: ExpenseItemRecord[]): {
+export function allocationFromTotals(totals: CategoryTotal[]): {
   allocation: AllocationSlice[];
   totalSen: number;
+  expenseCount: number;
 } {
-  const published = items.filter((i) => i.isPublished);
-  const totals = new Map<ExpenseCategoryKey, { totalSen: number; itemCount: number }>();
-
-  for (const item of published) {
-    if (!isExpenseCategory(item.category)) continue;
-    if (!Number.isFinite(item.amountSen) || item.amountSen <= 0) continue;
-    const bucket = totals.get(item.category) ?? { totalSen: 0, itemCount: 0 };
-    bucket.totalSen += item.amountSen;
-    bucket.itemCount += 1;
-    totals.set(item.category, bucket);
+  const byKey = new Map<ExpenseCategoryKey, CategoryTotal>();
+  for (const total of totals) {
+    if (!isExpenseCategory(total.key)) continue;
+    if (!Number.isFinite(total.totalSen) || total.totalSen <= 0) continue;
+    byKey.set(total.key, total);
   }
 
-  const present = EXPENSE_CATEGORIES.filter((c) => totals.has(c.key));
-  const totalSen = [...totals.values()].reduce((sum, b) => sum + b.totalSen, 0);
+  // Iterate the fixed category order so colour never follows rank.
+  const present = EXPENSE_CATEGORIES.filter((c) => byKey.has(c.key));
+  const totalSen = [...byKey.values()].reduce((sum, t) => sum + t.totalSen, 0);
+  const expenseCount = [...byKey.values()].reduce((sum, t) => sum + t.itemCount, 0);
   const percents = largestRemainderPercents(
-    present.map((c) => totals.get(c.key)!.totalSen),
+    present.map((c) => byKey.get(c.key)!.totalSen),
     totalSen
   );
 
@@ -317,13 +377,65 @@ export function computeAllocation(items: ExpenseItemRecord[]): {
     .map((meta, idx) => ({
       key: meta.key,
       meta,
-      totalSen: totals.get(meta.key)!.totalSen,
+      totalSen: byKey.get(meta.key)!.totalSen,
       percent: percents[idx],
-      itemCount: totals.get(meta.key)!.itemCount,
+      itemCount: byKey.get(meta.key)!.itemCount,
     }))
     .sort((a, b) => b.totalSen - a.totalSen);
 
-  return { allocation, totalSen };
+  return { allocation, totalSen, expenseCount };
+}
+
+/**
+ * The single rule for what counts as a public ledger entry.
+ *
+ * Both the aggregate and the rendered feed must apply it, or the page states two
+ * different answers: a row excluded from the totals but listed in the feed makes
+ * the month subtotals disagree with the chart, on a page whose whole claim is
+ * that its figures reconcile. `amountSen` has no database CHECK constraint, so a
+ * legacy row, a manual correction or a refund can be non-positive even though
+ * the admin write path rejects one.
+ */
+export function isCountableExpense(item: ExpenseItemRecord): boolean {
+  return (
+    item.isPublished &&
+    isExpenseCategory(item.category) &&
+    Number.isFinite(item.amountSen) &&
+    item.amountSen > 0
+  );
+}
+
+/** Aggregates a full in-memory ledger into per-category totals. */
+export function categoryTotalsFromItems(items: ExpenseItemRecord[]): CategoryTotal[] {
+  const totals = new Map<ExpenseCategoryKey, CategoryTotal>();
+
+  for (const item of items) {
+    if (!isCountableExpense(item)) continue;
+
+    const bucket = totals.get(item.category) ?? {
+      key: item.category,
+      totalSen: 0,
+      itemCount: 0,
+    };
+    bucket.totalSen += item.amountSen;
+    bucket.itemCount += 1;
+    totals.set(item.category, bucket);
+  }
+
+  return [...totals.values()];
+}
+
+/**
+ * Aggregates published expenses into per-category allocation slices, ordered
+ * largest-first. Categories with no spend are dropped rather than shown as a
+ * zero-width segment the reader cannot inspect.
+ */
+export function computeAllocation(items: ExpenseItemRecord[]): {
+  allocation: AllocationSlice[];
+  totalSen: number;
+  expenseCount: number;
+} {
+  return allocationFromTotals(categoryTotalsFromItems(items));
 }
 
 /** Published expenses, newest first. ISO dates make the string sort chronological. */
@@ -331,12 +443,20 @@ export function sortExpensesNewestFirst(items: ExpenseItemRecord[]): ExpenseItem
   return [...items].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
-/** Reports newest first: year desc, then month desc with annual reports leading the year. */
+/**
+ * Reports newest first: year descending, then month descending with the annual
+ * report leading its year.
+ *
+ * An annual statement is sorted as though it came after December, because it is
+ * the summary document for that year and belongs at the top of it. (`?? 0` would
+ * have pushed it below every monthly report — the opposite of this comment.)
+ */
 export function sortReportsNewestFirst(
   reports: FinancialReportRecord[]
 ): FinancialReportRecord[] {
+  const rank = (month: number | null) => month ?? 13;
   return [...reports].sort(
-    (a, b) => b.year - a.year || (b.month ?? 0) - (a.month ?? 0)
+    (a, b) => b.year - a.year || rank(b.month) - rank(a.month) || a.id.localeCompare(b.id)
   );
 }
 
@@ -369,17 +489,26 @@ export function groupExpensesByMonth(
 }
 
 /**
- * Builds the full snapshot the public page renders. Filtering to published rows
+ * Builds the snapshot the public page renders. Filtering to published rows
  * happens here, once, so no caller can leak a draft entry.
+ *
+ * `totals` may be supplied by a database aggregate covering the entire ledger;
+ * when omitted it is computed from `expenses`, which is only correct if that
+ * array is the complete ledger.
  */
 export function buildSnapshot(input: {
   expenses: ExpenseItemRecord[];
   reports: FinancialReportRecord[];
   impactStats: ImpactStatRecord[];
-  source: "database" | "fallback";
+  source: TransparencySource;
+  totals?: CategoryTotal[];
 }): TransparencySnapshot {
-  const expenses = sortExpensesNewestFirst(input.expenses.filter((e) => e.isPublished));
-  const { allocation, totalSen } = computeAllocation(expenses);
+  // Same predicate as the aggregate, so the feed can never list a row the totals
+  // exclude.
+  const expenses = sortExpensesNewestFirst(input.expenses.filter(isCountableExpense));
+  const { allocation, totalSen, expenseCount } = input.totals
+    ? allocationFromTotals(input.totals)
+    : computeAllocation(expenses);
 
   return {
     expenses,
@@ -387,7 +516,24 @@ export function buildSnapshot(input: {
     impactStats: sortImpactStats(input.impactStats.filter((s) => s.isPublished)),
     allocation,
     totalSen,
+    expenseCount,
+    hasMoreExpenses: expenseCount > expenses.length,
     lastExpenseDate: expenses.length > 0 ? expenses[0].date : null,
     source: input.source,
+  };
+}
+
+/** The snapshot shown when the ledger cannot be read. Never invents figures. */
+export function emptySnapshot(source: TransparencySource): TransparencySnapshot {
+  return {
+    expenses: [],
+    reports: [],
+    impactStats: [],
+    allocation: [],
+    totalSen: 0,
+    expenseCount: 0,
+    hasMoreExpenses: false,
+    lastExpenseDate: null,
+    source,
   };
 }

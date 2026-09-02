@@ -22,7 +22,16 @@ import { categoryVar } from "./palette";
 
 const INITIAL_MONTHS = 3;
 
-export function RecentPurchasesFeed({ items }: { items: ExpenseItemRecord[] }) {
+export function RecentPurchasesFeed({
+  items,
+  hasMore = false,
+  totalCount,
+}: {
+  items: ExpenseItemRecord[];
+  /** True when the ledger holds more entries than this bounded window carries. */
+  hasMore?: boolean;
+  totalCount?: number;
+}) {
   const { isMs } = useLanguage();
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [visibleMonths, setVisibleMonths] = useState(INITIAL_MONTHS);
@@ -41,7 +50,7 @@ export function RecentPurchasesFeed({ items }: { items: ExpenseItemRecord[] }) {
   );
 
   const shown = months.slice(0, visibleMonths);
-  const hasMore = months.length > visibleMonths;
+  const hasMoreMonths = months.length > visibleMonths;
 
   return (
     <div className="space-y-6">
@@ -174,7 +183,7 @@ export function RecentPurchasesFeed({ items }: { items: ExpenseItemRecord[] }) {
         </div>
       )}
 
-      {hasMore && (
+      {hasMoreMonths && (
         <div className="text-center">
           <button
             type="button"
@@ -185,6 +194,18 @@ export function RecentPurchasesFeed({ items }: { items: ExpenseItemRecord[] }) {
             {isMs ? "Papar bulan terdahulu" : "Show earlier months"}
           </button>
         </div>
+      )}
+
+      {/* Only a bounded window of the ledger is sent to the browser. Say so
+          rather than letting the feed imply it is the complete history.
+          Suppressed while a category filter is active, because both counts
+          describe the whole window and would misdescribe the filtered view. */}
+      {hasMore && categoryFilter === "ALL" && (
+        <p className="text-center text-xs text-muted-foreground">
+          {isMs
+            ? `Memaparkan ${items.length} catatan terkini daripada ${totalCount ?? items.length} dalam lejar. Sejarah penuh terkandung dalam laporan teraudit di bawah.`
+            : `Showing the ${items.length} most recent of ${totalCount ?? items.length} ledger entries. The full history is in the audited reports below.`}
+        </p>
       )}
     </div>
   );

@@ -1,69 +1,50 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import {
   AllocationSlice,
   ImpactStatRecord,
+  TransparencySource,
   formatMYR,
 } from "@/lib/domain/transparency";
-import { getTransparencySnapshotAction } from "@/actions/transparency";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-import { ALLOCATION_SCOPE, allocationPaletteCss, categoryVar } from "./palette";
+import { ALLOCATION_SCOPE, ALLOCATION_PALETTE_CSS, categoryVar } from "./palette";
 
 /**
  * Compact allocation + impact summary for pages other than /transparency.
  *
  * This exists so the donate page stops carrying its own hand-written split. It
  * previously hard-coded 45/30/20/5 while the ledger said something else — on a
- * page about financial honesty, two different answers is the actual bug. Both
- * surfaces now read the same derived snapshot.
+ * page about financial honesty, two different answers is the actual bug.
+ *
+ * Presentational by design: the figures arrive as props from a Server
+ * Component. An earlier version fetched them itself on mount, which cost the
+ * donate page its server-rendered content, its first paint and its
+ * crawlability for no benefit.
  */
-export function AllocationSummary() {
+export function AllocationSummary({
+  allocation,
+  impactStats,
+  totalSen,
+  source,
+}: {
+  allocation: AllocationSlice[];
+  impactStats: ImpactStatRecord[];
+  totalSen: number;
+  /** Provenance, so this surface can state it too rather than only /transparency. */
+  source: TransparencySource;
+}) {
   const { isMs } = useLanguage();
-  const [allocation, setAllocation] = useState<AllocationSlice[]>([]);
-  const [stats, setStats] = useState<ImpactStatRecord[]>([]);
-  const [totalSen, setTotalSen] = useState(0);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
 
-  useEffect(() => {
-    let active = true;
-
-    getTransparencySnapshotAction()
-      .then((snapshot) => {
-        if (!active) return;
-        setAllocation(snapshot.allocation);
-        setStats(snapshot.impactStats);
-        setTotalSen(snapshot.totalSen);
-        setState("ready");
-      })
-      .catch(() => {
-        // Better to show nothing than a stale split the ledger disagrees with.
-        if (active) setState("error");
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  if (state === "loading") {
-    return (
-      <div className="flex items-center justify-center gap-2 rounded-2xl border border-border bg-background p-10 text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" />
-        {isMs ? "Memuatkan lejar perbelanjaan..." : "Loading the expense ledger..."}
-      </div>
-    );
-  }
-
-  if (state === "error" || allocation.length === 0) {
+  if (allocation.length === 0) {
     return (
       <div className="rounded-2xl border border-border bg-background p-8 text-center">
         <p className="text-sm text-muted-foreground">
           {isMs
-            ? "Pecahan perbelanjaan tidak dapat dimuatkan sekarang."
-            : "The expense breakdown could not be loaded right now."}
+            ? "Pecahan perbelanjaan akan dipaparkan sebaik sahaja lejar dikemas kini."
+            : "The expense breakdown will appear here once the ledger is updated."}
         </p>
         <Link
           href="/transparency"
@@ -78,7 +59,21 @@ export function AllocationSummary() {
 
   return (
     <div className={`${ALLOCATION_SCOPE} space-y-8`}>
-      <style>{allocationPaletteCss()}</style>
+      <style>{ALLOCATION_PALETTE_CSS}</style>
+
+      {/* Provenance travels with the figures. Without this the donate page would
+          present the development sample split under "computed live from our
+          verified expense ledger" while /transparency showed a warning. */}
+      {source === "sample" && (
+        <p
+          role="status"
+          className="rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-2.5 text-center text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+        >
+          {isMs
+            ? "Data contoh pembangunan — angka ini bukan rekod perbelanjaan sebenar."
+            : "Development sample data — these figures are not real spending records."}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {allocation.map((slice) => (
@@ -109,7 +104,10 @@ export function AllocationSummary() {
               <div className="text-xs font-semibold tabular-nums text-muted-foreground">
                 {formatMYR(slice.totalSen)}
               </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                aria-hidden="true"
+              >
                 <div
                   className="h-full"
                   style={{
@@ -123,16 +121,16 @@ export function AllocationSummary() {
         ))}
       </div>
 
-      {stats.length > 0 && (
+      {impactStats.length > 0 && (
         <dl className="grid grid-cols-1 gap-6 rounded-2xl border border-border bg-muted/30 p-6 text-center sm:grid-cols-3 sm:p-8">
-          {stats.slice(0, 3).map((stat) => (
-            <div key={stat.key} className="space-y-1">
-              <dd className="font-heading text-3xl font-bold text-primary sm:text-4xl">
-                {stat.metricValue}
-              </dd>
+          {impactStats.slice(0, 3).map((stat) => (
+            <div key={stat.key} className="flex flex-col-reverse justify-end gap-1">
               <dt className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 {isMs && stat.labelMs ? stat.labelMs : stat.label}
               </dt>
+              <dd className="m-0 font-heading text-3xl font-bold text-primary sm:text-4xl">
+                {stat.metricValue}
+              </dd>
             </div>
           ))}
         </dl>

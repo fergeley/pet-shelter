@@ -208,90 +208,105 @@ async function main() {
   }
   console.log(`  ✓ ${applicationsData.length} adoption applications seeded.`);
 
-  // 5. Seed Financial Transparency Ledger
+  // 5. Seed the SAMPLE financial transparency ledger — explicit opt-in only.
   //
-  // Loaded from the same src/data/transparency.json the runtime fallback reads,
-  // so a seeded database and an offline render never disagree on the figures.
-  for (const expense of transparencyData.expenses) {
-    await prisma.expenseItem.upsert({
-      where: { id: expense.id },
-      update: {
-        category: expense.category as never,
-        title: expense.title,
-        amountSen: expense.amountSen,
-        date: expense.date,
-        vendorOrClinic: expense.vendorOrClinic,
-        petName: expense.petName,
-        receiptRef: expense.receiptRef,
-        isPublished: true,
-      },
-      create: {
-        id: expense.id,
-        category: expense.category as never,
-        title: expense.title,
-        amountSen: expense.amountSen,
-        date: expense.date,
-        vendorOrClinic: expense.vendorOrClinic,
-        petName: expense.petName,
-        receiptRef: expense.receiptRef,
-        isPublished: true,
-      },
-    });
-  }
-  console.log(`  ✓ ${transparencyData.expenses.length} expense ledger entries seeded.`);
+  // These are invented figures with realistic-looking invoice references. Seeding
+  // them marks them published, which makes the public page render them as
+  // verified shelter spending indistinguishable from real records. `DATABASE_URL`
+  // in this project has pointed at a production branch, so this must never be
+  // something a routine `npm run db:seed` does by accident.
+  const seedSampleLedger = process.env.SEED_SAMPLE_TRANSPARENCY === "true";
 
-  for (const report of transparencyData.reports) {
-    await prisma.financialReport.upsert({
-      where: { id: report.id },
-      update: {
-        year: report.year,
-        month: report.month,
-        title: report.title,
-        fileUrl: report.fileUrl,
-        summary: report.summary,
-        publishedAt: new Date(report.publishedAt),
-        isPublished: true,
-      },
-      create: {
-        id: report.id,
-        year: report.year,
-        month: report.month,
-        title: report.title,
-        fileUrl: report.fileUrl,
-        summary: report.summary,
-        publishedAt: new Date(report.publishedAt),
-        isPublished: true,
-      },
-    });
-  }
-  console.log(`  ✓ ${transparencyData.reports.length} financial reports seeded.`);
+  if (seedSampleLedger) {
+    console.warn(
+      "  ⚠ Seeding the SAMPLE financial ledger. These are invented figures — do not do this against a production database."
+    );
 
-  for (const stat of transparencyData.impactStats) {
-    await prisma.impactStat.upsert({
-      where: { key: stat.key },
-      update: {
-        metricValue: stat.metricValue,
-        label: stat.label,
-        labelMs: stat.labelMs,
-        period: stat.period,
-        periodMs: stat.periodMs,
-        displayOrder: stat.displayOrder,
-        isPublished: true,
-      },
-      create: {
-        id: stat.id,
-        key: stat.key,
-        metricValue: stat.metricValue,
-        label: stat.label,
-        labelMs: stat.labelMs,
-        period: stat.period,
-        periodMs: stat.periodMs,
-        displayOrder: stat.displayOrder,
-        isPublished: true,
-      },
-    });
+    for (const expense of transparencyData.expenses) {
+      await prisma.expenseItem.upsert({
+        where: { id: expense.id },
+        update: {
+          category: expense.category as never,
+          title: expense.title,
+          amountSen: expense.amountSen,
+          date: expense.date,
+          vendorOrClinic: expense.vendorOrClinic,
+          petName: expense.petName,
+          receiptRef: expense.receiptRef,
+          isPublished: true,
+        },
+        create: {
+          id: expense.id,
+          category: expense.category as never,
+          title: expense.title,
+          amountSen: expense.amountSen,
+          date: expense.date,
+          vendorOrClinic: expense.vendorOrClinic,
+          petName: expense.petName,
+          receiptRef: expense.receiptRef,
+          isPublished: true,
+        },
+      });
+    }
+    console.log(`  ✓ ${transparencyData.expenses.length} expense ledger entries seeded.`);
+
+    for (const report of transparencyData.reports) {
+      await prisma.financialReport.upsert({
+        where: { id: report.id },
+        update: {
+          year: report.year,
+          month: report.month,
+          title: report.title,
+          fileUrl: report.fileUrl,
+          summary: report.summary,
+          publishedAt: new Date(report.publishedAt),
+          isPublished: true,
+        },
+        create: {
+          id: report.id,
+          year: report.year,
+          month: report.month,
+          title: report.title,
+          fileUrl: report.fileUrl,
+          summary: report.summary,
+          publishedAt: new Date(report.publishedAt),
+          isPublished: true,
+        },
+      });
+    }
+    console.log(`  ✓ ${transparencyData.reports.length} financial reports seeded.`);
+
+    for (const stat of transparencyData.impactStats) {
+      await prisma.impactStat.upsert({
+        where: { key: stat.key },
+        update: {
+          metricValue: stat.metricValue,
+          label: stat.label,
+          labelMs: stat.labelMs,
+          period: stat.period,
+          periodMs: stat.periodMs,
+          displayOrder: stat.displayOrder,
+          isPublished: true,
+        },
+        create: {
+          id: stat.id,
+          key: stat.key,
+          metricValue: stat.metricValue,
+          label: stat.label,
+          labelMs: stat.labelMs,
+          period: stat.period,
+          periodMs: stat.periodMs,
+          displayOrder: stat.displayOrder,
+          isPublished: true,
+        },
+      });
+    }
+    console.log(`  ✓ ${transparencyData.impactStats.length} impact statistics seeded.`);
+  } else {
+    console.log(
+      "  ⏭ Skipped the sample financial ledger. Set SEED_SAMPLE_TRANSPARENCY=true to include it (development only)."
+    );
   }
-  console.log(`  ✓ ${transparencyData.impactStats.length} impact statistics seeded.`);
 
   // 6. Initial Audit Log
   await prisma.auditLog.create({
@@ -306,9 +321,10 @@ async function main() {
         seededPets: petsData.length,
         seededApplications: applicationsData.length,
         seededStaff: staffUsers.length,
-        seededExpenses: transparencyData.expenses.length,
-        seededReports: transparencyData.reports.length,
-        seededImpactStats: transparencyData.impactStats.length,
+        seededExpenses: seedSampleLedger ? transparencyData.expenses.length : 0,
+        seededReports: seedSampleLedger ? transparencyData.reports.length : 0,
+        seededImpactStats: seedSampleLedger ? transparencyData.impactStats.length : 0,
+        sampleLedgerSeeded: seedSampleLedger,
       },
     },
   });

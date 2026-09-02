@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   Award,
   ArrowRight,
   HeartHandshake,
@@ -18,7 +19,7 @@ import {
   formatLongDate,
   formatMYR,
 } from "@/lib/domain/transparency";
-import { ALLOCATION_SCOPE, allocationPaletteCss } from "./palette";
+import { ALLOCATION_SCOPE, ALLOCATION_PALETTE_CSS } from "./palette";
 import { ExpenseAllocationChart } from "./ExpenseAllocationChart";
 import { ImpactStatHighlights } from "./ImpactStatHighlights";
 import { RecentPurchasesFeed } from "./RecentPurchasesFeed";
@@ -31,13 +32,49 @@ import { FinancialReportsTable } from "./FinancialReportsTable";
  * so the allocation percentages the reader sees are the same derived figures
  * the donate page and the admin editor read.
  */
+/**
+ * States the provenance of the figures whenever they are not real ledger rows.
+ *
+ * A transparency page must never let a reader mistake development sample data,
+ * or a failed read, for verified spending — so this is rendered above
+ * everything else rather than tucked away.
+ */
+function LedgerSourceNotice({ source }: { source: TransparencySnapshot["source"] }) {
+  const { isMs } = useLanguage();
+
+  if (source === "database") return null;
+
+  const isSample = source === "sample";
+
+  return (
+    <div
+      role="status"
+      className="border-b border-amber-500/40 bg-amber-50 px-6 py-3 text-center text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      <span className="inline-flex items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+        {isSample
+          ? isMs
+            ? "Data contoh pembangunan — angka di halaman ini bukan rekod perbelanjaan sebenar."
+            : "Development sample data — the figures on this page are not real spending records."
+          : isMs
+            ? "Lejar kewangan tidak dapat dimuatkan buat masa ini. Sila cuba sebentar lagi."
+            : "The financial ledger could not be loaded right now. Please check back shortly."}
+      </span>
+    </div>
+  );
+}
+
 export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnapshot }) {
   const { t, isMs } = useLanguage();
+  const hasLedger = snapshot.totalSen > 0;
 
   return (
     <div className={`${ALLOCATION_SCOPE} flex min-h-screen flex-col bg-background`}>
       {/* Categorical palette, defined once for every chart on this page. */}
-      <style>{allocationPaletteCss()}</style>
+      <style>{ALLOCATION_PALETTE_CSS}</style>
+
+      <LedgerSourceNotice source={snapshot.source} />
 
       {/* 1. Hero */}
       <section className="border-b border-border bg-card py-14 sm:py-18 lg:py-22">
@@ -110,9 +147,13 @@ export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnaps
                 : "How Every Ringgit Is Allocated"}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground sm:text-base">
-              {isMs
-                ? `Peratusan di bawah dijumlahkan daripada ${formatMYR(snapshot.totalSen)} perbelanjaan yang disahkan dan direkodkan dalam lejar awam kami. Angka ini berubah secara automatik apabila perbelanjaan baharu direkodkan.`
-                : `The shares below are summed from ${formatMYR(snapshot.totalSen)} of verified expenses recorded in our public ledger. They move automatically as new spending is recorded — nobody types a percentage.`}
+              {hasLedger
+                ? isMs
+                  ? `Peratusan di bawah dijumlahkan daripada ${formatMYR(snapshot.totalSen)} perbelanjaan yang disahkan dan direkodkan dalam lejar awam kami. Angka ini berubah secara automatik apabila perbelanjaan baharu direkodkan.`
+                  : `The shares below are summed from ${formatMYR(snapshot.totalSen)} of verified expenses recorded in our public ledger. They move automatically as new spending is recorded — nobody types a percentage.`
+                : isMs
+                  ? "Setiap peratusan di halaman ini dikira terus daripada lejar perbelanjaan kami. Tiada perbelanjaan diterbitkan lagi untuk tempoh ini."
+                  : "Every share on this page is computed directly from our expense ledger. No spending has been published for this period yet."}
             </p>
           </div>
 
@@ -140,7 +181,11 @@ export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnaps
             </p>
           </div>
 
-          <RecentPurchasesFeed items={snapshot.expenses} />
+          <RecentPurchasesFeed
+            items={snapshot.expenses}
+            hasMore={snapshot.hasMoreExpenses}
+            totalCount={snapshot.expenseCount}
+          />
         </div>
       </section>
 

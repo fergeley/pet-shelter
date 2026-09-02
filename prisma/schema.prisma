@@ -190,6 +190,12 @@ model FinancialReport {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  /// Backstop for the duplicate check in `createFinancialReport`, which is a
+  /// non-atomic read-then-write and so cannot stop two concurrent submits on its
+  /// own. Postgres treats NULLs as distinct in a unique index, so this covers
+  /// monthly statements; annual reports (month = null) still rely on the code
+  /// check alone.
+  @@unique([year, month, title])
   @@index([isPublished, year, month])
   @@map("financial_reports")
 }

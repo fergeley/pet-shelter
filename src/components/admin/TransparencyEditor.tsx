@@ -30,7 +30,7 @@ import {
 } from "@/lib/domain/transparency";
 import {
   ALLOCATION_SCOPE,
-  allocationPaletteCss,
+  ALLOCATION_PALETTE_CSS,
   categoryVar,
 } from "@/components/features/transparency/palette";
 import {
@@ -52,7 +52,15 @@ import {
  * a form that will only fail on submit.
  */
 
-const EDITOR_ROLES = ["ADMIN", "COORDINATOR", "admin", "coordinator"];
+/**
+ * Must match `TRANSPARENCY_EDITOR_ROLES` on the server exactly.
+ *
+ * `AdminUser["role"]` also allows lowercase legacy values, but the server
+ * compares against the uppercase `Role` enum — so accepting "admin" here handed
+ * that account a full editor UI whose every action then failed authorisation,
+ * which is precisely what mirroring the rule is supposed to prevent.
+ */
+const EDITOR_ROLES = ["ADMIN", "COORDINATOR"];
 
 const fieldClass =
   "w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -216,7 +224,7 @@ export function TransparencyEditor() {
 
   return (
     <div className={`${ALLOCATION_SCOPE} max-w-5xl space-y-6`}>
-      <style>{allocationPaletteCss()}</style>
+      <style>{ALLOCATION_PALETTE_CSS}</style>
 
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
@@ -232,15 +240,25 @@ export function TransparencyEditor() {
         </p>
       </div>
 
-      {snapshot?.source === "fallback" && (
+      {snapshot && snapshot.source !== "database" && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-400/50 bg-amber-50 p-4 text-xs font-semibold text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           <Database className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Showing the bundled baseline dataset: no transparency rows were read
-            from PostgreSQL. Run <code className="font-mono">npm run db:push</code>{" "}
-            then <code className="font-mono">npm run db:seed</code> to persist this
-            ledger. Edits made now are not durable.
-          </span>
+          {snapshot.source === "sample" ? (
+            <span>
+              The database is unreachable, so this is the bundled{" "}
+              <strong>development sample dataset</strong> — not real spending.
+              Run <code className="font-mono">npm run db:push</code> to create
+              the tables, then record real expenses here. Edits made now are not
+              durable, and the public page is showing a &ldquo;sample
+              data&rdquo; banner.
+            </span>
+          ) : (
+            <span>
+              The financial ledger could not be read. The public page is showing
+              an unavailable notice rather than any figures, and changes cannot
+              be saved until the database is reachable.
+            </span>
+          )}
         </div>
       )}
 

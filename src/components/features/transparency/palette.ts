@@ -12,11 +12,12 @@ import { EXPENSE_CATEGORIES } from "@/lib/domain/transparency";
 
 export const ALLOCATION_SCOPE = "tv-alloc";
 
-export function allocationPaletteCss(): string {
+/** Built once at module load: the categories are a compile-time constant. */
+export const ALLOCATION_PALETTE_CSS: string = (() => {
   const light = EXPENSE_CATEGORIES.map((c) => `--tv-${c.key}: ${c.color};`).join(" ");
   const dark = EXPENSE_CATEGORIES.map((c) => `--tv-${c.key}: ${c.colorDark};`).join(" ");
   return `.${ALLOCATION_SCOPE} { ${light} } .dark .${ALLOCATION_SCOPE} { ${dark} }`;
-}
+})();
 
 /** The variable reference for one category, e.g. `var(--tv-MEDICAL)`. */
 export function categoryVar(key: string): string {

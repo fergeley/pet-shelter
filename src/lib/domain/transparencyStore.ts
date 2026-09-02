@@ -2,26 +2,37 @@ import { prisma } from "@/lib/prisma";
 import baseline from "@/data/transparency.json";
 import {
   buildSnapshot,
+  emptySnapshot,
+  CategoryTotal,
+  ExpenseCategoryKey,
   ExpenseItemRecord,
   FinancialReportRecord,
   ImpactStatRecord,
   TransparencySnapshot,
+  TransparencySource,
+  categoryTotalsFromItems,
+  isCountableExpense,
   isExpenseCategory,
+  sortExpensesNewestFirst,
+  sortImpactStats,
+  sortReportsNewestFirst,
 } from "./transparency";
 
 /**
  * Persistence layer for the transparency ledger.
  *
- * Follows the same resilience contract as `auditLog.ts`: PostgreSQL is the
- * source of truth, and an in-memory mirror keeps the feature usable when the
- * database is unreachable (offline dev, unit tests, a cold deploy before
- * `db:push`). The two are never blended within a single request — a read either
- * comes wholly from the database or wholly from the fallback — so the public
- * page can never show half a ledger.
- *
- * The fallback is seeded from `src/data/transparency.json`, the very same file
- * `prisma/seed.ts` loads, so a seeded database and an offline render agree.
+ * PostgreSQL is the source of truth. `src/data/transparency.json` is a
+ * DEVELOPMENT dataset so the page is workable offline — it is never substituted
+ * in production, because presenting invented expenses as verified spending on a
+ * transparency page is worse than showing nothing. In production a failed read
+ * yields an honest empty state (`source: "unavailable"`).
  */
+
+/** Rows shipped to the browser for the public feed. Allocation still covers all rows. */
+export const PUBLIC_FEED_LIMIT = 120;
+
+/** Rows loaded into the admin editor. Bounded so the table cannot grow without limit. */
+export const ADMIN_LEDGER_LIMIT = 500;
 
 type MutationTarget = "database" | "memory";
 
@@ -76,7 +87,7 @@ export function getBaselineRecords(): MemoryState {
       .filter((e) => isExpenseCategory(e.category))
       .map((e) => ({
         id: e.id,
-        category: e.category as ExpenseItemRecord["category"],
+        category: e.category as ExpenseCategoryKey,
         title: e.title,
         amountSen: e.amountSen,
         date: e.date,
@@ -113,7 +124,7 @@ const globalForTransparency = globalThis as unknown as {
   transparencyMemory: MemoryState | undefined;
 };
 
-/** Survives Turbopack hot reloads so an admin edit is not lost on file save. */
+/** Survives Turbopack hot reloads so a dev edit is not lost on file save. */
 function memory(): MemoryState {
   globalForTransparency.transparencyMemory ??= getBaselineRecords();
   return globalForTransparency.transparencyMemory;
@@ -124,141 +135,262 @@ export function resetTransparencyMemory(): void {
   globalForTransparency.transparencyMemory = getBaselineRecords();
 }
 
+/**
+ * Read at call time, not module scope, so a test can flip it.
+ * `next build` runs with NODE_ENV=production, so a build-time prerender against
+ * an unreachable database bakes in the honest empty state, not sample figures.
+ */
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
 function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Error classification                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Prisma error codes that mean "the database is not usable", as opposed to
+ * "the database rejected this particular write".
+ *
+ * Verified against Prisma 7: an unreachable server raises a
+ * PrismaClientKnownRequestError with code P1001.
+ */
+const UNAVAILABLE_PRISMA_CODES = new Set([
+  "P1000", // authentication failed
+  "P1001", // cannot reach database server
+  "P1002", // database server timeout
+  "P1008", // operation timed out
+  "P1010", // access denied
+  "P1011", // TLS error
+  "P1017", // server closed the connection
+  "P2021", // table does not exist (schema not pushed)
+  "P2022", // column does not exist (schema out of date)
+]);
+
+const UNAVAILABLE_SOCKET_CODES = new Set([
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "ETIMEDOUT",
+  "ECONNRESET",
+  "EAI_AGAIN",
+]);
+
+/**
+ * True only for failures that mean the database itself is unreachable or
+ * unmigrated. Anything else — a constraint violation, a bad value — is a real
+ * error that must reach the operator rather than being silently absorbed into
+ * an in-memory copy that the next read will not show.
+ *
+ * Defaulting to `false` is the safe direction: an unrecognised error surfaces
+ * instead of quietly diverging.
+ */
+export function isDatabaseUnavailable(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+
+  const candidate = err as { code?: unknown; name?: unknown };
+
+  if (typeof candidate.code === "string") {
+    if (UNAVAILABLE_PRISMA_CODES.has(candidate.code)) return true;
+    if (UNAVAILABLE_SOCKET_CODES.has(candidate.code)) return true;
+  }
+
+  return candidate.name === "PrismaClientInitializationError";
+}
+
+/**
+ * Prisma raises P2025 when an update or delete targets a row that is not there.
+ * That is an ordinary outcome — a stale tab, a double-clicked delete — not a
+ * server fault, so it becomes a `null` result and a plain "no longer exists"
+ * message instead of being logged as an unexpected error.
+ */
+function isRecordNotFound(err: unknown): boolean {
+  return (
+    !!err && typeof err === "object" && (err as { code?: unknown }).code === "P2025"
+  );
+}
+
+/** Resolves to null when the row is gone; rethrows anything else. */
+async function orNullIfMissing<T>(operation: () => Promise<T>): Promise<T | null> {
+  try {
+    return await operation();
+  } catch (err) {
+    if (isRecordNotFound(err)) return null;
+    throw err;
+  }
+}
+
+/**
+ * Runs a write against the database, falling back to the in-memory mirror only
+ * when the database is genuinely unavailable AND we are not in production.
+ */
+async function withDatabase<T>(
+  operation: () => Promise<T>,
+  fallback: () => T
+): Promise<{ value: T; target: MutationTarget }> {
+  try {
+    return { value: await operation(), target: "database" };
+  } catch (err) {
+    if (isProduction() || !isDatabaseUnavailable(err)) throw err;
+    return { value: fallback(), target: "memory" };
+  }
 }
 
 /* -------------------------------------------------------------------------- */
 /* Reads                                                                       */
 /* -------------------------------------------------------------------------- */
 
-interface DbExpenseRow {
-  id: string;
-  category: string;
-  title: string;
-  amountSen: number;
-  date: string;
-  vendorOrClinic: string | null;
-  petName: string | null;
-  receiptRef: string | null;
-  isPublished: boolean;
-}
-
-interface DbReportRow {
-  id: string;
-  year: number;
-  month: number | null;
-  title: string;
-  fileUrl: string;
-  summary: string | null;
-  publishedAt: Date | string;
-  isPublished: boolean;
-}
-
-interface DbStatRow {
-  id: string;
-  key: string;
-  metricValue: string;
-  label: string;
-  labelMs: string | null;
-  period: string;
-  periodMs: string | null;
-  displayOrder: number;
-  isPublished: boolean;
-}
-
 function toIso(value: Date | string): string {
   return typeof value === "string" ? value : value.toISOString();
 }
 
-/**
- * Reads the ledger. `includeUnpublished` is for the admin editor, which must be
- * able to see and re-publish a hidden row.
- */
-export async function readTransparencySnapshot(
-  options: { includeUnpublished?: boolean } = {}
-): Promise<TransparencySnapshot> {
-  const { includeUnpublished = false } = options;
-
-  try {
-    const [expenses, reports, impactStats] = await Promise.all([
-      prisma.expenseItem.findMany({ orderBy: { date: "desc" } }),
-      prisma.financialReport.findMany({ orderBy: [{ year: "desc" }, { month: "desc" }] }),
-      prisma.impactStat.findMany({ orderBy: { displayOrder: "asc" } }),
-    ]);
-
-    // A reachable but completely unseeded database would render an empty page.
-    // Fall through to the baseline so a fresh deploy still reads correctly.
-    if (expenses.length > 0 || reports.length > 0 || impactStats.length > 0) {
-      return projectSnapshot(
-        {
-          expenses: (expenses as unknown as DbExpenseRow[])
-            .filter((e) => isExpenseCategory(e.category))
-            .map((e) => ({
-              id: e.id,
-              category: e.category as ExpenseItemRecord["category"],
-              title: e.title,
-              amountSen: e.amountSen,
-              date: e.date,
-              vendorOrClinic: e.vendorOrClinic,
-              petName: e.petName,
-              receiptRef: e.receiptRef,
-              isPublished: e.isPublished,
-            })),
-          reports: (reports as unknown as DbReportRow[]).map((r) => ({
-            id: r.id,
-            year: r.year,
-            month: r.month,
-            title: r.title,
-            fileUrl: r.fileUrl,
-            summary: r.summary,
-            publishedAt: toIso(r.publishedAt),
-            isPublished: r.isPublished,
-          })),
-          impactStats: (impactStats as unknown as DbStatRow[]).map((s) => ({
-            id: s.id,
-            key: s.key,
-            metricValue: s.metricValue,
-            label: s.label,
-            labelMs: s.labelMs,
-            period: s.period,
-            periodMs: s.periodMs,
-            displayOrder: s.displayOrder,
-            isPublished: s.isPublished,
-          })),
-        },
-        "database",
-        includeUnpublished
-      );
-    }
-  } catch {
-    // Database unreachable — fall through to the in-memory mirror.
-  }
-
-  return projectSnapshot(memory(), "fallback", includeUnpublished);
+interface ReadOptions {
+  /** Admin view: include unpublished drafts in the returned rows. */
+  includeUnpublished?: boolean;
 }
 
-function projectSnapshot(
-  state: MemoryState,
-  source: "database" | "fallback",
-  includeUnpublished: boolean
-): TransparencySnapshot {
-  if (!includeUnpublished) {
-    return buildSnapshot({ ...state, source });
-  }
+/**
+ * Reads the ledger.
+ *
+ * Allocation is aggregated in the database over every published row, while only
+ * a bounded window of rows is returned for the feed — so the chart stays exact
+ * as the ledger grows without the whole ledger being serialised into every
+ * page response.
+ */
+export async function readTransparencySnapshot(
+  options: ReadOptions = {}
+): Promise<TransparencySnapshot> {
+  const { includeUnpublished = false } = options;
+  const rowLimit = includeUnpublished ? ADMIN_LEDGER_LIMIT : PUBLIC_FEED_LIMIT;
+  const publishedOnly = includeUnpublished ? {} : { isPublished: true };
 
-  // Admin view: build the derived figures from published rows only (they are
-  // what the public sees), then widen the raw lists to include drafts.
-  const snapshot = buildSnapshot({ ...state, source });
+  try {
+    const [expenses, reports, impactStats, grouped] = await Promise.all([
+      prisma.expenseItem.findMany({
+        where: publishedOnly,
+        // Ties broken by id so a take that lands mid-day is deterministic;
+        // the in-memory comparator was made stable for the same reason.
+        orderBy: [{ date: "desc" }, { id: "desc" }],
+        take: rowLimit,
+      }),
+      prisma.financialReport.findMany({
+        where: publishedOnly,
+        orderBy: [{ year: "desc" }, { month: "desc" }],
+      }),
+      prisma.impactStat.findMany({
+        where: publishedOnly,
+        orderBy: { displayOrder: "asc" },
+      }),
+      // Aggregate over the ENTIRE published ledger, independent of `take`.
+      prisma.expenseItem.groupBy({
+        by: ["category"],
+        where: { isPublished: true },
+        _sum: { amountSen: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const totals: CategoryTotal[] = grouped
+      .filter((row) => isExpenseCategory(row.category))
+      .map((row) => ({
+        key: row.category as ExpenseCategoryKey,
+        totalSen: row._sum.amountSen ?? 0,
+        itemCount: row._count._all,
+      }));
+
+    const state: MemoryState = {
+      expenses: expenses
+        .filter((e) => isExpenseCategory(e.category))
+        .map((e) => ({
+          id: e.id,
+          category: e.category as ExpenseCategoryKey,
+          title: e.title,
+          amountSen: e.amountSen,
+          date: e.date,
+          vendorOrClinic: e.vendorOrClinic,
+          petName: e.petName,
+          receiptRef: e.receiptRef,
+          isPublished: e.isPublished,
+        })),
+      reports: reports.map((r) => ({
+        id: r.id,
+        year: r.year,
+        month: r.month,
+        title: r.title,
+        fileUrl: r.fileUrl,
+        summary: r.summary,
+        publishedAt: toIso(r.publishedAt),
+        isPublished: r.isPublished,
+      })),
+      impactStats: impactStats.map((s) => ({
+        id: s.id,
+        key: s.key,
+        metricValue: s.metricValue,
+        label: s.label,
+        labelMs: s.labelMs,
+        period: s.period,
+        periodMs: s.periodMs,
+        displayOrder: s.displayOrder,
+        isPublished: s.isPublished,
+      })),
+    };
+
+    // A reachable but empty database is a legitimate answer — an unseeded
+    // shelter has no spending to show. It must NOT be papered over with the
+    // sample dataset.
+    return project(state, "database", includeUnpublished, rowLimit, totals);
+  } catch (err) {
+    if (isProduction()) {
+      console.error("[transparency] ledger read failed", err);
+      return emptySnapshot("unavailable");
+    }
+    // Development: fall back to the bundled dataset so the page is workable
+    // offline. Labelled `sample` so every surface can say so.
+    return project(memory(), "sample", includeUnpublished, rowLimit);
+  }
+}
+
+function project(
+  state: MemoryState,
+  source: TransparencySource,
+  includeUnpublished: boolean,
+  rowLimit: number,
+  totals?: CategoryTotal[]
+): TransparencySnapshot {
+  // Allocation always derives from published rows only — it is what the public
+  // sees — even when the caller also wants drafts listed.
+  const resolvedTotals = totals ?? categoryTotalsFromItems(state.expenses);
+
+  const published = sortExpensesNewestFirst(
+    state.expenses.filter(isCountableExpense)
+  ).slice(0, rowLimit);
+
+  const snapshot = buildSnapshot({
+    expenses: published,
+    reports: state.reports,
+    impactStats: state.impactStats,
+    source,
+    totals: resolvedTotals,
+  });
+
+  if (!includeUnpublished) return snapshot;
+
+  // Admin view: widen the raw lists to include drafts, keeping the derived
+  // figures above (which describe what the public sees).
+  const allExpenses = sortExpensesNewestFirst(state.expenses).slice(0, rowLimit);
+
   return {
     ...snapshot,
-    expenses: [...state.expenses].sort((a, b) => (a.date < b.date ? 1 : -1)),
-    reports: [...state.reports].sort(
-      (a, b) => b.year - a.year || (b.month ?? 0) - (a.month ?? 0)
-    ),
-    impactStats: [...state.impactStats].sort(
-      (a, b) => a.displayOrder - b.displayOrder || a.key.localeCompare(b.key)
-    ),
+    expenses: allExpenses,
+    reports: sortReportsNewestFirst(state.reports),
+    impactStats: sortImpactStats(state.impactStats),
+    // `expenseCount` counts published rows only, so it cannot answer "are there
+    // more drafts?". A full window is the only signal available without a
+    // second count query.
+    hasMoreExpenses: allExpenses.length >= rowLimit,
   };
 }
 
@@ -275,48 +407,57 @@ export type ExpenseWriteInput = Omit<ExpenseItemRecord, "id">;
 export type ReportWriteInput = Omit<FinancialReportRecord, "id">;
 export type ImpactStatWriteInput = Omit<ImpactStatRecord, "id">;
 
+/** Raised when a write is rejected for a reason the operator should see. */
+export class DuplicateReportError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DuplicateReportError";
+  }
+}
+
 export async function createExpenseItem(
   input: ExpenseWriteInput
 ): Promise<WriteOutcome<ExpenseItemRecord>> {
-  try {
-    const created = (await prisma.expenseItem.create({
-      data: {
-        category: input.category,
-        title: input.title,
-        amountSen: input.amountSen,
-        date: input.date,
-        vendorOrClinic: input.vendorOrClinic ?? null,
-        petName: input.petName ?? null,
-        receiptRef: input.receiptRef ?? null,
-        isPublished: input.isPublished,
-      },
-    })) as unknown as DbExpenseRow;
+  const memoryId = newId("exp");
 
-    return {
-      record: { ...input, id: created.id },
-      persistedTo: "database",
-    };
-  } catch {
-    const record: ExpenseItemRecord = { ...input, id: newId("exp") };
-    memory().expenses.unshift(record);
-    return { record, persistedTo: "memory" };
-  }
+  const { value, target } = await withDatabase(
+    async () => {
+      const created = await prisma.expenseItem.create({
+        data: {
+          category: input.category,
+          title: input.title,
+          amountSen: input.amountSen,
+          date: input.date,
+          vendorOrClinic: input.vendorOrClinic ?? null,
+          petName: input.petName ?? null,
+          receiptRef: input.receiptRef ?? null,
+          isPublished: input.isPublished,
+        },
+      });
+      return created.id;
+    },
+    () => {
+      memory().expenses.unshift({ ...input, id: memoryId });
+      return memoryId;
+    }
+  );
+
+  return { record: { ...input, id: value }, persistedTo: target };
 }
 
 export async function updateExpenseItem(
   id: string,
   input: Partial<ExpenseWriteInput>
 ): Promise<WriteOutcome<ExpenseItemRecord> | null> {
-  try {
-    const updated = (await prisma.expenseItem.update({
-      where: { id },
-      data: input,
-    })) as unknown as DbExpenseRow;
-
-    return {
-      record: {
+  const { value, target } = await withDatabase<ExpenseItemRecord | null>(
+    async () => {
+      const updated = await orNullIfMissing(() =>
+        prisma.expenseItem.update({ where: { id }, data: input })
+      );
+      if (!updated) return null;
+      return {
         id: updated.id,
-        category: updated.category as ExpenseItemRecord["category"],
+        category: updated.category as ExpenseCategoryKey,
         title: updated.title,
         amountSen: updated.amountSen,
         date: updated.date,
@@ -324,66 +465,109 @@ export async function updateExpenseItem(
         petName: updated.petName,
         receiptRef: updated.receiptRef,
         isPublished: updated.isPublished,
-      },
-      persistedTo: "database",
-    };
-  } catch {
-    const state = memory();
-    const idx = state.expenses.findIndex((e) => e.id === id);
-    if (idx === -1) return null;
-    state.expenses[idx] = { ...state.expenses[idx], ...input };
-    return { record: state.expenses[idx], persistedTo: "memory" };
-  }
+      };
+    },
+    () => {
+      const state = memory();
+      const idx = state.expenses.findIndex((e) => e.id === id);
+      if (idx === -1) return null;
+      state.expenses[idx] = { ...state.expenses[idx], ...input };
+      return state.expenses[idx];
+    }
+  );
+
+  return value ? { record: value, persistedTo: target } : null;
 }
 
 export async function deleteExpenseItem(id: string): Promise<MutationTarget | null> {
-  try {
-    await prisma.expenseItem.delete({ where: { id } });
-    return "database";
-  } catch {
-    const state = memory();
-    const idx = state.expenses.findIndex((e) => e.id === id);
-    if (idx === -1) return null;
-    state.expenses.splice(idx, 1);
-    return "memory";
-  }
+  const { value, target } = await withDatabase<boolean>(
+    async () => {
+      const deleted = await orNullIfMissing(() =>
+        prisma.expenseItem.delete({ where: { id } })
+      );
+      return deleted !== null;
+    },
+    () => {
+      const state = memory();
+      const idx = state.expenses.findIndex((e) => e.id === id);
+      if (idx === -1) return false;
+      state.expenses.splice(idx, 1);
+      return true;
+    }
+  );
+
+  return value ? target : null;
 }
 
 export async function createFinancialReport(
   input: ReportWriteInput
 ): Promise<WriteOutcome<FinancialReportRecord>> {
-  try {
-    const created = (await prisma.financialReport.create({
-      data: {
-        year: input.year,
-        month: input.month,
-        title: input.title,
-        fileUrl: input.fileUrl,
-        summary: input.summary ?? null,
-        publishedAt: new Date(input.publishedAt),
-        isPublished: input.isPublished,
-      },
-    })) as unknown as DbReportRow;
+  const memoryId = newId("rpt");
 
-    return { record: { ...input, id: created.id }, persistedTo: "database" };
-  } catch {
-    const record: FinancialReportRecord = { ...input, id: newId("rpt") };
-    memory().reports.unshift(record);
-    return { record, persistedTo: "memory" };
-  }
+  const { value, target } = await withDatabase(
+    async () => {
+      // Guards against a double submit or a retried request duplicating a
+      // statement. `month` is nullable, and Postgres treats NULLs as distinct
+      // in a unique index, so this is checked in code rather than by constraint.
+      const existing = await prisma.financialReport.findFirst({
+        where: { year: input.year, month: input.month, title: input.title },
+        select: { id: true },
+      });
+      if (existing) {
+        throw new DuplicateReportError(
+          `A report titled "${input.title}" already exists for that period.`
+        );
+      }
+
+      const created = await prisma.financialReport.create({
+        data: {
+          year: input.year,
+          month: input.month,
+          title: input.title,
+          fileUrl: input.fileUrl,
+          summary: input.summary ?? null,
+          publishedAt: new Date(input.publishedAt),
+          isPublished: input.isPublished,
+        },
+      });
+      return created.id;
+    },
+    () => {
+      const state = memory();
+      const duplicate = state.reports.find(
+        (r) => r.year === input.year && r.month === input.month && r.title === input.title
+      );
+      if (duplicate) {
+        throw new DuplicateReportError(
+          `A report titled "${input.title}" already exists for that period.`
+        );
+      }
+      state.reports.unshift({ ...input, id: memoryId });
+      return memoryId;
+    }
+  );
+
+  return { record: { ...input, id: value }, persistedTo: target };
 }
 
 export async function deleteFinancialReport(id: string): Promise<MutationTarget | null> {
-  try {
-    await prisma.financialReport.delete({ where: { id } });
-    return "database";
-  } catch {
-    const state = memory();
-    const idx = state.reports.findIndex((r) => r.id === id);
-    if (idx === -1) return null;
-    state.reports.splice(idx, 1);
-    return "memory";
-  }
+  const { value, target } = await withDatabase<boolean>(
+    async () => {
+      const deleted = await orNullIfMissing(() =>
+        prisma.financialReport.delete({ where: { id } })
+      );
+      return deleted !== null;
+    },
+    () => {
+      const state = memory();
+      const idx = state.reports.findIndex((r) => r.id === id);
+      if (idx === -1) return false;
+      state.reports.splice(idx, 1);
+      return true;
+    }
+  );
+
+  return value ? target : null;
 }
 
 /**
@@ -393,6 +577,7 @@ export async function deleteFinancialReport(id: string): Promise<MutationTarget 
 export async function upsertImpactStat(
   input: ImpactStatWriteInput
 ): Promise<WriteOutcome<ImpactStatRecord>> {
+  const memoryId = newId("stat");
   const data = {
     metricValue: input.metricValue,
     label: input.label,
@@ -403,36 +588,46 @@ export async function upsertImpactStat(
     isPublished: input.isPublished,
   };
 
-  try {
-    const saved = (await prisma.impactStat.upsert({
-      where: { key: input.key },
-      create: { key: input.key, ...data },
-      update: data,
-    })) as unknown as DbStatRow;
-
-    return { record: { ...input, id: saved.id }, persistedTo: "database" };
-  } catch {
-    const state = memory();
-    const idx = state.impactStats.findIndex((s) => s.key === input.key);
-    if (idx >= 0) {
-      state.impactStats[idx] = { ...state.impactStats[idx], ...input };
-      return { record: state.impactStats[idx], persistedTo: "memory" };
+  const { value, target } = await withDatabase(
+    async () => {
+      const saved = await prisma.impactStat.upsert({
+        where: { key: input.key },
+        create: { key: input.key, ...data },
+        update: data,
+      });
+      return saved.id;
+    },
+    () => {
+      const state = memory();
+      const idx = state.impactStats.findIndex((s) => s.key === input.key);
+      if (idx >= 0) {
+        state.impactStats[idx] = { ...state.impactStats[idx], ...input };
+        return state.impactStats[idx].id;
+      }
+      state.impactStats.push({ ...input, id: memoryId });
+      return memoryId;
     }
-    const record: ImpactStatRecord = { ...input, id: newId("stat") };
-    state.impactStats.push(record);
-    return { record, persistedTo: "memory" };
-  }
+  );
+
+  return { record: { ...input, id: value }, persistedTo: target };
 }
 
 export async function deleteImpactStat(key: string): Promise<MutationTarget | null> {
-  try {
-    await prisma.impactStat.delete({ where: { key } });
-    return "database";
-  } catch {
-    const state = memory();
-    const idx = state.impactStats.findIndex((s) => s.key === key);
-    if (idx === -1) return null;
-    state.impactStats.splice(idx, 1);
-    return "memory";
-  }
+  const { value, target } = await withDatabase<boolean>(
+    async () => {
+      const deleted = await orNullIfMissing(() =>
+        prisma.impactStat.delete({ where: { key } })
+      );
+      return deleted !== null;
+    },
+    () => {
+      const state = memory();
+      const idx = state.impactStats.findIndex((s) => s.key === key);
+      if (idx === -1) return false;
+      state.impactStats.splice(idx, 1);
+      return true;
+    }
+  );
+
+  return value ? target : null;
 }

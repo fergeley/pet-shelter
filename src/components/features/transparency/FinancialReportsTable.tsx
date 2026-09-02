@@ -5,18 +5,9 @@ import { Download, FileText } from "lucide-react";
 import {
   FinancialReportRecord,
   formatReportPeriod,
+  formatTimestampDate,
 } from "@/lib/domain/transparency";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-
-function formatPublished(iso: string, isMs: boolean): string {
-  const parsed = new Date(iso);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString(isMs ? "ms-MY" : "en-MY", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /** Absolute http(s) links leave the site; relative paths are our own files. */
 function isExternal(url: string): boolean {
@@ -91,7 +82,7 @@ export function FinancialReportsTable({
                 </div>
               </td>
               <td className="whitespace-nowrap px-4 py-4 text-xs text-muted-foreground">
-                {formatPublished(report.publishedAt, isMs)}
+                {formatTimestampDate(report.publishedAt, isMs)}
               </td>
               <td className="px-4 py-4 text-right">
                 <a

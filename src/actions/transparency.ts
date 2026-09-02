@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, TRANSPARENCY_EDITOR_ROLES } from "@/lib/security/rbac";
+import {
+  assertAuthorized,
+  ForbiddenError,
+  TRANSPARENCY_EDITOR_ROLES,
+  UnauthorizedError,
+} from "@/lib/security/rbac";
+import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import {
   expenseItemSchema,
@@ -14,23 +20,26 @@ import {
 } from "@/lib/validations/transparency";
 import type { TransparencySnapshot } from "@/lib/domain/transparency";
 import {
+  DuplicateReportError,
   createExpenseItem,
   createFinancialReport,
   deleteExpenseItem,
   deleteFinancialReport,
   deleteImpactStat,
+  isDatabaseUnavailable,
   readTransparencySnapshot,
   updateExpenseItem,
   upsertImpactStat,
 } from "@/lib/domain/transparencyStore";
 
 /**
- * Server actions for the public transparency page and its admin editor.
+ * Server actions for the transparency admin editor.
  *
- * Read actions are unauthenticated by design — the whole point of the page is
- * that anyone can audit the figures. Every write is gated on
- * `TRANSPARENCY_EDITOR_ROLES`, recorded in the audit log, and followed by
- * revalidation of BOTH public surfaces that render the ledger.
+ * The public page reads `readTransparencySnapshot()` directly from its Server
+ * Component — no action needed, so the allocation is server-rendered rather
+ * than fetched by the browser. Every write here is gated on
+ * `TRANSPARENCY_EDITOR_ROLES`, rate limited, recorded in the audit log, and
+ * followed by revalidation of both public surfaces that render ledger figures.
  */
 
 export interface ActionResult<T = undefined> {
@@ -43,10 +52,25 @@ export interface ActionResult<T = undefined> {
 
 /**
  * Paths that render ledger-derived figures. `/donate` is on this list because
- * its allocation summary reads the same snapshot — miss it and the donate page
- * serves a stale breakdown after an admin edit.
+ * its allocation summary is server-rendered from the same snapshot.
  */
-const LEDGER_PATHS = ["/transparency", "/donate", "/admin/transparency"];
+const LEDGER_PATHS = ["/transparency", "/donate"];
+
+/** Generous enough never to block real editing; stops a runaway client loop. */
+const WRITE_RATE_LIMIT = 60;
+const WRITE_RATE_WINDOW_MS = 60_000;
+
+/**
+ * Typed so `toMessage` passes it through verbatim. As a plain Error it was
+ * replaced by the generic failure text, which told a throttled editor nothing
+ * about why their change did not save or when to retry.
+ */
+class RateLimitedError extends Error {
+  constructor(retryAfterSeconds: number) {
+    super(`Too many changes in a short period. Try again in ${retryAfterSeconds}s.`);
+    this.name = "RateLimitedError";
+  }
+}
 
 function revalidateLedger(): void {
   try {
@@ -58,18 +82,61 @@ function revalidateLedger(): void {
   }
 }
 
+/**
+ * Converts a thrown error into a message safe to show an editor.
+ *
+ * Authorisation and validation messages are already written for humans. A raw
+ * database error is not, and can disclose schema details, so it is logged and
+ * replaced.
+ */
 function toMessage(err: unknown, fallback: string): string {
-  return err instanceof Error ? err.message : fallback;
+  if (
+    err instanceof UnauthorizedError ||
+    err instanceof ForbiddenError ||
+    err instanceof DuplicateReportError ||
+    err instanceof RateLimitedError
+  ) {
+    return err.message;
+  }
+
+  if (isDatabaseUnavailable(err)) {
+    return "The database is unavailable, so this change was not saved. Try again once it is reachable.";
+  }
+
+  // Zod errors carry field-level detail that is useful and safe to surface.
+  if (err && typeof err === "object" && (err as { name?: unknown }).name === "ZodError") {
+    const issues = (err as { issues?: { message?: string }[] }).issues ?? [];
+    const first = issues.find((i) => typeof i.message === "string")?.message;
+    if (first) return first;
+  }
+
+  console.error("[transparency]", fallback, err);
+  return fallback;
+}
+
+/**
+ * Shared preamble: authorise, then rate limit per editor.
+ * Returns the session so callers can attribute the audit entry.
+ */
+async function authorizeWrite() {
+  const session = await getCurrentSession();
+  assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+
+  const limit = checkRateLimit(
+    `transparency:write:${session.id}`,
+    WRITE_RATE_LIMIT,
+    WRITE_RATE_WINDOW_MS
+  );
+  if (!limit.success) {
+    throw new RateLimitedError(limit.retryAfterSeconds);
+  }
+
+  return session;
 }
 
 /* -------------------------------------------------------------------------- */
 /* Reads                                                                       */
 /* -------------------------------------------------------------------------- */
-
-/** Public snapshot: published rows only. */
-export async function getTransparencySnapshotAction(): Promise<TransparencySnapshot> {
-  return readTransparencySnapshot();
-}
 
 /** Admin snapshot: includes unpublished drafts. Requires an editor role. */
 export async function getAdminTransparencySnapshotAction(): Promise<
@@ -94,8 +161,7 @@ export async function createExpenseItemAction(
   input: ExpenseItemInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const validated = expenseItemSchema.parse(input);
     const { record, persistedTo } = await createExpenseItem(validated);
@@ -129,8 +195,7 @@ export async function updateExpenseItemAction(
   input: ExpenseItemInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const validated = expenseItemSchema.parse(input);
     const result = await updateExpenseItem(id, validated);
@@ -157,8 +222,7 @@ export async function updateExpenseItemAction(
 
 export async function deleteExpenseItemAction(id: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const persistedTo = await deleteExpenseItem(id);
     if (!persistedTo) {
@@ -190,8 +254,7 @@ export async function saveImpactStatAction(
   input: ImpactStatInput
 ): Promise<ActionResult<{ id: string; key: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const validated = impactStatSchema.parse(input);
     const { record, persistedTo } = await upsertImpactStat(validated);
@@ -221,8 +284,7 @@ export async function saveImpactStatAction(
 
 export async function deleteImpactStatAction(key: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const persistedTo = await deleteImpactStat(key);
     if (!persistedTo) {
@@ -254,8 +316,7 @@ export async function createFinancialReportAction(
   input: FinancialReportInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const validated = financialReportSchema.parse(input);
     const { record, persistedTo } = await createFinancialReport(validated);
@@ -285,8 +346,7 @@ export async function createFinancialReportAction(
 
 export async function deleteFinancialReportAction(id: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    const session = await authorizeWrite();
 
     const persistedTo = await deleteFinancialReport(id);
     if (!persistedTo) {

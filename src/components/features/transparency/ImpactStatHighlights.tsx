@@ -8,6 +8,11 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
  * Headline impact counters. These are stat tiles, not a chart: a handful of
  * unrelated headline numbers ("180", "42", "100%") share no scale, so plotting
  * them together would invent a comparison that does not exist.
+ *
+ * Each tile is a `<dt>` term followed by its `<dd>` description, in that order —
+ * assistive technology pairs them by document order, so putting the value first
+ * in the markup would announce the number before anything says what it counts.
+ * `flex-col-reverse` puts the figure on top visually without disturbing that.
  */
 export function ImpactStatHighlights({ stats }: { stats: ImpactStatRecord[] }) {
   const { isMs } = useLanguage();
@@ -33,11 +38,8 @@ export function ImpactStatHighlights({ stats }: { stats: ImpactStatRecord[] }) {
       {stats.map((stat) => (
         <div
           key={stat.key}
-          className="flex flex-col justify-between rounded-2xl border border-border bg-background p-6 shadow-xs"
+          className="flex flex-col-reverse justify-end rounded-2xl border border-border bg-background p-6 shadow-xs"
         >
-          <dd className="font-heading text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
-            {stat.metricValue}
-          </dd>
           <dt className="mt-3 space-y-1.5">
             <span className="block font-heading text-sm font-bold leading-snug text-foreground">
               {isMs && stat.labelMs ? stat.labelMs : stat.label}
@@ -46,6 +48,9 @@ export function ImpactStatHighlights({ stats }: { stats: ImpactStatRecord[] }) {
               {isMs && stat.periodMs ? stat.periodMs : stat.period}
             </span>
           </dt>
+          <dd className="m-0 font-heading text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
+            {stat.metricValue}
+          </dd>
         </div>
       ))}
     </dl>
