@@ -119,7 +119,7 @@ The diff already says how.
 Check a message before you commit, and install the hook that checks it for you:
 
 ```bash
-npm run commit:check -- .git/COMMIT_EDITMSG   # lint one message
+npm run commit:check -- "$(git rev-parse --git-path COMMIT_EDITMSG)"   # lint one message
 npm run commit:audit                          # report on existing history
 npm run commit:hook                           # install the commit-msg hook (opt-in)
 ```

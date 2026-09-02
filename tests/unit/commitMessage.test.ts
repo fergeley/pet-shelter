@@ -307,3 +307,117 @@ describe("messages the linter must not judge", () => {
     expect(errors("   \n\n  ")).toContain("empty");
   });
 });
+
+/**
+ * Defects a code review found after the standard had already merged. Each one had
+ * passed 62 tests and 12 killed mutants, because both techniques check the code
+ * against the rules its author thought of. None of these is a rule that was
+ * implemented wrongly; each is an input shape nobody had imagined.
+ */
+describe("defects found by review", () => {
+  const FENCE = "```";
+
+  // `git commit -F` — the path AGENTS.md mandates — uses cleanup=whitespace, which
+  // keeps comment lines. Only an editor session uses cleanup=strip. Dropping every
+  // `#` line meant linting different bytes than git commits.
+  describe("author comment lines are content, not cruft", () => {
+    it("treats a comment line as a body, so rule 7 does not misfire", () => {
+      expect(
+        rules("fix(ui): Add the button\n\n# git commit -F keeps this line"),
+      ).not.toContain("no-body");
+    });
+
+    it("wraps a comment line like any other body line", () => {
+      const long = "# " + "word ".repeat(20);
+      expect(errors("fix(ui): Add the button\n\n" + long)).toContain("body-wrap");
+    });
+
+    it("still drops git's own template block", () => {
+      const withTemplate = [
+        "fix(ui): Add the button",
+        "",
+        "A real body line that says why.",
+        "",
+        "# Please enter the commit message for your changes. Lines starting",
+        "# with '#' will be ignored, and an empty message aborts the commit.",
+        "#",
+        "# On branch feat/example",
+        "# Changes to be committed:",
+        "#\tmodified:   a.txt",
+      ].join("\n");
+      expect(rules(withTemplate)).toEqual([]);
+    });
+
+    it("still drops everything below the scissors line", () => {
+      const withDiff = [
+        "fix(ui): Add the button",
+        "",
+        "A real body line that says why.",
+        "",
+        "# ------------------------ >8 ------------------------",
+        "diff --git a/a.txt b/a.txt",
+        "x".repeat(200),
+      ].join("\n");
+      expect(rules(withDiff)).toEqual([]);
+    });
+  });
+
+  // Git strips trailing whitespace from every line, so the subject that lands is the
+  // trimmed one. Linting the raw line let one space hide the period entirely.
+  describe("rule 4 — a trailing space must not hide the period", () => {
+    it("fires on a period followed by a space", () => {
+      expect(errors("fix(ui): Add the button. ")).toContain("no-period");
+    });
+
+    it("fires on a period followed by a tab", () => {
+      expect(errors("fix(ui): Add the button.\t")).toContain("no-period");
+    });
+
+    it("does not fire on a clean subject that carries a trailing space", () => {
+      expect(errors("fix(ui): Add the button ")).not.toContain("no-period");
+    });
+
+    it("does not count trailing whitespace toward the hard limit", () => {
+      const atLimit = "fix(ui): " + "a".repeat(SUBJECT_HARD_LIMIT - "fix(ui): ".length);
+      expect(atLimit).toHaveLength(SUBJECT_HARD_LIMIT);
+      expect(errors(atLimit + "    ")).not.toContain("subject-length");
+    });
+  });
+
+  // An unclosed fence used to latch the exemption on for the rest of the body.
+  describe("rule 6 — an unclosed fence must not disable the wrap check", () => {
+    const unclosed = "fix(ui): Add the button\n\n" + FENCE + "\n" + "a ".repeat(60);
+
+    it("reports the unclosed fence", () => {
+      expect(errors(unclosed)).toContain("unclosed-fence");
+    });
+
+    it("still checks the wrap on the lines after it", () => {
+      expect(errors(unclosed)).toContain("body-wrap");
+    });
+
+    it("leaves a balanced fence exempt", () => {
+      const balanced =
+        "fix(ui): Add the button\n\n" + FENCE + "\n" + "a ".repeat(60) + "\n" + FENCE;
+      expect(errors(balanced)).toEqual([]);
+    });
+  });
+
+  // The mood check read the first token, which is empty when the summary opens on
+  // punctuation — so rule 5 was skipped entirely for those subjects.
+  describe("rule 5 — leading punctuation must not hide the verb", () => {
+    it("sees past a quote", () => {
+      expect(errors('fix(ui): "Added" the button')).toContain("imperative");
+    });
+
+    it("sees past an em-dash", () => {
+      expect(errors("fix(ui): — Added the button")).toContain("imperative");
+    });
+
+    it("leaves rule 3's deliberate identifier exemption alone", () => {
+      expect(errors("refactor(lib): `petRepository` loses its barrel")).not.toContain(
+        "capitalize",
+      );
+    });
+  });
+});

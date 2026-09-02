@@ -109,6 +109,11 @@ A line is exempt from the 72-column wrap only when no wrapping could fix it:
 
 Everything else wraps. Prose does not get an exemption for being awkward to wrap.
 
+**A fence must be closed.** An odd number of ``` lines used to latch the exemption on and silently
+excuse every remaining line, trailers included, from the wrap. The linter now reports
+`unclosed-fence` and checks all of them instead: an exemption that cannot be turned off is not an
+exemption, it is a hole.
+
 ## 6. Rule 7 is the one that matters, and no machine enforces it
 
 The linter warns when a commit has no body at all. It cannot tell a good body from a bad one, and
@@ -151,10 +156,15 @@ hooks` run inside `.claude/worktrees/` returns the main repository's `.git/hooks
 Bypass a single commit with `git commit --no-verify`; remove it with
 `node scripts/install-git-hooks.mjs --uninstall commit-msg`.
 
-**CI** — the `commits` job lints every commit a pull request adds, and only those. Pre-standard
-history is never re-linted, so the job cannot go red for commits nobody is writing any more. It
-uses the range `origin/<base>..HEAD`, which excludes everything already reachable from the base
-branch — so merging the base into a feature branch never dilutes the result.
+**CI** — the `commits` job lints the commits a pull request adds, using the range
+`origin/<base>..HEAD`. That excludes everything already reachable from the base branch, so
+merging the base *into* a feature branch never dilutes the result.
+
+It is not a guarantee that pre-standard history is never re-linted, and an earlier version of this
+page claimed it was. Merging some **other** unmerged branch into your feature branch adds every one
+of its commits to the range, grandfathered or not; this repo's own `78609a1` did exactly that. If
+that happens, `--strict` will fail on messages nobody is writing any more. Merge the base branch
+rather than a sibling, or expect to explain the red.
 
 **What nothing lints: merge commits.** The audit passes `--no-merges`, and the hook skips any
 subject beginning `Merge `, `Revert `, `fixup!`, `squash!` or `amend!`. Git generates those, and
@@ -174,7 +184,14 @@ not infer from this section that no hook is armed.
 
 ## 8. The measured baseline
 
-Run `npm run commit:audit` to reproduce. As of 2026-09-01, across 203 commits:
+Reproduce with `npm run commit:audit -- 28159f3` — the pinned branch point, which is exactly the
+203 commits that predate the standard. A bare `npm run commit:audit` walks `HEAD` and reports a
+larger denominator as adoption proceeds.
+
+**The table counts commits; the tool prints findings.** They agree only for rules that can fire
+once per commit. Rule 6 fires once per over-long *line*, so the audit reports
+`error:body-wrap 1021` against the 97 commits below. Neither number is wrong and no flag prints
+this table; it was computed per commit. As of 2026-09-01, across 203 commits:
 
 | Rule | Commits violating |
 |---|---|
