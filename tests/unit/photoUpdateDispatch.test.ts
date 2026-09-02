@@ -282,6 +282,11 @@ describe("Photo update dispatch", () => {
     expect(second).toBe(first);
   });
 
+  // Raised past the 5s default rather than shrunk below the cap. This test is
+  // meant to drive a *full* recipient list through the real fan-out — 250 sends
+  // five at a time, each minting two HMAC tokens and building the message — and
+  // under the whole suite in parallel that legitimately crosses five seconds.
+  // Trimming the list to fit would mean no longer testing the cap.
   it("caps a runaway supporter list rather than sending without bound", async () => {
     listActiveSponsorshipsForPet.mockResolvedValue(
       Array.from({ length: 260 }, (_, i) => sponsorship({ sponsorEmail: `s${i}@example.com` }))
@@ -296,7 +301,7 @@ describe("Photo update dispatch", () => {
 
     expect(result.truncated).toBe(true);
     expect(result.dispatched).toBe(250);
-  });
+  }, 20_000);
 });
 
 describe("Absolute asset URLs", () => {
