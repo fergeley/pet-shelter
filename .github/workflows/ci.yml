@@ -84,7 +84,7 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - name: Apply the schema
-        run: npx prisma db push --skip-generate
+        run: npx prisma db push
       - name: Tier 3b probes
         run: npm run test:db
 
@@ -123,7 +123,7 @@ jobs:
         # The golden paths assert on named fixture animals and applicants, so an
         # empty database would fail them for the wrong reason.
         run: |
-          npx prisma db push --skip-generate
+          npx prisma db push
           npm run db:seed
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
