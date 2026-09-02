@@ -103,10 +103,10 @@ describe("statutory literals are confined to this module", () => {
     return out;
   }
 
-  // Walks the whole src/ tree synchronously. That costs ~6s under full-suite parallel load on
-  // Windows, against Vitest's 5s default — observed failing as a timeout, not an assertion,
-  // while passing in isolation. The timeout is the flake; the walk is the point.
-  it("appears in no file under src/ other than shelterIdentity.ts", { timeout: 30_000 }, () => {
+  // Walks the whole src/ tree synchronously, which costs ~6s under full-suite parallel load and
+  // once failed as a timeout rather than an assertion. The tier's `testTimeout` in
+  // vitest.config.mts covers it; do not re-add a per-test timeout here.
+  it("appears in no file under src/ other than shelterIdentity.ts", () => {
     const offenders: string[] = [];
 
     for (const file of walk(SRC)) {
