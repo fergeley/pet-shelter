@@ -6,12 +6,16 @@
 `unit`, `integration` and `components` projects · `npx tsc --noEmit` clean · `npm run lint` 0 errors
 (5 warnings)
 
-> **Reproduce it in this order, or the number is meaningless:**
+> **Reproduce it with the npm script, not bare `vitest`:**
 >
 > ```bash
-> npx prisma generate      # NOT optional — see below
-> npx vitest run --project=unit --project=integration --project=components
+> npm run test:all      # pretest:all runs `prisma generate` for you
 > ```
+>
+> Every vitest entry point now has a `pre*` hook that runs `npm run db:generate` first
+> (`pretest`, `pretest:watch`, `pretest:components`, `pretest:integration`, `pretest:all`,
+> `pretest:coverage`). **`npx vitest run …` bypasses all of them** — npm only runs a `pre` hook for
+> its own script — so run `npx prisma generate` yourself if you invoke vitest directly.
 >
 > Skip the generate step and this repo reports **11 failures** across `petHistory`,
 > `rehabilitation`, `petStatusPresentation` and `setupMocks`, all of the shape
@@ -19,11 +23,17 @@
 > back `undefined`. That is a stale generated client, not a regression, and CI never sees it
 > because every CI job runs `npx prisma generate` first.
 >
-> This is not a one-time setup step. **`node_modules` is shared with the main checkout and every
-> worktree**, so a concurrent session running an install or a generate against another branch
-> invalidates your client mid-session. Observed twice while writing this document: the same suite
-> went green, then red, then green again with no source change between runs. **Treat CI, not a
-> local run, as the authority on green.**
+> The `pre*` hooks close the forgetting case, not the racing one. **`node_modules` is shared with
+> the main checkout and every worktree**, so a concurrent session installing against another branch
+> invalidates the environment underneath a run already in progress. Observed twice: the same suite
+> went green, then red, then green again with no source change.
+>
+> Worse, and observed in the same session: **`jsdom` vanished from `node_modules`** while still
+> declared in `package.json`. The entire `components` project stopped running — `Test Files no
+> tests`, `Errors 4` — and in a combined run that presents as a *smaller total* (56 files / 775
+> tests instead of 60 / 830) rather than as a failure. **Compare the file count against what is on
+> disk**, not just the pass count; `npm run test:all` does exit 1, but the number that changes first
+> is the denominator. **Treat CI, not a local run, as the authority on green.**
 >
 > `integration-db` is excluded deliberately: `DATABASE_URL` resolves to the **production** Neon
 > branch, so that tier is not safe to run locally at all.
