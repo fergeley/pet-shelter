@@ -71,6 +71,11 @@ function revalidateFaqSurfaces(): void {
 /**
  * Published FAQs for the public `/faq` page.
  *
+ * Deliberately unauthenticated: it returns only `isPublished` rows, which are
+ * exactly what /faq shows to anonymous visitors, so its reachability as a POST
+ * endpoint discloses nothing the page does not already render. Contrast
+ * `getAdminFaqs`, which can see drafts and therefore checks the role.
+ *
  * Falls back to the bundled launch content when PostgreSQL is unreachable, so
  * the page never renders empty during a database outage. This mirrors the
  * fallback behaviour already used by `auditLog.ts` and `serverStore.ts`.
@@ -92,8 +97,19 @@ export async function getPublicFaqs(): Promise<FaqEntry[]> {
   return sortFaqs(getFallbackFaqs());
 }
 
-/** Every FAQ, published or not, for the admin management table. */
+/**
+ * Every FAQ, published or not, for the admin management table.
+ *
+ * Authorised OUTSIDE the try/catch on purpose. Every export of a "use server"
+ * module is reachable by direct POST on any route that imports the module, and
+ * this one is imported by the public /faq and /pets pages — so without a check
+ * an anonymous request could read unpublished drafts. Letting the rejection
+ * propagate also stops the catch below from answering an unauthorised caller
+ * with fallback content instead of an error.
+ */
 export async function getAdminFaqs(): Promise<FaqEntry[]> {
+  await requireFaqEditor();
+
   try {
     const rows = await prisma.faq.findMany({
       orderBy: [{ category: "asc" }, { displayOrder: "asc" }, { question: "asc" }],

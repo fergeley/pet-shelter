@@ -8,6 +8,7 @@
 import "dotenv/config";
 import dotenv from "dotenv";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import { Pool } from "pg";
 
 dotenv.config({ path: ".env.local" });
@@ -16,20 +17,42 @@ const BASE = process.env.E2E_BASE || "http://localhost:3459";
 const SECRET =
   process.env.SESSION_SECRET || "hope-for-strays-secret-key-32-chars-long-secure-salt!";
 
-// Server Action ids are content hashes emitted at build time. If the actions in
-// src/actions/faqs.ts change, re-extract them from the built client bundle:
-//
-//   grep -rl "createFaq" .next/static/chunks/
-//   grep -oE '"[0-9a-f]{40,42}",[^,]+,void 0,[^,]+,"(createFaq|updateFaq|deleteFaq|toggleFaqPublished|reorderFaq)"' <that file>
-//
-// A stale id shows up as every action call failing to parse a result.
-const ACTIONS = {
-  createFaq: "40ce54117ea9723190fc0feec64b9b3d7837c0707b",
-  updateFaq: "60790e673fb384eb3d295c303a77164b005b9a70be",
-  toggleFaqPublished: "60896d9ad5e776b5864d874206119de114f3908cb9",
-  reorderFaq: "60cc24d79e10ba26038d783a0c0faae83393cdf6ea",
-  deleteFaq: "403c4bc53a7785dcf50646b36cdeb864380ba68372",
-};
+// Server Action ids are hashes emitted at build time, so read them out of the
+// build rather than hardcoding. This also documents which routes each action is
+// reachable on: a "use server" export is POST-reachable on EVERY route that
+// imports its module, public ones included.
+const manifest = JSON.parse(
+  fs.readFileSync(".next/server/server-reference-manifest.json", "utf8")
+);
+const ACTIONS = {};
+const ACTION_ROUTES = {};
+for (const [id, entry] of Object.entries(manifest.node ?? {})) {
+  const name = entry.exportedName;
+  if (name && /Faq/i.test(name)) {
+    ACTIONS[name] = id;
+    ACTION_ROUTES[name] = Object.keys(entry.workers ?? {});
+  }
+}
+
+/**
+ * POSTs a Server Action to a PUBLIC route and returns the raw response body.
+ *
+ * Every export of a "use server" module is reachable on any route that imports
+ * the module, so /faq and /pets host the admin actions too. Read actions return
+ * an array rather than {success}, so this returns the raw text to inspect.
+ */
+async function callOnPublicRoute(actionId, args, user, route = "/faq") {
+  const res = await fetch(`${BASE}${route}`, {
+    method: "POST",
+    headers: {
+      "Next-Action": actionId,
+      "Content-Type": "text/plain;charset=UTF-8",
+      ...(user ? { Cookie: cookieFor(user) } : {}),
+    },
+    body: JSON.stringify(args),
+  });
+  return { status: res.status, body: await res.text() };
+}
 
 function sealSession(user, maxAgeSeconds = 86400) {
   const payload = { ...user, expiresAt: Date.now() + maxAgeSeconds * 1000 };
@@ -372,7 +395,37 @@ try {
     );
   }
 
-  console.log("\n10. Deleting removes it from /faq");
+  console.log("\n10. Read actions are POST-reachable on public routes and must not leak drafts");
+  {
+    console.log(
+      `     getAdminFaqs is registered on: ${(ACTION_ROUTES.getAdminFaqs ?? []).join(", ")}`
+    );
+    check(
+      "getAdminFaqs really is hosted on a public route",
+      (ACTION_ROUTES.getAdminFaqs ?? []).some((r) => r === "app/faq/page" || r === "app/pets/page")
+    );
+
+    // Hide the probe entry so there is a draft that only getAdminFaqs can see.
+    await callAction("toggleFaqPublished", [createdId, false], ADMIN);
+    const draftText = `${MARKER} — EDITED weekend`;
+
+    const anon = await callOnPublicRoute(ACTIONS.getAdminFaqs, [], null, "/faq");
+    check("anonymous getAdminFaqs does not return drafts", !anon.body.includes(draftText));
+
+    const vol = await callOnPublicRoute(ACTIONS.getAdminFaqs, [], VOLUNTEER, "/faq");
+    check("VOLUNTEER getAdminFaqs does not return drafts", !vol.body.includes(draftText));
+
+    const admin = await callOnPublicRoute(ACTIONS.getAdminFaqs, [], ADMIN, "/faq");
+    check("ADMIN getAdminFaqs still returns drafts", admin.body.includes(draftText));
+
+    const pub = await callOnPublicRoute(ACTIONS.getPublicFaqs, [], null, "/faq");
+    check("anonymous getPublicFaqs returns published content", pub.body.includes("TNRM"));
+    check("anonymous getPublicFaqs omits drafts", !pub.body.includes(draftText));
+
+    await callAction("toggleFaqPublished", [createdId, true], ADMIN);
+  }
+
+  console.log("\n11. Deleting removes it from /faq");
   {
     const deleted = await callAction("deleteFaq", [createdId], ADMIN);
     check("deleteFaq succeeds", deleted.success === true, JSON.stringify(deleted));
