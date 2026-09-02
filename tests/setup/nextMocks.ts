@@ -292,6 +292,7 @@ beforeEach(async () => {
     idempotency,
     donationLedger,
     sponsorshipLedger,
+    notificationPreferences,
   ] = await Promise.all([
     import("@/lib/server/fallbackState"),
     import("@/lib/server/userStore"),
@@ -300,6 +301,7 @@ beforeEach(async () => {
     import("@/lib/security/idempotency"),
     import("@/lib/server/donationLedger"),
     import("@/lib/server/sponsorshipLedger"),
+    import("@/lib/server/notificationPreferences"),
   ]);
 
   fallbackState.resetServerStore();
@@ -308,5 +310,6 @@ beforeEach(async () => {
   idempotency.resetIdempotencyStore();
   donationLedger.resetDonationLedger();
   sponsorshipLedger.resetSponsorshipLedger();
+  notificationPreferences.resetNotificationPreferences();
   await userStore.resetUserStore();
 });

@@ -1,6 +1,14 @@
 import { PetDataTable } from "@/components/admin/PetDataTable";
 import { getAdminPets } from "@/actions/pets";
 
+/**
+ * Saving a pet can schedule a supporter photo-update fan-out via `after()`,
+ * which runs inside this route's budget. At the dispatcher's concurrency a full
+ * recipient list is ~50 sequential provider round-trips, which does not fit in a
+ * short platform default — and a killed invocation drops the tail silently.
+ */
+export const maxDuration = 60;
+
 export default async function AdminPetsPage() {
   const pets = await getAdminPets();
 

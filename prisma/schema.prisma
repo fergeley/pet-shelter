@@ -566,3 +566,32 @@ model PetSponsorship {
   @@index([sponsorEmail])
   @@map("pet_sponsorships")
 }
+
+/// Per-email-address notification consent.
+///
+/// Keyed by email rather than by user because supporters are never
+/// authenticated accounts on this platform — `User` is staff-only. The address
+/// is the identity, so a signed token mailed to it is the only credential the
+/// preference page can accept.
+///
+/// A missing row means "has never expressed a choice", which reads as opted in.
+/// Rows appear only when someone actually changes something, so this table stays
+/// small and every row in it is a deliberate statement by a donor.
+model NotificationPreference {
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Photos of animals this address sponsors, sent by their caregivers.
+  photoUpdates Boolean @default(true)
+  /// Shelter news and appeals.
+  newsletter   Boolean @default(true)
+
+  /// Set when every channel is off, so a global unsubscribe is auditable as one
+  /// event rather than inferred from two booleans.
+  unsubscribedAllAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
