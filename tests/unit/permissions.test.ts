@@ -120,6 +120,25 @@ describe("Role -> permission matrix", () => {
     expect(roleHasPermission(ROLES.STAFF, PERMISSIONS.DELETE_APPLICATIONS)).toBe(false);
   });
 
+  it("gives the deprecated VOLUNTEER role no permissions at all", () => {
+    // Regression, caught by CI rather than locally. normalizeRole folds
+    // VOLUNTEER onto STAFF because that is the nearest canonical *identity*,
+    // but STAFF holds VIEW_APPLICATIONS and a VOLUNTEER never could read
+    // applications — they carry applicant PII under PDPA 2010. Inheriting the
+    // grant would have widened access for every existing volunteer account.
+    expect(permissionsForRole(ROLES.VOLUNTEER)).toEqual([]);
+    expect(roleHasPermission(ROLES.VOLUNTEER, PERMISSIONS.VIEW_APPLICATIONS)).toBe(false);
+    // The identity mapping is unchanged; only the authority is withheld.
+    expect(normalizeRole(ROLES.VOLUNTEER)).toBe(ROLES.STAFF);
+  });
+
+  it("fails closed for a role nobody decided to trust", () => {
+    expect(permissionsForRole("WIZARD")).toEqual([]);
+    expect(permissionsForRole("")).toEqual([]);
+    expect(permissionsForRole(null)).toEqual([]);
+    expect(permissionsForRole(undefined)).toEqual([]);
+  });
+
   it("routes a legacy ADMIN role to full SUPER_ADMIN permissions", () => {
     expect(roleHasPermission("ADMIN", PERMISSIONS.MANAGE_MEMBERS)).toBe(true);
   });

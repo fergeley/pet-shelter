@@ -34,12 +34,24 @@ beforeAll(async () => {
   prismaDouble = await getPrismaDouble();
 });
 
-/** Every database method across the double, for "was any data touched?" assertions. */
+/**
+ * Every database method that reads or writes *business* data, for "was any data
+ * touched?" assertions.
+ *
+ * `user` is deliberately excluded. Resolving the caller is itself a database
+ * read now: `getVerifiedSession()` re-reads the member's live role and status so
+ * a suspension or demotion takes effect on the next request instead of whenever
+ * the 24-hour cookie expires. That lookup cannot be skipped for a caller the
+ * cookie appears to reject, because the database is exactly what would tell us
+ * they had since been promoted.
+ *
+ * The property these assertions defend is unchanged and is the one that matters:
+ * a refused caller must not reach applications, pets, or the audit log.
+ */
 function databaseCalls(): number {
   return [
     prismaDouble.pet,
     prismaDouble.adoptionApplication,
-    prismaDouble.user,
     prismaDouble.auditLog,
   ]
     .flatMap((model) => Object.values(model))

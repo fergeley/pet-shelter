@@ -152,8 +152,34 @@ export const ROLE_DESCRIPTIONS: Record<CanonicalRole, string> = {
   [ROLES.STAFF]: "Standard read-only operational access.",
 };
 
-/** Returns the canonical permission list for a role (legacy names accepted). */
+/**
+ * Deprecated roles that carried no admin capability of their own.
+ *
+ * `normalizeRole` folds VOLUNTEER onto STAFF because that is the closest
+ * *identity* in the canonical set, but STAFF holds VIEW_APPLICATIONS and a
+ * VOLUNTEER never could read applications — those carry applicant PII under
+ * PDPA 2010. Letting the alias inherit the grant would widen access for every
+ * existing volunteer account the moment this shipped.
+ */
+const UNPRIVILEGED_LEGACY_ROLES = new Set<string>([ROLES.VOLUNTEER]);
+
+/**
+ * Returns the permissions a role holds, failing closed.
+ *
+ * Anything that is neither a canonical role nor a deprecated alias with an
+ * explicit grant gets nothing. `normalizeRole` degrades an unknown value to
+ * STAFF so a malformed cookie still renders, but *authority* must not be
+ * inherited by accident — an unrecognised role is one nobody decided to trust.
+ */
 export function permissionsForRole(role: string | null | undefined): readonly Permission[] {
+  const raw = (role ?? "").toUpperCase();
+
+  if (UNPRIVILEGED_LEGACY_ROLES.has(raw)) return [];
+
+  const recognised =
+    (CANONICAL_ROLES as readonly string[]).includes(raw) || raw in LEGACY_ROLE_MAP;
+  if (!recognised) return [];
+
   return ROLE_PERMISSIONS[normalizeRole(role)];
 }
 

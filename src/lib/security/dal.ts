@@ -7,7 +7,7 @@ import {
   assertHasPermission,
   type Permission,
 } from "./rbac";
-import { USER_STATUSES, normalizeRole } from "./permissions";
+import { USER_STATUSES } from "./permissions";
 
 /**
  * Server-side Data Access Layer for authorization.
@@ -49,7 +49,9 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
       ...session,
       name: member.name,
       email: member.email,
-      role: normalizeRole(member.role),
+      // Raw, for the same reason getCurrentSession() no longer normalises:
+      // folding VOLUNTEER onto STAFF would grant it STAFF's application read.
+      role: member.role as SessionUser["role"],
     };
   } catch {
     return session;

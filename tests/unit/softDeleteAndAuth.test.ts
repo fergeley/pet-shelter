@@ -101,9 +101,7 @@ describe("Security & Route Protection (verifyAdminSession)", () => {
     expect(principal).toMatchObject({
       id: "admin-1",
       email: "admin@hopeforstrays.org",
-      // Normalised: the session carries ADMIN, the DAL folds it to the
-      // canonical SUPER_ADMIN before any permission check sees it.
-      role: "SUPER_ADMIN",
+      role: "ADMIN",
       authMethod: "session",
     });
   });
@@ -120,7 +118,7 @@ describe("Security & Route Protection (verifyAdminSession)", () => {
     const principal = await verifyAdminSession();
     expect(principal).toMatchObject({
       id: "coord-1",
-      role: "VOLUNTEER_COORDINATOR",
+      role: "COORDINATOR",
       authMethod: "session",
     });
   });
@@ -215,7 +213,7 @@ describe("Audit trail distinguishes the legacy token from a real administrator",
     expect(row.actorEmail.endsWith(".invalid")).toBe(true);
   });
 
-  it("writes a different actor for each, though both carry the SUPER_ADMIN role", async () => {
+  it("writes a different actor for each, though both carry the ADMIN role", async () => {
     // This is the property the change exists for. Before it, both paths wrote
     // admin@hopeforstrays.org and an auditor could not tell which had acted.
     authenticateAsRealAdmin();
@@ -224,8 +222,8 @@ describe("Audit trail distinguishes the legacy token from a real administrator",
     authenticateWithSharedSecret();
     const tokenRow = await archiveAndReadAuditRow();
 
-    expect(sessionRow.actorRole).toBe("SUPER_ADMIN");
-    expect(tokenRow.actorRole).toBe("SUPER_ADMIN");
+    expect(sessionRow.actorRole).toBe("ADMIN");
+    expect(tokenRow.actorRole).toBe("ADMIN");
     expect(tokenRow.actorId).not.toBe(sessionRow.actorId);
     expect(tokenRow.actorEmail).not.toBe(sessionRow.actorEmail);
   });

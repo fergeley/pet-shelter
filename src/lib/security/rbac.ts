@@ -132,8 +132,12 @@ export function assertHasPermission(
     throw new UnauthorizedError();
   }
   if (!hasPermission(user, permission)) {
+    // Phrasing deliberately keeps "is not authorized for this operation", which
+    // `assertAuthorized` has always used and which callers and tests match on;
+    // the missing capability is appended rather than replacing it.
     throw new ForbiddenError(
-      `Role '${normalizeRole(user.role)}' lacks the '${permission}' permission.`
+      `Role '${normalizeRole(user.role)}' is not authorized for this operation: ` +
+        `it lacks the '${permission}' permission.`
     );
   }
 }

@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { normalizeRole } from "./permissions";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -60,11 +59,17 @@ export async function clearSessionCookie(): Promise<void> {
 /**
  * Retrieves and validates the current user session from cookies.
  *
- * The role is normalised here rather than in unsealSession() so that decoding
- * stays a faithful inverse of sealing, while every server-side read of the
- * session sees one of the five canonical roles. Without this, a cookie issued
- * before the RBAC migration (role "ADMIN") would fail every permission check
- * and lock its holder out mid-session.
+ * The role is returned exactly as the cookie carries it. Normalising here was
+ * tried and was a privilege escalation: `normalizeRole` folds VOLUNTEER onto
+ * STAFF because that is the nearest canonical *identity*, but STAFF holds
+ * VIEW_APPLICATIONS and a VOLUNTEER never could read applications — they carry
+ * applicant PII under PDPA 2010. Rewriting the role before the permission check
+ * handed every existing volunteer that grant.
+ *
+ * Deprecated aliases still authorize correctly, because `permissionsForRole`
+ * resolves them itself and fails closed on anything it does not recognise. The
+ * migration to canonical roles happens where a session is *minted* —
+ * `loginAction` normalises before sealing — not where one is read.
  */
 export async function getCurrentSession(): Promise<SessionUser | null> {
   try {
@@ -72,10 +77,7 @@ export async function getCurrentSession(): Promise<SessionUser | null> {
     const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
     if (!sessionCookie || !sessionCookie.value) return null;
 
-    const session = unsealSession(sessionCookie.value);
-    if (!session) return null;
-
-    return { ...session, role: normalizeRole(session.role) };
+    return unsealSession(sessionCookie.value);
   } catch {
     return null;
   }

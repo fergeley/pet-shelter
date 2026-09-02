@@ -37,7 +37,7 @@ export type AdminPrincipal = SessionUser & { authMethod: AdminAuthMethod };
  * Recorded when the legacy `admin_session` shared secret -- and nothing else --
  * authorized the request.
  *
- * The role is genuinely `SUPER_ADMIN`, because that is what this branch grants;
+ * The role is genuinely `ADMIN`, because that is what this branch grants;
  * claiming anything lesser would understate the privilege in the audit trail.
  * What must never be ambiguous is that no *person* was identified, so this
  * identity is unmistakable in three independent ways:
@@ -60,10 +60,7 @@ export const LEGACY_ADMIN_TOKEN_PRINCIPAL: AdminPrincipal = {
   id: "legacy-admin-token",
   email: "shared-secret@admin-token.invalid",
   name: "Legacy admin token (shared secret)",
-  // Canonical rather than the deprecated ADMIN alias: this branch grants
-  // unrestricted access, and the audit trail should name that in the same
-  // vocabulary every session-backed row uses.
-  role: ROLES.SUPER_ADMIN,
+  role: ROLES.ADMIN,
   expiresAt: 0,
   authMethod: "legacy-shared-secret",
 };
