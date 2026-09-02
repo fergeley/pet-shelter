@@ -24,6 +24,14 @@ if (typeof setInterval !== "undefined") {
   }
 }
 
+/**
+ * Test-only reset so a suite that exercises the limiter does not starve the cases that
+ * run after it. Never called from application code.
+ */
+export function resetRateLimitStore(): void {
+  rateLimitStore.clear();
+}
+
 export interface RateLimitResult {
   success: boolean;
   remaining: number;

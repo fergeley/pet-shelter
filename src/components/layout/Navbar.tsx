@@ -29,6 +29,7 @@ export function Navbar() {
   const navLinks = [
     { href: "/pets", label: t("nav.adoptablePets", "Adoptable Pets") },
     { href: "/donate", label: t("nav.donate", "Donate") },
+    { href: "/sponsors", label: t("nav.sponsorWall", "Sponsor Wall") },
     { href: "/applications/track", label: t("nav.trackApplication", "Track Application") },
     { href: "/bulletins", label: t("nav.bulletins", "Updates & News") },
     { href: "/#how-it-works", label: t("nav.adoptionProcess", "Adoption Process") },

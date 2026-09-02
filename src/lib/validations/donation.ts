@@ -36,6 +36,20 @@ export const donationPledgeSchema = z.object({
     .max(100, "Pet dedication name is too long")
     .optional()
     .or(z.literal("")),
+  /** Set when the pledge is made from a specific pet's profile, so "My Rescues" can link it. */
+  targetPetId: z
+    .string()
+    .max(64, "Pet identifier is too long")
+    .optional()
+    .or(z.literal("")),
+  /**
+   * Public Sponsor Wall opt-in, captured at checkout.
+   *
+   * Recorded against this pledge rather than against a donor account, because most
+   * donors have no account at the moment they give. The consent carries into the account
+   * when they later claim it in `registerSponsorAction`.
+   */
+  displayOnWall: z.boolean().default(false),
   paymentMethod: paymentMethodEnum.default("duitnow_qr"),
   taxIdOrIc: z
     .string()
@@ -49,7 +63,16 @@ export const donationPledgeSchema = z.object({
     .or(z.literal("")),
 });
 
-export type DonationPledgeInput = z.infer<typeof donationPledgeSchema>;
+/**
+ * What a caller *sends*. Uses `z.input`, not `z.infer`: fields carrying `.default()`
+ * (`tierId`, `frequency`, `paymentMethod`, `displayOnWall`) are optional on the way in
+ * and guaranteed on the way out. `z.infer` is the output type, which would force every
+ * caller to restate every default.
+ */
+export type DonationPledgeInput = z.input<typeof donationPledgeSchema>;
+
+/** The validated pledge, with every default resolved. */
+export type DonationPledgeParsed = z.output<typeof donationPledgeSchema>;
 
 export interface DonationReceiptDTO {
   receiptNumber: string;
@@ -63,6 +86,8 @@ export interface DonationReceiptDTO {
   frequency: "one_time" | "monthly";
   paymentMethod: "duitnow_qr" | "online_banking" | "card";
   targetPetName?: string;
+  targetPetId?: string;
+  displayOnWall: boolean;
   taxIdOrIc?: string;
   notes?: string;
   taxDeductibleRef: string;

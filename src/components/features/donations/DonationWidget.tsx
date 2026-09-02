@@ -36,6 +36,7 @@ export function DonationWidget() {
   const [donorPhone, setDonorPhone] = useState("");
   const [taxIdOrIc, setTaxIdOrIc] = useState("");
   const [notes, setNotes] = useState("");
+  const [displayOnWall, setDisplayOnWall] = useState(false);
   const [copiedBank, setCopiedBank] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -91,6 +92,7 @@ export function DonationWidget() {
         taxIdOrIc: taxIdOrIc.trim() || undefined,
         notes: notes.trim() || undefined,
         paymentMethod: "duitnow_qr",
+        displayOnWall,
       });
 
       if (result.success && result.data) {
@@ -167,7 +169,7 @@ export function DonationWidget() {
         </div>
 
         {/* Printable Official Receipt Dossier */}
-        <div id="donation-receipt-print" className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-xs">
+        <div id="donation-receipt-print" data-print-root className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-zinc-900 pb-4">
             <div>
               <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-zinc-900">
@@ -578,6 +580,29 @@ export function DonationWidget() {
             />
           </div>
         </div>
+
+        {/* Public Sponsor Wall opt-in. Consent is recorded against this pledge, so it
+            survives until the donor claims a portal account. */}
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5">
+          <input
+            type="checkbox"
+            checked={displayOnWall}
+            onChange={(e) => setDisplayOnWall(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary"
+          />
+          <span className="space-y-1">
+            <span className="block text-sm font-semibold text-foreground">
+              {isMs
+                ? "Paparkan nama saya di Dinding Penaja awam Hope for Strays"
+                : "Display my name on the Hope for Strays Public Sponsor Wall"}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {isMs
+                ? "Hanya nama dan taraf penajaan anda dipaparkan — tidak sekali-kali jumlah, e-mel atau nombor cukai. Anda boleh menariknya balik pada bila-bila masa."
+                : "Only your name and sponsorship standing are shown — never the amount, your email or your tax number. You can withdraw this at any time."}
+            </span>
+          </span>
+        </label>
 
         <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">

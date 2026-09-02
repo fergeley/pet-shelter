@@ -30,45 +30,46 @@ model User {
 }
 
 model Pet {
-  id              String         @id @default(cuid())
-  name            String
-  species         String         // dog, cat, other
-  breed           String
-  age             String
-  ageCategory     String         // puppy_kitten, young, adult, senior
-  gender          String         // Male, Female
-  size            String         // Small, Medium, Large
-  weight          String
-  status          String         @default("Available") // Available, Pending, Adopted
-  adoptionFee     String
-  description     String
-  rescueStory     String
-  image           String
-  galleryImages   String[]
-  tags            String[]
-  featured        Boolean        @default(false)
-  intakeDate      String
-  
+  id            String   @id @default(cuid())
+  name          String
+  species       String // dog, cat, other
+  breed         String
+  age           String
+  ageCategory   String // puppy_kitten, young, adult, senior
+  gender        String // Male, Female
+  size          String // Small, Medium, Large
+  weight        String
+  status        String   @default("Available") // Available, Pending, Adopted
+  adoptionFee   String
+  description   String
+  rescueStory   String
+  image         String
+  galleryImages String[]
+  tags          String[]
+  featured      Boolean  @default(false)
+  intakeDate    String
+
   // Medical clearance
-  vaccinated      Boolean        @default(true)
-  microchipped    Boolean        @default(true)
-  spayedNeutered  Boolean        @default(true)
-  specialNeeds    String?
+  vaccinated     Boolean @default(true)
+  microchipped   Boolean @default(true)
+  spayedNeutered Boolean @default(true)
+  specialNeeds   String?
 
   // Compatibility
-  goodWithDogs    Boolean        @default(true)
-  goodWithCats    Boolean        @default(true)
-  goodWithKids    Boolean        @default(true)
-  energyLevel     String         @default("Moderate")
+  goodWithDogs Boolean @default(true)
+  goodWithCats Boolean @default(true)
+  goodWithKids Boolean @default(true)
+  energyLevel  String  @default("Moderate")
 
   // Soft deletion & audit
-  isArchived      Boolean        @default(false)
-  deletedAt       DateTime?
+  isArchived Boolean   @default(false)
+  deletedAt  DateTime?
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  applications    AdoptionApplication[]
+  applications  AdoptionApplication[]
+  contributions SponsorContribution[]
 
   @@index([species, status, isArchived])
   @@index([isArchived, status])
@@ -138,4 +139,54 @@ model ShelterSettings {
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")
+}
+
+// Note: there is deliberately no SupporterTier column anywhere below.
+// A sponsor's standing is derived from this ledger by deriveTier() on every read,
+// so it cannot drift from the contributions that justify it, and cannot be forged.
+model Sponsor {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  displayOnWall Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contributions SponsorContribution[]
+
+  @@index([displayOnWall])
+  @@map("sponsors")
+}
+
+model SponsorContribution {
+  id        String   @id @default(cuid())
+  sponsorId String?
+  sponsor   Sponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
+
+  receiptNumber String @unique
+  donorEmail    String
+  donorName     String
+
+  tierId    String
+  tierName  String
+  amountMYR Int
+  frequency String  @default("one_time")
+  isActive  Boolean @default(true)
+
+  // Sponsor Wall consent captured at the moment of this pledge. A sponsor account
+  // inherits it when the contribution is claimed at registration.
+  displayOnWall Boolean @default(false)
+
+  targetPetId   String?
+  targetPet     Pet?    @relation(fields: [targetPetId], references: [id], onDelete: SetNull)
+  targetPetName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([donorEmail])
+  @@index([sponsorId, createdAt])
+  @@index([targetPetId])
+  @@map("sponsor_contributions")
 }

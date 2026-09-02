@@ -31,6 +31,7 @@ export function useSponsorshipController({
   const [donorPhone, setDonorPhone] = useState("");
   const [taxIdOrIc, setTaxIdOrIc] = useState("");
   const [notes, setNotes] = useState("");
+  const [displayOnWall, setDisplayOnWall] = useState(false);
   const [copiedBank, setCopiedBank] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -84,9 +85,13 @@ export function useSponsorshipController({
         amountMYR: finalAmount,
         frequency,
         targetPetName: targetPet?.name,
+        // Sponsoring from a pet profile is the path that puts a pet into "My Rescues",
+        // so the id travels with the pledge, not just the display name.
+        targetPetId: targetPet?.id,
         taxIdOrIc: taxIdOrIc.trim() || undefined,
         notes: notes.trim() || undefined,
         paymentMethod: "duitnow_qr",
+        displayOnWall,
       });
 
       if (result.success && result.data) {
@@ -137,6 +142,7 @@ export function useSponsorshipController({
     setDonorPhone("");
     setTaxIdOrIc("");
     setNotes("");
+    setDisplayOnWall(false);
     setErrorMessage(null);
   };
 
@@ -157,6 +163,7 @@ export function useSponsorshipController({
       donorPhone,
       taxIdOrIc,
       notes,
+      displayOnWall,
       copiedBank,
       isProcessing,
       errorMessage,
@@ -173,6 +180,7 @@ export function useSponsorshipController({
       setDonorEmail,
       setDonorPhone,
       setTaxIdOrIc,
+      setDisplayOnWall,
       setNotes,
       handleCopyMaybank,
       handleCompleteDonation,

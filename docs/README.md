@@ -15,6 +15,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 
 ### 🏗️ Architecture & Technical Blueprints
 - **[System Architecture Blueprint](architecture/ARCHITECTURE_BLUEPRINT.md)**: High-level system topology, Server Components vs Client Components, security layers, and data flows.
+- **[Sponsor Standings, Tier Gates & the Sponsor Portal](architecture/GUIDE_SPONSOR_TIERS_AND_GATED_CONTENT.md)**: Bronze/Silver/Gold derivation, the gate rule for exclusive content, sponsor accounts, the e-Certificate, and how the feature is verified.
 - **[Database & ORM Architecture Guide](architecture/GUIDE_PRISMA_AND_NEON_ARCHITECTURE.md)**: PostgreSQL schema, Neon branching, Prisma ORM setup, connection pooling, and in-memory dual-layer storage pattern.
 
 ---

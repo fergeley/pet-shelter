@@ -9,6 +9,8 @@ import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { SPONSORSHIP_TIERS } from "@/lib/sponsorshipStore";
+import { recordContribution, findSponsorByEmail } from "@/lib/sponsorStore";
+import { getCurrentSponsorSession } from "@/lib/security/sponsorSession";
 
 const SHELTER_REG_NO = "PPM-021-10-18082021";
 const LHDN_TAX_REF = "LHDN.01/35/42/51/179-6.4912";
@@ -69,13 +71,45 @@ export async function submitDonationPledgeAction(
       frequency: validated.frequency,
       paymentMethod: validated.paymentMethod,
       targetPetName: validated.targetPetName?.trim() || undefined,
+      targetPetId: validated.targetPetId?.trim() || undefined,
+      displayOnWall: validated.displayOnWall,
       taxIdOrIc: validated.taxIdOrIc?.trim() || undefined,
       notes: validated.notes?.trim() || undefined,
       taxDeductibleRef: LHDN_TAX_REF,
       shelterRegistrationNo: SHELTER_REG_NO,
     };
 
-    // 4. Immutable PostgreSQL / In-Memory Audit Trail
+    // 4. Persist the pledge to the sponsorship ledger.
+    //
+    // Without this row the sponsor portal has no source of truth: standings are derived
+    // from the ledger on every read, and "My Rescues" is the set of pets these rows
+    // point at. An audit log entry alone is not queryable as a donor's giving history.
+    //
+    // The pledge is attached to a sponsor account when one can be established without
+    // guessing — the donor is signed in to the portal, or an account already exists for
+    // this email. Otherwise it stays unattached and is claimed later, at registration,
+    // by proving possession of this receipt number.
+    const sponsorSession = await getCurrentSponsorSession();
+    const linkedSponsorId =
+      sponsorSession?.email === receipt.donorEmail
+        ? sponsorSession.sponsorId
+        : (await findSponsorByEmail(receipt.donorEmail))?.id ?? null;
+
+    await recordContribution({
+      receiptNumber: receipt.receiptNumber,
+      donorEmail: receipt.donorEmail,
+      donorName: receipt.donorName,
+      tierId: receipt.tierId,
+      tierName: receipt.tierName,
+      amountMYR: receipt.amountMYR,
+      frequency: receipt.frequency,
+      displayOnWall: receipt.displayOnWall,
+      targetPetId: receipt.targetPetId ?? null,
+      targetPetName: receipt.targetPetName ?? null,
+      sponsorId: linkedSponsorId,
+    });
+
+    // 5. Immutable PostgreSQL / In-Memory Audit Trail
     recordAuditLog({
       actorId: "donor_public",
       actorEmail: receipt.donorEmail,
@@ -92,11 +126,13 @@ export async function submitDonationPledgeAction(
         frequency: receipt.frequency,
         paymentMethod: receipt.paymentMethod,
         targetPetName: receipt.targetPetName,
+        targetPetId: receipt.targetPetId,
+        displayOnWall: receipt.displayOnWall,
         taxIdOrIc: receipt.taxIdOrIc,
       },
     });
 
-    // 5. Non-blocking, resilient email dispatch to donor
+    // 6. Non-blocking, resilient email dispatch to donor
     sendDonationReceiptEmail(receipt).catch((err) =>
       console.error("[Donation Receipt Email Dispatch Failed]", err)
     );

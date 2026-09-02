@@ -108,11 +108,11 @@
   body * {
     visibility: hidden;
   }
-  #donation-receipt-print,
-  #donation-receipt-print * {
+  [data-print-root],
+  [data-print-root] * {
     visibility: visible;
   }
-  #donation-receipt-print {
+  [data-print-root] {
     position: absolute;
     left: 0;
     top: 0;
