@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError, isDatabasePersistent } from "@/lib/persistenceMode";
 import { ShelterSettingsInput, ShelterSettingsOutput } from "@/lib/validations/settings";
+import {
+  DEFAULT_VOLUNTEER_FORM_URL,
+  DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
+} from "@/lib/volunteerFormUrl";
 
 /**
  * Shelter Settings persistence over the repository layer.
@@ -21,6 +25,8 @@ const INITIAL_SETTINGS: ShelterSettingsOutput = {
   announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
   adoptionFeeDog: "Free",
   adoptionFeeCat: "Free",
+  volunteerFormUrl: DEFAULT_VOLUNTEER_FORM_URL,
+  volunteerFormResponsesUrl: DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
   resendApiKey: "",
   emailFrom: "Hope for Strays <onboarding@resend.dev>",
   shelterNotificationEmail: "fergeley@gmail.com",
@@ -68,6 +74,8 @@ export async function getServerSettingsAsync(): Promise<ShelterSettingsOutput> {
           announcementBanner: row.announcementBanner ?? "",
           adoptionFeeDog: row.adoptionFeeDog,
           adoptionFeeCat: row.adoptionFeeCat,
+          volunteerFormUrl: row.volunteerFormUrl,
+          volunteerFormResponsesUrl: row.volunteerFormResponsesUrl,
         };
       }
     } catch (err) {
@@ -96,6 +104,9 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
           announcementBanner: data.announcementBanner || null,
           adoptionFeeDog: data.adoptionFeeDog,
           adoptionFeeCat: data.adoptionFeeCat,
+          volunteerFormUrl: data.volunteerFormUrl ?? DEFAULT_VOLUNTEER_FORM_URL,
+          volunteerFormResponsesUrl:
+            data.volunteerFormResponsesUrl ?? DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
         },
         create: {
           id: DEFAULT_SETTINGS_ID,
@@ -107,6 +118,9 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
           announcementBanner: data.announcementBanner || null,
           adoptionFeeDog: data.adoptionFeeDog,
           adoptionFeeCat: data.adoptionFeeCat,
+          volunteerFormUrl: data.volunteerFormUrl ?? DEFAULT_VOLUNTEER_FORM_URL,
+          volunteerFormResponsesUrl:
+            data.volunteerFormResponsesUrl ?? DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
         },
       });
 
