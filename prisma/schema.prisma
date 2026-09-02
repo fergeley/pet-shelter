@@ -11,19 +11,19 @@ datasource db {
 
 enum Role {
   // --- Canonical roles ---
-  SUPER_ADMIN           // Unrestricted platform access, including staff management
-  ANIMAL_MANAGER        // Pet profiles, gallery photos, QR codes
-  CONTENT_EDITOR        // FAQs, transparency data, bulletins
+  SUPER_ADMIN // Unrestricted platform access, including staff management
+  ANIMAL_MANAGER // Pet profiles, gallery photos, QR codes
+  CONTENT_EDITOR // FAQs, transparency data, bulletins
   VOLUNTEER_COORDINATOR // Volunteer applications & settings
-  STAFF                 // Standard read-only operational access
+  STAFF // Standard read-only operational access
 
   // --- Deprecated aliases, retained so existing rows stay readable ---
   // Postgres cannot drop an enum value while any row references it, and live
   // session cookies still carry these. Normalised on read by
   // normalizeRole() in src/lib/security/permissions.ts. Do not assign.
-  ADMIN                 // -> SUPER_ADMIN
-  COORDINATOR           // -> VOLUNTEER_COORDINATOR
-  VOLUNTEER             // -> STAFF
+  ADMIN // -> SUPER_ADMIN
+  COORDINATOR // -> VOLUNTEER_COORDINATOR
+  VOLUNTEER // -> STAFF
 }
 
 enum UserStatus {
@@ -62,8 +62,8 @@ model User {
   inviteTokenHash      String?
   inviteTokenExpiresAt DateTime?
 
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([role])
@@ -71,24 +71,24 @@ model User {
 }
 
 model Pet {
-  id            String   @id @default(cuid())
-  name          String
-  species       String // dog, cat, other
+  id                  String    @id @default(cuid())
+  name                String
+  species             String // dog, cat, other
   breed               String
-  birthDate           String   @default("2024-01-01")
-  birthDateIsEstimate Boolean  @default(true)
+  birthDate           String    @default("2024-01-01")
+  birthDateIsEstimate Boolean   @default(true)
   gender              String // Male, Female
-  size          String // Small, Medium, Large
-  weight        String
-  status        PetStatus @default(Available)
-  adoptionFee   String
-  description   String
-  rescueStory   String
-  image         String
-  galleryImages String[]
-  tags          String[]
-  featured      Boolean  @default(false)
-  intakeDate    String
+  size                String // Small, Medium, Large
+  weight              String
+  status              PetStatus @default(Available)
+  adoptionFee         String
+  description         String
+  rescueStory         String
+  image               String
+  galleryImages       String[]
+  tags                String[]
+  featured            Boolean   @default(false)
+  intakeDate          String
 
   // Medical clearance
   vaccinated     Boolean @default(true)
@@ -160,9 +160,9 @@ model Pet {
 /// `Donation` documents the same reasoning for its issuer identity; treat the two
 /// as one pattern.
 model AdoptionApplication {
-  id                    String   @id @default(cuid())
+  id                    String            @id @default(cuid())
   petId                 String?
-  pet                   Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  pet                   Pet?              @relation(fields: [petId], references: [id], onDelete: SetNull)
   /// Snapshot of the pet's name at application time. Deliberately not a join —
   /// see the model comment. Survives `petId` going null.
   petName               String
@@ -174,19 +174,19 @@ model AdoptionApplication {
   address               String
   housingType           String
   livingSituation       String?
-  hasFencedYard         String   @default("yes")
-  currentPets           String   @default("none")
+  hasFencedYard         String            @default("yes")
+  currentPets           String            @default("none")
   currentPetDetails     String?
-  householdExperience   String   @default("experienced")
-  experienceDescription String?  @db.Text
-  applicantNotes        String?  @db.Text
+  householdExperience   String            @default("experienced")
+  experienceDescription String?           @db.Text
+  applicantNotes        String?           @db.Text
   message               String?           @db.Text
   status                ApplicationStatus @default(SUBMITTED)
   adminNotes            String?           @db.Text
-  adminReviewNotes      String?  @db.Text
+  adminReviewNotes      String?           @db.Text
   reviewedBy            String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   @@index([petId, status])
   @@index([email, petId])
@@ -295,15 +295,15 @@ model AuditLog {
 }
 
 model ShelterSettings {
-  id                 String   @id @default("default-settings")
-  shelterName        String   @default("Hope for Strays")
-  email              String   @default("info@hopeforstrays.org")
-  phone              String   @default("03-7876 5432")
-  address            String   @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
-  operatingHours     String   @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
+  id                 String  @id @default("default-settings")
+  shelterName        String  @default("Hope for Strays")
+  email              String  @default("info@hopeforstrays.org")
+  phone              String  @default("03-7876 5432")
+  address            String  @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
+  operatingHours     String  @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
   announcementBanner String?
-  adoptionFeeDog     String   @default("Free")
-  adoptionFeeCat     String   @default("Free")
+  adoptionFeeDog     String  @default("Free")
+  adoptionFeeCat     String  @default("Free")
 
   /// Fallback care-cost target in integer sen (RM 1,500.00) for any animal
   /// without a `Pet.sponsorshipGoalSen` of its own.
@@ -318,7 +318,7 @@ model ShelterSettings {
   volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
   volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
 
-  updatedAt          DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")
 }
@@ -434,10 +434,10 @@ model Veterinarian {
 
 /// Catalog of standard veterinary clinical procedures and compliance categories.
 model MedicalProcedureCategory {
-  id          String   @id // intake, diagnostic, treatment, vaccination, surgery, clearance
+  id          String  @id // intake, diagnostic, treatment, vaccination, surgery, clearance
   name        String
   nameMs      String?
-  description String?  @db.Text
+  description String? @db.Text
 
   specializations VetSpecialization[]
 
@@ -449,9 +449,9 @@ model MedicalProcedureCategory {
 model VetSpecialization {
   vetId        String
   categoryId   String
-  certifiedAt  DateTime                  @default(now())
-  veterinarian Veterinarian              @relation(fields: [vetId], references: [id], onDelete: Cascade)
-  category     MedicalProcedureCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  certifiedAt  DateTime                 @default(now())
+  veterinarian Veterinarian             @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  category     MedicalProcedureCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([vetId, categoryId])
   @@map("vet_specializations")
@@ -475,7 +475,7 @@ model VetPetAssignment {
 model PetTag {
   id          String             @id
   name        String             @unique
-  category    String?            // Temperament, Physical, Medical, Lifestyle
+  category    String? // Temperament, Physical, Medical, Lifestyle
   assignments PetTagAssignment[]
 
   @@map("pet_tags")
@@ -509,19 +509,18 @@ model PetGalleryImage {
 /// 5NF Join: Pet Compatibility Matrix (Pet x Housing Type x Cohabitant Type).
 /// Expresses multi-dimensional lifestyle compatibility constraints for the match engine.
 model PetCompatibilityRule {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   petId          String
-  housingType    String   // condo_apartment, landed_no_yard, landed_fenced_yard
-  cohabitantType String   // toddlers, resident_dogs, resident_cats, elderly
-  isAllowed      Boolean  @default(true)
-  notes          String?  @db.Text
-  pet            Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  housingType    String // condo_apartment, landed_no_yard, landed_fenced_yard
+  cohabitantType String // toddlers, resident_dogs, resident_cats, elderly
+  isAllowed      Boolean @default(true)
+  notes          String? @db.Text
+  pet            Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@unique([petId, housingType, cohabitantType])
   @@index([petId])
   @@map("pet_compatibility_rules")
 }
-
 
 /// A supporter's standing commitment to fund one animal's care.
 ///
@@ -545,7 +544,7 @@ model PetCompatibilityRule {
 /// `amountSen` is an integer count of sen, as everywhere else. See
 /// `src/lib/domain/money.ts`.
 model PetSponsorship {
-  id      String @id @default(cuid())
+  id String @id @default(cuid())
 
   /// Nullable, and paired with a denormalised name. Pets are still served from
   /// `src/data/pets.json` through an in-memory store when the database is empty,
@@ -563,10 +562,10 @@ model PetSponsorship {
   /// always leaves this null.
   userId       String?
 
-  tierId   String
+  tierId    String
   /// Tier name as displayed when the commitment was made, snapshotted for the
   /// same reason as `Donation.tierName`.
-  tierName String
+  tierName  String
   /// "one_time" or "monthly". A plain String, matching `Donation.frequency`,
   /// constrained at the Zod boundary rather than by a database enum.
   frequency String @default("one_time")
@@ -603,6 +602,35 @@ model PetSponsorship {
   @@map("pet_sponsorships")
 }
 
+/// Per-email-address notification consent.
+///
+/// Keyed by email rather than by user because supporters are never
+/// authenticated accounts on this platform — `User` is staff-only. The address
+/// is the identity, so a signed token mailed to it is the only credential the
+/// preference page can accept.
+///
+/// A missing row means "has never expressed a choice", which reads as opted in.
+/// Rows appear only when someone actually changes something, so this table stays
+/// small and every row in it is a deliberate statement by a donor.
+model NotificationPreference {
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Photos of animals this address sponsors, sent by their caregivers.
+  photoUpdates Boolean @default(true)
+  /// Shelter news and appeals.
+  newsletter   Boolean @default(true)
+
+  /// Set when every channel is off, so a global unsubscribe is auditable as one
+  /// event rather than inferred from two booleans.
+  unsubscribedAllAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
 /// Category vocabulary for the public FAQ.
 ///
 /// Deliberately identical to the `FaqCategory` union in src/types/faq.ts and to
@@ -626,10 +654,10 @@ enum FaqCategory {
 /// Replaces the read-only src/data/faqs.json catalog, which is retained as the
 /// offline fallback fixture in the same way pets.json backs the Pet repository.
 model Faq {
-  id           String      @id @default(cuid())
-  category     FaqCategory
-  question     String
-  answer       String      @db.Text
+  id       String      @id @default(cuid())
+  category FaqCategory
+  question String
+  answer   String      @db.Text
 
   /// Bahasa Malaysia copy. Nullable because staff may publish an English entry
   /// and translate it later; the repository resolves the English text in its
@@ -637,13 +665,13 @@ model Faq {
   /// question and every consumer keeps a plain `string`. Storing the null
   /// rather than a copy of the English means a later edit to the English text
   /// still shows through instead of leaving a stale duplicate behind.
-  questionMs   String?
-  answerMs     String?     @db.Text
+  questionMs String?
+  answerMs   String? @db.Text
 
-  displayOrder Int         @default(0)
-  isPublished  Boolean     @default(true)
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([isPublished, category, displayOrder])
   @@index([category, displayOrder])

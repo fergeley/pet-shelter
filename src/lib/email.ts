@@ -1,6 +1,7 @@
 import { AdoptionApplicationRecord, ApplicationStatus } from "@/types/application";
 import { DonationReceipt } from "@/types/sponsorship";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import { APP_BASE_URL as SHARED_APP_BASE_URL, appUrl } from "@/lib/appUrl";
 import {
   DESIGN_TONES,
   DesignTone,
@@ -31,7 +32,7 @@ const SHELTER_EMAIL = process.env.SHELTER_NOTIFICATION_EMAIL || "applications@ho
 const FROM_EMAIL = process.env.EMAIL_FROM || "Hope for Strays <onboarding@resend.dev>";
 const SHELTER_ADDRESS = "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia";
 const SHELTER_PHONE = "03-7876 5432";
-const APP_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://hopeforstrays.org";
+const APP_BASE_URL = SHARED_APP_BASE_URL;
 
 function getTrackingUrl(appId: string, email: string): string {
   return `${APP_BASE_URL}/applications/track?ref=${encodeURIComponent(appId)}&email=${encodeURIComponent(email)}`;
@@ -49,6 +50,8 @@ async function sendRawEmail({
   entityId,
   entity = "AdoptionApplication",
   replyTo,
+  extraHeaders,
+  category = "transactional",
 }: {
   to: string | string[];
   subject: string;
@@ -59,6 +62,8 @@ async function sendRawEmail({
   /** Audit-log target entity. Defaults to the historical value. */
   entity?: string;
   replyTo?: string;
+  extraHeaders?: Record<string, string>;
+  category?: string;
 }): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
   const recipientList = Array.isArray(to) ? to : [to];
@@ -112,9 +117,10 @@ async function sendRawEmail({
         headers: {
           "X-Entity-Ref-ID": entityId || "system",
           "X-Auto-Response-Suppress": "OOF, AutoReply",
+          ...(extraHeaders || {}),
         },
         tags: [
-          { name: "category", value: "transactional" },
+          { name: "category", value: category },
           { name: "template", value: template.toLowerCase() },
         ],
       }),
@@ -226,7 +232,7 @@ function designToneFor(status: ApplicationStatus): DesignTone {
 /**
  * Common Accessible, Lightweight HTML Wrapper (under 15KB)
  */
-function wrapEmailHtml(content: string): string {
+function wrapEmailHtml(content: string, footerExtra = ""): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -259,6 +265,7 @@ ${TONE_RULES}
     <div class="footer">
       ${SHELTER_NAME} &bull; ${SHELTER_ADDRESS}<br/>
       Phone: ${SHELTER_PHONE} &bull; Hours: Tuesday – Sunday: 10:00 AM – 5:00 PM
+      ${footerExtra}
     </div>
   </div>
 </body>
@@ -923,6 +930,158 @@ The ${SHELTER_NAME} Team
 }
 
 /**
+ * Resolves a possibly-relative asset path into an absolute URL.
+ *
+ * Gallery images may be stored as site-relative paths depending on the active
+ * storage provider, and an email client has no base URL to resolve them against —
+ * a relative `src` is a broken image for every recipient.
+ *
+ * Anything carrying a non-http(s) scheme is dropped rather than pasted into an
+ * `<img src>`: the pet schema validates gallery entries with Zod's `url()`, which
+ * accepts `javascript:` and `data:`, so a stored value is not by itself evidence
+ * that the URL is safe to render.
+ */
+export function absolutizeAssetUrl(url: string): string {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url)) return "";
+  return appUrl(url);
+}
+
+export interface PetPhotoUpdateEmailInput {
+  petId: string;
+  petName: string;
+  sponsorName: string;
+  sponsorEmail: string;
+  /** Newly added gallery image URLs, already truncated to a sane count. */
+  imageUrls: string[];
+  /** Optional short note from the caregiver who took the photos. */
+  caption?: string;
+  /** Signed link to this supporter's own notification preference page. */
+  preferencesUrl: string;
+  /** RFC 8058 one-click POST endpoint. */
+  oneClickUnsubscribeUrl: string;
+}
+
+/**
+ * Sends a "new photo" update to an active supporter of a specific animal.
+ *
+ * Deliverability notes:
+ * - `List-Unsubscribe` / `List-Unsubscribe-Post` implement RFC 8058 one-click
+ *   unsubscribe, which Gmail and Yahoo require of bulk senders. §3.1: "The
+ *   List-Unsubscribe header field MUST contain one HTTPS URI." Exactly one, so a
+ *   provider cannot POST the one-click request at the preference *page*, which
+ *   has no POST handler and would 405.
+ * - The paired URL is a POST endpoint on purpose: a plain GET link is followed by
+ *   inbox scanners and prefetchers, which would unsubscribe supporters who never
+ *   touched it.
+ * - Tagged `sponsor_update` rather than `transactional`, because this is
+ *   consent-based mail and should be reported and throttled as such.
+ * - Rounded corners use `border-radius`, which Outlook on Windows ignores; the
+ *   image degrades to square rather than breaking.
+ */
+export async function sendPetPhotoUpdateEmail(
+  input: PetPhotoUpdateEmailInput
+): Promise<EmailResult> {
+  const petName = input.petName;
+  const safePetName = escapeHtml(petName);
+  const profileUrl = appUrl(`pets/${encodeURIComponent(input.petId)}`);
+  const images = input.imageUrls.map(absolutizeAssetUrl).filter(Boolean);
+  const primaryImage = images[0];
+  const caption = input.caption?.trim();
+
+  const subject = `New photo of ${petName}!`;
+
+  const plainText = `
+Update on ${petName}
+
+Dear ${input.sponsorName},
+
+There is a new photo of ${petName}, the animal you sponsor at ${SHELTER_NAME}.
+
+${caption ? `From ${petName}'s caregiver:\n"${caption}"\n` : ""}
+${images.length > 0 ? `View the photo${images.length > 1 ? "s" : ""}:\n${images.join("\n")}\n` : ""}
+Visit ${petName}'s profile:
+${profileUrl}
+
+---
+You are receiving this because you sponsor ${petName}.
+Manage your email preferences or unsubscribe:
+${input.preferencesUrl}
+
+${SHELTER_NAME}
+${SHELTER_ADDRESS}
+  `.trim();
+
+  const galleryHtml = images
+    .map(
+      (url, index) => `
+      <img
+        src="${escapeHtml(url)}"
+        alt="${safePetName}, a rescue animal at ${escapeHtml(SHELTER_NAME)} - new photo ${index + 1} of ${images.length}"
+        width="520"
+        style="display:block;width:100%;max-width:520px;height:auto;border:0;outline:none;text-decoration:none;border-radius:12px;margin:0 auto 12px auto;"
+      />`
+    )
+    .join("");
+
+  const footerExtra = `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid ${EMAIL_BRAND.border};line-height:1.6;">
+      You are receiving this because you sponsor ${safePetName}.<br/>
+      <a href="${escapeHtml(input.preferencesUrl)}" style="color:${EMAIL_TONE.info.accent};text-decoration:underline;">Manage email preferences</a>
+      &nbsp;&bull;&nbsp;
+      <a href="${escapeHtml(input.preferencesUrl)}&amp;unsubscribe=photo" style="color:${EMAIL_BRAND.mutedForeground};text-decoration:underline;">Unsubscribe from photo updates</a>
+    </div>
+  `;
+
+  const html = wrapEmailHtml(
+    `
+    <span class="badge">Sponsor Update</span>
+    <h2 style="margin-top:0;">Update on ${safePetName}</h2>
+    <p>Dear ${escapeHtml(input.sponsorName)}, there ${images.length > 1 ? "are new photos" : "is a new photo"} of the animal you sponsor.</p>
+
+    ${primaryImage ? `<div style="margin:20px 0;">${galleryHtml}</div>` : ""}
+
+    ${
+      caption
+        ? `<div class="card">
+             <strong>From ${safePetName}'s caregiver:</strong><br/>
+             <em>${escapeHtml(caption)}</em>
+           </div>`
+        : ""
+    }
+
+    <div style="text-align:center;margin:24px 0;">
+      <a href="${escapeHtml(profileUrl)}" class="btn-track">Visit ${safePetName}'s Profile &rarr;</a>
+    </div>
+
+    <p style="font-size:14px;color:${EMAIL_BRAND.mutedForeground};">
+      Thank you for standing by ${safePetName}. Your sponsorship pays for the food, veterinary care and shelter that made this photo possible.
+    </p>
+  `,
+    footerExtra
+  );
+
+  return sendRawEmail({
+    to: input.sponsorEmail,
+    subject,
+    text: plainText,
+    html,
+    template: "PET_PHOTO_UPDATE",
+    entityId: input.petId,
+    // NOT "Pet": `useAuditLogController` builds its Adoptions tab as
+    // entity === "AdoptionApplication" || action.includes("APPLICATION") || entity === "Pet",
+    // so filing here would bury the adoption trail under bulk-mail rows.
+    entity: "SponsorNotification",
+    category: "sponsor_update",
+    extraHeaders: {
+      "List-Unsubscribe": `<${input.oneClickUnsubscribeUrl}>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  });
+}
+
+/**
  * Sends a staff invitation containing a single-use, expiring redemption link.
  *
  * The raw token appears only here and in the recipient's inbox: the database
@@ -1011,5 +1170,5 @@ export async function sendStaffInvitationEmail(invite: {
     template: "STAFF_INVITATION",
     entity: "User",
     entityId: invite.userId,
-  });
+});
 }
