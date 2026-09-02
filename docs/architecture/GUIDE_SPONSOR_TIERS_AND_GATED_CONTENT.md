@@ -29,6 +29,14 @@ IDs.
 `src/lib/domain/supporterTier.ts` is pure and has no I/O. Everything below is unit-tested
 in `tests/unit/supporterTier.test.ts`.
 
+**Only confirmed payments count.** `/donate` is a public, unauthenticated form with no
+payment gateway behind it — DuitNow QR and bank transfers arrive out of band — so a
+submitted pledge is an *assertion*, not money received. Every contribution starts
+`PENDING`; a staff member reconciles it against an actual payment via
+`confirmContributionAction` (ADMIN/COORDINATOR only, audited). Without that split, the
+donation form would be a self-service Gold button: anyone could assert an RM 1,200 pledge
+and unlock every gate on the next request.
+
 **Recognised contribution** — a rolling 12-month figure (`RECOGNITION_WINDOW_DAYS = 365`):
 
 - A **one-time** pledge counts at face value if it falls inside the window, and stops
@@ -52,7 +60,9 @@ Annualising recurring pledges is the mechanism that serves the retention goal: a
 commits to RM 100/month is Gold immediately, not in twelve months' time. The corollary is
 deliberate and should be stated in donor-facing copy — **cancelling a recurring pledge
 drops the standing at once**, because a standing describes a current relationship rather
-than a lifetime trophy.
+than a lifetime trophy. Sponsors cancel their own pledges through
+`cancelRecurringPledgeAction`, which is scoped to their session so a receipt number in the
+request cannot reach anyone else's ledger.
 
 ### Why derived and never stored
 
@@ -183,10 +193,18 @@ every contribution under that email is linked to the new account.
 Missing and mismatched receipts return an identical error message, so the form cannot be
 used to enumerate valid receipt numbers.
 
-**Known limitation.** A receipt number is a shared secret, not a verified identity. A donor
-who forwards their e-Receipt has given away their claim. Verified-email sign-up is the
-proper fix and is deliberately deferred; the exposure is bounded because the portal
-projects no tax identifiers, no payment details and no other donor's data.
+**The receipt must also be `CONFIRMED`**, and that requirement is doing most of the work.
+Matching the email alone proves nothing: the donation form mints a receipt for whatever
+address the caller types and returns the number in its own response, so an attacker could
+pledge RM 5 as `victim@example.com`, take the receipt number, and claim the victim's entire
+giving history, standing and gated media. Requiring a reconciled payment breaks that chain,
+because confirming one is not something the claimant can do.
+
+**Known limitation.** A confirmed receipt number is still a shared secret rather than a
+verified identity — a donor who forwards their e-Receipt has given away their claim.
+Verified-email sign-up is the proper fix and is deliberately deferred; the exposure is
+bounded because the portal projects no tax identifiers, no payment details and no other
+donor's data.
 
 ### Sponsor Wall consent
 
@@ -227,6 +245,14 @@ certificate carries the same number.
 `userStore` and `serverStore`, so the portal is demonstrable and testable without Postgres
 running.
 
+One consequence worth knowing before that first run: `SponsorContribution.targetPetId` is
+a foreign key to `Pet`, but `getServerPetsAsync` serves `src/data/pets.json` whenever the
+`Pet` table is empty. Against a reachable-but-unseeded database the UI therefore offers
+pets that do not exist as rows, and a dedicated pledge is FK-rejected — logged by
+`warnDatabaseFallback` and demoted to memory rather than lost silently, but still not in
+the ledger. Run `npm run db:seed` (which upserts pets under their `pet-001` ids) before
+accepting dedicated pledges.
+
 **The sponsor tables have not yet been exercised against a real PostgreSQL instance.** The
 schema validates (`prisma validate`) and the client generates, but no migration has been
 applied and no query has run against a live database — every test here runs the in-memory
@@ -261,6 +287,10 @@ decision rather than a surprise.
 The Bronze sponsor's aged-out pledge is not decoration: it is what proves standings decay
 rather than accumulating for life.
 
+A pledge submitted through `/donate` starts `PENDING` and therefore confers nothing until
+`confirmContributionAction` reconciles it — including in development, where you can call
+`confirmContribution` directly from a script or a test.
+
 **These accounts do not exist in production.** `SEEDING_ENABLED` in `sponsorStore.ts` is
 `NODE_ENV !== "production"`, and a reachable database is authoritative even when its answer
 is empty. Both limits are needed: without the first, the passwords above would sign in
@@ -271,7 +301,7 @@ empty-but-healthy database would publish these four names on the public wall.
 
 ## 8. Verification
 
-`npx vitest run` — 281 tests, of which 98 cover this feature:
+`npx vitest run` — 292 tests, of which 109 cover this feature:
 
 | File | Covers |
 |---|---|

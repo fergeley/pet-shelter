@@ -38,6 +38,7 @@ function contribution(
     amountMYR: 50,
     frequency: "one_time",
     isActive: true,
+    status: "CONFIRMED",
     displayOnWall: false,
     targetPetId: null,
     targetPetName: null,
@@ -285,6 +286,30 @@ describe("Supporter tier derivation", () => {
 
     it("reports no shortfall at Gold", () => {
       expect(amountToNextTier(TIER_THRESHOLDS_MYR.GOLD)).toBeNull();
+    });
+  });
+
+  describe("unconfirmed pledges", () => {
+    it("confer no standing, however large", () => {
+      // /donate is public and unauthenticated, so a submitted pledge is an assertion.
+      // Counting it would make the donation form a self-service Gold button.
+      const asserted = [
+        contribution({ amountMYR: 5000, status: "PENDING" }),
+        contribution({ amountMYR: 1000, frequency: "monthly", status: "PENDING" }),
+      ];
+
+      expect(recognisedContributionMYR(asserted, NOW)).toBe(0);
+      expect(deriveTier(asserted, NOW)).toBeNull();
+    });
+
+    it("do not drag down a standing earned by confirmed ones", () => {
+      const mixed = [
+        contribution({ amountMYR: 300, status: "CONFIRMED" }),
+        contribution({ amountMYR: 9000, status: "PENDING" }),
+      ];
+
+      expect(recognisedContributionMYR(mixed, NOW)).toBe(300);
+      expect(deriveTier(mixed, NOW)).toBe("SILVER");
     });
   });
 

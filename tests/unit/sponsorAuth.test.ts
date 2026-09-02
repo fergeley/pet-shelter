@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
+vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -28,9 +30,18 @@ import {
   sponsorLogoutAction,
   updateWallPreferenceAction,
   submitCaretakerQuestionAction,
+  cancelRecurringPledgeAction,
 } from "@/actions/sponsors";
-import { SPONSOR_SESSION_COOKIE_NAME } from "@/lib/security/sponsorSession";
-import { SESSION_COOKIE_NAME } from "@/lib/security/session";
+import {
+  SPONSOR_SESSION_COOKIE_NAME,
+  sealSponsorSession,
+  unsealSponsorSession,
+} from "@/lib/security/sponsorSession";
+import {
+  SESSION_COOKIE_NAME,
+  sealSession,
+  unsealSession,
+} from "@/lib/security/session";
 import { getSponsorDashboard, getSponsorWall } from "@/lib/domain/sponsorAccess";
 import { __resetSponsorStoreForTests } from "@/lib/sponsorStore";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
@@ -155,9 +166,24 @@ describe("Sponsor registration", () => {
     expect(result.error).toContain("already exists");
   });
 
-  it("inherits the Sponsor Wall consent given at checkout", async () => {
-    // The seeded unclaimed pledge was made with the wall box ticked, and the claim form
-    // left unticked. Consent belongs to the donor, so it must survive the claim.
+  it("inherits the checkout consent when the registrant expresses no preference", async () => {
+    // The seeded unclaimed pledge was made with the wall box ticked, so a claim form that
+    // says nothing about it should not silently discard that choice.
+    const result = await registerSponsorAction({
+      name: UNCLAIMED.name,
+      email: UNCLAIMED.email,
+      password: STRONG_PASSWORD,
+      receiptNumber: UNCLAIMED.receiptNumber,
+    });
+
+    expect(result.success).toBe(true);
+    expect((await getSponsorDashboard())!.displayOnWall).toBe(true);
+  });
+
+  it("lets the registrant withdraw a consent they gave at checkout", async () => {
+    // Consent is the most recent expression, not a sticky OR. Previously
+    // `parsed.displayOnWall || consentedAtCheckout` republished a donor who had just
+    // deliberately unticked the box.
     const result = await registerSponsorAction({
       name: UNCLAIMED.name,
       email: UNCLAIMED.email,
@@ -167,7 +193,7 @@ describe("Sponsor registration", () => {
     });
 
     expect(result.success).toBe(true);
-    expect((await getSponsorDashboard())!.displayOnWall).toBe(true);
+    expect((await getSponsorDashboard())!.displayOnWall).toBe(false);
   });
 });
 
@@ -240,6 +266,30 @@ describe("Sponsor login", () => {
     expect(await getSponsorDashboard()).toBeNull();
   });
 
+  it("does not let a sponsor token pass as a staff session", async () => {
+    // Both namespaces are signed with the same HMAC key, so a signature check alone
+    // cannot say which one a token came from. Without a type claim, pasting a sponsor
+    // cookie into hope_shelter_session yielded a SessionUser with no role.
+    const sponsorToken = sealSponsorSession({
+      sponsorId: "spn-gold-01",
+      email: "gold@example.com",
+      name: "Datin Sofia Rahman",
+    });
+
+    expect(unsealSession(sponsorToken)).toBeNull();
+  });
+
+  it("does not let a staff token pass as a sponsor session", async () => {
+    const staffToken = sealSession({
+      id: "usr-admin-01",
+      email: "admin@hopeforstrays.org",
+      name: "Dr. Sarah Tan",
+      role: "ADMIN",
+    });
+
+    expect(unsealSponsorSession(staffToken)).toBeNull();
+  });
+
   it("uses a different cookie from the staff session", async () => {
     await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
 
@@ -272,6 +322,43 @@ describe("Sponsor Wall preference", () => {
     expect((await getSponsorWall()).GOLD.map((e) => e.name)).not.toContain(
       "Datin Sofia Rahman"
     );
+  });
+});
+
+describe("Cancelling a recurring pledge", () => {
+  beforeEach(async () => {
+    cookieStore.clear();
+    await __resetSponsorStoreForTests();
+    resetRateLimitStore();
+  });
+
+  it("drops the standing immediately, which is what makes the decay branch reachable", async () => {
+    // Before this action existed, `isActive` was written true in eight places and false in
+    // none, so the documented "cancelling drops the standing" behaviour was unreachable.
+    await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
+    expect((await getSponsorDashboard())!.tier).toBe("GOLD");
+
+    const result = await cancelRecurringPledgeAction("HFS-DON-202511-5512");
+    expect(result.success).toBe(true);
+
+    const after = await getSponsorDashboard();
+    expect(after!.tier).toBe("BRONZE");
+    expect(after!.hasActiveRecurring).toBe(false);
+  });
+
+  it("refuses a receipt number belonging to another sponsor", async () => {
+    await sponsorLoginAction({ email: "silver@example.com", password: "silver123" });
+
+    const result = await cancelRecurringPledgeAction("HFS-DON-202511-5512");
+
+    expect(result.success).toBe(false);
+    expect((await getSponsorWall()).GOLD.map((e) => e.name)).toContain(
+      "Datin Sofia Rahman"
+    );
+  });
+
+  it("refuses a signed-out caller", async () => {
+    expect((await cancelRecurringPledgeAction("HFS-DON-202511-5512")).success).toBe(false);
   });
 });
 

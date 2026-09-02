@@ -2,7 +2,12 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/security/crypto";
-import { SponsorRecord, SponsorContributionRecord } from "@/types/supporter";
+import {
+  SponsorRecord,
+  SponsorContributionRecord,
+  WallSponsor,
+  TierRelevantContribution,
+} from "@/types/supporter";
 import { SponsorshipTierId } from "@/types/sponsorship";
 
 /**
@@ -72,6 +77,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 50,
         frequency: "one_time",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-002",
         targetPetName: "Milo",
@@ -86,6 +92,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 250,
         frequency: "one_time",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-002",
         targetPetName: "Milo",
@@ -109,6 +116,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 250,
         frequency: "one_time",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-001",
         targetPetName: "Bella",
@@ -122,6 +130,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 120,
         frequency: "one_time",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-005",
         targetPetName: "Rocky",
@@ -145,6 +154,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 120,
         frequency: "monthly",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-003",
         targetPetName: "Luna",
@@ -158,6 +168,7 @@ const SEED_SPONSORS: SeedSponsor[] = [
         amountMYR: 250,
         frequency: "one_time",
         isActive: true,
+        status: "CONFIRMED",
         displayOnWall: true,
         targetPetId: "pet-006",
         targetPetName: "Cleo",
@@ -186,6 +197,7 @@ const SEED_UNCLAIMED_CONTRIBUTIONS: SponsorContributionRecord[] = [
     amountMYR: 120,
     frequency: "one_time",
     isActive: true,
+    status: "CONFIRMED",
     displayOnWall: true,
     targetPetId: "pet-001",
     targetPetName: "Bella",
@@ -269,6 +281,7 @@ interface DbContribution {
   amountMYR: number;
   frequency: string;
   isActive: boolean;
+  status: string;
   displayOnWall: boolean;
   targetPetId: string | null;
   targetPetName: string | null;
@@ -299,6 +312,7 @@ function toContributionRecord(row: DbContribution): SponsorContributionRecord {
     amountMYR: row.amountMYR,
     frequency: row.frequency === "monthly" ? "monthly" : "one_time",
     isActive: row.isActive,
+    status: row.status === "CONFIRMED" ? "CONFIRMED" : "PENDING",
     displayOnWall: row.displayOnWall,
     targetPetId: row.targetPetId,
     targetPetName: row.targetPetName,
@@ -372,6 +386,13 @@ export async function createSponsor(data: {
     return created;
   } catch (err) {
     warnDatabaseFallback("createSponsor", err);
+
+    // In production there is no memory store to fall back to, so fabricating a record
+    // here would hand the caller a 14-day session for an account that does not exist —
+    // they would appear registered, then be bounced to the login page on every request.
+    // Failing loudly lets registerSponsorAction report a real error.
+    if (!SEEDING_ENABLED) throw err;
+
     await ensureInitialized();
     sponsorsByEmail.set(record.email, record);
     return record;
@@ -381,23 +402,31 @@ export async function createSponsor(data: {
 export async function setSponsorWallPreference(
   sponsorId: string,
   displayOnWall: boolean
-): Promise<void> {
+): Promise<boolean> {
   try {
     await prisma.sponsor.update({
       where: { id: sponsorId },
       data: { displayOnWall },
     });
+    return true;
   } catch (err) {
     warnDatabaseFallback("setSponsorWallPreference", err);
   }
 
+  // Reports whether the preference was actually stored. Withdrawing consent is the one
+  // operation here that must never claim success it did not achieve: a sponsor told
+  // "your sponsorship stays private" while their name is still on /sponsors is worse than
+  // an error message.
   await ensureInitialized();
+  let updated = false;
   for (const sponsor of sponsorsByEmail.values()) {
     if (sponsor.id === sponsorId) {
       sponsor.displayOnWall = displayOnWall;
       sponsor.updatedAt = new Date().toISOString();
+      updated = true;
     }
   }
+  return updated;
 }
 
 export async function listContributionsBySponsorId(
@@ -511,6 +540,8 @@ export async function recordContribution(input: {
     amountMYR: Math.round(input.amountMYR),
     frequency: input.frequency,
     isActive: true,
+    // A new pledge is an assertion until someone reconciles it against a payment.
+    status: "PENDING",
     displayOnWall: input.displayOnWall ?? false,
     targetPetId: input.targetPetId ?? null,
     targetPetName: input.targetPetName ?? null,
@@ -529,6 +560,7 @@ export async function recordContribution(input: {
         amountMYR: record.amountMYR,
         frequency: record.frequency,
         isActive: record.isActive,
+        status: record.status,
         displayOnWall: record.displayOnWall,
         targetPetId: record.targetPetId,
         targetPetName: record.targetPetName,
@@ -548,21 +580,138 @@ export async function recordContribution(input: {
 }
 
 /**
- * Sponsors who opted in to the public wall, with their full ledger for tier derivation.
- * Returns password hashes, so callers must project to `SponsorWallEntryDTO` before this
- * reaches a page — `@/lib/domain/sponsorAccess` is the only intended caller.
+ * Cancels a sponsor's recurring pledge.
+ *
+ * Scoped to a sponsor id as well as a receipt number so a sponsor can only cancel their
+ * own. Until this existed, `isActive` was written `true` in eight places and `false` in
+ * none, which made the decay branch in `recognisedContributionMYR` unreachable and the
+ * documented "cancelling drops the standing" behaviour impossible to produce.
+ */
+export async function cancelRecurringPledge(
+  sponsorId: string,
+  receiptNumber: string
+): Promise<SponsorContributionRecord | null> {
+  const normalized = receiptNumber.trim().toUpperCase();
+
+  try {
+    const result = await prisma.sponsorContribution.updateMany({
+      where: { receiptNumber: normalized, sponsorId, frequency: "monthly" },
+      data: { isActive: false },
+    });
+    if (result.count === 0) return null;
+
+    const row = await prisma.sponsorContribution.findUnique({
+      where: { receiptNumber: normalized },
+    });
+    return row ? toContributionRecord(row as DbContribution) : null;
+  } catch (err) {
+    warnDatabaseFallback("cancelRecurringPledge", err);
+  }
+
+  await ensureInitialized();
+  const contribution = contributions.find(
+    (c) =>
+      c.receiptNumber === normalized &&
+      c.sponsorId === sponsorId &&
+      c.frequency === "monthly"
+  );
+  if (!contribution) return null;
+  contribution.isActive = false;
+  return contribution;
+}
+
+/**
+ * Marks a pledge as reconciled against an actual payment.
+ *
+ * The shelter takes DuitNow QR and bank transfers, which arrive out of band, so
+ * confirmation is a human act. Keeping it here — rather than letting the donation form
+ * write CONFIRMED directly — is what stops a self-submitted pledge from conferring a
+ * standing or satisfying the account-claim challenge.
+ */
+export async function confirmContribution(
+  receiptNumber: string
+): Promise<SponsorContributionRecord | null> {
+  const normalized = receiptNumber.trim().toUpperCase();
+
+  try {
+    const row = await prisma.sponsorContribution.update({
+      where: { receiptNumber: normalized },
+      data: { status: "CONFIRMED" },
+    });
+    return toContributionRecord(row as DbContribution);
+  } catch (err) {
+    warnDatabaseFallback("confirmContribution", err);
+  }
+
+  await ensureInitialized();
+  const contribution = contributions.find((c) => c.receiptNumber === normalized);
+  if (!contribution) return null;
+  contribution.status = "CONFIRMED";
+  return contribution;
+}
+
+interface DbWallRow {
+  id: string;
+  name: string;
+  displayOnWall: boolean;
+  createdAt: Date;
+  contributions: Array<{
+    amountMYR: number;
+    frequency: string;
+    isActive: boolean;
+    status: string;
+    createdAt: Date;
+  }>;
+}
+
+/**
+ * Sponsors who opted in to the public wall, with just enough of their ledger to derive a
+ * standing. The return type carries no password hash and no donor contact details, so the
+ * privacy guarantee the wall makes is enforced by the shape rather than by the caller
+ * remembering to project.
  */
 export async function listWallOptInSponsors(): Promise<
-  Array<{ sponsor: SponsorRecord; contributions: SponsorContributionRecord[] }>
+  Array<{ sponsor: WallSponsor; contributions: TierRelevantContribution[] }>
 > {
   try {
+    // Selected rather than `include`d: the full record carries `passwordHash`, and
+    // `toSponsorRecord` would copy every sponsor's hash into application memory purely to
+    // render a list of names.
     const rows = await prisma.sponsor.findMany({
       where: { displayOnWall: true },
-      include: { contributions: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        displayOnWall: true,
+        createdAt: true,
+        updatedAt: true,
+        contributions: {
+          select: {
+            id: true,
+            amountMYR: true,
+            frequency: true,
+            isActive: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
     });
-    return (rows as Array<DbSponsor & { contributions: DbContribution[] }>).map((row) => ({
-      sponsor: toSponsorRecord(row),
-      contributions: row.contributions.map(toContributionRecord),
+    return (rows as DbWallRow[]).map((row) => ({
+      sponsor: {
+        id: row.id,
+        name: row.name,
+        displayOnWall: row.displayOnWall,
+        createdAt: row.createdAt.toISOString(),
+      },
+      contributions: row.contributions.map((c) => ({
+        amountMYR: c.amountMYR,
+        frequency: c.frequency === "monthly" ? "monthly" : "one_time",
+        isActive: c.isActive,
+        status: c.status === "CONFIRMED" ? "CONFIRMED" : "PENDING",
+        createdAt: c.createdAt.toISOString(),
+      })),
     }));
   } catch (err) {
     warnDatabaseFallback("listWallOptInSponsors", err);
@@ -572,7 +721,12 @@ export async function listWallOptInSponsors(): Promise<
   return Array.from(sponsorsByEmail.values())
     .filter((sponsor) => sponsor.displayOnWall)
     .map((sponsor) => ({
-      sponsor,
+      sponsor: {
+        id: sponsor.id,
+        name: sponsor.name,
+        displayOnWall: sponsor.displayOnWall,
+        createdAt: sponsor.createdAt,
+      },
       contributions: contributions.filter((c) => c.sponsorId === sponsor.id),
     }));
 }

@@ -15,7 +15,18 @@ import { signPayload, verifySignature } from "./crypto";
 export const SPONSOR_SESSION_COOKIE_NAME = "hope_sponsor_session";
 export const SPONSOR_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14; // 14 days
 
+/**
+ * Distinguishes a sponsor token from a staff one.
+ *
+ * Both are signed with the same HMAC key, so without a type claim a sponsor could paste
+ * their own cookie into `hope_shelter_session` and `unsealSession` would accept it —
+ * yielding a SessionUser with an undefined role. RBAC still refuses that user, but
+ * anything testing for a session's mere presence would be fooled.
+ */
+export const SPONSOR_TOKEN_TYPE = "sponsor";
+
 export interface SponsorSession {
+  typ?: typeof SPONSOR_TOKEN_TYPE;
   sponsorId: string;
   email: string;
   name: string;
@@ -34,6 +45,7 @@ export function sealSponsorSession(
 ): string {
   const payload: SponsorSession = {
     ...sponsor,
+    typ: SPONSOR_TOKEN_TYPE,
     expiresAt: Date.now() + maxAgeSeconds * 1000,
   };
   const base64Payload = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -53,6 +65,7 @@ export function unsealSponsorSession(token: string): SponsorSession | null {
     );
 
     if (
+      session.typ !== SPONSOR_TOKEN_TYPE ||
       typeof session.sponsorId !== "string" ||
       typeof session.email !== "string" ||
       typeof session.expiresAt !== "number"

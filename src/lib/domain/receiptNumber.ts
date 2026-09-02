@@ -28,16 +28,38 @@ const RECEIPT_RANGE = 9 * RECEIPT_MIN; // 900000
 export const RECEIPT_NUMBER_PATTERN = /^HFS-DON-\d{6}-\d{4,6}$/;
 
 /**
+ * The shelter's timezone. The receipt's month segment has to agree with the date printed
+ * beside it, which is formatted `en-MY` — and Malaysia is UTC+8, so a donation made in the
+ * first eight hours of a month is still in the previous month by UTC. On a tax receipt
+ * that straddles a period boundary, those two disagreeing is a real problem.
+ */
+const SHELTER_TIME_ZONE = "Asia/Kuala_Lumpur";
+
+function shelterYearMonth(now: Date): string {
+  // en-CA gives ISO-ordered YYYY-MM-DD, which makes the slice unambiguous.
+  const localDate = now.toLocaleDateString("en-CA", { timeZone: SHELTER_TIME_ZONE });
+  return localDate.slice(0, 7).replace("-", "");
+}
+
+/**
  * Cryptographically random sequence, using the Web Crypto API so the same function works
  * in a Server Action and in the client-side offline receipt fallback.
+ *
+ * Rejection-sampled rather than `% RECEIPT_RANGE`: 2^32 is not a multiple of 900,000, so
+ * plain modulo would bias the low end of the range and weaken the unguessability this
+ * module depends on.
  */
 function randomSequence(): number {
+  const limit = Math.floor(0x1_0000_0000 / RECEIPT_RANGE) * RECEIPT_RANGE;
   const buffer = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(buffer);
+
+  do {
+    globalThis.crypto.getRandomValues(buffer);
+  } while (buffer[0] >= limit);
+
   return RECEIPT_MIN + (buffer[0] % RECEIPT_RANGE);
 }
 
 export function generateReceiptNumber(now: Date = new Date()): string {
-  const yearMonth = now.toISOString().slice(0, 7).replace("-", "");
-  return `HFS-DON-${yearMonth}-${randomSequence()}`;
+  return `HFS-DON-${shelterYearMonth(now)}-${randomSequence()}`;
 }

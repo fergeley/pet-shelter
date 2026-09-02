@@ -3,6 +3,7 @@
 import {
   sponsorRegistrationSchema,
   sponsorLoginSchema,
+  wallPreferenceSchema,
   SponsorRegistrationInput,
   SponsorLoginInput,
 } from "@/lib/validations/sponsor";
@@ -19,6 +20,8 @@ import {
   linkContributionsToSponsor,
   findContributionByReceipt,
   listContributionsByEmail,
+  confirmContribution,
+  cancelRecurringPledge,
   setSponsorWallPreference,
 } from "@/lib/sponsorStore";
 import {
@@ -27,6 +30,8 @@ import {
   getCurrentSupporterTier,
 } from "@/lib/domain/sponsorAccess";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import { getCurrentSession } from "@/lib/security/session";
+import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 import { sendCaretakerQuestionEmail } from "@/lib/email";
 import { tierLabel } from "@/lib/domain/supporterTier";
 import { SponsorDashboardDTO } from "@/types/supporter";
@@ -70,18 +75,25 @@ export async function registerSponsorAction(
     };
   }
 
-  if (await findSponsorByEmail(parsed.email)) {
-    return {
-      success: false,
-      error: "A sponsor account already exists for this email. Please sign in instead.",
-    };
-  }
 
   const contribution = await findContributionByReceipt(parsed.receiptNumber);
 
-  // One message for "no such receipt" and "receipt belongs to someone else", so the form
-  // cannot be used to enumerate which receipt numbers exist.
-  if (!contribution || contribution.donorEmail !== parsed.email) {
+  // The receipt must be for a *reconciled* payment.
+  //
+  // Matching the email alone is not proof of anything: `/donate` is a public form that
+  // mints a receipt for whatever address the caller types and hands the number straight
+  // back in the response. An attacker could pledge RM 5 as victim@example.com, receive
+  // the receipt number, and use it here to claim the victim's entire giving history,
+  // standing and gated media. Requiring CONFIRMED breaks that chain, because confirming a
+  // payment is not something the claimant can do.
+  const isClaimable =
+    contribution !== null &&
+    contribution.donorEmail === parsed.email &&
+    contribution.status === "CONFIRMED";
+
+  // One message for every rejection reason, so the form cannot be used to enumerate which
+  // receipt numbers exist or which of them have been reconciled.
+  if (!isClaimable) {
     recordAuditLog({
       actorId: "sponsor_public",
       actorEmail: parsed.email,
@@ -98,17 +110,30 @@ export async function registerSponsorAction(
     };
   }
 
-  // Sponsor Wall consent given at checkout carries into the account being claimed, so a
-  // donor who ticked the box on the donation form does not have to tick it twice.
+  // Checked only *after* the receipt challenge, so the form is not an account-existence
+  // oracle for anyone who has not already proved they hold a confirmed receipt.
+  if (await findSponsorByEmail(parsed.email)) {
+    return {
+      success: false,
+      error: "A sponsor account already exists for this email. Please sign in instead.",
+    };
+  }
+
+  // Sponsor Wall consent given at checkout seeds the default, but the registrant's own
+  // choice wins. OR-ing the two would make consent sticky: a donor who ticked the box at
+  // checkout and deliberately unticks it here would still be published.
   const priorContributions = await listContributionsByEmail(parsed.email);
   const consentedAtCheckout = priorContributions.some((c) => c.displayOnWall);
+  const displayOnWall = input.displayOnWall === undefined
+    ? consentedAtCheckout
+    : parsed.displayOnWall;
 
   const passwordHash = await hashPassword(parsed.password);
   const sponsor = await createSponsor({
     email: parsed.email,
     name: parsed.name,
     passwordHash,
-    displayOnWall: parsed.displayOnWall || consentedAtCheckout,
+    displayOnWall,
   });
 
   const linkedContributions = await linkContributionsToSponsor(sponsor.id, sponsor.email);
@@ -215,7 +240,21 @@ export async function updateWallPreferenceAction(
     return { success: false, error: "Please sign in to change your Sponsor Wall setting." };
   }
 
-  await setSponsorWallPreference(session.sponsorId, displayOnWall);
+  const parsed = wallPreferenceSchema.safeParse({ displayOnWall });
+  if (!parsed.success) {
+    return { success: false, error: "Invalid Sponsor Wall preference." };
+  }
+
+  const stored = await setSponsorWallPreference(
+    session.sponsorId,
+    parsed.data.displayOnWall
+  );
+  if (!stored) {
+    return {
+      success: false,
+      error: "Could not save your Sponsor Wall setting. Please try again.",
+    };
+  }
 
   recordAuditLog({
     actorId: session.sponsorId,
@@ -236,6 +275,89 @@ export async function updateWallPreferenceAction(
 /** Server-side read of the signed-in sponsor's dashboard projection. */
 export async function getSponsorDashboardAction(): Promise<SponsorDashboardDTO | null> {
   return getSponsorDashboard();
+}
+
+/**
+ * Lets a sponsor cancel their own recurring pledge.
+ *
+ * The standing follows immediately, because an annualised monthly pledge is recognised on
+ * the strength of the commitment continuing. Scoped to the session's sponsor id, so the
+ * receipt number in the request cannot reach anyone else's ledger.
+ */
+export async function cancelRecurringPledgeAction(
+  receiptNumber: string
+): Promise<{ success: boolean; error?: string }> {
+  const session = await getCurrentSponsorSession();
+  if (!session) {
+    return { success: false, error: "Please sign in to manage your pledges." };
+  }
+
+  const cancelled = await cancelRecurringPledge(session.sponsorId, receiptNumber);
+  if (!cancelled) {
+    return {
+      success: false,
+      error: "No active recurring pledge of yours matches that receipt number.",
+    };
+  }
+
+  recordAuditLog({
+    actorId: session.sponsorId,
+    actorEmail: session.email,
+    actorRole: "SPONSOR",
+    action: "RECURRING_PLEDGE_CANCELLED",
+    entity: "SponsorContribution",
+    entityId: cancelled.receiptNumber,
+    details: { amountMYR: cancelled.amountMYR },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Staff action: reconcile a pledge against a payment that actually arrived.
+ *
+ * DuitNow QR and bank transfers land out of band, so a human matches them to receipt
+ * numbers. Until that happens a pledge confers no standing and cannot be used to claim an
+ * account — which is precisely what stops the public donation form from being a
+ * self-service route to Gold, or to someone else's giving history.
+ *
+ * Restricted to ADMIN and COORDINATOR, and audited, because this is the step that turns an
+ * assertion into a privilege.
+ */
+export async function confirmContributionAction(
+  receiptNumber: string
+): Promise<{ success: boolean; error?: string }> {
+  const actor = await getCurrentSession();
+
+  try {
+    assertAuthorized(actor, [ROLES.ADMIN, ROLES.COORDINATOR]);
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Not authorized.",
+    };
+  }
+
+  const contribution = await confirmContribution(receiptNumber);
+  if (!contribution) {
+    return { success: false, error: "No pledge found with that receipt number." };
+  }
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: "CONTRIBUTION_PAYMENT_CONFIRMED",
+    entity: "SponsorContribution",
+    entityId: contribution.receiptNumber,
+    details: {
+      donorEmail: contribution.donorEmail,
+      amountMYR: contribution.amountMYR,
+      frequency: contribution.frequency,
+    },
+  });
+
+  return { success: true };
 }
 
 /**

@@ -169,7 +169,7 @@ export function DonationWidget() {
         </div>
 
         {/* Printable Official Receipt Dossier */}
-        <div id="donation-receipt-print" data-print-root className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-xs">
+        <div data-print-root className="border-2 border-border bg-white text-zinc-900 p-6 sm:p-8 rounded-xl space-y-5 font-sans shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-zinc-900 pb-4">
             <div>
               <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-zinc-900">

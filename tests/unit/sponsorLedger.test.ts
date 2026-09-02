@@ -11,6 +11,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
+vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -32,7 +34,9 @@ import {
   __resetSponsorStoreForTests,
   findContributionByReceipt,
   listContributionsByEmail,
+  confirmContribution,
 } from "@/lib/sponsorStore";
+import { deriveTier } from "@/lib/domain/supporterTier";
 import { getSponsorDashboard } from "@/lib/domain/sponsorAccess";
 import { registerSponsorAction, sponsorLoginAction } from "@/actions/sponsors";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
@@ -107,7 +111,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
     ).toBe(false);
   });
 
-  it("leaves a pledge unattached when the donor has no account, ready to be claimed", async () => {
+  it("records a new pledge as unattached and unconfirmed", async () => {
     const result = await submitDonationPledgeAction({
       donorName: "Aisha Karim",
       donorEmail: "aisha.karim@example.com",
@@ -119,17 +123,58 @@ describe("Donation pledges reach the sponsorship ledger", () => {
 
     const contribution = await findContributionByReceipt(result.data!.receiptNumber);
     expect(contribution!.sponsorId).toBeNull();
+    expect(contribution!.status).toBe("PENDING");
+  });
 
-    const claim = await registerSponsorAction({
+  it("cannot be claimed until the payment is reconciled, then can", async () => {
+    const result = await submitDonationPledgeAction({
+      donorName: "Aisha Karim",
+      donorEmail: "aisha.karim@example.com",
+      tierId: "spay_neuter",
+      amountMYR: 120,
+      targetPetId: "pet-005",
+      paymentMethod: "duitnow_qr",
+    });
+
+    const claimArgs = {
       name: "Aisha Karim",
       email: "aisha.karim@example.com",
       password: "correct-horse-battery",
       receiptNumber: result.data!.receiptNumber,
       displayOnWall: false,
+    };
+
+    expect((await registerSponsorAction(claimArgs)).success).toBe(false);
+
+    await confirmContribution(result.data!.receiptNumber);
+
+    expect((await registerSponsorAction(claimArgs)).success).toBe(true);
+    expect((await getSponsorDashboard())!.rescues.map((r) => r.petId)).toContain("pet-005");
+  });
+
+  it("does not let an attacker mint a receipt to steal another donor's account", async () => {
+    // The donation form is public and returns the receipt number it mints, so matching the
+    // email is not proof of anything on its own. Requiring a reconciled payment is what
+    // breaks the chain: the attacker cannot confirm their own pledge.
+    const minted = await submitDonationPledgeAction({
+      donorName: "Not The Victim",
+      donorEmail: "gold@example.com",
+      tierId: "kibble",
+      amountMYR: 5,
+      paymentMethod: "duitnow_qr",
     });
 
-    expect(claim.success).toBe(true);
-    expect((await getSponsorDashboard())!.rescues.map((r) => r.petId)).toContain("pet-005");
+    expect(minted.success).toBe(true);
+
+    const takeover = await registerSponsorAction({
+      name: "Attacker",
+      email: "gold@example.com",
+      password: "correct-horse-battery",
+      receiptNumber: minted.data!.receiptNumber,
+      displayOnWall: false,
+    });
+
+    expect(takeover.success).toBe(false);
   });
 
   it("attaches a pledge to an existing account made with the same email", async () => {
@@ -148,7 +193,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
     expect(dashboard!.rescues.map((rescue) => rescue.petId)).toContain("pet-004");
   });
 
-  it("raises a new donor's standing to Silver on a recurring pledge", async () => {
+  it("raises a donor to Silver on a recurring pledge, but only once it is confirmed", async () => {
     const result = await submitDonationPledgeAction({
       donorName: "Ben Lee",
       donorEmail: "ben.lee@example.com",
@@ -157,6 +202,8 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       frequency: "monthly",
       paymentMethod: "duitnow_qr",
     });
+
+    await confirmContribution(result.data!.receiptNumber);
 
     await registerSponsorAction({
       name: "Ben Lee",
@@ -170,6 +217,21 @@ describe("Donation pledges reach the sponsorship ledger", () => {
     expect(dashboard!.tier).toBe("SILVER");
     expect(dashboard!.recognisedMYR).toBe(300);
     expect(dashboard!.hasActiveRecurring).toBe(true);
+  });
+
+  it("grants nothing for an unconfirmed pledge, however large", async () => {
+    // Otherwise /donate is a self-service Gold button for any anonymous visitor.
+    const result = await submitDonationPledgeAction({
+      donorName: "Ben Lee",
+      donorEmail: "ben.lee@example.com",
+      tierId: "custom",
+      amountMYR: 5000,
+      paymentMethod: "duitnow_qr",
+    });
+
+    const contribution = await findContributionByReceipt(result.data!.receiptNumber);
+    expect(contribution!.status).toBe("PENDING");
+    expect(deriveTier([contribution!])).toBeNull();
   });
 
   it("does not write a ledger row for a rejected pledge", async () => {

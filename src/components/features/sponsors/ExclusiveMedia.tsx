@@ -94,7 +94,9 @@ export function ExclusiveVideoDiary({
       {items.map((item) => (
         <a
           key={item.id}
-          href={item.watchUrl}
+          // Built from the id rather than trusting a stored URL: the catalogue used to
+          // hold /embed/ links, which open the chromeless iframe player in a new tab.
+          href={`https://www.youtube.com/watch?v=${item.youtubeId}`}
           target="_blank"
           rel="noopener noreferrer"
           className="group overflow-hidden rounded-2xl border border-border bg-card transition-colors hover:border-foreground/40"

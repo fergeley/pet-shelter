@@ -3,7 +3,7 @@ import {
   TIER_RANK,
   Perk,
   PerkId,
-  SponsorContributionRecord,
+  TierRelevantContribution,
 } from "@/types/supporter";
 
 /**
@@ -119,12 +119,18 @@ export function tierRequiredForPerk(perkId: PerkId): SupporterTier | null {
  * double-counted between the two branches.
  */
 export function recognisedContributionMYR(
-  contributions: SponsorContributionRecord[],
+  contributions: TierRelevantContribution[],
   now: Date = new Date()
 ): number {
   const cutoff = now.getTime() - RECOGNITION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
   return contributions.reduce((total, contribution) => {
+    // An unconfirmed pledge confers no standing. Without this, `/donate` — a public,
+    // unauthenticated form — would be a self-service Gold button: anyone could assert a
+    // RM 1,200 pledge, or an RM 100 monthly one, and unlock every gate on the next
+    // request without paying anything.
+    if (contribution.status !== "CONFIRMED") return total;
+
     if (contribution.frequency === "monthly") {
       if (!contribution.isActive) return total;
       return total + contribution.amountMYR * 12;
@@ -151,7 +157,7 @@ export function tierForAmount(recognisedMYR: number): SupporterTier | null {
  * be forged by tampering with a form, a cookie or a request body.
  */
 export function deriveTier(
-  contributions: SponsorContributionRecord[],
+  contributions: TierRelevantContribution[],
   now: Date = new Date()
 ): SupporterTier | null {
   return tierForAmount(recognisedContributionMYR(contributions, now));

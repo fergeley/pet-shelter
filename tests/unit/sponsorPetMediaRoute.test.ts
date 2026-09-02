@@ -11,6 +11,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
+vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
+
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),

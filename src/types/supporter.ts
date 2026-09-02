@@ -11,6 +11,9 @@ import { SponsorshipTierId } from "./sponsorship";
  */
 export type SupporterTier = "BRONZE" | "SILVER" | "GOLD";
 
+/** Whether a pledge has been reconciled against an actual payment. */
+export type ContributionStatus = "PENDING" | "CONFIRMED";
+
 /** Ordinal rank used for `>=` comparisons. A sponsor below Bronze has rank 0. */
 export const TIER_RANK: Record<SupporterTier, number> = {
   BRONZE: 1,
@@ -48,10 +51,37 @@ export interface SponsorContributionRecord {
   frequency: "one_time" | "monthly";
   /** Monthly pledges stop counting toward standing once cancelled. */
   isActive: boolean;
+  /**
+   * Payment state.
+   *
+   * `/donate` is a public form with no payment gateway behind it, so a submitted pledge
+   * is an assertion, not money received. Only `CONFIRMED` rows confer anything.
+   */
+  status: ContributionStatus;
   /** Sponsor Wall consent given at the moment of this pledge. */
   displayOnWall: boolean;
   targetPetId: string | null;
   targetPetName: string | null;
+  createdAt: string;
+}
+
+/**
+ * The subset of a contribution that tier derivation reads.
+ *
+ * Declared separately so callers can hand over a narrow database projection instead of a
+ * whole row — the public wall in particular must not select password hashes just to
+ * satisfy a parameter type.
+ */
+export type TierRelevantContribution = Pick<
+  SponsorContributionRecord,
+  "amountMYR" | "frequency" | "isActive" | "status" | "createdAt"
+>;
+
+/** A sponsor as the public wall needs them. Deliberately carries no password hash. */
+export interface WallSponsor {
+  id: string;
+  name: string;
+  displayOnWall: boolean;
   createdAt: string;
 }
 
