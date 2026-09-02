@@ -10,11 +10,89 @@ import { Resend } from "resend";
 
 import {
   getServerSettingsAsync,
+  getServerSettingsWithSource,
   updateServerSettings as persistServerSettings,
 } from "@/lib/server/settingsRepository";
 
-export async function getShelterSettings(): Promise<ShelterSettingsInput> {
-  return getServerSettingsAsync();
+// `getShelterSettings` used to live here: an ungated `"use server"` export
+// returning the whole settings object — `resendApiKey`, the storage config and
+// now the QR payload — to anyone who POSTed its action id. The reasoning in
+// `getVolunteerFormLinks` below applies to it exactly. Server-side readers use
+// `getServerSettingsAsync` from the repository, which is a plain function and
+// not an endpoint; the admin form uses `loadShelterSettings`.
+
+/** Columns the admin settings form hydrates from the server. */
+const HYDRATED_SETTING_KEYS = [
+  "shelterName",
+  "email",
+  "phone",
+  "address",
+  "operatingHours",
+  "announcementBanner",
+  "adoptionFeeDog",
+  "adoptionFeeCat",
+  "duitNowQrUrl",
+  "tngQrUrl",
+  "bankQrUrl",
+  "paymentPayload",
+] as const;
+
+/** The QR subset, for the audit diff. */
+const QR_SETTING_KEYS = [
+  "duitNowQrUrl",
+  "tngQrUrl",
+  "bankQrUrl",
+  "paymentPayload",
+] as const;
+
+function pickQrSettings(settings: Record<string, unknown>): Record<string, string> {
+  const picked: Record<string, string> = {};
+  for (const key of QR_SETTING_KEYS) {
+    const value = settings[key];
+    picked[key] = typeof value === "string" ? value : "";
+  }
+  return picked;
+}
+
+/**
+ * Strips credentials before a settings snapshot reaches `audit_logs`. Audit
+ * rows are readable by every admin and are deliberately immutable, so a key
+ * captured there cannot be rotated out of the history.
+ */
+function redactSettingsForAudit(settings: unknown): Record<string, unknown> {
+  const copy = { ...(settings as Record<string, unknown>) };
+  const secret = copy.resendApiKey;
+  copy.resendApiKey = typeof secret === "string" && secret !== "" ? "[redacted]" : "";
+  return copy;
+}
+
+/**
+ * Loads settings for the admin form, reporting whether they are authoritative.
+ *
+ * The settings page seeds its form from a `localStorage`-backed store, which
+ * only knows what *this* browser last saved. Now that the QR fields persist, a
+ * second admin opening the page would otherwise see empty QR inputs and blank
+ * the saved codes on their next save. The page overwrites its local copy from
+ * here — but only when `fromDatabase` is true, so an outage cannot replace real
+ * settings with defaults.
+ *
+ * Authorized and projected for the reason spelled out in `getVolunteerFormLinks`.
+ */
+export async function loadShelterSettings(): Promise<{
+  settings: Partial<ShelterSettingsInput>;
+  fromDatabase: boolean;
+}> {
+  const session = await getCurrentSession();
+  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+  const { settings, fromDatabase } = await getServerSettingsWithSource();
+
+  const projected: Record<string, unknown> = {};
+  for (const key of HYDRATED_SETTING_KEYS) {
+    projected[key] = (settings as Record<string, unknown>)[key] ?? "";
+  }
+
+  return { settings: projected as Partial<ShelterSettingsInput>, fromDatabase };
 }
 
 /**
@@ -57,13 +135,35 @@ export async function updateShelterSettings(
       action: "SETTINGS_UPDATED",
       entity: "ShelterSettings",
       entityId: "global-settings",
-      details: { before: previous, after: updated },
+      details: {
+        before: redactSettingsForAudit(previous),
+        after: redactSettingsForAudit(updated),
+      },
     });
 
+    // A QR change alters what donors scan to send money, so it gets its own
+    // immutable entry with a narrow before/after rather than being buried in a
+    // whole-settings diff.
+    const beforeQr = pickQrSettings(previous as unknown as Record<string, unknown>);
+    const afterQr = pickQrSettings(updated as unknown as Record<string, unknown>);
+    if (QR_SETTING_KEYS.some((key) => beforeQr[key] !== afterQr[key])) {
+      recordAuditLog({
+        actorId: session.id,
+        actorEmail: session.email,
+        actorRole: session.role,
+        action: "DONATION_QR_UPDATED",
+        entity: "ShelterSettings",
+        entityId: "global-settings",
+        details: { before: beforeQr, after: afterQr },
+      });
+    }
+
     try {
-      revalidatePath("/");
-      revalidatePath("/pets");
-      revalidatePath("/admin/settings");
+      // The QR config is read in the root layout and most routes prerender as
+      // static, so invalidating individual paths would leave a stale code on the
+      // ones not listed — the SSG pet detail pages in particular. Revalidating
+      // the root *layout* invalidates it and every page beneath it.
+      revalidatePath("/", "layout");
     } catch {
       // Ignored outside Next.js runtime context (e.g. unit tests)
     }

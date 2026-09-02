@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
 import { submitDonationPledgeAction } from "@/actions/donations";
+import { DonationQrPanel } from "@/components/features/donations/DonationQrPanel";
 import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
 import { Pet } from "@/types/pet";
@@ -606,53 +607,14 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-          {/* DuitNow Pink Frame */}
-          <div className="md:col-span-5 border-2 border-brand-duitnow bg-receipt-paper text-receipt-ink p-5 rounded-xl flex flex-col items-center justify-center text-center shadow-xs">
-            <div className="text-xs font-extrabold uppercase tracking-widest text-brand-duitnow mb-0.5">
-              DuitNow QR
-            </div>
-            <div className="text-3xs text-receipt-ink-muted font-semibold mb-2.5">
-              National QR Standard (PayNet Malaysia)
-            </div>
-
-            <div className="w-40 h-40 border border-receipt-rule p-2 bg-receipt-paper flex items-center justify-center relative rounded-md">
-              <svg
-                viewBox="0 0 100 100"
-                className="w-full h-full text-receipt-ink fill-current"
-              >
-                <rect x="0" y="0" width="30" height="30" fill="var(--receipt-ink)" />
-                <rect x="5" y="5" width="20" height="20" fill="white" />
-                <rect x="10" y="10" width="10" height="10" fill="var(--receipt-ink)" />
-
-                <rect x="70" y="0" width="30" height="30" fill="var(--receipt-ink)" />
-                <rect x="75" y="5" width="20" height="20" fill="white" />
-                <rect x="80" y="10" width="10" height="10" fill="var(--receipt-ink)" />
-
-                <rect x="0" y="70" width="30" height="30" fill="var(--receipt-ink)" />
-                <rect x="5" y="75" width="20" height="20" fill="white" />
-                <rect x="10" y="80" width="10" height="10" fill="var(--receipt-ink)" />
-
-                <rect x="40" y="10" width="10" height="10" fill="var(--receipt-ink)" />
-                <rect x="55" y="15" width="10" height="10" fill="var(--receipt-ink)" />
-                <rect x="35" y="35" width="30" height="30" fill="var(--brand-duitnow)" />
-                <rect x="42" y="42" width="16" height="16" fill="white" />
-                <rect x="46" y="46" width="8" height="8" fill="var(--brand-duitnow)" />
-                <rect x="70" y="45" width="10" height="10" fill="var(--receipt-ink)" />
-                <rect x="45" y="75" width="10" height="10" fill="var(--receipt-ink)" />
-                <rect x="65" y="75" width="25" height="15" fill="var(--receipt-ink)" />
-              </svg>
-            </div>
-
-            <div className="text-xs font-bold text-receipt-ink-soft mt-2.5">
-              Hope for Strays Shelter Selangor
-            </div>
-            <div className="text-3xs text-receipt-ink-faint font-mono mt-0.5">
-              {t(
-                "donations.duitNowInstructions",
-                "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app."
-              )}
-            </div>
-          </div>
+          {/* DuitNow QR — shared with the pet sponsorship modal */}
+          <DonationQrPanel
+            className="md:col-span-5"
+            instructions={t(
+              "donations.duitNowInstructions",
+              "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app."
+            )}
+          />
 
           {/* Account Details */}
           <div className="md:col-span-7 space-y-3.5 text-xs">

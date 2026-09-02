@@ -126,9 +126,9 @@ describe("soft-delete filtering under strict persistence", () => {
   describe("admin catalogue", () => {
     it("includes archived animals the public catalogue hides", async () => {
       givenPersistedPets();
-      const { getAdminPets } = await import("@/actions/pets");
+      const { getAdminPetCatalog } = await import("@/lib/domain/adminPetCatalog");
 
-      const pets = await getAdminPets();
+      const pets = await getAdminPetCatalog();
 
       // Soft deletion has to stay reversible from the admin surface; an admin
       // query that inherited the public filter would strand the record.
@@ -137,9 +137,9 @@ describe("soft-delete filtering under strict persistence", () => {
 
     it("reports the archive flag and deletion timestamp it read back", async () => {
       givenPersistedPets();
-      const { getAdminPets } = await import("@/actions/pets");
+      const { getAdminPetCatalog } = await import("@/lib/domain/adminPetCatalog");
 
-      const archived = (await getAdminPets()).find((p) => p.id === "itest-archived");
+      const archived = (await getAdminPetCatalog()).find((p) => p.id === "itest-archived");
 
       expect(archived?.isArchived).toBe(true);
       expect(archived?.deletedAt).toBeTruthy();

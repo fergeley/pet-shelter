@@ -74,8 +74,16 @@ const COLOUR_PREFIXES =
  * HTML email is built with literal hex on purpose: mail clients support neither
  * CSS custom properties nor Tailwind, so a token would arrive as an unstyled
  * colourless table. `emailTokens.ts` is the single hex mirror of globals.css tokens.
+ *
+ * `qrCode.ts` is the other place a token cannot apply. It emits a scannable QR,
+ * and a scanner thresholds on luminance: the modules must stay near-black on an
+ * opaque white ground in every theme. A themed ink would follow dark mode and
+ * quietly stop scanning, which is worse than a colour that ignores the palette.
  */
-const HEX_ALLOWED = new Set(["src/lib/presentation/emailTokens.ts"]);
+const HEX_ALLOWED = new Set([
+  "src/lib/presentation/emailTokens.ts",
+  "src/lib/domain/qrCode.ts",
+]);
 
 // ---------------------------------------------------------------------------
 // Source loading

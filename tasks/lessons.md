@@ -2,6 +2,80 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-03 — A server action is a public POST endpoint, and reads leak too
+
+Three actions in the donation QR work shipped reachable without a session.
+`loadShelterSettings` and `getShelterSettings` each returned the whole settings
+object — `resendApiKey` included — in a module that already redacted that same
+key before it reached `audit_logs`. `getAdminPets` returned archived animals and
+per-pet application counts. All three were framed as read helpers, which is why
+the authorization reflex never fired: it fires on mutations.
+
+Fixing one and missing its identical twin beside it is the argument for a guard
+rather than a patch. `tests/unit/serverActionAuth.test.ts` now requires every
+exported action to authorize or sit in an allowlist with a stated reason.
+
+**Gating is not always the fix.** Two of the three were better deleted than
+gated: one had no production caller, and `getAdminPets` only needed to stop
+being an action — its caller is a prerendered server component, so an
+authorization throw would have broken the build. Check who calls it first.
+
+## 2026-09-03 — "It rendered" is not correctness when the artifact looks valid
+
+`qrcode-generator`'s default byte mode is `charCodeAt(i) & 0xff`. An em dash
+encodes as byte `0x14`. It does not throw — it emits a perfectly scannable QR
+carrying a corrupted payment string, so a donor scans a valid code and the money
+goes nowhere.
+
+Test encoders with non-ASCII input specifically, and cap payload length in
+encoded bytes rather than UTF-16 units: QR capacity is a byte budget.
+
+## 2026-09-03 — Making a field persist can turn a harmless bug destructive
+
+The admin settings form seeds from a `localStorage`-backed store. That was
+survivable while `updateShelterSettings` wrote to a module-level variable —
+nothing persisted, so nothing could be lost. The moment the QR fields reached
+real columns, a second admin on a browser that had never uploaded them would
+open the page with empty inputs and blank the saved codes on save.
+
+When you make a field persist, audit every path that *seeds* the form. A
+previously write-only field has no loading path, and the absence is invisible
+until it deletes something.
+
+## 2026-09-03 — Persisted-but-unrendered data is a promise you have not kept
+
+`tngQrUrl` and `bankQrUrl` shipped with a column, a validator, provider context
+and a working upload control, and nothing that displayed them. The admin field
+said "not yet shown to donors", but the upload succeeded and the image landed in
+Postgres, so the interface still said "this works".
+
+A field the user can fill in is a claim that filling it does something. Either
+wire it end to end or do not ship the input; a caveat in help text does not
+cancel a working button.
+
+## 2026-09-03 — Tailwind cannot build a class name from a variable
+
+The QR panel needed a per-channel accent colour. `` border-[${accent}] `` compiles,
+renders, and produces no style at all — the JIT only sees class names that appear
+literally in the source. Use an inline `style` for a colour that varies at
+runtime, and point it at a CSS custom property so `globals.css` stays the single
+source of truth rather than growing a second copy of the hex.
+
+## 2026-09-03 — A long-lived branch stops being a merge and becomes a port
+
+The QR branch was cut before `src/lib` was reorganised into `client/`, `server/`
+and `presentation/`. By the time it was ready, `serverStore.ts` had been deleted
+and split into repositories, and a second session had built
+`server/settingsRepository.ts` doing the same job as its `domain/shelterSettings.ts`.
+Merging would have resurrected deleted files and shipped two settings layers.
+
+Rebuilding the feature on top of `origin/master` and re-applying each change was
+the cheaper and safer path. The signal to stop merging and start porting is a
+`modify/delete` conflict on a file the branch depends on. Read the other
+session's notes before assuming your version is the one to keep — the guidance
+here had already moved on from "keep master's".
+
+
 ## 2026-08-30 — Check the platform before hand-rolling a mechanism that sounds generic
 
 Spent a long session building a multi-session coordination protocol for the Midwife agent: claim

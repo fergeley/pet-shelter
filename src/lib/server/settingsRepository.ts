@@ -25,6 +25,10 @@ const INITIAL_SETTINGS: ShelterSettingsOutput = {
   announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
   adoptionFeeDog: "Free",
   adoptionFeeCat: "Free",
+  duitNowQrUrl: "",
+  tngQrUrl: "",
+  bankQrUrl: "",
+  paymentPayload: "",
   volunteerFormUrl: DEFAULT_VOLUNTEER_FORM_URL,
   volunteerFormResponsesUrl: DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
   resendApiKey: "",
@@ -74,6 +78,10 @@ export async function getServerSettingsAsync(): Promise<ShelterSettingsOutput> {
           announcementBanner: row.announcementBanner ?? "",
           adoptionFeeDog: row.adoptionFeeDog,
           adoptionFeeCat: row.adoptionFeeCat,
+          duitNowQrUrl: row.duitNowQrUrl ?? "",
+          tngQrUrl: row.tngQrUrl ?? "",
+          bankQrUrl: row.bankQrUrl ?? "",
+          paymentPayload: row.paymentPayload ?? "",
           volunteerFormUrl: row.volunteerFormUrl,
           volunteerFormResponsesUrl: row.volunteerFormResponsesUrl,
         };
@@ -104,6 +112,10 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
           announcementBanner: data.announcementBanner || null,
           adoptionFeeDog: data.adoptionFeeDog,
           adoptionFeeCat: data.adoptionFeeCat,
+          duitNowQrUrl: data.duitNowQrUrl?.trim() || null,
+          tngQrUrl: data.tngQrUrl?.trim() || null,
+          bankQrUrl: data.bankQrUrl?.trim() || null,
+          paymentPayload: data.paymentPayload?.trim() || null,
           volunteerFormUrl: data.volunteerFormUrl ?? DEFAULT_VOLUNTEER_FORM_URL,
           volunteerFormResponsesUrl:
             data.volunteerFormResponsesUrl ?? DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
@@ -118,6 +130,10 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
           announcementBanner: data.announcementBanner || null,
           adoptionFeeDog: data.adoptionFeeDog,
           adoptionFeeCat: data.adoptionFeeCat,
+          duitNowQrUrl: data.duitNowQrUrl?.trim() || null,
+          tngQrUrl: data.tngQrUrl?.trim() || null,
+          bankQrUrl: data.bankQrUrl?.trim() || null,
+          paymentPayload: data.paymentPayload?.trim() || null,
           volunteerFormUrl: data.volunteerFormUrl ?? DEFAULT_VOLUNTEER_FORM_URL,
           volunteerFormResponsesUrl:
             data.volunteerFormResponsesUrl ?? DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
@@ -135,6 +151,10 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
         announcementBanner: updated.announcementBanner ?? "",
         adoptionFeeDog: updated.adoptionFeeDog,
         adoptionFeeCat: updated.adoptionFeeCat,
+        duitNowQrUrl: updated.duitNowQrUrl ?? "",
+        tngQrUrl: updated.tngQrUrl ?? "",
+        bankQrUrl: updated.bankQrUrl ?? "",
+        paymentPayload: updated.paymentPayload ?? "",
       };
       return serverSettings;
     } catch (err) {
@@ -147,4 +167,35 @@ export async function updateServerSettings(data: ShelterSettingsInput): Promise<
     ...data,
   };
   return serverSettings;
+}
+
+/**
+ * Reads settings and reports whether they came from Postgres.
+ *
+ * The admin settings form seeds itself from a `localStorage`-backed store, so
+ * it has to overwrite its local copy from the server or a second admin would
+ * open the page with empty QR fields and blank the saved codes on save. It may
+ * only do that when the values are authoritative: treating the in-memory
+ * fallback as real would let a database outage replace live settings with
+ * defaults.
+ */
+export async function getServerSettingsWithSource(): Promise<{
+  settings: ShelterSettingsOutput;
+  fromDatabase: boolean;
+}> {
+  if (!isDatabasePersistent()) {
+    return { settings: serverSettings, fromDatabase: false };
+  }
+
+  try {
+    const row = await prisma.shelterSettings.findUnique({
+      where: { id: DEFAULT_SETTINGS_ID },
+    });
+    if (!row) return { settings: serverSettings, fromDatabase: false };
+  } catch (err) {
+    handlePersistenceError("Prisma shelter settings query", err, "read");
+    return { settings: serverSettings, fromDatabase: false };
+  }
+
+  return { settings: await getServerSettingsAsync(), fromDatabase: true };
 }

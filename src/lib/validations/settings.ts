@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { optionalQrImageUrl, optionalQrPayload } from "@/lib/validations/qrImage";
 import {
   DEFAULT_VOLUNTEER_FORM_URL,
   DEFAULT_VOLUNTEER_FORM_RESPONSES_URL,
@@ -23,6 +24,13 @@ export const shelterSettingsSchema = z.object({
   announcementBanner: z.string().optional().default(""),
   adoptionFeeDog: z.string().min(1, "Dog adoption fee is required"),
   adoptionFeeCat: z.string().min(1, "Cat adoption fee is required"),
+
+  // Donation QR codes. Each is either an /uploads/... path or an absolute
+  // http(s) URL; paymentPayload is a DuitNow/bank string we render ourselves.
+  duitNowQrUrl: optionalQrImageUrl,
+  tngQrUrl: optionalQrImageUrl,
+  bankQrUrl: optionalQrImageUrl,
+  paymentPayload: optionalQrPayload,
 
   // Volunteer intake (external Google Form).
   // The protocol is pinned because Zod's z.url() accepts `javascript:` and `data:`,
