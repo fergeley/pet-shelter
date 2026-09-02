@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Enables forbidden() / unauthorized() from next/navigation, used by
+    // /admin/members to return a real HTTP 403 instead of a soft redirect.
+    authInterrupts: true,
+  },
   allowedDevOrigins: [
     "192.168.100.12",
     "192.168.100.12:3000",
