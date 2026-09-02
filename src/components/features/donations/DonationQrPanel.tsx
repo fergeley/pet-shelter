@@ -1,15 +1,19 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
+  availableQrChannels,
   mergeQrSources,
   resolveDonationQr,
+  QR_CHANNEL_PRESENTATION,
   type DonationQrSources,
+  type QrChannel,
+  type ShelterQrConfigLike,
 } from "@/lib/domain/qrCode";
 import { useDonationQrConfig } from "@/components/providers/DonationQrProvider";
 
 /**
- * The DuitNow QR panel shown on every public donation surface.
+ * The donation QR panel shown on every public donation surface.
  *
  * This markup previously existed twice — the same twenty hand-placed <rect>
  * elements in `DonationWidget` and in `SponsorshipModal` — so wiring a real QR
@@ -18,21 +22,24 @@ import { useDonationQrConfig } from "@/components/providers/DonationQrProvider";
  */
 
 interface DonationQrPanelProps extends DonationQrSources {
-  /** Localised "scan with your banking app" line. */
-  instructions: string;
+  /**
+   * Localised "scan with your banking app" line. Falls back to the selected
+   * channel's own wording, which matters once the donor can switch rails.
+   */
+  instructions?: string;
   /** Tighter spacing for use inside the sponsorship modal. */
   compact?: boolean;
   className?: string;
+  /**
+   * Replaces the shelter config from `DonationQrProvider` wholesale.
+   *
+   * The admin preview passes the values currently in the form, including the
+   * TNG and bank codes, so the donor view it shows reflects what is about to
+   * be saved rather than what is already live.
+   */
+  configOverride?: ShelterQrConfigLike;
 }
 
-/**
- * Shelter-level sources come from `DonationQrProvider` unless a caller passes
- * them explicitly. The admin preview relies on that override to show unsaved
- * form values, which is the whole point of previewing before committing.
- */
-function useResolvedSources(props: DonationQrPanelProps) {
-  return mergeQrSources(props, useDonationQrConfig());
-}
 
 /**
  * The decorative stand-in used when the shelter has configured neither a QR
@@ -68,13 +75,28 @@ function PlaceholderQr() {
 
 export function DonationQrPanel(props: DonationQrPanelProps) {
   const { instructions, compact = false, className = "" } = props;
-  const sources = useResolvedSources(props);
+
+  // Shelter-level values come from the provider unless a caller replaces them.
+  // Individual `DonationQrSources` props still win over both, which is how the
+  // pet dialog previews one animal against the live shelter config.
+  const contextConfig = useDonationQrConfig();
+  const config = props.configOverride ?? contextConfig;
+  // `["duitnow"]` is the common case and the signal to render no switcher at
+  // all, so a shelter with only a DuitNow code looks exactly as it did before
+  // channels existed.
+  const channels = availableQrChannels(config);
+  const [selected, setSelected] = useState<QrChannel>("duitnow");
+  // An admin can remove a channel while a donor has it selected.
+  const channel = channels.includes(selected) ? selected : "duitnow";
+
+  const sources = mergeQrSources(props, config, channel);
   // The generated branch runs a full QR encode over a ~57x57 module matrix.
   // This panel sits inside DonationWidget next to its pledge form, so without
   // memoising it would re-encode on every keystroke in that form.
   const resolved = useMemo(
     () => resolveDonationQr(sources),
     [
+      channel,
       sources.petCustomQrUrl,
       sources.petName,
       sources.shelterQrUrl,
@@ -82,6 +104,13 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
       sources.shelterName,
     ]
   );
+
+  // A per-animal fund drive is one specific code, so it overrides the rails
+  // entirely and the switcher is hidden while it is showing.
+  const showSwitcher = channels.length > 1 && !resolved.isPetSpecific;
+  const presentation =
+    QR_CHANNEL_PRESENTATION[resolved.isPetSpecific ? "duitnow" : channel];
+  const accent = presentation.accent;
 
   // Sizes and spacing mirror what each surface used before this component
   // absorbed both copies, so extracting the duplicate changes no pixels.
@@ -95,17 +124,46 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
 
   return (
     <div
-      className={`border-2 border-[#ed008c] bg-white text-zinc-900 ${
+      style={{ borderColor: accent }}
+      className={`border-2 bg-white text-zinc-900 ${
         compact ? "p-4" : "p-5"
       } rounded-xl flex flex-col items-center justify-center text-center ${shadow} ${className}`}
     >
+      {showSwitcher && (
+        <div
+          role="tablist"
+          aria-label="Payment method"
+          className="mb-2 flex gap-1 rounded-lg bg-zinc-100 p-0.5"
+        >
+          {channels.map((option) => {
+            const isActive = option === channel;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setSelected(option)}
+                style={isActive ? { backgroundColor: accent } : undefined}
+                className={`rounded-md px-2 py-1 text-[10px] font-bold transition-colors ${
+                  isActive ? "text-white" : "text-zinc-600 hover:text-zinc-900"
+                }`}
+              >
+                {QR_CHANNEL_PRESENTATION[option].label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div
-        className={`${titleSize} font-extrabold uppercase tracking-widest text-[#ed008c] mb-0.5`}
+        style={{ color: accent }}
+        className={`${titleSize} font-extrabold uppercase tracking-widest mb-0.5`}
       >
-        DuitNow QR
+        {presentation.label}
       </div>
       <div className={`text-[10px] text-zinc-600 font-semibold ${subtitleGap}`}>
-        National QR Standard (PayNet Malaysia)
+        {presentation.subtitle}
       </div>
 
       <div
@@ -130,7 +188,7 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={resolved.imageUrl}
-            alt={`DuitNow QR code for ${resolved.caption}`}
+            alt={`${presentation.label} code for ${resolved.caption}`}
             className="absolute inset-0 size-full object-contain p-1"
           />
         )}
@@ -139,12 +197,17 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
       <div className={`${captionSize} font-bold text-zinc-800 ${captionGap}`}>{resolved.caption}</div>
 
       {resolved.isPetSpecific && (
-        <div className="mt-1 inline-block rounded-full bg-[#ed008c]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#ed008c]">
+        <div
+          style={{ color: accent, backgroundColor: `${accent}1a` }}
+          className="mt-1 inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+        >
           Dedicated fund drive
         </div>
       )}
 
-      <div className={`${noteSize} text-zinc-500 font-mono mt-0.5`}>{instructions}</div>
+      <div className={`${noteSize} text-zinc-500 font-mono mt-0.5`}>
+        {instructions ?? presentation.instructions}
+      </div>
 
       {resolved.kind === "placeholder" && (
         <div className={`${noteSize} text-amber-700 font-semibold mt-1`}>

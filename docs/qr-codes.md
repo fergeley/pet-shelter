@@ -81,6 +81,17 @@ Until the migration runs, `writeShelterSettings` returns `persisted: false` and
 the values live only in the server's memory — they will not survive a restart,
 and on a serverless deploy each instance holds its own copy.
 
+## Payment channels
+
+`availableQrChannels` decides which rails a donor is offered. DuitNow is always
+present because it owns the fallback chain; `tngQrUrl` and `bankQrUrl` add a tab
+each, but only once an image is uploaded for them. A shelter with only a DuitNow
+code therefore renders exactly as it did before channels existed — no switcher.
+
+The payment payload is a DuitNow EMVCo string and is never lent to another rail.
+Channel accent colours are applied inline: Tailwind cannot build a class name
+from a variable, so `border-[${accent}]` would produce no style at all.
+
 ## Deliberate deviations from the original request
 
 - **Roles.** The request named `SUPER_ADMIN` and `ANIMAL_MANAGER`. Neither

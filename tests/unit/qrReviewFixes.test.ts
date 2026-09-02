@@ -114,6 +114,8 @@ describe("save honesty", () => {
 describe("mergeQrSources undefined vs empty string", () => {
   const config = {
     duitNowQrUrl: "/uploads/shelter.png",
+    tngQrUrl: "",
+    bankQrUrl: "",
     paymentPayload: "0002010102",
     shelterName: "Rumah Harapan",
   };

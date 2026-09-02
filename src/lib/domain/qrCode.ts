@@ -205,8 +205,82 @@ export interface DonationQrSources {
 /** Shelter-level values published to the client tree by `DonationQrProvider`. */
 export interface ShelterQrConfigLike {
   duitNowQrUrl: string;
+  tngQrUrl: string;
+  bankQrUrl: string;
   paymentPayload: string;
   shelterName: string;
+}
+
+/**
+ * The payment rails a shelter-level QR can belong to.
+ *
+ * `duitnow` is the default and is always offered: it has the full fallback
+ * chain (uploaded image, then a code generated from the payment payload, then
+ * the decorative placeholder). The other two appear only when an admin has
+ * actually uploaded an image for them, so a shelter that configures DuitNow
+ * alone renders exactly as it did before channels existed.
+ */
+export type QrChannel = "duitnow" | "tng" | "bank";
+
+export interface QrChannelPresentation {
+  /** Short label for the switcher and the panel heading. */
+  label: string;
+  /** The line under the heading naming the scheme. */
+  subtitle: string;
+  /** Brand accent. Applied inline — Tailwind cannot build a class from a variable. */
+  accent: string;
+  /** Fallback "how to scan" line when the caller supplies none. */
+  instructions: string;
+}
+
+export const QR_CHANNEL_PRESENTATION: Record<QrChannel, QrChannelPresentation> = {
+  duitnow: {
+    label: "DuitNow QR",
+    subtitle: "National QR Standard (PayNet Malaysia)",
+    accent: "#ed008c",
+    instructions:
+      "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app.",
+  },
+  tng: {
+    label: "Touch 'n Go",
+    subtitle: "Touch 'n Go eWallet",
+    accent: "#1a4fa0",
+    instructions: "Open the Touch 'n Go eWallet app and scan to pay.",
+  },
+  bank: {
+    label: "Bank Transfer",
+    subtitle: "Direct bank transfer QR",
+    accent: "#334155",
+    instructions: "Scan in your banking app to prefill our account details.",
+  },
+};
+
+/** The config key holding each channel's uploaded image. */
+const CHANNEL_URL_KEY: Record<QrChannel, keyof ShelterQrConfigLike> = {
+  duitnow: "duitNowQrUrl",
+  tng: "tngQrUrl",
+  bank: "bankQrUrl",
+};
+
+/** The uploaded image configured for `channel`, or "" when there is none. */
+export function channelQrUrl(config: ShelterQrConfigLike, channel: QrChannel): string {
+  const value = config[CHANNEL_URL_KEY[channel]];
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * Which channels a donor should be offered, in payment-rail order.
+ *
+ * Returning just `["duitnow"]` is the common case and the signal to render no
+ * switcher at all.
+ */
+export function availableQrChannels(config: ShelterQrConfigLike): QrChannel[] {
+  const channels: QrChannel[] = ["duitnow"];
+  for (const channel of ["tng", "bank"] as const) {
+    const url = channelQrUrl(config, channel).trim();
+    if (url !== "" && isSafeQrImageUrl(url)) channels.push(channel);
+  }
+  return channels;
 }
 
 /**
@@ -227,13 +301,17 @@ export interface ShelterQrConfigLike {
  */
 export function mergeQrSources(
   props: DonationQrSources,
-  config: ShelterQrConfigLike
+  config: ShelterQrConfigLike,
+  channel: QrChannel = "duitnow"
 ): DonationQrSources {
   return {
     petCustomQrUrl: props.petCustomQrUrl,
     petName: props.petName,
-    shelterQrUrl: props.shelterQrUrl ?? config.duitNowQrUrl,
-    paymentPayload: props.paymentPayload ?? config.paymentPayload,
+    shelterQrUrl: props.shelterQrUrl ?? channelQrUrl(config, channel),
+    // Only DuitNow carries an EMVCo payment string; generating a code from it
+    // for the TNG or bank tab would show the wrong rail's QR.
+    paymentPayload:
+      props.paymentPayload ?? (channel === "duitnow" ? config.paymentPayload : ""),
     shelterName: props.shelterName ?? config.shelterName,
   };
 }

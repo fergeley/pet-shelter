@@ -35,13 +35,13 @@ const QR_FIELDS = [
     name: "tngQrUrl" as const,
     label: "Touch 'n Go eWallet QR",
     description:
-      "Stored, but not yet shown to donors — the public panel renders the DuitNow code only.",
+      "Optional. Adds a Touch 'n Go tab to the donor panel when set.",
   },
   {
     name: "bankQrUrl" as const,
     label: "Bank Transfer QR",
     description:
-      "Stored, but not yet shown to donors — the public panel renders the DuitNow code only.",
+      "Optional. Adds a bank-transfer tab to the donor panel when set.",
   },
 ];
 
@@ -241,13 +241,18 @@ export function DonationQrSettings({ form, canEdit }: DonationQrSettingsProps) {
         </Button>
       </div>
 
-      <QrPreviewDialog
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        shelterQrUrl={duitNowQrUrl}
-        paymentPayload={paymentPayload}
-        dirty={formState.isDirty}
-      />
+      {previewOpen && (
+        <QrPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          shelterQrUrl={duitNowQrUrl}
+          tngQrUrl={tngQrUrl}
+          bankQrUrl={bankQrUrl}
+          paymentPayload={paymentPayload}
+          shelterName={watch("shelterName") ?? ""}
+          dirty={formState.isDirty}
+        />
+      )}
     </div>
   );
 }

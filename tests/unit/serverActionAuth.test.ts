@@ -51,11 +51,6 @@ const INTENTIONALLY_PUBLIC: Record<string, string> = {
   // Delegates to an authorized action rather than checking inline.
   deletePet: "calls toggleArchivePet, which authorizes",
 
-  // KNOWN GAP, pre-existing and outside the QR work: returns archived pets and
-  // per-pet application counts with no session check. Listed so the guard
-  // passes on today's tree, not because it is correct. Fixing it needs the
-  // admin session flow verified end to end first.
-  getAdminPets: "KNOWN GAP - exposes archived pets and application counts",
 };
 
 interface ActionExport {

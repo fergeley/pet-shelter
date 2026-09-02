@@ -3,9 +3,10 @@ import { verifyAdminSession } from "@/lib/auth";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import {
   getPublicPets,
-  getAdminPets,
   toggleArchivePet,
 } from "@/actions/pets";
+// Moved out of the action module: it was an ungated server action.
+import { getAdminPetCatalog } from "@/lib/domain/adminPetCatalog";
 import { submitApplication } from "@/actions/applications";
 import { insertServerPet } from "@/lib/serverStore";
 
@@ -163,7 +164,7 @@ describe("Soft Deletes & Query Filtering", () => {
     expect(publicPets.some((p) => p.id === testPetId)).toBe(false);
 
     // SHOULD appear in admin pets with isArchived: true
-    const adminPets = await getAdminPets();
+    const adminPets = await getAdminPetCatalog();
     const archivedInAdmin = adminPets.find((p) => p.id === testPetId);
     expect(archivedInAdmin).toBeDefined();
     expect(archivedInAdmin?.isArchived).toBe(true);
