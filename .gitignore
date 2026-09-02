@@ -51,3 +51,6 @@ next-env.d.ts
 *.png
 *.gif
 *.webp
+
+# Local scratch space (PR drafts, review diffs) — never part of the tree.
+scratch/
