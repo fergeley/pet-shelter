@@ -622,6 +622,19 @@ type PaymentMethod = DonationReceipt["paymentMethod"];
  * `online_banking` deliberately does not name a bank: the receipt carries no bank field, so the
  * old "(Maybank)" in the plain-text half was an unverifiable claim on a tax document.
  */
+/** The subset of a sponsorship pledge the welcome mail renders. */
+export interface SponsorshipWelcomeInput {
+  pledgeRef: string;
+  petName: string;
+  sponsorName: string;
+  sponsorEmail: string;
+  tierName: string;
+  amountMYR: number;
+  frequency: "one_time" | "monthly";
+  paymentMethod: PaymentMethod;
+  reconciliationNotice: string;
+}
+
 const PAYMENT_RAIL_LABELS: Record<PaymentMethod, string> = {
   duitnow_qr: "DuitNow QR (PayNet)",
   online_banking: "Direct Bank Transfer",
@@ -757,5 +770,151 @@ Thank you for your life-saving generosity and support of our shelter animals!
     html,
     template: "DONATION_RECEIPT",
     entityId: receipt.receiptNumber,
+  });
+}
+
+
+/**
+ * Welcome mail for a new pet sponsorship.
+ *
+ * Deliberately not a tax document. The commitment has not been reconciled
+ * against the shelter's bank statement, so this acknowledges it, carries the
+ * supporter's badge, and states plainly when the Section 44(6) receipt follows.
+ * Sending a numbered receipt here would hand someone a filing document for a
+ * transfer that may never arrive — see `reconcilePetSponsorshipAction`.
+ *
+ * Both halves render from one `fields` object, the pattern the receipt mail
+ * adopted, so the plain-text and HTML versions cannot state different amounts.
+ */
+export async function sendSponsorshipWelcomeEmail(
+  pledge: SponsorshipWelcomeInput
+): Promise<EmailResult> {
+  const tone = EMAIL_TONE.care;
+
+  const fields = {
+    amount: `RM ${pledge.amountMYR.toFixed(2)}`,
+    cadence: pledge.frequency === "monthly" ? " / month" : "",
+    frequencyLabel:
+      pledge.frequency === "monthly" ? "Monthly Sponsorship" : "One-Time Sponsorship",
+    paymentRail: PAYMENT_RAIL_LABELS[pledge.paymentMethod],
+  };
+
+  const subject = `🐾 Thank you for sponsoring ${pledge.petName}!`;
+
+  const plainText = `
+THANK YOU FOR SPONSORING ${pledge.petName.toUpperCase()}!
+===================================================
+${SHELTER_NAME}
+${SHELTER_ADDRESS}
+Phone: ${SHELTER_PHONE} | Email: ${SHELTER_EMAIL}
+
+Dear ${pledge.sponsorName},
+
+You are now a sponsor of ${pledge.petName}. Thank you for standing behind an
+animal who needed someone.
+
+YOUR SPONSORSHIP:
+- Sponsored Animal: ${pledge.petName}
+- Care Programme: ${pledge.tierName}
+- Commitment: ${fields.amount}${fields.cadence} (${fields.frequencyLabel})
+- Payment Rail: ${fields.paymentRail}
+- Pledge Reference: ${pledge.pledgeRef}
+
+WHAT HAPPENS NEXT:
+${pledge.reconciliationNotice}
+
+Please quote ${pledge.pledgeRef} in your transfer description so our coordinator
+can match your payment quickly.
+
+IMPORTANT: This confirms your sponsorship pledge. It is NOT a tax receipt. Your
+official Section 44(6) tax-exempt receipt is issued separately once your payment
+has been reconciled.
+
+With gratitude,
+The ${SHELTER_NAME} Team
+  `.trim();
+
+  const html = wrapEmailHtml(`
+    <div style="border-bottom: 2px solid ${EMAIL_BRAND.border}; padding-bottom: 16px; margin-bottom: 20px;">
+      <span class="badge" style="background:${tone.surface};color:${tone.text};">Sponsorship Confirmed</span>
+      <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: ${EMAIL_BRAND.foreground};">
+        Thank you for sponsoring ${escapeHtml(pledge.petName)}!
+      </h2>
+      <p style="margin: 0; font-size: 13px; color: ${EMAIL_BRAND.mutedForeground};">
+        Pledge Reference: <strong style="font-family: monospace; color: ${EMAIL_BRAND.foreground};">${escapeHtml(pledge.pledgeRef)}</strong>
+      </p>
+    </div>
+
+    <p>Dear <strong>${escapeHtml(pledge.sponsorName)}</strong>,</p>
+    <p>
+      You are now a sponsor of <strong>${escapeHtml(pledge.petName)}</strong>. Your support pays for
+      the care that gets a rescued animal from intake to a home.
+    </p>
+
+    <div style="text-align:center; margin: 24px 0;">
+      <div style="display:inline-block; background:${tone.surface}; border: 2px solid ${tone.accent}; border-radius: 14px; padding: 20px 28px; text-align:center;">
+        <div style="font-size: 34px; line-height: 1;">🐾</div>
+        <div style="font-size: 15px; font-weight: 800; color:${tone.text}; text-transform: uppercase; letter-spacing: 1px; margin-top: 6px;">
+          Rescue Sponsor
+        </div>
+        <div style="font-size: 13px; font-weight: 700; color:${EMAIL_BRAND.foreground}; margin-top: 4px;">
+          ${escapeHtml(pledge.petName)}
+        </div>
+        <div style="font-size: 11px; color:${tone.text}; margin-top: 2px;">
+          ${fields.amount}${fields.cadence} &bull; ${fields.frequencyLabel}
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="background:${EMAIL_BRAND.muted}; border-left: 4px solid ${tone.accent}; padding: 18px; margin: 20px 0;">
+      <table style="width:100%; font-size: 13px; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 4px 0; color: ${EMAIL_BRAND.mutedForeground}; width: 40%;"><strong>Sponsored Animal:</strong></td>
+          <td style="padding: 4px 0; font-weight: 600; color: ${EMAIL_BRAND.foreground};">🐾 ${escapeHtml(pledge.petName)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: ${EMAIL_BRAND.mutedForeground};"><strong>Care Programme:</strong></td>
+          <td style="padding: 4px 0; font-weight: 600; color: ${EMAIL_BRAND.foreground};">${escapeHtml(pledge.tierName)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: ${EMAIL_BRAND.mutedForeground};"><strong>Commitment:</strong></td>
+          <td style="padding: 4px 0; font-weight: 700; color: ${EMAIL_BRAND.foreground};">${fields.amount}${fields.cadence} <span style="font-weight:500; color:${EMAIL_BRAND.mutedForeground};">(${fields.frequencyLabel})</span></td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 0; color: ${EMAIL_BRAND.mutedForeground};"><strong>Payment Rail:</strong></td>
+          <td style="padding: 4px 0; color: ${EMAIL_BRAND.foreground};">${fields.paymentRail}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background:${EMAIL_TONE.warning.surface}; border: 1px solid ${EMAIL_TONE.warning.accent}; padding: 14px; border-radius: 6px; font-size: 13px; color: ${EMAIL_TONE.warning.text}; margin: 20px 0; line-height: 1.55;">
+      <strong>What happens next</strong><br/>
+      ${escapeHtml(pledge.reconciliationNotice)}<br/><br/>
+      Please quote <strong style="font-family: monospace;">${escapeHtml(pledge.pledgeRef)}</strong> in your
+      transfer description so we can match your payment quickly.
+    </div>
+
+    <div style="background:${EMAIL_BRAND.muted}; padding: 14px; border-radius: 6px; font-size: 12px; color: ${EMAIL_BRAND.mutedForeground}; margin: 20px 0; line-height: 1.5;">
+      <em>
+        This confirms your sponsorship pledge and is <strong>not</strong> a tax receipt. Your
+        official Section 44(6) tax-exempt receipt is issued separately once your payment has been
+        reconciled.
+      </em>
+    </div>
+
+    <p style="font-size: 13px; color: ${EMAIL_BRAND.mutedForeground}; margin-top: 24px;">
+      With gratitude,<br/>
+      <strong>The ${SHELTER_NAME} Team</strong><br/>
+      ${SHELTER_ADDRESS}
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: pledge.sponsorEmail,
+    subject,
+    text: plainText,
+    html,
+    template: "SPONSORSHIP_WELCOME",
+    entityId: pledge.pledgeRef,
   });
 }
