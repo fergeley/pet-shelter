@@ -35,6 +35,14 @@ export interface PrismaDouble {
   petUpdate: { deleteMany: ReturnType<typeof vi.fn> };
   medicalTimelineEvent: { deleteMany: ReturnType<typeof vi.fn> };
   user: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> };
+  /**
+   * Reads only. The FAQ write paths (`create`, `update`, `delete`, and the
+   * `$transaction` + `$queryRaw … FOR UPDATE` that reordering uses) have no
+   * suite here yet, and a delegate nothing calls is a method that drifts from
+   * the shape the repository actually needs. Add them with the test that needs
+   * them.
+   */
+  faq: { findMany: ReturnType<typeof vi.fn> };
   $transaction: ReturnType<typeof vi.fn>;
   $queryRaw: ReturnType<typeof vi.fn>;
   $disconnect: ReturnType<typeof vi.fn>;
@@ -48,6 +56,12 @@ export interface PrismaDouble {
  * fixtures otherwise. Defaulting to empty means a test that forgets to arrange
  * its rows exercises the fallback and fails on a fixture value it never chose,
  * instead of quietly passing against data it did not write.
+ *
+ * That rationale is about the *pet* reader, not a house rule. `faqRepository`
+ * deliberately treats an empty result as an answer — staff have unpublished
+ * everything — and falls back only from its `catch`, so for FAQs this default
+ * means "nothing published" rather than "arrange your rows". See
+ * `faqEmptyPublishSet.test.ts`, which pins that difference.
  */
 export function createPrismaDouble(): PrismaDouble {
   return {
@@ -75,6 +89,7 @@ export function createPrismaDouble(): PrismaDouble {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({}),
     },
+    faq: { findMany: vi.fn().mockResolvedValue([]) },
     // Mirrors the real interactive form: the callback receives a transaction
     // client, and here that client is the double itself, so a test can assert
     // on the writes a transaction made.

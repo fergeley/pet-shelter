@@ -62,7 +62,8 @@ Rebuilding on a fresh branch cut from `master` was faster than untangling it.
 
 ## Left open
 
-- `tasks/open/faq-empty-publish-set-has-no-regression-test.md`
+- ~~`tasks/open/faq-empty-publish-set-has-no-regression-test.md`~~ — closed the
+  same day by `decisions/2026-09-03-empty-faq-table-is-pinned-as-an-answer.md`
 - `tasks/open/pets-json-fallback-empty-means-outage.md`
 - `tasks/open/server-action-auth-guard-has-not-seen-the-faq-reads.md`
 
