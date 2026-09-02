@@ -14,7 +14,8 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:faqs": "tsx scripts/seed-faqs.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
