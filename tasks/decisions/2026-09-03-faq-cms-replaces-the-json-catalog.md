@@ -66,10 +66,19 @@ Rebuilding on a fresh branch cut from `master` was faster than untangling it.
 - `tasks/open/pets-json-fallback-empty-means-outage.md`
 - `tasks/open/server-action-auth-guard-has-not-seen-the-faq-reads.md`
 
-Also pruned: `race-test.mjs`, `empty-state-test.mjs`, `e2e-faq.mjs` and two seed
-scripts, which verified this work before merge and live only on the closed PR #8
-branch. `race-test.mjs` is the only artefact that *demonstrated* the migration's
-advisory lock rather than asserting it — the naive check-then-create pattern
-failed 1 run in 6 with `duplicate key value violates unique constraint
-"pg_type_typname_nsp_index"`; the hardened form passed 6/6. The conclusion
-survives in the migration's comments; the demonstration does not.
+Also pruned: `race-test.mjs`, `empty-state-test.mjs`, `e2e-faq.mjs`,
+`seed-faqs.ts`, `verify-final-state.mjs` and `apply-faq-migration.mjs`, which
+verified this work before merge.
+
+They are **not** in this tree. They live at commit `e74899e`, the head of the
+closed PR #8. That branch has been deleted, but GitHub retains the pull
+request's own ref permanently, so the commit stays reachable:
+
+    git fetch origin refs/pull/8/head && git show FETCH_HEAD:scripts/race-test.mjs
+
+`race-test.mjs` is the only artefact that *demonstrated* the migration's
+advisory lock rather than asserting it — run concurrently, the naive
+check-then-create pattern failed 1 run in 6 with `duplicate key value violates
+unique constraint "pg_type_typname_nsp_index"` while the hardened form passed
+6/6. The conclusion survives in the migration's comments; the demonstration
+only at that ref.
