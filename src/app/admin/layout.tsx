@@ -15,7 +15,8 @@ import {
   ExternalLink,
   Bell,
   ShieldCheck,
-  ClipboardList
+  ClipboardList,
+  HelpCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -83,6 +84,7 @@ export default function AdminLayout({
   const navLinks = [
     { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog },
     { href: "/admin/applications", label: "Adoption Applications", icon: FileText },
+    { href: "/admin/faqs", label: "FAQ Knowledge Base", icon: HelpCircle },
     { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck },
     { href: "/admin/settings", label: "Shelter Settings", icon: Settings },
     { href: "/bulletins", label: "Community Bulletins", icon: Bell },
