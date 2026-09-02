@@ -43,7 +43,23 @@ Invalid `prisma.pet.findMany()` invocation:
 
 ### Procedure A: Push Schema to Remote / Production Database
 
-Run `prisma db push` targeting your production PostgreSQL or Neon connection string.
+> **DANGER — `prisma db push` is destructive when the database has drifted.**
+>
+> `db push` reconciles the database *to* `schema.prisma`. Anything live that the
+> schema file does not declare is **dropped**, including populated tables. This is
+> not hypothetical here: on 2026-09-02, `npx prisma db pull --print` showed
+> production carrying `Pet.rehabProgressPercent`, `Pet.rehabStage`,
+> `Pet.rehabStageMs` and the whole `medical_timeline_events` and `pet_updates`
+> tables, none of which are declared in `prisma/schema.prisma` — they belong to a
+> branch that has not landed. A `db push` from `master` would have deleted all of
+> them.
+>
+> **Always run `npx prisma db pull --print` first and diff it against
+> `prisma/schema.prisma`.** If anything in the database is missing from the file,
+> use Procedure A2 instead.
+
+Use `db push` only against a scratch or branch database you are willing to lose,
+or when a fresh `db pull` confirms the schema file is a superset of what is live.
 
 #### Option 1: Direct CLI Command (Manual Fix)
 ```bash
@@ -82,6 +98,53 @@ Applying the following changes to database:
 ```
 
 ---
+
+### Procedure A2: Apply an Additive Migration by Hand (Safe Default)
+
+Adding nullable, default-free columns is a catalog-only change in PostgreSQL: no
+table rewrite, no row lock, and invisible to code that predates them. That last
+property is what makes it safe to run *before* the code merges.
+
+1. Write the statements to a re-runnable file under `prisma/sql/`:
+
+```sql
+-- prisma/sql/YYYY-MM-DD-<change>.sql
+ALTER TABLE "shelter_settings" ADD COLUMN IF NOT EXISTS "duitNowQrUrl" TEXT;
+ALTER TABLE "pets"             ADD COLUMN IF NOT EXISTS "customQrUrl"  TEXT;
+
+-- Rollback:
+-- ALTER TABLE "shelter_settings" DROP COLUMN IF EXISTS "duitNowQrUrl";
+-- ALTER TABLE "pets"             DROP COLUMN IF EXISTS "customQrUrl";
+```
+
+2. Apply it:
+
+```bash
+npx prisma db execute --file prisma/sql/YYYY-MM-DD-<change>.sql
+```
+
+Prisma 7 removed `--schema` from `db execute`; it errors with "unknown or
+unexpected option". The datasource URL comes from `prisma.config.ts`, which loads
+`.env.local`.
+
+3. Verify with `npx prisma db pull --print` — confirm the new columns exist **and**
+   that nothing else disappeared.
+
+#### Run the migration before merging the code, not after
+
+Prisma selects every column its generated client declares. Between merging a
+schema change and applying it, ordinary reads fail:
+
+```
+prisma.pet.findMany() -> The column `pets.customQrUrl` does not exist
+```
+
+This codebase catches those errors and falls back to in-memory seed data, so the
+site keeps rendering while silently serving `src/data/pets.json` instead of real
+records — and `insertServerPet` / `updateServerPet` catch it too and only
+`console.warn`, so writes appear to succeed and persist nothing. Because additive
+columns are invisible to the older code, migrating first has no downside and
+removes the window entirely.
 
 ### Procedure B: Seed Production Database with Initial Data
 

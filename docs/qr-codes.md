@@ -1,5 +1,10 @@
 # Donation QR codes
 
+> How this feature works is below. **Why it looks the way it does** — the
+> assertions in the original request that turned out to be false, the defects
+> found reviewing the first implementation, and what is still open — is in
+> [`docs/tasks/REVIEW_DONATION_QR.md`](tasks/REVIEW_DONATION_QR.md).
+
 Malaysian donors pay through DuitNow QR, Touch 'n Go eWallet, and direct bank
 transfer. Admins manage those codes shelter-wide, and optionally per animal for
 a dedicated medical fund drive.
