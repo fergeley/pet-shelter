@@ -3,7 +3,17 @@ export type SponsorshipTierId = "kibble" | "vaccine" | "spay_neuter" | "emergenc
 export interface SponsorshipTier {
   id: SponsorshipTierId;
   name: string;
-  amount: number; // in MYR
+  /** One-time gift price, in MYR. */
+  amount: number;
+  /**
+   * Recurring monthly price, in MYR — deliberately lower than `amount`.
+   *
+   * A one-time gift funds a discrete thing (a course of vaccines, one surgery);
+   * a monthly sponsorship is a standing commitment, priced so it is affordable
+   * to keep rather than to make once. Both are ringgit, like `amount`, and are
+   * converted to sen at the single `senFromRinggit` boundary on the server.
+   */
+  monthlyAmount: number;
   frequency: "one_time" | "monthly";
   tagline: string;
   description: string;
