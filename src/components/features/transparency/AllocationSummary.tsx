@@ -39,12 +39,21 @@ export function AllocationSummary({
   const { isMs } = useLanguage();
 
   if (allocation.length === 0) {
+    // "Nothing published yet" and "we could not read the ledger" are different
+    // statements, and only one of them is true at a time. Saying the first when
+    // the second happened is a false claim about the shelter's spending.
+    const unavailable = source === "unavailable";
+
     return (
       <div className="rounded-2xl border border-border bg-background p-8 text-center">
         <p className="text-sm text-muted-foreground">
-          {isMs
-            ? "Pecahan perbelanjaan akan dipaparkan sebaik sahaja lejar dikemas kini."
-            : "The expense breakdown will appear here once the ledger is updated."}
+          {unavailable
+            ? isMs
+              ? "Pecahan perbelanjaan tidak dapat dimuatkan buat masa ini. Sila cuba sebentar lagi."
+              : "The expense breakdown could not be loaded right now. Please check back shortly."
+            : isMs
+              ? "Pecahan perbelanjaan akan dipaparkan sebaik sahaja lejar dikemas kini."
+              : "The expense breakdown will appear here once the ledger is updated."}
         </p>
         <Link
           href="/transparency"

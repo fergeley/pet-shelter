@@ -37,6 +37,7 @@ const prismaMock = vi.hoisted(() => {
   const model = () => ({
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     upsert: vi.fn(),
@@ -146,18 +147,15 @@ describe("Transparency domain - dates", () => {
     expect(formatTimestampDate("2026-01-01T00:00:00.000Z", true)).toBe("1 Januari 2026");
   });
 
-  it("is stable regardless of the process timezone", () => {
-    const iso = "2026-03-28T23:30:00.000Z";
-    const original = process.env.TZ;
-    try {
-      process.env.TZ = "Asia/Kuala_Lumpur";
-      const inKL = formatTimestampDate(iso);
-      process.env.TZ = "UTC";
-      const inUtc = formatTimestampDate(iso);
-      expect(inKL).toBe(inUtc);
-    } finally {
-      process.env.TZ = original;
-    }
+  it("never consults the local clock, so it cannot vary by timezone", () => {
+    // Asserted structurally rather than by reassigning process.env.TZ: that does
+    // not reliably repoint V8's timezone mid-process, and restoring an
+    // originally-unset TZ writes the literal string "undefined" for every later
+    // test in the worker. A timestamp at 23:30 UTC is the following day in
+    // Malaysia (UTC+8); the output must still be the UTC calendar date.
+    expect(formatTimestampDate("2026-03-28T23:30:00.000Z")).toBe("28 March 2026");
+    expect(formatTimestampDate("2026-03-28T00:30:00.000Z")).toBe("28 March 2026");
+    expect(formatTimestampDate("2026-12-31T16:00:00.000Z")).toBe("31 December 2026");
   });
 
   it("returns the input unchanged when it is not a date at all", () => {
@@ -463,9 +461,17 @@ describe("Baseline dataset integrity", () => {
   });
 
   it("points every report at a site-relative path or https URL", () => {
+    // Checked through the schema itself so the fixture and the rule cannot
+    // disagree about what is allowed — the previous hand-rolled regex did.
     for (const report of data.reports) {
       expect(
-        report.fileUrl.startsWith("/") || /^https:\/\//.test(report.fileUrl)
+        financialReportSchema.safeParse({
+          year: report.year,
+          month: report.month,
+          title: "Fixture",
+          fileUrl: report.fileUrl,
+          publishedAt: "2026-01-01T00:00:00.000Z",
+        }).success
       ).toBe(true);
     }
   });
@@ -582,6 +588,36 @@ describe("Validation schemas", () => {
     ]) {
       expect(financialReportSchema.safeParse({ ...validReport, fileUrl }).success).toBe(false);
     }
+  });
+
+  it("rejects protocol-relative URLs that masquerade as site paths", () => {
+    // "//evil.example/x.pdf" starts with "/" but is an absolute off-site URL.
+    // A bare startsWith("/") check passed it, and the renderer then classified
+    // it as internal — so the link omitted rel="noopener noreferrer" while
+    // actually navigating away from the site.
+    for (const fileUrl of [
+      "//evil.example/statement.pdf",
+      "///evil.example/statement.pdf",
+      "//evil.example",
+    ]) {
+      expect(financialReportSchema.safeParse({ ...validReport, fileUrl }).success).toBe(false);
+    }
+    expect(
+      financialReportSchema.safeParse({ ...validReport, fileUrl: "/reports/ok.pdf" }).success
+    ).toBe(true);
+  });
+
+  it("rejects plaintext http, which the error message already promised", () => {
+    // These links are presented to donors as audited financial statements; over
+    // HTTP from an HTTPS page they are mixed content and MITM-modifiable.
+    expect(
+      financialReportSchema.safeParse({ ...validReport, fileUrl: "http://old.example/a.pdf" })
+        .success
+    ).toBe(false);
+    expect(
+      financialReportSchema.safeParse({ ...validReport, fileUrl: "https://ok.example/a.pdf" })
+        .success
+    ).toBe(true);
   });
 
   it("rejects an out-of-range month", () => {
@@ -898,6 +934,8 @@ describe("Write failures", () => {
     notFound.code = "P2025";
     prismaMock.expenseItem.delete.mockRejectedValue(notFound);
     prismaMock.expenseItem.update.mockRejectedValue(notFound);
+    // The update now reads the prior row first, for the audit trail's `before`.
+    prismaMock.expenseItem.findUnique.mockResolvedValue(null);
 
     const { deleteExpenseItem, updateExpenseItem } = await import(
       "@/lib/domain/transparencyStore"
@@ -919,6 +957,54 @@ describe("Write failures", () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toBe("That expense entry no longer exists.");
+  });
+
+  it("returns the removed row so the audit log can record what was deleted", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const row = {
+      id: "db-9",
+      category: "MEDICAL",
+      title: "Major surgery",
+      amountSen: 6_000_000,
+      date: "2026-08-01",
+      vendorOrClinic: "Clinic",
+      petName: null,
+      receiptRef: "INV-9",
+      isPublished: true,
+    };
+    prismaMock.expenseItem.delete.mockResolvedValue(row);
+
+    const { deleteExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const removed = await deleteExpenseItem("db-9");
+
+    // A cuid alone resolves to nothing once the row is gone; the amount and
+    // category are the only record of why the allocation moved.
+    expect(removed?.record.amountSen).toBe(6_000_000);
+    expect(removed?.record.category).toBe("MEDICAL");
+    expect(removed?.record.receiptRef).toBe("INV-9");
+  });
+
+  it("records the prior values when an expense is edited", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const previous = {
+      id: "db-8",
+      category: "MEDICAL",
+      title: "Before",
+      amountSen: 100,
+      date: "2026-08-01",
+      vendorOrClinic: null,
+      petName: null,
+      receiptRef: null,
+      isPublished: true,
+    };
+    prismaMock.expenseItem.findUnique.mockResolvedValue(previous);
+    prismaMock.expenseItem.update.mockResolvedValue({ ...previous, amountSen: 999999 });
+
+    const { updateExpenseItem } = await import("@/lib/domain/transparencyStore");
+    const result = await updateExpenseItem("db-8", { amountSen: 999999 });
+
+    expect(result?.before?.amountSen).toBe(100);
+    expect(result?.record.amountSen).toBe(999999);
   });
 
   it("rejects a duplicate financial report", async () => {

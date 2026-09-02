@@ -151,9 +151,13 @@ export function TransparencyPageView({ snapshot }: { snapshot: TransparencySnaps
                 ? isMs
                   ? `Peratusan di bawah dijumlahkan daripada ${formatMYR(snapshot.totalSen)} perbelanjaan yang disahkan dan direkodkan dalam lejar awam kami. Angka ini berubah secara automatik apabila perbelanjaan baharu direkodkan.`
                   : `The shares below are summed from ${formatMYR(snapshot.totalSen)} of verified expenses recorded in our public ledger. They move automatically as new spending is recorded — nobody types a percentage.`
-                : isMs
-                  ? "Setiap peratusan di halaman ini dikira terus daripada lejar perbelanjaan kami. Tiada perbelanjaan diterbitkan lagi untuk tempoh ini."
-                  : "Every share on this page is computed directly from our expense ledger. No spending has been published for this period yet."}
+                : snapshot.source === "unavailable"
+                  ? isMs
+                    ? "Angka tidak dapat dimuatkan daripada lejar buat masa ini. Ini bukan bermakna tiada perbelanjaan direkodkan."
+                    : "The figures could not be loaded from the ledger right now. That does not mean no spending was recorded."
+                  : isMs
+                    ? "Setiap peratusan di halaman ini dikira terus daripada lejar perbelanjaan kami. Tiada perbelanjaan diterbitkan lagi untuk tempoh ini."
+                    : "Every share on this page is computed directly from our expense ledger. No spending has been published for this period yet."}
             </p>
           </div>
 

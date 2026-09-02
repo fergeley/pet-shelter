@@ -12,15 +12,27 @@ const isoDate = z
   .trim()
   .refine(isIsoDate, "Date must be a real calendar date in YYYY-MM-DD format");
 
-/** Rejects `javascript:` and other script-bearing URLs on an admin-supplied link. */
+/**
+ * Rejects `javascript:` and other script-bearing URLs on an admin-supplied link.
+ *
+ * Two traps this guards, both found in review:
+ *  - `//evil.example/x.pdf` starts with "/" but is a PROTOCOL-RELATIVE absolute
+ *    URL. It would pass a bare `startsWith("/")` check and then be classified as
+ *    a same-site path, so the link would render without `rel="noopener
+ *    noreferrer"` while actually navigating off-site.
+ *  - Plain `http://` on a page served over HTTPS is mixed content, and these
+ *    links are presented to donors as audited financial statements.
+ */
 const fileUrl = z
   .string()
   .trim()
   .min(1, "A file URL or path is required")
   .max(2048, "File URL is too long")
   .refine(
-    (value) => value.startsWith("/") || /^https?:\/\//i.test(value),
-    "Link must be an absolute https:// URL or a site-relative path starting with /"
+    (value) =>
+      (value.startsWith("/") && !value.startsWith("//")) ||
+      /^https:\/\/[^/]/i.test(value),
+    "Link must be an absolute https:// URL or a site-relative path starting with a single /"
   );
 
 export const expenseItemSchema = z.object({

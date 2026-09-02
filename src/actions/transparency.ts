@@ -103,6 +103,14 @@ function toMessage(err: unknown, fallback: string): string {
     return "The database is unavailable, so this change was not saved. Try again once it is reachable.";
   }
 
+  // The duplicate check in `createFinancialReport` is a read-then-write, so two
+  // concurrent submits can both pass it and the unique index catches the second.
+  // Without this the editor saw a generic failure for a duplicate the database
+  // had just correctly prevented, and would retry.
+  if (err && typeof err === "object" && (err as { code?: unknown }).code === "P2002") {
+    return "A report with that title already exists for that period.";
+  }
+
   // Zod errors carry field-level detail that is useful and safe to surface.
   if (err && typeof err === "object" && (err as { name?: unknown }).name === "ZodError") {
     const issues = (err as { issues?: { message?: string }[] }).issues ?? [];
@@ -210,7 +218,9 @@ export async function updateExpenseItemAction(
       action: "TRANSPARENCY_EXPENSE_UPDATED",
       entity: "ExpenseItem",
       entityId: id,
-      details: { after: validated, persistedTo: result.persistedTo },
+      // `before` matters as much as `after`: an amount edit changes published
+      // percentages, and "after" alone cannot show what it changed from.
+      details: { before: result.before, after: validated, persistedTo: result.persistedTo },
     });
 
     revalidateLedger();
@@ -224,8 +234,8 @@ export async function deleteExpenseItemAction(id: string): Promise<ActionResult>
   try {
     const session = await authorizeWrite();
 
-    const persistedTo = await deleteExpenseItem(id);
-    if (!persistedTo) {
+    const removed = await deleteExpenseItem(id);
+    if (!removed) {
       return { success: false, error: "That expense entry no longer exists." };
     }
 
@@ -236,11 +246,14 @@ export async function deleteExpenseItemAction(id: string): Promise<ActionResult>
       action: "TRANSPARENCY_EXPENSE_DELETED",
       entity: "ExpenseItem",
       entityId: id,
-      details: { persistedTo },
+      // The whole removed row: deleting it moves the published allocation, and
+      // once gone the id resolves to nothing, so this is the only record of what
+      // changed and by how much.
+      details: { removed: removed.record, persistedTo: removed.persistedTo },
     });
 
     revalidateLedger();
-    return { success: true, persistedTo };
+    return { success: true, persistedTo: removed.persistedTo };
   } catch (err) {
     return { success: false, error: toMessage(err, "Failed to delete expense") };
   }
@@ -286,8 +299,8 @@ export async function deleteImpactStatAction(key: string): Promise<ActionResult>
   try {
     const session = await authorizeWrite();
 
-    const persistedTo = await deleteImpactStat(key);
-    if (!persistedTo) {
+    const removed = await deleteImpactStat(key);
+    if (!removed) {
       return { success: false, error: "That impact statistic no longer exists." };
     }
 
@@ -298,11 +311,11 @@ export async function deleteImpactStatAction(key: string): Promise<ActionResult>
       action: "TRANSPARENCY_IMPACT_STAT_DELETED",
       entity: "ImpactStat",
       entityId: key,
-      details: { persistedTo },
+      details: { removed: removed.record, persistedTo: removed.persistedTo },
     });
 
     revalidateLedger();
-    return { success: true, persistedTo };
+    return { success: true, persistedTo: removed.persistedTo };
   } catch (err) {
     return { success: false, error: toMessage(err, "Failed to delete impact statistic") };
   }
@@ -348,8 +361,8 @@ export async function deleteFinancialReportAction(id: string): Promise<ActionRes
   try {
     const session = await authorizeWrite();
 
-    const persistedTo = await deleteFinancialReport(id);
-    if (!persistedTo) {
+    const removed = await deleteFinancialReport(id);
+    if (!removed) {
       return { success: false, error: "That report no longer exists." };
     }
 
@@ -360,11 +373,11 @@ export async function deleteFinancialReportAction(id: string): Promise<ActionRes
       action: "TRANSPARENCY_REPORT_DELETED",
       entity: "FinancialReport",
       entityId: id,
-      details: { persistedTo },
+      details: { removed: removed.record, persistedTo: removed.persistedTo },
     });
 
     revalidateLedger();
-    return { success: true, persistedTo };
+    return { success: true, persistedTo: removed.persistedTo };
   } catch (err) {
     return { success: false, error: toMessage(err, "Failed to delete report") };
   }

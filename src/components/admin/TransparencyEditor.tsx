@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/lib/adminAuth";
+import { TRANSPARENCY_EDITOR_ROLES } from "@/lib/security/rbac";
 import {
   EXPENSE_CATEGORIES,
   ExpenseItemRecord,
@@ -53,14 +54,15 @@ import {
  */
 
 /**
- * Must match `TRANSPARENCY_EDITOR_ROLES` on the server exactly.
+ * The server's own list, imported rather than copied.
  *
- * `AdminUser["role"]` also allows lowercase legacy values, but the server
- * compares against the uppercase `Role` enum — so accepting "admin" here handed
- * that account a full editor UI whose every action then failed authorisation,
- * which is precisely what mirroring the rule is supposed to prevent.
+ * A hand-kept duplicate is exactly the call site that a future role change would
+ * miss: widen the server list and the editor still refuses; narrow it and the
+ * editor offers a form whose every submit fails authorisation. `AdminUser["role"]`
+ * also permits lowercase legacy values, which the server's uppercase enum
+ * rejects — so the comparison is deliberately exact, not case-insensitive.
  */
-const EDITOR_ROLES = ["ADMIN", "COORDINATOR"];
+const EDITOR_ROLES: readonly string[] = TRANSPARENCY_EDITOR_ROLES;
 
 const fieldClass =
   "w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -74,17 +76,39 @@ interface Banner {
   message: string;
 }
 
-const emptyExpense = {
-  id: "",
-  category: EXPENSE_CATEGORIES[0].key as string,
-  title: "",
-  amount: "",
-  date: new Date().toISOString().slice(0, 10),
-  vendorOrClinic: "",
-  petName: "",
-  receiptRef: "",
-  isPublished: true,
-};
+/**
+ * Today in the VIEWER's timezone, as YYYY-MM-DD.
+ *
+ * `toISOString()` yields the UTC date, which in Malaysia (UTC+8) is still
+ * yesterday between local midnight and 08:00 — so an editor recording a morning
+ * expense got yesterday's date pre-filled in a field that looked right, filing
+ * it into the wrong month and moving that month's published subtotal.
+ */
+function todayLocalIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Built per call, never shared as a module constant: a constant is evaluated
+ * once at import, so a tab left open overnight kept offering yesterday's date
+ * (and, for the report year, last year after New Year).
+ */
+function makeEmptyExpense() {
+  return {
+    id: "",
+    category: EXPENSE_CATEGORIES[0].key as string,
+    title: "",
+    amount: "",
+    date: todayLocalIso(),
+    vendorOrClinic: "",
+    petName: "",
+    receiptRef: "",
+    isPublished: true,
+  };
+}
 
 const emptyStat = {
   key: "",
@@ -97,15 +121,17 @@ const emptyStat = {
   isPublished: true,
 };
 
-const emptyReport = {
-  year: new Date().getFullYear(),
-  month: "" as string,
-  title: "",
-  fileUrl: "",
-  summary: "",
-  publishedAt: new Date().toISOString().slice(0, 10),
-  isPublished: true,
-};
+function makeEmptyReport() {
+  return {
+    year: new Date().getFullYear(),
+    month: "" as string,
+    title: "",
+    fileUrl: "",
+    summary: "",
+    publishedAt: todayLocalIso(),
+    isPublished: true,
+  };
+}
 
 export function TransparencyEditor() {
   const { user, isLoading: authLoading } = useAdminAuth();
@@ -159,6 +185,7 @@ export function TransparencyEditor() {
           setBanner({ kind: "error", message: res.error ?? "Operation failed" });
           return false;
         }
+        // falls through to the success path below
         await refresh();
         setBanner(
           res.persistedTo === "memory"
@@ -169,6 +196,19 @@ export function TransparencyEditor() {
             : { kind: "success", message: successMessage }
         );
         return true;
+      } catch (err) {
+        // A Server Action can reject outright — a dropped connection, a 500, or
+        // deploy skew. Without this the banner had already been cleared, the
+        // spinner stopped, and the editor was left with no feedback at all and
+        // an unhandled rejection (every delete button calls this as `void run`).
+        setBanner({
+          kind: "error",
+          message:
+            err instanceof Error && err.message
+              ? `Could not reach the server: ${err.message}`
+              : "Could not reach the server. Your change may not have been saved — reload before retrying.",
+        });
+        return false;
       } finally {
         setBusy(false);
       }
@@ -334,7 +374,7 @@ function ExpensesTab({
   busy: boolean;
   run: Runner;
 }) {
-  const [form, setForm] = useState(emptyExpense);
+  const [form, setForm] = useState(makeEmptyExpense);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const isEditing = form.id !== "";
@@ -385,7 +425,7 @@ function ExpensesTab({
       isEditing ? "Expense updated." : "Expense added to the public ledger."
     );
 
-    if (ok) setForm(emptyExpense);
+    if (ok) setForm(makeEmptyExpense());
   };
 
   return (
@@ -403,7 +443,7 @@ function ExpensesTab({
               type="button"
               variant="outline"
               size="xs"
-              onClick={() => setForm(emptyExpense)}
+              onClick={() => setForm(makeEmptyExpense())}
             >
               Cancel edit
             </Button>
@@ -924,7 +964,7 @@ function ReportsTab({
   busy: boolean;
   run: Runner;
 }) {
-  const [form, setForm] = useState(emptyReport);
+  const [form, setForm] = useState(makeEmptyReport);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -965,7 +1005,7 @@ function ReportsTab({
         }),
       "Report published to the transparency page."
     );
-    if (ok) setForm(emptyReport);
+    if (ok) setForm(makeEmptyReport());
   };
 
   return (

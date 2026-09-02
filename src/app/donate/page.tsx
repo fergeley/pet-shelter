@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DonatePageView } from "@/components/features/donations/DonatePageView";
-import { readTransparencySnapshot } from "@/lib/domain/transparencyStore";
+import { readAllocationSummary } from "@/lib/domain/transparencyStore";
 
 export const metadata: Metadata = {
   title: "Donate & Sponsor a Rescue | Hope for Strays",
@@ -18,14 +18,15 @@ export const revalidate = 300;
  * client-side round trip.
  */
 export default async function DonatePage() {
-  const snapshot = await readTransparencySnapshot();
+  // Only the derived figures — this page never lists individual expenses.
+  const summary = await readAllocationSummary();
 
   return (
     <DonatePageView
-      allocation={snapshot.allocation}
-      impactStats={snapshot.impactStats}
-      totalSen={snapshot.totalSen}
-      source={snapshot.source}
+      allocation={summary.allocation}
+      impactStats={summary.impactStats}
+      totalSen={summary.totalSen}
+      source={summary.source}
     />
   );
 }

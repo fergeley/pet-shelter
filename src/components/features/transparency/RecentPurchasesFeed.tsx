@@ -44,10 +44,24 @@ export function RecentPurchasesFeed({
     [items, categoryFilter]
   );
 
-  const months = useMemo(
-    () => groupExpensesByMonth(filtered, isMs),
-    [filtered, isMs]
-  );
+  const months = useMemo(() => {
+    const grouped = groupExpensesByMonth(filtered, isMs);
+
+    // Rows arrive newest-first and are cut at a fixed count, so the OLDEST
+    // group is the only one that can be partial. Its subtotal would understate
+    // the month while being labelled as that month's total, so it is dropped
+    // rather than shown wrong. Every remaining month is complete.
+    if (hasMore && grouped.length > 1) return grouped.slice(0, -1);
+    return grouped;
+  }, [filtered, isMs, hasMore]);
+
+  const activeCategoryLabel =
+    categoryFilter === "ALL"
+      ? null
+      : (() => {
+          const meta = getCategoryMeta(categoryFilter);
+          return meta ? (isMs ? meta.labelMs : meta.label) : categoryFilter;
+        })();
 
   const shown = months.slice(0, visibleMonths);
   const hasMoreMonths = months.length > visibleMonths;
@@ -117,7 +131,12 @@ export function RecentPurchasesFeed({
                   {month.monthLabel}
                 </h3>
                 <span className="text-xs font-semibold tabular-nums text-muted-foreground">
-                  {isMs ? "Jumlah bulan" : "Month total"}: {formatMYR(month.subtotalSen)}
+                  {/* Under a filter this is the selected category's spend, not
+                      the month's — labelling it "Month total" overstated what
+                      the reader was looking at. */}
+                  {activeCategoryLabel
+                    ? `${activeCategoryLabel}: ${formatMYR(month.subtotalSen)}`
+                    : `${isMs ? "Jumlah bulan" : "Month total"}: ${formatMYR(month.subtotalSen)}`}
                 </span>
               </div>
 

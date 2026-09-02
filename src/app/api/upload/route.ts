@@ -17,6 +17,20 @@ const MAX_FILE_SIZE_BY_TYPE: Record<string, number> = {
   "application/pdf": 10 * 1024 * 1024, // 10MB
 };
 
+// The stored extension is derived from the validated MIME type, never from the
+// uploaded filename. Files land in `public/uploads/`, which is served from this
+// site's own origin with a Content-Type chosen by extension — so honouring a
+// client-supplied `.html` on a file whose bytes merely START with a valid
+// signature would publish same-origin HTML. Adding PDF widened that surface,
+// because "%PDF-1.4\n<script>…" is both a passing signature and a valid page.
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+};
+
 // Magic numbers for file validation (file signatures)
 const FILE_SIGNATURES: Record<string, Buffer> = {
   "image/jpeg": Buffer.from([0xff, 0xd8, 0xff]),
@@ -83,11 +97,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique, sanitized filename
+    // Generate unique, sanitized filename. The base name keeps no dots, so the
+    // extension below is the only one the stored file can have.
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const originalName = file.name.replace(/[^a-z0-9.-]/gi, "_");
-    const filename = `${timestamp}-${randomStr}-${originalName}`;
+    const extension = EXTENSION_BY_TYPE[file.type];
+    if (!extension) {
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    }
+
+    const baseName =
+      file.name
+        .replace(/\.[^.]*$/, "")
+        .replace(/[^a-z0-9-]/gi, "_")
+        .slice(0, 60) || "upload";
+    const filename = `${timestamp}-${randomStr}-${baseName}.${extension}`;
 
     // Read bytes into Buffer
     const arrayBuffer = await file.arrayBuffer();

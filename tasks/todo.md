@@ -117,6 +117,60 @@ site-wide** — a `"use client"` page is still server-rendered, so `/donate` had
 exactly this behaviour before the split. Fixing it means changing how the
 provider seeds its language for every page, which is outside this task.
 
+## Third round — `/code-review` findings
+
+Security
+- [x] `fileUrl` accepted protocol-relative `//evil.example/x.pdf`: it starts with
+      "/" so it passed validation, and `isExternal` then classified it as
+      same-site, rendering the donor-facing "Download PDF" link without
+      `rel="noopener noreferrer"` while actually navigating off-site. Also
+      tightened to `https://` — the error message already promised that, but the
+      regex allowed plaintext `http://` (mixed content on an audited statement).
+- [x] The upload route derived the stored filename from the client's `file.name`,
+      keeping its extension. A file whose bytes start `%PDF-1.4` but is named
+      `x.html` passed the signature check and landed in `public/uploads/`, served
+      as `text/html` from our own origin — stored XSS. The extension now comes
+      from the validated MIME type and the base name is stripped of dots.
+
+Correctness
+- [x] Month subtotals were summed from only the rows inside the 120-row window,
+      so the boundary month was understated while labelled as that month's total.
+      The oldest group is now dropped when the window is truncated; every month
+      shown is complete.
+- [x] Under a category filter the same heading showed one category's spend
+      labelled "Month total". It now names the category.
+- [x] `/donate` and `/transparency` said "no spending has been published yet"
+      when the ledger read had actually failed — two different claims, only one
+      true at a time.
+- [x] `run()` in the editor had no `catch`: a rejecting Server Action cleared the
+      banner, stopped the spinner and left no feedback, plus an unhandled
+      rejection from every `void run(...)` delete button.
+- [x] Form date defaults were module-level `toISOString()` — UTC (so wrong for
+      Malaysia between local midnight and 08:00) and frozen at import.
+- [x] P2002 from the new unique index returned a generic failure instead of the
+      duplicate message the constraint had just earned.
+
+Auditability
+- [x] Deleting a ledger entry recorded only `{ persistedTo }` against a cuid that
+      no longer resolves — no amount, category or receipt reference, on a feature
+      justified by ROS/AGM compliance. Deletes now return the removed row and log
+      it; updates log `before` as well as `after`.
+
+Duplication / cost
+- [x] `getBaselineRecords` and `prisma/seed.ts` each normalised the sample JSON,
+      and had already diverged (the seed skipped the category guard and cast with
+      `as never`). Both now use `getSampleLedger` from a shared pure module.
+- [x] The editor hand-copied the server's role list. It now imports
+      `TRANSPARENCY_EDITOR_ROLES`; `rbac.ts` uses a type-only session import so no
+      `next/headers` reaches the client bundle (verified by a successful build).
+- [x] `/donate` called the full snapshot read — 120 expense rows and every report
+      — to render five percentages. Added `readAllocationSummary` (two queries).
+      Report queries are now bounded by `REPORT_LIMIT` too.
+- [x] Test teardown wrote the literal string "undefined" into `process.env.TZ`
+      for every later test in the worker. That test also asserted nothing real
+      (reassigning TZ mid-process does not repoint V8), so it was replaced with
+      assertions that hold by construction.
+
 ## Review
 
 The most valuable thing the work produced was a bug the *new* tests caught rather

@@ -1,4 +1,6 @@
-import { SessionUser } from "./session";
+// Type-only: keeps `session.ts` (and its `next/headers` import) out of any
+// client bundle that imports a constant from this module.
+import type { SessionUser } from "./session";
 
 export const ROLES = {
   ADMIN: "ADMIN",

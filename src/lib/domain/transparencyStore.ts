@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import baseline from "@/data/transparency.json";
+import { getSampleLedger, type SampleLedger } from "./transparencySample";
 import {
   buildSnapshot,
   emptySnapshot,
@@ -10,6 +10,7 @@ import {
   ImpactStatRecord,
   TransparencySnapshot,
   TransparencySource,
+  allocationFromTotals,
   categoryTotalsFromItems,
   isCountableExpense,
   isExpenseCategory,
@@ -34,91 +35,12 @@ export const PUBLIC_FEED_LIMIT = 120;
 /** Rows loaded into the admin editor. Bounded so the table cannot grow without limit. */
 export const ADMIN_LEDGER_LIMIT = 500;
 
+/** Published statements listed on the page. A decade of monthly filings fits. */
+export const REPORT_LIMIT = 200;
+
 type MutationTarget = "database" | "memory";
 
-interface MemoryState {
-  expenses: ExpenseItemRecord[];
-  reports: FinancialReportRecord[];
-  impactStats: ImpactStatRecord[];
-}
-
-interface BaselineExpense {
-  id: string;
-  category: string;
-  title: string;
-  amountSen: number;
-  date: string;
-  vendorOrClinic: string | null;
-  petName: string | null;
-  receiptRef: string | null;
-}
-
-interface BaselineReport {
-  id: string;
-  year: number;
-  month: number | null;
-  title: string;
-  fileUrl: string;
-  summary: string | null;
-  publishedAt: string;
-}
-
-interface BaselineStat {
-  id: string;
-  key: string;
-  metricValue: string;
-  label: string;
-  labelMs: string | null;
-  period: string;
-  periodMs: string | null;
-  displayOrder: number;
-}
-
-/** Baseline rows, normalised into domain records. Exported for `prisma/seed.ts`. */
-export function getBaselineRecords(): MemoryState {
-  const raw = baseline as unknown as {
-    expenses: BaselineExpense[];
-    reports: BaselineReport[];
-    impactStats: BaselineStat[];
-  };
-
-  return {
-    expenses: raw.expenses
-      .filter((e) => isExpenseCategory(e.category))
-      .map((e) => ({
-        id: e.id,
-        category: e.category as ExpenseCategoryKey,
-        title: e.title,
-        amountSen: e.amountSen,
-        date: e.date,
-        vendorOrClinic: e.vendorOrClinic,
-        petName: e.petName,
-        receiptRef: e.receiptRef,
-        isPublished: true,
-      })),
-    reports: raw.reports.map((r) => ({
-      id: r.id,
-      year: r.year,
-      month: r.month,
-      title: r.title,
-      fileUrl: r.fileUrl,
-      summary: r.summary,
-      publishedAt: r.publishedAt,
-      isPublished: true,
-    })),
-    impactStats: raw.impactStats.map((s) => ({
-      id: s.id,
-      key: s.key,
-      metricValue: s.metricValue,
-      label: s.label,
-      labelMs: s.labelMs,
-      period: s.period,
-      periodMs: s.periodMs,
-      displayOrder: s.displayOrder,
-      isPublished: true,
-    })),
-  };
-}
+type MemoryState = SampleLedger;
 
 const globalForTransparency = globalThis as unknown as {
   transparencyMemory: MemoryState | undefined;
@@ -126,13 +48,13 @@ const globalForTransparency = globalThis as unknown as {
 
 /** Survives Turbopack hot reloads so a dev edit is not lost on file save. */
 function memory(): MemoryState {
-  globalForTransparency.transparencyMemory ??= getBaselineRecords();
+  globalForTransparency.transparencyMemory ??= getSampleLedger();
   return globalForTransparency.transparencyMemory;
 }
 
 /** Test-only: restores the in-memory mirror to the baseline dataset. */
 export function resetTransparencyMemory(): void {
-  globalForTransparency.transparencyMemory = getBaselineRecords();
+  globalForTransparency.transparencyMemory = getSampleLedger();
 }
 
 /**
@@ -243,6 +165,32 @@ async function withDatabase<T>(
 /* Reads                                                                       */
 /* -------------------------------------------------------------------------- */
 
+interface PrismaExpenseRow {
+  id: string;
+  category: string;
+  title: string;
+  amountSen: number;
+  date: string;
+  vendorOrClinic: string | null;
+  petName: string | null;
+  receiptRef: string | null;
+  isPublished: boolean;
+}
+
+function toExpenseRecord(row: PrismaExpenseRow): ExpenseItemRecord {
+  return {
+    id: row.id,
+    category: row.category as ExpenseCategoryKey,
+    title: row.title,
+    amountSen: row.amountSen,
+    date: row.date,
+    vendorOrClinic: row.vendorOrClinic,
+    petName: row.petName,
+    receiptRef: row.receiptRef,
+    isPublished: row.isPublished,
+  };
+}
+
 function toIso(value: Date | string): string {
   return typeof value === "string" ? value : value.toISOString();
 }
@@ -279,6 +227,7 @@ export async function readTransparencySnapshot(
       prisma.financialReport.findMany({
         where: publishedOnly,
         orderBy: [{ year: "desc" }, { month: "desc" }],
+        take: REPORT_LIMIT,
       }),
       prisma.impactStat.findMany({
         where: publishedOnly,
@@ -394,6 +343,84 @@ function project(
   };
 }
 
+/** Just the derived figures — no expense rows, no reports. */
+export interface AllocationSummaryData {
+  allocation: TransparencySnapshot["allocation"];
+  totalSen: number;
+  impactStats: ImpactStatRecord[];
+  source: TransparencySource;
+}
+
+/**
+ * The subset /donate needs.
+ *
+ * That page renders five percentages and three counters, so calling
+ * `readTransparencySnapshot` made it fetch 120 expense rows and every financial
+ * report on each revalidation only to discard them before serialisation. This
+ * runs two cheap queries instead.
+ */
+export async function readAllocationSummary(): Promise<AllocationSummaryData> {
+  try {
+    const [grouped, impactStats] = await Promise.all([
+      prisma.expenseItem.groupBy({
+        by: ["category"],
+        where: { isPublished: true },
+        _sum: { amountSen: true },
+        _count: { _all: true },
+      }),
+      prisma.impactStat.findMany({
+        where: { isPublished: true },
+        orderBy: { displayOrder: "asc" },
+      }),
+    ]);
+
+    const totals: CategoryTotal[] = grouped
+      .filter((row) => isExpenseCategory(row.category))
+      .map((row) => ({
+        key: row.category as ExpenseCategoryKey,
+        totalSen: row._sum.amountSen ?? 0,
+        itemCount: row._count._all,
+      }));
+
+    const { allocation, totalSen } = allocationFromTotals(totals);
+
+    return {
+      allocation,
+      totalSen,
+      impactStats: sortImpactStats(
+        impactStats.map((s) => ({
+          id: s.id,
+          key: s.key,
+          metricValue: s.metricValue,
+          label: s.label,
+          labelMs: s.labelMs,
+          period: s.period,
+          periodMs: s.periodMs,
+          displayOrder: s.displayOrder,
+          isPublished: s.isPublished,
+        }))
+      ),
+      source: "database",
+    };
+  } catch (err) {
+    if (isProduction()) {
+      console.error("[transparency] allocation summary read failed", err);
+      return { allocation: [], totalSen: 0, impactStats: [], source: "unavailable" };
+    }
+
+    const state = memory();
+    const { allocation, totalSen } = allocationFromTotals(
+      categoryTotalsFromItems(state.expenses)
+    );
+    return {
+      allocation,
+      totalSen,
+      impactStats: sortImpactStats(state.impactStats.filter((s) => s.isPublished)),
+      source: "sample",
+    };
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Writes                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -445,12 +472,25 @@ export async function createExpenseItem(
   return { record: { ...input, id: value }, persistedTo: target };
 }
 
+export interface ExpenseUpdateOutcome {
+  before: ExpenseItemRecord | null;
+  record: ExpenseItemRecord;
+  persistedTo: MutationTarget;
+}
+
 export async function updateExpenseItem(
   id: string,
   input: Partial<ExpenseWriteInput>
-): Promise<WriteOutcome<ExpenseItemRecord> | null> {
+): Promise<ExpenseUpdateOutcome | null> {
+  let before: ExpenseItemRecord | null = null;
+
   const { value, target } = await withDatabase<ExpenseItemRecord | null>(
     async () => {
+      // Read first so the audit log can record what the figures were. An
+      // amount change on a published ledger is otherwise unauditable.
+      const previous = await prisma.expenseItem.findUnique({ where: { id } });
+      before = previous ? toExpenseRecord(previous) : null;
+
       const updated = await orNullIfMissing(() =>
         prisma.expenseItem.update({ where: { id }, data: input })
       );
@@ -471,32 +511,37 @@ export async function updateExpenseItem(
       const state = memory();
       const idx = state.expenses.findIndex((e) => e.id === id);
       if (idx === -1) return null;
+      before = { ...state.expenses[idx] };
       state.expenses[idx] = { ...state.expenses[idx], ...input };
       return state.expenses[idx];
     }
   );
 
-  return value ? { record: value, persistedTo: target } : null;
+  return value ? { before, record: value, persistedTo: target } : null;
 }
 
-export async function deleteExpenseItem(id: string): Promise<MutationTarget | null> {
-  const { value, target } = await withDatabase<boolean>(
+export async function deleteExpenseItem(
+  id: string
+): Promise<WriteOutcome<ExpenseItemRecord> | null> {
+  // The removed row is returned, not a boolean: deleting a ledger entry moves
+  // the published allocation percentages, so the audit trail has to say what
+  // was taken out. A cuid alone resolves to nothing once the row is gone.
+  const { value, target } = await withDatabase<ExpenseItemRecord | null>(
     async () => {
       const deleted = await orNullIfMissing(() =>
         prisma.expenseItem.delete({ where: { id } })
       );
-      return deleted !== null;
+      return deleted ? toExpenseRecord(deleted) : null;
     },
     () => {
       const state = memory();
       const idx = state.expenses.findIndex((e) => e.id === id);
-      if (idx === -1) return false;
-      state.expenses.splice(idx, 1);
-      return true;
+      if (idx === -1) return null;
+      return state.expenses.splice(idx, 1)[0];
     }
   );
 
-  return value ? target : null;
+  return value ? { record: value, persistedTo: target } : null;
 }
 
 export async function createFinancialReport(
@@ -550,24 +595,36 @@ export async function createFinancialReport(
   return { record: { ...input, id: value }, persistedTo: target };
 }
 
-export async function deleteFinancialReport(id: string): Promise<MutationTarget | null> {
-  const { value, target } = await withDatabase<boolean>(
+export async function deleteFinancialReport(
+  id: string
+): Promise<WriteOutcome<FinancialReportRecord> | null> {
+  const { value, target } = await withDatabase<FinancialReportRecord | null>(
     async () => {
       const deleted = await orNullIfMissing(() =>
         prisma.financialReport.delete({ where: { id } })
       );
-      return deleted !== null;
+      return deleted
+        ? {
+            id: deleted.id,
+            year: deleted.year,
+            month: deleted.month,
+            title: deleted.title,
+            fileUrl: deleted.fileUrl,
+            summary: deleted.summary,
+            publishedAt: toIso(deleted.publishedAt),
+            isPublished: deleted.isPublished,
+          }
+        : null;
     },
     () => {
       const state = memory();
       const idx = state.reports.findIndex((r) => r.id === id);
-      if (idx === -1) return false;
-      state.reports.splice(idx, 1);
-      return true;
+      if (idx === -1) return null;
+      return state.reports.splice(idx, 1)[0];
     }
   );
 
-  return value ? target : null;
+  return value ? { record: value, persistedTo: target } : null;
 }
 
 /**
@@ -612,22 +669,35 @@ export async function upsertImpactStat(
   return { record: { ...input, id: value }, persistedTo: target };
 }
 
-export async function deleteImpactStat(key: string): Promise<MutationTarget | null> {
-  const { value, target } = await withDatabase<boolean>(
+export async function deleteImpactStat(
+  key: string
+): Promise<WriteOutcome<ImpactStatRecord> | null> {
+  const { value, target } = await withDatabase<ImpactStatRecord | null>(
     async () => {
       const deleted = await orNullIfMissing(() =>
         prisma.impactStat.delete({ where: { key } })
       );
-      return deleted !== null;
+      return deleted
+        ? {
+            id: deleted.id,
+            key: deleted.key,
+            metricValue: deleted.metricValue,
+            label: deleted.label,
+            labelMs: deleted.labelMs,
+            period: deleted.period,
+            periodMs: deleted.periodMs,
+            displayOrder: deleted.displayOrder,
+            isPublished: deleted.isPublished,
+          }
+        : null;
     },
     () => {
       const state = memory();
       const idx = state.impactStats.findIndex((s) => s.key === key);
-      if (idx === -1) return false;
-      state.impactStats.splice(idx, 1);
-      return true;
+      if (idx === -1) return null;
+      return state.impactStats.splice(idx, 1)[0];
     }
   );
 
-  return value ? target : null;
+  return value ? { record: value, persistedTo: target } : null;
 }
