@@ -31,6 +31,8 @@ const AUTH_TOKENS = [
   // Bearer-credential checks, for flows whose caller cannot have a session:
   // an emailed unsubscribe link carries a signed token instead.
   "verifyNotificationToken",
+  // The sponsor portal authenticates against its own session, not staff RBAC.
+  "getCurrentSponsorSession",
 ];
 
 /**
@@ -67,6 +69,13 @@ const INTENTIONALLY_PUBLIC: Record<string, string> = {
   getRehabNeedsAction: "public rehabilitation needs list",
   fetchRehabNeedsAction: "alias of getRehabNeedsAction",
   getRehabNeedByIdAction: "public rehabilitation need",
+
+  // The sponsor portal's own front door. A visitor signing up or signing in
+  // cannot already hold the session these would check for.
+  registerSponsorAction: "creates the sponsor account",
+  sponsorLoginAction: "establishes the sponsor session",
+  getSponsorDashboardAction:
+    "delegates to getSponsorDashboard, which resolves the caller's own sponsor context and returns null without one",
 
   // Sponsorship is a public donation flow, like submitDonationPledgeAction.
   createPetSponsorshipAction: "donors sponsor without an account",
