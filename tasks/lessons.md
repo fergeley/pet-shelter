@@ -383,3 +383,100 @@ divergence is a decision that was never made. Enumerate them, decide each one ex
 decision down with its cost, and only then collapse to one copy and leave pointers. Here that
 produced two settled conflicts (rule 3 binds on the summary; rule 2 is two-tier) whose rationale is
 now the most useful part of the standard.
+
+## 2026-09-02 — A pull request with a merge conflict runs no CI at all
+
+PR #3 opened with every job missing. Only Vercel's checks appeared, and the workflow trigger was an
+unfiltered `pull_request:`, so the filter was not the cause. GitHub runs `pull_request` workflows
+against a *computed merge commit*, and a conflicted PR does not have one:
+
+```
+$ git ls-remote origin 'refs/pull/3/*'
+9165c23...  refs/pull/3/head        # head only, while conflicted
+$ git ls-remote origin 'refs/pull/2/*'
+00cc411...  refs/pull/2/head
+b4f82b5...  refs/pull/2/merge       # the mergeable PR has both
+```
+
+The conflict was two sessions appending to the tail of `tasks/lessons.md` — a prose file, nothing
+disagreeing, both sides wanted. That trivial collision silently disabled the entire verification
+pipeline for the branch whose whole purpose was to add a verification gate. The gate could not run
+until the conflict cleared.
+
+**Rule:** a conflicted PR is not "green pending resolution", it is **unverified**. The moment a PR
+opens, confirm CI actually started — `git ls-remote origin 'refs/pull/<n>/*'` must show a `merge`
+ref, not just `head`. A check list showing only third-party checks means the workflows never ran,
+which looks nothing like failure and is worse.
+
+## 2026-09-02 — A shared node_modules makes every local test result provisional
+
+Worktrees here share one `node_modules` with the main checkout. Two observed consequences in a
+single session, neither of which touched any source file:
+
+- The generated Prisma client went stale repeatedly. Symptom is 11 failures across `petHistory`,
+  `rehabilitation`, `petStatusPresentation` and `setupMocks`, all `Cannot read properties of
+  undefined (reading 'Available')`. `prisma generate` fixes it; something else un-fixes it minutes
+  later. The same suite went green, red, then green with no edit in between.
+- `jsdom` **disappeared** from `node_modules` mid-session while still declared in `package.json`.
+  The whole `components` project stopped running — `Test Files no tests`, `Errors 4` — and in a
+  combined run this reads as a *smaller total* (56 files / 775 tests instead of 60 / 830), not as a
+  failure.
+
+A test count that drops is easy to miss; a tier that reports "no tests" is not a red X.
+
+**Rule:** never quote a local test count as a baseline without the command that reproduces it *and*
+a note that CI is the authority. Compare the **file count** against what is on disk, not just the
+pass count — `60` on disk versus `56` discovered is a whole tier missing. Wire `pre<script>` hooks
+so the generate step cannot be forgotten, and accept that a concurrent session can still invalidate
+the environment underneath a run in progress.
+
+## 2026-09-02 — A critique written from an unverified environment is confidently wrong
+
+Asked to self-critique, I reported that a target doc's baseline of "60 test files / 829 tests green"
+was badly stale, citing 11 local failures. Measured properly afterwards: the file count was right,
+the test count was off by one, and *green was true*. The 11 failures were my own broken environment.
+In the same critique I called the audit range a trap where "the doc pins one form and CI uses
+another" — but the doc pins a **rev** (`28159f3`), whose ancestor set is fixed and immune to later
+merges. Only my own ad-hoc `28159f3..HEAD` was affected.
+
+Two confident, specific, wrong indictments of my own work, produced by the same failure the critique
+was complaining about, one level up. The doc did have a real defect — it never named the
+`prisma generate` precondition — but that is not what I accused it of.
+
+**Rule:** a critique is a set of assertions and gets no exemption from verification. Before naming
+something a defect, reproduce it from a known-good environment; "I ran it and it failed" is a claim
+about the environment until proven to be a claim about the code. Self-criticism feels rigorous,
+which is exactly why an unverified one passes review unchallenged.
+
+## 2026-09-02 — Never grep your own verification output for the lines you expect
+
+To confirm a new `pretest` hook fired, I ran `npm run test:all | grep -E 'pretest|Test Files|Tests
+|FAIL'` and read back "pretest fires, 775 tests pass". The run had in fact exited **1** with
+`Errors 4`: an entire test tier failed to start. My pattern matched `FAIL` but not `Errors`, so the
+one line that said the run was broken was the one line filtered out. I reported a green that did not
+exist.
+
+The tooling was honest. The filter was mine, and it was built from what I expected to see.
+
+**Rule:** capture the whole output to a file and check the **exit code separately** — `cmd > out
+2>&1; echo $?` — then grep the file. Never `cmd | grep …; echo $?`, which reports *grep's* status,
+nor a pattern list assembled from the outcomes you anticipated. A filter written before the result
+is a hypothesis, and grepping with it tests nothing.
+
+## 2026-09-02 — This repo's source-scanning guards sit on the edge of Vitest's 5s default
+
+`shelterIdentity.test.ts` walks the whole `src/` tree synchronously to prove statutory literals are
+confined to one module. It takes ~6s under full-suite parallel load on Windows and fails as
+`Test timed out in 5000ms`, while passing in isolation in 2.7s. It surfaced only after unrelated
+failures were fixed: those had been dying fast and leaving it headroom, so repairing one problem
+appeared to create another. `agentGuard.test.ts` then failed the same way at 5507ms.
+
+Two instances in one session. These guards are the tests that assert properties of the source tree
+no behavioural test can see, which makes them the ones worth keeping and the ones most likely to be
+deleted when they flake.
+
+**Rule:** when a test fails only in a full run and passes alone, read the failure before theorising
+— `Test timed out in 5000ms` is not an assertion failure and has nothing to do with the thing under
+test. Give whole-tree scans an explicit timeout, and prove the timeout is wired by mutating it to
+`{ timeout: 1 }` and watching it fail; an ignored option is indistinguishable from a generous one.
+
