@@ -166,12 +166,14 @@ export function deriveRehabStage(
 function billingFrequencyOf(
   contributions: SponsorContributionRecord[]
 ): SponsorDashboardDTO["billingFrequency"] {
-  if (contributions.length === 0) return "none";
   const hasMonthly = contributions.some((c) => c.frequency === "monthly" && c.isActive);
   const hasOneTime = contributions.some((c) => c.frequency === "one_time");
   if (hasMonthly && hasOneTime) return "mixed";
   if (hasMonthly) return "monthly";
-  return "one_time";
+  if (hasOneTime) return "one_time";
+  // No pledges, or only cancelled recurring ones — "one-time pledges" would misdescribe
+  // a sponsor whose standing order has lapsed.
+  return "none";
 }
 
 /**

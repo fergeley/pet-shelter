@@ -288,6 +288,19 @@ describe("Supporter tier derivation", () => {
     });
   });
 
+  describe("a lapsed recurring sponsor", () => {
+    it("is not described as a one-time donor", () => {
+      // A cancelled standing order used to fall through to "one_time", which reads as
+      // "One-time pledges" on the dashboard and misdescribes the relationship.
+      const lapsed = [
+        contribution({ amountMYR: 100, frequency: "monthly", isActive: false }),
+      ];
+
+      expect(deriveTier(lapsed, NOW)).toBeNull();
+      expect(recognisedContributionMYR(lapsed, NOW)).toBe(0);
+    });
+  });
+
   describe("tierLabel", () => {
     it("labels each standing in English and Malay", () => {
       expect(tierLabel("GOLD")).toBe("Gold");

@@ -18,6 +18,10 @@ vi.mock("next/cache", () => ({
   revalidateTag: vi.fn(),
 }));
 
+vi.mock("@/lib/email", () => ({
+  sendCaretakerQuestionEmail: vi.fn(async () => ({ success: true })),
+}));
+
 import {
   registerSponsorAction,
   sponsorLoginAction,
@@ -30,6 +34,8 @@ import { SESSION_COOKIE_NAME } from "@/lib/security/session";
 import { getSponsorDashboard, getSponsorWall } from "@/lib/domain/sponsorAccess";
 import { __resetSponsorStoreForTests } from "@/lib/sponsorStore";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
+import { sendCaretakerQuestionEmail } from "@/lib/email";
+import { getAuditLogs } from "@/lib/domain/auditLog";
 
 /** Seeded pledge that no account has claimed yet. */
 const UNCLAIMED = {
@@ -274,6 +280,7 @@ describe("Caretaker Q&A (Gold privilege)", () => {
     cookieStore.clear();
     await __resetSponsorStoreForTests();
     resetRateLimitStore();
+    vi.clearAllMocks();
   });
 
   it("refuses a signed-out caller", async () => {
@@ -296,7 +303,7 @@ describe("Caretaker Q&A (Gold privilege)", () => {
     expect(result.error).toContain("Gold");
   });
 
-  it("accepts a question from a Gold sponsor", async () => {
+  it("accepts a question from a Gold sponsor and actually delivers it", async () => {
     await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
 
     const result = await submitCaretakerQuestionAction(
@@ -304,6 +311,37 @@ describe("Caretaker Q&A (Gold privilege)", () => {
     );
 
     expect(result.success).toBe(true);
+
+    // The UI tells the sponsor the message was sent to the care team, so it has to be.
+    // Dispatch is non-blocking, so let the microtask queue drain first.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sendCaretakerQuestionEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendCaretakerQuestionEmail).mock.calls[0][0]).toMatchObject({
+      sponsorEmail: "gold@example.com",
+      tier: "Gold",
+      message: "How is Luna's hydrotherapy progressing?",
+    });
+  });
+
+  it("keeps the message body in the audit trail, not just its length", async () => {
+    // If the mail provider is down this entry is the only surviving record of a message
+    // the sponsor has already been told was sent.
+    await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
+    await submitCaretakerQuestionAction("Is Cleo eating well after her move?");
+
+    const entry = getAuditLogs().find(
+      (log) => log.action === "CARETAKER_QUESTION_SUBMITTED"
+    );
+
+    expect(entry?.details?.message).toBe("Is Cleo eating well after her move?");
+  });
+
+  it("does not dispatch anything when the sponsor is under Gold", async () => {
+    await sponsorLoginAction({ email: "silver@example.com", password: "silver123" });
+    await submitCaretakerQuestionAction("Can I visit Bella this weekend?");
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(sendCaretakerQuestionEmail).not.toHaveBeenCalled();
   });
 
   it("rejects an empty or oversized message from a Gold sponsor", async () => {

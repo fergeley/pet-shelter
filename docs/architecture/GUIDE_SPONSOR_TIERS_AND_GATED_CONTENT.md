@@ -82,11 +82,22 @@ type GatedPayload<T> =
 ```
 
 The locked branch has **no `items` key at all**. That absence — not a CSS class, not a
-conditional render — is the security property. TypeScript refuses code that reads through
-it, and the runtime never loads the URLs to begin with.
+conditional render — is the security property: nothing an under-tier caller receives
+contains a URL, and TypeScript refuses code that tries to read one.
 
-The private media itself lives in `src/data/exclusiveMedia.json`, reachable only through
+One honest caveat. `gate()` *does* read the catalogue on the locked path, to put a count
+in the nudge ("3 updates waiting"). Today the catalogue is a static JSON import, so this
+costs nothing and releases nothing. But if it ever becomes a database or object-store
+read, that count would fetch the very records it is withholding — so give `gate()` a
+separate count source at that point rather than reusing the loader.
+
+The private media lives in `src/data/exclusiveMedia.json`, reachable only through
 `sponsorAccess`, which is marked `server-only`.
+
+**The gate is real; the current media is not actually secret.** The catalogue holds public
+Unsplash URLs and public YouTube ids, which anyone can construct without going near the
+gate. That is fine for seed data and wrong for production: real exclusive media needs
+signed, short-lived URLs, or one shared link bypasses every check on this page.
 
 ### `<TierGate>` and what it cannot do for you
 
@@ -222,7 +233,23 @@ applied and no query has run against a live database — every test here runs th
 path. Before deploying, run `npm run db:push` against a non-production Neon branch and
 re-run the suite with `DATABASE_URL` pointed at it.
 
-### Demo sponsors (memory fallback only)
+### Known scaling ceilings
+
+Both are deliberate. The shelter has 8 pets and a handful of sponsors, and neither of
+these is a correctness problem — they are recorded so the next person meets them as a
+decision rather than a surprise.
+
+- `getSponsorDashboard` calls `getServerPetsAsync()` — every pet in the shelter — to
+  resolve one to three sponsored rescues, because `getServerPetsAsync` is the only
+  database-aware pet reader in the codebase (`findServerPetById` is memory-only).
+  `getSponsorCertificate` inherits this, since it reuses the dashboard projection purely
+  for rescue names. Wants `findMany({ where: { id: { in: [...] } } })` somewhere north of
+  a few hundred pets.
+- `getSponsorWall` loads every opted-in sponsor with their full contribution list and
+  derives standings in JavaScript, on a `force-dynamic` page. Wants SQL aggregation, or a
+  cached page with tag invalidation, somewhere north of a few thousand sponsors.
+
+### Demo sponsors (development only)
 
 | Email | Password | Standing | Why |
 |---|---|---|---|
@@ -234,11 +261,17 @@ re-run the suite with `DATABASE_URL` pointed at it.
 The Bronze sponsor's aged-out pledge is not decoration: it is what proves standings decay
 rather than accumulating for life.
 
+**These accounts do not exist in production.** `SEEDING_ENABLED` in `sponsorStore.ts` is
+`NODE_ENV !== "production"`, and a reachable database is authoritative even when its answer
+is empty. Both limits are needed: without the first, the passwords above would sign in
+against a live instance whenever the database had no matching row; without the second, an
+empty-but-healthy database would publish these four names on the public wall.
+
 ---
 
 ## 8. Verification
 
-`npx vitest run` — 268 tests, of which 85 cover this feature:
+`npx vitest run` — 281 tests, of which 98 cover this feature:
 
 | File | Covers |
 |---|---|
@@ -247,6 +280,7 @@ rather than accumulating for life.
 | `tests/unit/sponsorPetMediaRoute.test.ts` | The serialized HTTP body, asserting private URLs are absent for each standing |
 | `tests/unit/sponsorAuth.test.ts` | Receipt challenge, enumeration resistance, the `"1234"` regression guard, rate limiting, action-level re-authorization |
 | `tests/unit/sponsorLedger.test.ts` | Pledges reaching the ledger, pet-id linkage, consent capture, claim flow |
+| `tests/unit/sponsorStoreFallback.test.ts` | A reachable-but-empty database vs an unreachable one, and that production carries no seed |
 
 ### The build output, checked directly
 

@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   sponsorRegistrationSchema,
   sponsorLoginSchema,
@@ -25,8 +24,11 @@ import {
 import {
   getSponsorDashboard,
   currentSponsorMeetsTier,
+  getCurrentSupporterTier,
 } from "@/lib/domain/sponsorAccess";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import { sendCaretakerQuestionEmail } from "@/lib/email";
+import { tierLabel } from "@/lib/domain/supporterTier";
 import { SponsorDashboardDTO } from "@/types/supporter";
 
 export interface SponsorAuthResponse {
@@ -225,8 +227,8 @@ export async function updateWallPreferenceAction(
     details: { displayOnWall },
   });
 
-  revalidatePath("/sponsors");
-  revalidatePath("/sponsor/dashboard");
+  // No revalidation needed: /sponsors is force-dynamic and /sponsor/dashboard reads
+  // cookies, so both already re-render per request.
 
   return { success: true };
 }
@@ -274,6 +276,8 @@ export async function submitCaretakerQuestionAction(
     };
   }
 
+  // The message itself is retained, not just its length: if the email dispatch fails it
+  // is the only remaining record, and the sponsor has already been told it was sent.
   recordAuditLog({
     actorId: session.sponsorId,
     actorEmail: session.email,
@@ -281,8 +285,17 @@ export async function submitCaretakerQuestionAction(
     action: "CARETAKER_QUESTION_SUBMITTED",
     entity: "Sponsor",
     entityId: session.sponsorId,
-    details: { messageLength: trimmed.length },
+    details: { message: trimmed, messageLength: trimmed.length },
   });
+
+  // Non-blocking, matching the donation receipt dispatch: a slow mail provider must not
+  // hold the sponsor's request open.
+  sendCaretakerQuestionEmail({
+    sponsorName: session.name,
+    sponsorEmail: session.email,
+    tier: tierLabel(await getCurrentSupporterTier()),
+    message: trimmed,
+  }).catch((err) => console.error("[Caretaker Question Dispatch Failed]", err));
 
   return { success: true };
 }

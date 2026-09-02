@@ -650,3 +650,72 @@ Thank you for your life-saving generosity and support of our shelter animals!
   });
 }
 
+/**
+ * Escapes a sponsor's free-text message before it is placed in an HTML email.
+ *
+ * The templates above interpolate user input directly, which is a pre-existing issue in
+ * this module and out of scope here. This one is new input, so it does not add another
+ * instance of it.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 6. Delivers a Gold sponsor's question to the sanctuary care team.
+ *
+ * Addressed to the shelter with `replyTo` set to the sponsor, so a caretaker answers by
+ * replying — the same shape as `sendStaffApplicationAlert`, and the reason this perk needs
+ * no inbox UI of its own.
+ */
+export async function sendCaretakerQuestionEmail(question: {
+  sponsorName: string;
+  sponsorEmail: string;
+  tier: string;
+  message: string;
+}): Promise<EmailResult> {
+  const subject = `[${question.tier} Sponsor Q&A] Question from ${question.sponsorName}`;
+
+  const text = `
+Caretaker Question from a Sponsor
+-----------------------------------
+Sponsor: ${question.sponsorName}
+Email: ${question.sponsorEmail}
+Sponsorship standing: ${question.tier}
+
+Message:
+${question.message}
+
+Reply directly to this email to answer the sponsor.
+  `.trim();
+
+  const html = wrapEmailHtml(`
+    <div style="border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 20px;">
+      <span class="badge" style="background:#fef3c7;color:#92400e;">${escapeHtml(question.tier)} Sponsor Privilege</span>
+      <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: #0f172a;">Question for the Care Team</h2>
+    </div>
+
+    <p><strong>${escapeHtml(question.sponsorName)}</strong> (${escapeHtml(question.sponsorEmail)}) asked:</p>
+
+    <div class="card" style="background:#f8fafc; border-left: 4px solid #d77a6f; padding: 18px; margin: 20px 0; white-space: pre-wrap;">${escapeHtml(question.message)}</div>
+
+    <p style="font-size: 13px; color: #64748b;">
+      Reply directly to this email to answer the sponsor. Gold sponsors are told to expect a
+      response within three working days.
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: SHELTER_EMAIL,
+    replyTo: question.sponsorEmail,
+    subject,
+    text,
+    html,
+    template: "CARETAKER_QUESTION",
+  });
+}
+
