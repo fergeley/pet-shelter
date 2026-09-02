@@ -59,6 +59,30 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
   return serverPets;
 }
 
+/**
+ * Reads an animal's stored gallery straight from the database.
+ *
+ * `findServerPetById` answers from `serverPets`, which is seeded from fixtures
+ * and mutated only by writes this process handled — `getServerPetsAsync` returns
+ * database rows without ever writing them back. Harmless for display, but it
+ * cannot be the baseline for "which photos are new": another instance's uploads
+ * are invisible to it, so those photos look new again and supporters are mailed
+ * them a second time.
+ *
+ * Returns null when the row cannot be read, leaving the caller to fall back.
+ */
+export async function getStoredGalleryImages(id: string): Promise<string[] | null> {
+  try {
+    const row = await prisma.pet.findUnique({
+      where: { id },
+      select: { galleryImages: true },
+    });
+    return row ? row.galleryImages : null;
+  } catch {
+    return null;
+  }
+}
+
 export function findServerPetById(id: string): Pet | null {
   const norm = id.trim().toLowerCase();
   return serverPets.find((p) => p.id.toLowerCase() === norm) || null;

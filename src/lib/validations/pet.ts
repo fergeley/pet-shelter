@@ -1,5 +1,25 @@
 import * as z from "zod";
 
+/**
+ * Notification options passed alongside a pet update.
+ *
+ * Server Action arguments are untrusted input. `data` goes through
+ * `petFormSchema`; this parameter must not skip validation, because an
+ * arbitrarily long caption would be embedded in every supporter email and
+ * serialised into the audit metadata column. The 280 limit matches the
+ * textarea's `maxLength`.
+ */
+export const photoNotificationSchema = z.object({
+  notifySponsors: z.boolean().optional(),
+  caption: z
+    .string()
+    .trim()
+    .max(280, "Caregiver note must be under 280 characters")
+    .optional(),
+});
+
+export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
+
 import { MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
 

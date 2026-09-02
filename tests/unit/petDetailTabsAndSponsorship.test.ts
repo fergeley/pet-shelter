@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { getPetStatusPresentation, getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
-import { findSponsorshipTier, SPONSORSHIP_TIERS } from "@/lib/domain/sponsorshipTiers";
+import {
+  findSponsorshipTier,
+  SPONSORSHIP_TIERS,
+  tierAmountFor,
+} from "@/lib/domain/sponsorshipTiers";
 import { Pet } from "@/types/pet";
 
 const mockAdoptablePet: Pet = {
@@ -112,6 +116,32 @@ describe("FE-05: Tabbed Animal Profile View & Status Presentation", () => {
 });
 
 describe("FE-06: Personalized Sponsorship & Tiers", () => {
+  it("prices a monthly commitment below the same tier's one-time gift", () => {
+    // A one-time gift funds a discrete thing; a monthly sponsorship is priced to
+    // be affordable to keep. The ladder is the shelter's decision, pinned here so
+    // it cannot drift silently through a UI edit.
+    const monthlyLadder: Record<string, { oneTime: number; monthly: number }> = {
+      kibble: { oneTime: 30, monthly: 10 },
+      vaccine: { oneTime: 50, monthly: 25 },
+      spay_neuter: { oneTime: 120, monthly: 50 },
+      emergency_medical: { oneTime: 250, monthly: 100 },
+    };
+
+    for (const tier of SPONSORSHIP_TIERS) {
+      const expected = monthlyLadder[tier.id];
+      expect(expected, `no expected pricing for tier ${tier.id}`).toBeDefined();
+      expect(tier.amount, `${tier.id} one-time`).toBe(expected.oneTime);
+      expect(tier.monthlyAmount, `${tier.id} monthly`).toBe(expected.monthly);
+      expect(tier.monthlyAmount).toBeLessThan(tier.amount);
+    }
+  });
+
+  it("resolves the price from the frequency the donor chose", () => {
+    const kibble = findSponsorshipTier("kibble")!;
+    expect(tierAmountFor(kibble, "one_time")).toBe(30);
+    expect(tierAmountFor(kibble, "monthly")).toBe(10);
+  });
+
   it("should find the RM30 kibble/nutrition tier and support monthly giving", () => {
     const kibbleTier = findSponsorshipTier("kibble");
     expect(kibbleTier).toBeDefined();

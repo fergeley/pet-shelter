@@ -1,6 +1,13 @@
 import { cookies } from "next/headers";
-import { getCurrentSession, SessionUser } from "@/lib/security/session";
-import { ROLES } from "@/lib/security/rbac";
+import { SessionUser } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
+import {
+  hasAnyPermission,
+  hasPermission,
+  PERMISSIONS,
+  ROLES,
+  type Permission,
+} from "@/lib/security/rbac";
 import { timingSafeCompare } from "@/lib/security/crypto";
 import { getAdminSecretKey } from "@/lib/security/secrets";
 
@@ -59,6 +66,20 @@ export const LEGACY_ADMIN_TOKEN_PRINCIPAL: AdminPrincipal = {
 };
 
 /**
+ * The capabilities that make a session "an operator" when no specific
+ * permission is named. Mirrors what ADMIN or COORDINATOR could reach before the
+ * capability model, so a no-argument call keeps its original meaning.
+ */
+const ADMIN_WRITE_PERMISSIONS: Permission[] = [
+  PERMISSIONS.MANAGE_MEMBERS,
+  PERMISSIONS.MANAGE_PETS,
+  PERMISSIONS.MANAGE_PET_MEDIA,
+  PERMISSIONS.MANAGE_CONTENT,
+  PERMISSIONS.MANAGE_SETTINGS,
+  PERMISSIONS.REVIEW_APPLICATIONS,
+];
+
+/**
  * Resolves the principal authorized for Admin operations, or `null`.
  *
  * Returns the actor rather than a bare boolean so callers can name *who* acted
@@ -69,11 +90,28 @@ export const LEGACY_ADMIN_TOKEN_PRINCIPAL: AdminPrincipal = {
  * Order is unchanged and deliberate: the signed session is tried first, the
  * shared secret only as a fallback, and any throw fails closed.
  */
-export async function verifyAdminSession(): Promise<AdminPrincipal | null> {
+export async function verifyAdminSession(
+  permission?: Permission
+): Promise<AdminPrincipal | null> {
   try {
-    // 1. Validate signed session cookie
-    const session: SessionUser | null = await getCurrentSession();
-    if (session && (session.role === ROLES.ADMIN || session.role === ROLES.COORDINATOR)) {
+    // 1. Validate signed session cookie.
+    //
+    // Resolved through the DAL, which re-reads the member's live role and
+    // status, so a suspension or demotion applies on the next request rather
+    // than whenever the 24-hour cookie happens to expire.
+    //
+    // The test here used to be `role === ADMIN || role === COORDINATOR`. That
+    // predates the capability model and would now reject an ANIMAL_MANAGER
+    // outright, so it asks for the capability the caller actually needs.
+    // Omitting `permission` preserves the original coarse meaning — "holds some
+    // admin write capability" — for callers that only need to know the request
+    // came from an operator.
+    const session: SessionUser | null = await getVerifiedSession();
+    const authorized = permission
+      ? hasPermission(session, permission)
+      : hasAnyPermission(session, ADMIN_WRITE_PERMISSIONS);
+
+    if (session && authorized) {
       return { ...session, authMethod: "session" };
     }
 

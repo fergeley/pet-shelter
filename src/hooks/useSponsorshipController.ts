@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pet } from "@/types/pet";
 import { SponsorshipTier, DonationReceipt, SponsorshipTierId } from "@/types/sponsorship";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
+import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
 import { submitDonationPledgeAction } from "@/actions/donations";
 
 export interface UseSponsorshipControllerProps {
@@ -36,9 +37,11 @@ export function useSponsorshipController({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedReceipt, setCompletedReceipt] = useState<DonationReceipt | null>(null);
 
+  // Tier prices differ by frequency, so the payable amount follows the toggle
+  // rather than the one-time list price.
   const finalAmount = isCustomTier
     ? Math.max(5, Number(customAmount) || 5)
-    : selectedTier.amount;
+    : tierAmountFor(selectedTier, frequency);
 
   const handleCopyMaybank = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {

@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
+import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
@@ -123,9 +124,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
     }
   }, [pets.length, selectedPet, urlPetName, urlSponsorPetId]);
 
+  // Tier prices differ by frequency, so the payable amount follows the toggle
+  // rather than the one-time list price.
   const finalAmount = isCustomTier
     ? Math.max(5, Number(customAmount) || 5)
-    : selectedTier.amount;
+    : tierAmountFor(selectedTier, frequency);
 
   const handleSelectPet = (pet: Pet | null) => {
     setSelectedPet(pet);
@@ -469,7 +472,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-2">
                     <span className="font-heading text-xl font-bold text-foreground">
-                      RM {tier.amount}
+                      RM {tierAmountFor(tier, frequency)}
                     </span>
                     <span className="text-3xs font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
                       {tier.badgeText}

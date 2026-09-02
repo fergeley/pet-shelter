@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { EMAIL_BRAND, EMAIL_TONE } from "@/lib/presentation/emailTokens";
 import { Resend } from "resend";
@@ -13,16 +13,64 @@ import {
   updateServerSettings as persistServerSettings,
 } from "@/lib/server/settingsRepository";
 
+/**
+ * Field names whose values must never reach the audit trail.
+ *
+ * The SETTINGS_UPDATED entry records a full before/after of the settings
+ * object, and /admin/audit renders those details to anyone holding
+ * VIEW_AUDIT_LOG. Without this, saving the settings form wrote the live Resend
+ * API key into the log in plaintext. Matched by suffix so a future credential
+ * field is redacted by default rather than by remembering to add it here.
+ */
+const SECRET_FIELD_PATTERN = /(key|secret|token|password)$/i;
+
+function redactSecrets(settings: ShelterSettingsInput): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(settings).map(([field, value]) => {
+      if (!SECRET_FIELD_PATTERN.test(field)) return [field, value];
+      // Preserve whether a value was set, which is the part an auditor needs,
+      // without disclosing the value itself.
+      return [field, typeof value === "string" && value.length > 0 ? "[redacted]" : ""];
+    })
+  );
+}
+
 export async function getShelterSettings(): Promise<ShelterSettingsInput> {
   return getServerSettingsAsync();
+}
+
+/**
+ * The two volunteer Google Form links, for the admin header shortcut.
+ *
+ * Deliberately narrow rather than reusing `getShelterSettings`. Every export of a
+ * "use server" module is a POST-reachable endpoint on any route that imports it, so
+ * a client component pulling the whole settings object would publish `resendApiKey`
+ * and the storage config alongside it. This returns two URLs and checks the session.
+ */
+export async function getVolunteerFormLinks(): Promise<{
+  volunteerFormUrl: string;
+  volunteerFormResponsesUrl: string;
+}> {
+  // Was [ADMIN, COORDINATOR]. Expressed as the capability those two roles
+  // stood for, so the guard keeps admitting exactly them while a role added
+  // later is judged on what it may do rather than on its name. Matches the
+  // check behind the shortcut in the admin layout.
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
+
+  const settings = await getServerSettingsAsync();
+  return {
+    volunteerFormUrl: settings.volunteerFormUrl ?? "",
+    volunteerFormResponsesUrl: settings.volunteerFormResponsesUrl ?? "",
+  };
 }
 
 export async function updateShelterSettings(
   data: ShelterSettingsInput
 ): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
 
     const validated = shelterSettingsSchema.parse(data);
     const previous = await getServerSettingsAsync();
@@ -35,7 +83,7 @@ export async function updateShelterSettings(
       action: "SETTINGS_UPDATED",
       entity: "ShelterSettings",
       entityId: "global-settings",
-      details: { before: previous, after: updated },
+      details: { before: redactSecrets(previous), after: redactSecrets(updated) },
     });
 
     try {
@@ -59,8 +107,11 @@ export async function sendTestEmailAction(input: {
   customMessage?: string;
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    // Was [ADMIN, COORDINATOR] before the RBAC migration: sending a test email
+    // is an operational act, not a configuration change, so it stays available
+    // to the Volunteer Coordinator.
+    assertHasPermission(session, PERMISSIONS.SEND_SHELTER_EMAIL);
 
     const recipient = input.recipientEmail.trim();
     if (!recipient || !recipient.includes("@")) {

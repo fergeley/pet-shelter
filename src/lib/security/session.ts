@@ -1,57 +1,22 @@
 import { cookies } from "next/headers";
-import { signPayload, verifySignature } from "./crypto";
+import {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+  sealSession,
+  unsealSession,
+  type SessionUser,
+} from "./sessionToken";
 
-export const SESSION_COOKIE_NAME = "hope_shelter_session";
-export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24; // 24 hours
-
-export interface SessionUser {
-  id: string;
-  email: string;
-  name: string;
-  role: "ADMIN" | "COORDINATOR" | "STAFF" | "VOLUNTEER";
-  expiresAt: number;
-}
-
-/**
- * Seals user session payload into a signed base64 string.
- */
-export function sealSession(
-  user: Omit<SessionUser, "expiresAt">,
-  maxAgeSeconds: number = SESSION_MAX_AGE_SECONDS
-): string {
-  const expiresAt = Date.now() + maxAgeSeconds * 1000;
-  const payloadData: SessionUser = { ...user, expiresAt };
-  const jsonString = JSON.stringify(payloadData);
-  const base64Payload = Buffer.from(jsonString, "utf8").toString("base64url");
-  const signature = signPayload(base64Payload);
-
-  return `${base64Payload}.${signature}`;
-}
-
-/**
- * Unseals and cryptographically validates a signed session string.
- */
-export function unsealSession(token: string): SessionUser | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 2) return null;
-
-    const [base64Payload, signature] = parts;
-    const isValidSignature = verifySignature(base64Payload, signature);
-    if (!isValidSignature) return null;
-
-    const jsonString = Buffer.from(base64Payload, "base64url").toString("utf8");
-    const session: SessionUser = JSON.parse(jsonString);
-
-    if (Date.now() > session.expiresAt) {
-      return null; // Session expired
-    }
-
-    return session;
-  } catch {
-    return null;
-  }
-}
+// The token codec lives in ./sessionToken so that proxy.ts, which cannot import
+// next/headers, can verify a session with the same code. Re-exported here to
+// keep every existing `from "@/lib/security/session"` import working.
+export {
+  SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
+  sealSession,
+  unsealSession,
+} from "./sessionToken";
+export type { SessionUser } from "./sessionToken";
 
 /**
  * Sets a secure, HTTP-only signed session cookie in Next.js Server Action / Route.
@@ -93,6 +58,18 @@ export async function clearSessionCookie(): Promise<void> {
 
 /**
  * Retrieves and validates the current user session from cookies.
+ *
+ * The role is returned exactly as the cookie carries it. Normalising here was
+ * tried and was a privilege escalation: `normalizeRole` folds VOLUNTEER onto
+ * STAFF because that is the nearest canonical *identity*, but STAFF holds
+ * VIEW_APPLICATIONS and a VOLUNTEER never could read applications — they carry
+ * applicant PII under PDPA 2010. Rewriting the role before the permission check
+ * handed every existing volunteer that grant.
+ *
+ * Deprecated aliases still authorize correctly, because `permissionsForRole`
+ * resolves them itself and fails closed on anything it does not recognise. The
+ * migration to canonical roles happens where a session is *minted* —
+ * `loginAction` normalises before sealing — not where one is read.
  */
 export async function getCurrentSession(): Promise<SessionUser | null> {
   try {

@@ -9,15 +9,23 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
-import { UnauthorizedError } from "@/lib/security/rbac";
+import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
   insertServerPet,
   updateServerPet,
   archiveServerPet,
+  getStoredGalleryImages,
 } from "@/lib/server/petRepository";
+import { scheduleAfterResponse } from "@/lib/scheduleAfterResponse";
+import {
+  diffNewGalleryImages,
+  dispatchPetPhotoUpdate,
+} from "@/lib/domain/photoUpdateDispatch";
+import { photoNotificationSchema, PhotoNotificationInput } from "@/lib/validations/pet";
 import { getServerApplicationsAsync } from "@/lib/server/applicationRepository";
 
 /**
@@ -68,8 +76,19 @@ export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
 
 /**
  * Admin catalog query: includes all pets (archived and active) with linked application counts.
+ *
+ * Guarded because /admin/pets is a Server Component that calls this directly.
+ * The admin layout is a client component and hides the table until its session
+ * effect resolves, but server-component output is serialised into the RSC
+ * flight payload regardless of whether the layout mounts it — so without this
+ * check an anonymous request to /admin/pets received the whole inventory,
+ * archived animals and application counts included. Authorization belongs as
+ * close to the data as possible; the route-level 403 is a separate concern.
  */
 export async function getAdminPets(): Promise<(Pet & { applicationCount: number })[]> {
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.MANAGE_PETS);
+
   const allPets = await getServerPetsAsync();
   const apps = await getServerApplicationsAsync();
 
@@ -91,13 +110,16 @@ export async function getPetById(id: string): Promise<Pet | null> {
 /**
  * The actor to attribute a privileged pet mutation to.
  *
- * `verifyAdminSession()` now names the principal it authorized, so the second
- * `getCurrentSession()` read this used to do is gone -- and with it the case
- * where the legacy token authorized the request but a lower-privileged session
- * cookie was present, and *that* user got written into the audit row.
+ * `verifyAdminSession()` names the principal it authorized, so the second
+ * session read this used to do is gone -- and with it the case where the legacy
+ * token authorized the request but a lower-privileged session cookie was
+ * present, and *that* user got written into the audit row.
+ *
+ * Asks for MANAGE_PETS specifically rather than "is an operator", so a
+ * CONTENT_EDITOR cannot reach the pet mutations.
  */
 async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
-  const principal = await verifyAdminSession();
+  const principal = await verifyAdminSession(PERMISSIONS.MANAGE_PETS);
   if (principal) return principal;
 
   // Nothing authorized this, in any environment. There was a
@@ -171,9 +193,22 @@ export async function createPet(
   }
 }
 
+/**
+ * Whether to notify this animal's supporters about photos added by this save,
+ * plus an optional caregiver note quoted in the email.
+ *
+ * Explicit opt-in at the API level: the admin form defaults the checkbox to
+ * checked, but no other caller of `updatePet` can mail supporters by accident.
+ * Validated with `photoNotificationSchema` — Server Action arguments are
+ * untrusted input, and this one reaches both the email body and the audit
+ * metadata column.
+ */
+export type PhotoNotificationOptions = PhotoNotificationInput;
+
 export async function updatePet(
   id: string,
-  data: PetFormInput
+  data: PetFormInput,
+  notification?: PhotoNotificationOptions
 ): Promise<{ success: boolean; data?: Pet; error?: string }> {
   try {
     const actor = await getAdminActorOrThrow();
@@ -183,6 +218,31 @@ export async function updatePet(
     if (!existing) {
       return { success: false, error: "Pet not found" };
     }
+
+    const parsedNotification = notification
+      ? photoNotificationSchema.safeParse(notification)
+      : null;
+
+    if (parsedNotification && !parsedNotification.success) {
+      // Surfaced rather than silently dropped: the admin wrote a note that will
+      // not be sent, and needs to know before walking away.
+      return {
+        success: false,
+        error:
+          parsedNotification.error.issues[0]?.message ||
+          "Invalid sponsor notification options",
+      };
+    }
+
+    const notify = parsedNotification?.data;
+    const wantsNotification = notify?.notifySponsors === true;
+
+    // Captured before the write: the dispatcher compares against the gallery as
+    // it stood, not as it is about to stand. Prefer the database over the
+    // in-memory record, which reflects only this instance's own writes and would
+    // make another instance's photos look new again.
+    const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
+    const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
     const updated: Pet = {
       ...existing,
@@ -216,6 +276,27 @@ export async function updatePet(
     };
 
     await updateServerPet(id, updated, actor);
+
+    // Only *newly added* gallery photos trigger supporter mail. Saving the form
+    // after editing a description, or reordering the existing gallery, notifies
+    // nobody.
+    const newPhotos = diffNewGalleryImages(previousGallery, updated.galleryImages);
+
+    if (wantsNotification && newPhotos.length > 0) {
+      // Deferred with `after()` so the admin save returns immediately while the
+      // fan-out runs on an invocation the platform keeps alive.
+      scheduleAfterResponse(() =>
+        dispatchPetPhotoUpdate({
+          petId: id,
+          petName: updated.name,
+          newImageUrls: newPhotos,
+          caption: notify?.caption,
+          notifySponsors: true,
+          petIsArchived: updated.isArchived,
+          actorEmail: actor.email,
+        })
+      );
+    }
 
     revalidatePath("/pets");
     revalidatePath(`/pets/${id}`);
