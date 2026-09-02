@@ -3,6 +3,7 @@ import { donationPledgeSchema } from "@/lib/validations/donation";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
+import { RECEIPT_NUMBER_PATTERN } from "@/lib/domain/receiptNumber";
 
 describe("Donation & Sponsorship Validation Schema", () => {
   it("should validate a standard donation pledge successfully", () => {
@@ -95,7 +96,8 @@ describe("Donation Server Action (submitDonationPledgeAction)", () => {
     expect(result.data).toBeDefined();
 
     if (result.data) {
-      expect(result.data.receiptNumber).toMatch(/^HFS-DON-\d{6}-\d{4}$/);
+      // Asserted against the generator's own pattern so the two cannot drift apart.
+      expect(result.data.receiptNumber).toMatch(RECEIPT_NUMBER_PATTERN);
       expect(result.data.donorName).toBe("Kenneth Lee");
       expect(result.data.donorEmail).toBe("kenneth.lee@example.com");
       expect(result.data.amountMYR).toBe(250);

@@ -13,7 +13,7 @@ export interface SponsorshipTier {
 }
 
 export interface DonationReceipt {
-  receiptNumber: string; // e.g. HFS-DON-202608-4821
+  receiptNumber: string; // e.g. HFS-DON-202608-482145
   date: string;
   donorName: string;
   donorEmail: string;

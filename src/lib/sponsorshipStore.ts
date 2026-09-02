@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { SponsorshipTier, DonationReceipt } from "@/types/sponsorship";
+import { generateReceiptNumber } from "@/lib/domain/receiptNumber";
 
 export const SPONSORSHIP_TIERS: SponsorshipTier[] = [
   {
@@ -93,9 +94,7 @@ export function useSponsorshipStore() {
       taxIdOrIc?: string;
       notes?: string;
     }): DonationReceipt => {
-      const randomSeq = Math.floor(1000 + Math.random() * 9000);
-      const dateStr = new Date().toISOString().slice(0, 7).replace("-", "");
-      const receiptNumber = `HFS-DON-${dateStr}-${randomSeq}`;
+      const receiptNumber = generateReceiptNumber();
 
       const newReceipt: DonationReceipt = {
         receiptNumber,

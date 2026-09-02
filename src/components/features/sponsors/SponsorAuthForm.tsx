@@ -156,7 +156,7 @@ export function SponsorAuthForm({ initialMode = "login" }: { initialMode?: Mode 
                 required
                 value={receiptNumber}
                 onChange={(event) => setReceiptNumber(event.target.value.toUpperCase())}
-                placeholder="HFS-DON-202608-4821"
+                placeholder="HFS-DON-202608-482145"
                 className="rounded-lg font-mono"
               />
               <p className="flex items-start gap-1.5 text-xs text-muted-foreground">

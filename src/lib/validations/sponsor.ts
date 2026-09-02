@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-/** Receipt numbers are issued as `HFS-DON-YYYYMM-NNNN` by `submitDonationPledgeAction`. */
-export const RECEIPT_NUMBER_PATTERN = /^HFS-DON-\d{6}-\d{4}$/;
+// Imported rather than restated, so the form and the generator cannot disagree.
+import { RECEIPT_NUMBER_PATTERN } from "@/lib/domain/receiptNumber";
+
+export { RECEIPT_NUMBER_PATTERN };
 
 export const sponsorRegistrationSchema = z.object({
   name: z
@@ -26,7 +28,7 @@ export const sponsorRegistrationSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(RECEIPT_NUMBER_PATTERN, "Enter a receipt number in the form HFS-DON-202608-4821"),
+    .regex(RECEIPT_NUMBER_PATTERN, "Enter a receipt number in the form HFS-DON-202608-482145"),
   displayOnWall: z.boolean().default(false),
 });
 

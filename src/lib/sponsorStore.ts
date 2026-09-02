@@ -18,6 +18,20 @@ import { SponsorshipTierId } from "@/types/sponsorship";
  * Postgres running.
  */
 
+/**
+ * One place to report that a query fell back to memory.
+ *
+ * The `catch` blocks below were silent, which made the two failure modes
+ * indistinguishable in a log: a database that is down, and a database that is fine but
+ * whose write was rejected. Matches the `[Database Store]` notices in `serverStore`.
+ */
+function warnDatabaseFallback(operation: string, err: unknown): void {
+  console.warn(
+    `[Sponsor Store] ${operation} falling back to memory:`,
+    err instanceof Error ? err.message : err
+  );
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function daysAgo(days: number): string {
@@ -184,10 +198,28 @@ const contributions: SponsorContributionRecord[] = [];
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
 
+/**
+ * Whether demo sponsors may exist at all.
+ *
+ * The seed's purpose is to make the portal demonstrable with no database — which is a
+ * development purpose, and this repo has never run the sponsor tables against Postgres.
+ * In production the same seed is an authentication bypass: a database miss for
+ * `gold@example.com` would otherwise fall through to a seeded account whose password is
+ * published in `docs/architecture/GUIDE_SPONSOR_TIERS_AND_GATED_CONTENT.md`.
+ *
+ * So the fallback stays and the credentials do not. With no seed, a production instance
+ * whose database is unreachable fails closed: no sponsor resolves, nothing unlocks.
+ */
+const SEEDING_ENABLED = process.env.NODE_ENV !== "production";
+
 function ensureInitialized(): Promise<void> {
   if (isInitialized) return Promise.resolve();
   if (!initPromise) {
     initPromise = (async () => {
+      if (!SEEDING_ENABLED) {
+        isInitialized = true;
+        return;
+      }
       for (const seed of SEED_SPONSORS) {
         const passwordHash = await hashPassword(seed.initialPassword);
         const email = seed.email.toLowerCase();
@@ -278,9 +310,9 @@ export async function findSponsorByEmail(email: string): Promise<SponsorRecord |
   const normalized = email.trim().toLowerCase();
   try {
     const row = await prisma.sponsor.findUnique({ where: { email: normalized } });
-    if (row) return toSponsorRecord(row as DbSponsor);
-  } catch {
-    // Database unreachable — fall through to the in-memory store.
+    return row ? toSponsorRecord(row as DbSponsor) : null;
+  } catch (err) {
+    warnDatabaseFallback("findSponsorByEmail", err);
   }
 
   await ensureInitialized();
@@ -290,9 +322,9 @@ export async function findSponsorByEmail(email: string): Promise<SponsorRecord |
 export async function findSponsorById(id: string): Promise<SponsorRecord | null> {
   try {
     const row = await prisma.sponsor.findUnique({ where: { id } });
-    if (row) return toSponsorRecord(row as DbSponsor);
-  } catch {
-    // Database unreachable — fall through to the in-memory store.
+    return row ? toSponsorRecord(row as DbSponsor) : null;
+  } catch (err) {
+    warnDatabaseFallback("findSponsorById", err);
   }
 
   await ensureInitialized();
@@ -338,7 +370,8 @@ export async function createSponsor(data: {
     await ensureInitialized();
     sponsorsByEmail.set(created.email, created);
     return created;
-  } catch {
+  } catch (err) {
+    warnDatabaseFallback("createSponsor", err);
     await ensureInitialized();
     sponsorsByEmail.set(record.email, record);
     return record;
@@ -354,8 +387,8 @@ export async function setSponsorWallPreference(
       where: { id: sponsorId },
       data: { displayOnWall },
     });
-  } catch {
-    // Database unreachable — mirror the change in memory below.
+  } catch (err) {
+    warnDatabaseFallback("setSponsorWallPreference", err);
   }
 
   await ensureInitialized();
@@ -375,11 +408,9 @@ export async function listContributionsBySponsorId(
       where: { sponsorId },
       orderBy: { createdAt: "desc" },
     });
-    if (rows.length > 0) {
-      return (rows as DbContribution[]).map(toContributionRecord);
-    }
-  } catch {
-    // Database unreachable — fall through to the in-memory ledger.
+    return (rows as DbContribution[]).map(toContributionRecord);
+  } catch (err) {
+    warnDatabaseFallback("listContributionsBySponsorId", err);
   }
 
   await ensureInitialized();
@@ -397,11 +428,9 @@ export async function listContributionsByEmail(
       where: { donorEmail: normalized },
       orderBy: { createdAt: "desc" },
     });
-    if (rows.length > 0) {
-      return (rows as DbContribution[]).map(toContributionRecord);
-    }
-  } catch {
-    // Database unreachable — fall through to the in-memory ledger.
+    return (rows as DbContribution[]).map(toContributionRecord);
+  } catch (err) {
+    warnDatabaseFallback("listContributionsByEmail", err);
   }
 
   await ensureInitialized();
@@ -418,9 +447,9 @@ export async function findContributionByReceipt(
     const row = await prisma.sponsorContribution.findUnique({
       where: { receiptNumber: normalized },
     });
-    if (row) return toContributionRecord(row as DbContribution);
-  } catch {
-    // Database unreachable — fall through to the in-memory ledger.
+    return row ? toContributionRecord(row as DbContribution) : null;
+  } catch (err) {
+    warnDatabaseFallback("findContributionByReceipt", err);
   }
 
   await ensureInitialized();
@@ -441,9 +470,9 @@ export async function linkContributionsToSponsor(
       where: { donorEmail: normalized, sponsorId: null },
       data: { sponsorId },
     });
-    if (result.count > 0) return result.count;
-  } catch {
-    // Database unreachable — fall through to the in-memory ledger.
+    return result.count;
+  } catch (err) {
+    warnDatabaseFallback("linkContributionsToSponsor", err);
   }
 
   await ensureInitialized();
@@ -506,7 +535,12 @@ export async function recordContribution(input: {
       },
     });
     return toContributionRecord(row as DbContribution);
-  } catch {
+  } catch (err) {
+    // Includes a duplicate-receipt rejection, which is a defect rather than an outage.
+    // The pledge still gets a receipt and an audit entry — losing a donation to a
+    // technical failure is the one outcome the donation flow is built to avoid — but it
+    // must not disappear from the logs as well.
+    warnDatabaseFallback("recordContribution", err);
     await ensureInitialized();
     contributions.push(record);
     return record;
@@ -526,14 +560,12 @@ export async function listWallOptInSponsors(): Promise<
       where: { displayOnWall: true },
       include: { contributions: true },
     });
-    if (rows.length > 0) {
-      return (rows as Array<DbSponsor & { contributions: DbContribution[] }>).map((row) => ({
-        sponsor: toSponsorRecord(row),
-        contributions: row.contributions.map(toContributionRecord),
-      }));
-    }
-  } catch {
-    // Database unreachable — fall through to the in-memory store.
+    return (rows as Array<DbSponsor & { contributions: DbContribution[] }>).map((row) => ({
+      sponsor: toSponsorRecord(row),
+      contributions: row.contributions.map(toContributionRecord),
+    }));
+  } catch (err) {
+    warnDatabaseFallback("listWallOptInSponsors", err);
   }
 
   await ensureInitialized();

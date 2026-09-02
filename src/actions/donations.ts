@@ -9,6 +9,7 @@ import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { SPONSORSHIP_TIERS } from "@/lib/sponsorshipStore";
+import { generateReceiptNumber } from "@/lib/domain/receiptNumber";
 import { recordContribution, findSponsorByEmail } from "@/lib/sponsorStore";
 import { getCurrentSponsorSession } from "@/lib/security/sponsorSession";
 
@@ -46,10 +47,8 @@ export async function submitDonationPledgeAction(
       tierName = matched ? matched.name : "Custom Rescue Donation";
     }
 
-    // 3. Generate Sequential Official Receipt Number
-    const randomSeq = Math.floor(1000 + Math.random() * 9000);
-    const dateSegment = new Date().toISOString().slice(0, 7).replace("-", "");
-    const receiptNumber = `HFS-DON-${dateSegment}-${randomSeq}`;
+    // 3. Generate Official Receipt Number
+    const receiptNumber = generateReceiptNumber();
 
     const formattedDate = new Date().toLocaleDateString("en-MY", {
       year: "numeric",
