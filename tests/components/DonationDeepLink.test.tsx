@@ -28,6 +28,8 @@ function renderAt(query: string, pets = [bella, tiger]) {
 }
 
 /** The "Selected: RM 50.00" summary the widget keeps beside the tier grid. */
+/* Reads the one-time price by default; monthly links show the tier's lower
+   monthly price instead. */
 const selectedAmount = () => screen.getByText(/^RM \d+\.00/).textContent ?? "";
 
 /**
@@ -98,7 +100,8 @@ describe("DonationWidget deep linking", () => {
       renderAt("sponsorPetId=pet-does-not-exist&freq=monthly");
 
       expect(dedicatedTo()).toBe("Shelter Rescues");
-      expect(selectedAmount()).toMatch(/^RM 50\.00/);
+      // The default tier priced monthly: vaccine is RM 50 once, RM 25 a month.
+      expect(selectedAmount()).toMatch(/^RM 25\.00/);
     });
   });
 
@@ -173,7 +176,8 @@ describe("DonationWidget deep linking", () => {
       renderAt("pet=Bella&sponsorPetId=pet-001&tier=kibble&freq=monthly");
 
       expect(dedicatedTo()).toBe("Bella");
-      expect(selectedAmount()).toMatch(/^RM 30\.00/);
+      // kibble is RM 30 as a one-time gift and RM 10 as a monthly commitment.
+      expect(selectedAmount()).toMatch(/^RM 10\.00/);
       expect(selectedAmount()).toMatch(/\/ mo/);
     });
   });
