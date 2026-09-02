@@ -27,33 +27,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function HomeGalleryHeader() {
-  const { isMs } = useLanguage();
-
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-8">
-      <div>
-        <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          {isMs ? "Haiwan Bersedia untuk Adopsi & Tajaan" : "Animals Ready for Adoption & Sponsorship"}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {isMs
-            ? "Semua haiwan disaring kesihatan, divaksin, dimikrocip, dan dimandulkan sebelum penempatan."
-            : "Health-checked, vaccinated, microchipped, and sterilized before rehoming. Recovering rescues available for sponsorship."}
-        </p>
-      </div>
-      <Link
-        href="/pets"
-        className={buttonVariants({
-          variant: "outline",
-          size: "sm",
-          className: "self-start sm:self-auto text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl",
-        })}
-      >
-        {isMs ? "Lihat Semua Haiwan" : "View All Animals"}
-        <ArrowRight className="size-4 ml-1.5" />
-      </Link>
-    </div>
-  );
+  return null;
 }
 
 /**
@@ -142,18 +116,18 @@ export function HomeOurWorkSection() {
       <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto space-y-12">
         {/* Header */}
         <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+          {/* <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
             <Sparkles className="size-3.5" />
             {isMs ? "Misi & Metodologi Kami" : "Our Mission & 3-Pillar Framework"}
-          </div>
+          </div> */}
           <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
-            {isMs ? "Kewujudan Bersama melalui Sains & Kebajikan" : "Coexistence through Science & Compassion"}
+            {isMs ? "Kerja Kami" : "Our Work"}
           </h2>
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
+          {/* <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
             {isMs
-              ? "Hope for Strays UM beroperasi berpandukan sains kebajikan haiwan antarabangsa — menggabungkan TNRM, pendidikan komuniti, dan rawatan pemulihan klinikal."
-              : "Hope for Strays UM operates on evidence-based humane animal welfare: combining scientific TNRM population stabilization, student education, and comprehensive clinical rehabilitation."}
-          </p>
+              ? "Kami menggabungkan TNRM, pendidikan, dan pemulihan klinikal untuk membina kehidupan yang lebih selamat bagi haiwan dan komuniti."
+              : "We combine TNRM, education, and rehabilitation to create safer outcomes for animals and the community around them."}
+          </p> */}
         </div>
 
         {/* 3 Pillars Grid */}
@@ -203,6 +177,85 @@ export function HomeOurWorkSection() {
                   </Link>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function HomeQuickActionsSection() {
+  const { isMs } = useLanguage();
+
+  const actions = [
+    {
+      title: isMs ? "Adopsi" : "Adopt",
+      description: isMs
+        ? "Temui haiwan yang sedia untuk perumahan baharu dan hantar permohonan adopsi dengan mudah."
+        : "Meet animals ready for a new home and apply to adopt in just a few steps.",
+      href: "/pets",
+      icon: Heart,
+    },
+    {
+      title: isMs ? "Sukarelawan" : "Volunteer",
+      description: isMs
+        ? "Bantu di santuari, lawatan mingguan, dan aktiviti komuniti tanpa pengalaman terdahulu."
+        : "Support the sanctuary through weekly care, walking, transport, and community events.",
+      href: "/get-involved",
+      icon: Users,
+    },
+    {
+      title: isMs ? "Derma" : "Donate",
+      description: isMs
+        ? "Sokong makanan, ubat, operasi dan pemulihan klinikal untuk haiwan yang memerlukan."
+        : "Fund food, treatment, surgery, and recovery costs for rescued animals in need.",
+      href: "/donate",
+      icon: Package,
+    },
+    {
+      title: isMs ? "Taja" : "Sponsor",
+      description: isMs
+        ? "Taja pemulihan haiwan, rawatan veterinar, dan penjagaan jangka panjang setiap bulan."
+        : "Sponsor ongoing care, treatment, and rehabilitation for animals who need longer-term support.",
+      href: "/needs",
+      icon: ShieldCheck,
+    },
+  ];
+
+  return (
+    <section className="border-t border-border bg-card py-14 sm:py-18">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto space-y-8">
+        <div className="max-w-2xl space-y-2">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+            {isMs ? "Tindakan Pantas" : "Quick actions"}
+          </span>
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            {isMs ? "Bersama Kami Membantu Haiwan" : "Choose a way to help"}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.title}
+                href={action.href}
+                className="group flex h-full flex-col gap-4 rounded-2xl border border-border bg-background p-5 shadow-xs transition-colors hover:border-primary/40 hover:bg-muted/40"
+              >
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon className="size-5" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-heading text-xl font-bold text-foreground">{action.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{action.description}</p>
+                </div>
+                <div className="mt-auto inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground">
+                  {isMs ? "Lihat lagi" : "Learn more"}
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </Link>
             );
           })}
         </div>

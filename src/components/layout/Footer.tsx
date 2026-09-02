@@ -25,7 +25,7 @@ export function Footer() {
               </span>
             </div>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              {t("footer.orgDesc", "A registered non-profit animal rescue organisation serving Petaling Jaya and Selangor since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.")}
+              {t("footer.orgDesc", "A non-profit animal rescue organisation serving Petaling Jaya and Selangor since 2016. Dedicated to rescuing, rehabilitating, and rehoming homeless dogs and cats.")}
             </p>
           </div>
 
@@ -125,7 +125,7 @@ export function Footer() {
         {/* Bottom Legal & Staff */}
         <div className="mt-10 border-t border-border pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
           <div className="flex flex-wrap items-center gap-3">
-            <p>© {new Date().getFullYear()} Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor).</p>
+            <p>© 2024 Hope for Strays.</p>
             <span className="text-muted-foreground/40 hidden sm:inline">•</span>
             <p className="font-mono">{t("footer.rosReg", "ROS Reg: {regNo}", { regNo: PUBLIC_ROS_REGISTRATION_NO })}</p>
           </div>
