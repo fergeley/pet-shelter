@@ -35,9 +35,10 @@ try {
     "utf8"
   );
 
-  await pool.query("BEGIN");
+  // The file carries its own BEGIN/COMMIT and takes an advisory lock, so it
+  // behaves identically here and under `prisma db execute --file`. If another
+  // worktree is mid-migration this call blocks on the lock rather than racing.
   await pool.query(sql);
-  await pool.query("COMMIT");
   console.log("MIGRATION      : applied and committed");
 
   const after = await tables();
