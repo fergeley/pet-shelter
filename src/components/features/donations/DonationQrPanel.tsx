@@ -1,7 +1,11 @@
 "use client";
 
-import React from "react";
-import { resolveDonationQr, type DonationQrSources } from "@/lib/domain/qrCode";
+import React, { useMemo } from "react";
+import {
+  mergeQrSources,
+  resolveDonationQr,
+  type DonationQrSources,
+} from "@/lib/domain/qrCode";
 import { useDonationQrConfig } from "@/components/providers/DonationQrProvider";
 
 /**
@@ -27,13 +31,7 @@ interface DonationQrPanelProps extends DonationQrSources {
  * form values, which is the whole point of previewing before committing.
  */
 function useResolvedSources(props: DonationQrPanelProps) {
-  const config = useDonationQrConfig();
-  return {
-    petCustomQrUrl: props.petCustomQrUrl,
-    petName: props.petName,
-    shelterQrUrl: props.shelterQrUrl ?? config.duitNowQrUrl,
-    paymentPayload: props.paymentPayload ?? config.paymentPayload,
-  };
+  return mergeQrSources(props, useDonationQrConfig());
 }
 
 /**
@@ -70,7 +68,20 @@ function PlaceholderQr() {
 
 export function DonationQrPanel(props: DonationQrPanelProps) {
   const { instructions, compact = false, className = "" } = props;
-  const resolved = resolveDonationQr(useResolvedSources(props));
+  const sources = useResolvedSources(props);
+  // The generated branch runs a full QR encode over a ~57x57 module matrix.
+  // This panel sits inside DonationWidget next to its pledge form, so without
+  // memoising it would re-encode on every keystroke in that form.
+  const resolved = useMemo(
+    () => resolveDonationQr(sources),
+    [
+      sources.petCustomQrUrl,
+      sources.petName,
+      sources.shelterQrUrl,
+      sources.paymentPayload,
+      sources.shelterName,
+    ]
+  );
 
   // Sizes and spacing mirror what each surface used before this component
   // absorbed both copies, so extracting the duplicate changes no pixels.

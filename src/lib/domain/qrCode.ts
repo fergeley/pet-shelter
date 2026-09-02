@@ -12,17 +12,6 @@ import qrcode from "qrcode-generator";
  * the admin preview and the public modal cannot drift apart.
  */
 
-/** Channels a shelter-level QR can belong to. */
-export type QrChannel = "duitnow" | "tng" | "bank";
-
-export const QR_CHANNELS: readonly QrChannel[] = ["duitnow", "tng", "bank"];
-
-export const QR_CHANNEL_LABELS: Record<QrChannel, string> = {
-  duitnow: "DuitNow QR",
-  tng: "Touch 'n Go eWallet",
-  bank: "Bank Transfer QR",
-};
-
 /**
  * Upload MIME types accepted for a QR image.
  *
@@ -33,46 +22,52 @@ export const QR_CHANNEL_LABELS: Record<QrChannel, string> = {
  */
 export const QR_UPLOAD_MIME_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 
-/** Max characters accepted in an auto-generate payload (QR version 40 / level M). */
+/** Max UTF-8 bytes accepted in an auto-generate payload (QR version 40 / level M). */
 export const QR_PAYLOAD_MAX_LENGTH = 1200;
 
 /**
- * Accepts a same-origin upload path or an absolute https URL, and nothing else.
+ * Accepts a same-origin upload path or an absolute http/https URL, and nothing else.
  *
- * Note the codebase's existing `z.string().url()` on `Pet.image` gets this
- * backwards: it rejects the `/uploads/...` path our uploader actually returns
- * and accepts `javascript:`. Do not copy that pattern.
+ * The codebase's previous `z.string().url()` on `Pet.image` had this backwards:
+ * it rejected the `/uploads/...` path our uploader actually returns and
+ * accepted `javascript:`. Blocking script-bearing schemes is the point here.
+ *
+ * `http:` is permitted deliberately. `S3StorageProvider.getFileUrl` builds URLs
+ * from the admin-set `s3CdnUrl` or `AWS_S3_ENDPOINT`, and a self-hosted MinIO
+ * endpoint is conventionally `http://minio:9000`; rejecting it would make
+ * `/api/upload` succeed and then the save fail validation. Serving an image over
+ * http from an https page is a mixed-content warning, not a script execution
+ * risk — prefer https where the deployment allows it.
  */
-export function isSafeQrImageUrl(value: string): boolean {
+export function isSafeImageUrl(value: string): boolean {
   const url = value.trim();
   if (url === "") return false;
 
-  // Same-origin upload path. Reject protocol-relative `//evil.example` and
-  // any traversal out of the uploads directory.
+  // Same-origin path. Reject protocol-relative `//evil.example` and traversal.
   if (url.startsWith("/")) {
-    if (url.startsWith("//")) return false;
-    if (url.includes("..")) return false;
-    return url.startsWith("/uploads/") && url.length > "/uploads/".length;
+    return !url.startsWith("//") && !url.includes("..") && url.length > 1;
   }
 
   try {
-    return new URL(url).protocol === "https:";
+    const { protocol } = new URL(url);
+    return protocol === "https:" || protocol === "http:";
   } catch {
     return false;
   }
 }
 
-/** Trims a QR image URL to `null` when absent, throwing when present but unsafe. */
-export function normalizeQrImageUrl(value: string | null | undefined): string | null {
-  if (value === null || value === undefined) return null;
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  if (!isSafeQrImageUrl(trimmed)) {
-    throw new Error(
-      "QR image must be an uploaded /uploads/... path or an absolute https:// URL."
-    );
-  }
-  return trimmed;
+/**
+ * As `isSafeImageUrl`, but a same-origin value must live under `/uploads/`.
+ *
+ * A donation QR is only ever an admin upload or a hosted image; there is no
+ * reason for one to point at an arbitrary same-origin path, and narrowing it
+ * keeps the field from being pointed at unrelated app routes.
+ */
+export function isSafeQrImageUrl(value: string): boolean {
+  const url = value.trim();
+  if (!isSafeImageUrl(url)) return false;
+  if (!url.startsWith("/")) return true;
+  return url.startsWith("/uploads/") && url.length > "/uploads/".length;
 }
 
 export interface RenderQrOptions {
@@ -99,6 +94,29 @@ function escapeSvgText(value: string): string {
   return value.replace(/[&<>"]/g, (char) => SVG_ESCAPES[char]);
 }
 
+/**
+ * Re-expresses a string so each character is one UTF-8 byte.
+ *
+ * `qrcode-generator`'s default byte encoder is `charCodeAt(i) & 0xff`, which
+ * silently truncates anything outside Latin-1: an em dash (U+2014) encodes as
+ * byte 0x14. It does not throw — it emits a perfectly scannable QR carrying a
+ * corrupted payload, which for a payment string means money routed nowhere.
+ * The package does ship a UTF-8 encoder, but its `exports` map does not expose
+ * that subpath, so we pre-encode instead. Feeding the library bytes it will
+ * pass through unchanged makes the emitted QR true UTF-8.
+ */
+function toLatin1Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let out = "";
+  for (const byte of bytes) out += String.fromCharCode(byte);
+  return out;
+}
+
+/** Length of `value` once UTF-8 encoded — what QR capacity is actually measured in. */
+export function qrPayloadByteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
 /** Rejects anything that is not a plain hex/rgb()/named colour token. */
 function safeColor(value: string, fallback: string): string {
   return /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]+$/.test(value.trim()) ? value.trim() : fallback;
@@ -117,9 +135,12 @@ export function renderQrSvg(payload: string, options: RenderQrOptions = {}): str
   if (data === "") {
     throw new Error("Cannot render a QR code from an empty payload.");
   }
-  if (data.length > QR_PAYLOAD_MAX_LENGTH) {
+  // Measured in encoded bytes, not UTF-16 units: QR capacity is a byte budget,
+  // and a multi-byte character costs more than one.
+  const byteLength = qrPayloadByteLength(data);
+  if (byteLength > QR_PAYLOAD_MAX_LENGTH) {
     throw new Error(
-      `Payload is ${data.length} characters; the maximum is ${QR_PAYLOAD_MAX_LENGTH}.`
+      `Payload is ${byteLength} bytes; the maximum is ${QR_PAYLOAD_MAX_LENGTH}.`
     );
   }
 
@@ -130,7 +151,7 @@ export function renderQrSvg(payload: string, options: RenderQrOptions = {}): str
 
   // typeNumber 0 lets the library pick the smallest version that fits.
   const qr = qrcode(0, "M");
-  qr.addData(data);
+  qr.addData(toLatin1Utf8(data));
   qr.make();
 
   const count = qr.getModuleCount();
@@ -168,12 +189,6 @@ export function renderQrSvg(payload: string, options: RenderQrOptions = {}): str
   );
 }
 
-/** Renders `payload` to an SVG data URI usable as an <img> src. */
-export function renderQrDataUri(payload: string, options: RenderQrOptions = {}): string {
-  const svg = renderQrSvg(payload, options);
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
 export interface DonationQrSources {
   /** `Pet.customQrUrl` when the donation surface is scoped to one animal. */
   petCustomQrUrl?: string | null;
@@ -183,6 +198,44 @@ export interface DonationQrSources {
   shelterQrUrl?: string | null;
   /** `ShelterSettings.paymentPayload`. */
   paymentPayload?: string | null;
+  /** `ShelterSettings.shelterName`, used for the caption under the code. */
+  shelterName?: string | null;
+}
+
+/** Shelter-level values published to the client tree by `DonationQrProvider`. */
+export interface ShelterQrConfigLike {
+  duitNowQrUrl: string;
+  paymentPayload: string;
+  shelterName: string;
+}
+
+/**
+ * Merges explicitly-passed sources over the shelter-wide config.
+ *
+ * The distinction between `undefined` and `""` carries meaning and must be
+ * preserved by every caller:
+ *
+ *   undefined -> "I have no opinion" — fall back to the shelter config.
+ *   ""        -> "explicitly cleared" — show it as cleared.
+ *
+ * The admin settings preview depends on the second case, so an admin who clears
+ * the QR sees the cleared state rather than the stored value. The pet dialog
+ * depends on the first, so previewing an animal with no dedicated QR shows the
+ * shelter code the donor would really get. Coercing `undefined` to `""` on the
+ * way in collapses the two and makes the pet preview always show the
+ * placeholder — do not do it.
+ */
+export function mergeQrSources(
+  props: DonationQrSources,
+  config: ShelterQrConfigLike
+): DonationQrSources {
+  return {
+    petCustomQrUrl: props.petCustomQrUrl,
+    petName: props.petName,
+    shelterQrUrl: props.shelterQrUrl ?? config.duitNowQrUrl,
+    paymentPayload: props.paymentPayload ?? config.paymentPayload,
+    shelterName: props.shelterName ?? config.shelterName,
+  };
 }
 
 export type DonationQrResolution =
@@ -200,7 +253,8 @@ export type DonationQrResolution =
  * next source rather than throwing at render time.
  */
 export function resolveDonationQr(sources: DonationQrSources): DonationQrResolution {
-  const shelterCaption = "Hope for Strays Shelter Selangor";
+  // Falls back only when the caller has no shelterName to offer.
+  const shelterCaption = (sources.shelterName ?? "").trim() || "Hope for Strays Shelter Selangor";
 
   const petUrl = (sources.petCustomQrUrl ?? "").trim();
   if (petUrl !== "" && isSafeQrImageUrl(petUrl)) {

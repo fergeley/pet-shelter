@@ -11,6 +11,7 @@ import {
   loadShelterSettings,
 } from "@/actions/settings";
 import { PERSISTED_SETTING_KEYS } from "@/lib/domain/shelterSettingsKeys";
+import { roleCanEditGlobalQr } from "@/lib/security/qrAccess";
 import { useAdminAuth } from "@/lib/adminAuth";
 import { DonationQrSettings } from "@/components/admin/DonationQrSettings";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,14 @@ export default function AdminSettingsPage() {
   const { user } = useAdminAuth();
   // Display-only gate. `updateShelterSettings` re-checks the role server-side,
   // so a tampered client cannot write these fields.
-  const canEditQr = (user?.role ?? "").toUpperCase() === "ADMIN";
+  const canEditQr = roleCanEditGlobalQr(user?.role);
   const [activeTab, setActiveTab] = useState<
     "general" | "email" | "storage" | "donation"
   >("general");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Set when the values were accepted but never reached Postgres.
+  const [saveUnpersisted, setSaveUnpersisted] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
   // Test Email State
@@ -77,6 +81,8 @@ export default function AdminSettingsPage() {
   // mount, and only when they are authoritative.
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const formRef = useRef(form);
+  formRef.current = form;
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +90,12 @@ export default function AdminSettingsPage() {
     loadShelterSettings()
       .then(({ settings: server, fromDatabase }) => {
         if (cancelled || !fromDatabase) return;
+
+        // Do not clobber work in progress. This resolves after mount, and
+        // writing to the store fires the `reset(settings)` effect below over the
+        // whole form — so an admin who started typing while the round-trip was
+        // in flight would watch their input revert with no explanation.
+        if (formRef.current.formState.isDirty) return;
 
         const merged = { ...settingsRef.current } as Record<string, unknown>;
         for (const key of PERSISTED_SETTING_KEYS) {
@@ -111,12 +123,27 @@ export default function AdminSettingsPage() {
   const currentStorageProvider = watch("storageProvider");
 
   const onSubmit = async (data: ShelterSettingsInput) => {
-    saveSettings(data);
+    setSaveError(null);
+    setSaveUnpersisted(false);
+
     const res = await updateShelterSettings(data);
-    if (res.success) {
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 4000);
+
+    if (!res.success) {
+      // Previously the local copy was written first and a failure was
+      // swallowed, so a rejected save looked identical to a successful one.
+      setSaveError(res.error || "Could not save settings.");
+      return;
     }
+
+    saveSettings(res.data ?? data);
+
+    if (res.persisted === false) {
+      setSaveUnpersisted(true);
+      return;
+    }
+
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 4000);
   };
 
   const handleSendTestEmail = async (e: React.FormEvent) => {
@@ -156,6 +183,24 @@ export default function AdminSettingsPage() {
           Configure sanctuary identity, standard fees, live announcement banner, transactional emails (Resend), and media storage providers.
         </p>
       </div>
+
+      {saveError && (
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
+      {saveUnpersisted && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 p-4 text-xs font-semibold flex items-start gap-2 rounded-lg shadow-sm animate-in">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+          <span>
+            Saved in memory only &mdash; the database could not be reached. Donors
+            still see the previously stored QR, and this change will be lost on the
+            next restart. Check the database connection and save again.
+          </span>
+        </div>
+      )}
 
       {savedSuccess && (
         <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">

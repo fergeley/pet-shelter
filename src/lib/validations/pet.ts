@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { optionalUploadedImageUrl, uploadedImageUrl } from "@/lib/validations/qrImage";
+import { optionalQrImageUrl, uploadedImageUrl } from "@/lib/validations/qrImage";
 
 export const petFormSchema = z.object({
   name: z.string().min(1, "Pet name is required").max(60, "Name is too long"),
@@ -21,7 +21,7 @@ export const petFormSchema = z.object({
   intakeDate: z.string().min(4, "Intake date is required"),
 
   // Dedicated donation QR for this animal's medical fund drive.
-  customQrUrl: optionalUploadedImageUrl,
+  customQrUrl: optionalQrImageUrl,
   
   // Medical
   vaccinated: z.boolean().default(true),

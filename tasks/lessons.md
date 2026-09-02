@@ -55,3 +55,59 @@ component quietly restyled `/donate`.
 **Rule:** when de-duplicating markup, diff the wrappers too and parameterise the
 differences, so the refactor changes no pixels. A styling change smuggled inside
 a refactor is invisible in review.
+
+## A server action is a public POST endpoint
+
+`loadShelterSettings` was added as a read helper for the admin form and
+shipped with no session check, returning the whole settings object —
+`resendApiKey` included. The same module already redacts that key before it
+reaches `audit_logs`, and the write action directly below it called
+`assertAuthorized`.
+
+**Rule:** every exported `"use server"` function is an unauthenticated HTTP
+endpoint whose id ships in the client bundle. Gate reads, not just writes,
+and project the response down to the fields the caller needs instead of
+returning an internal object wholesale.
+
+## Reporting success for a write that did not persist
+
+`writeShelterSettings` reports `persisted: false` when Postgres is
+unreachable, and the action dropped that flag and returned `success: true`.
+The admin saw a green confirmation while donors kept scanning the old QR.
+
+**Rule:** when a write has a memory fallback, the fallback state has to reach
+the UI. "Accepted" and "durably stored" are different outcomes and only one
+of them justifies a success message.
+
+## Nullish-coalescing to empty string erases "absent" vs "cleared"
+
+`DonationQrPanel` used `props.x ?? config.x`, so an omitted prop falls back to
+the shelter config while an explicit empty string shows as cleared.
+`QrPreviewDialog` then normalised its own props to empty strings before
+passing them down, collapsing the two cases and making the pet preview always
+render the placeholder — the one surface built to show admins where the money
+goes.
+
+**Rule:** when undefined and empty string carry different meanings, keep every
+intermediate component from normalising, and extract the merge into a pure
+function so both cases are unit-testable.
+
+## A QR encoder that silently truncates
+
+`qrcode-generator`'s default byte mode is `charCodeAt(i) & 0xff`. A payment
+string containing an em dash or an accented merchant name encodes to the wrong
+bytes and still produces a perfectly scannable code.
+
+**Rule:** for any encoder, test a non-ASCII input explicitly. "It rendered" is
+not evidence of correctness when the failure mode is a valid-looking artifact
+carrying wrong data. Cap payload length in encoded bytes, not UTF-16 units.
+
+## Dead policy modules make tests lie
+
+`qrAccess.ts` defined `canEditGlobalQr`/`canEditPetQr`; the settings page
+re-implemented the check inline, and nothing imported the module except its
+own tests, which asserted the role sets and reported the control as covered.
+
+**Rule:** after extracting a policy, grep for its callers. A security helper
+with only test importers is worse than none — it produces green coverage for a
+rule nothing enforces.

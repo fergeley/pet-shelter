@@ -240,6 +240,22 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
     validatePetTransition(previous.status, updated.status);
   }
 
+  // `serverPets` is seeded from src/data/pets.json, which carries no
+  // customQrUrl, so on any fresh process (a cold start, a redeploy, a second
+  // instance) the in-memory "before" is blank whatever the database holds. The
+  // QR audit entry exists to prove who redirected a donation stream, so read
+  // its previous value from Postgres rather than from the seed array.
+  let previousQrFromDb: string | null = null;
+  try {
+    const row = await prisma.pet.findUnique({
+      where: { id },
+      select: { customQrUrl: true },
+    });
+    previousQrFromDb = row?.customQrUrl ?? "";
+  } catch {
+    // Database unavailable; fall back to the in-memory value below.
+  }
+
   serverPets[index] = updated;
 
   try {
@@ -293,7 +309,7 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
   // A per-animal donation QR decides where a donor's money goes, so a change
   // to it gets its own narrow, immutable entry instead of being buried in the
   // whole-pet diff above.
-  const previousQr = previous.customQrUrl || "";
+  const previousQr = previousQrFromDb ?? (previous.customQrUrl || "");
   const updatedQr = updated.customQrUrl || "";
   if (previousQr !== updatedQr) {
     recordAuditLog({
