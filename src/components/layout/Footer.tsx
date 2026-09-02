@@ -70,6 +70,16 @@ export function Footer() {
                   {t("nav.transparency", "Where Your Money Goes")}
                 </Link>
               </li>
+              <li>
+                <Link href="/sponsors" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  {t("nav.sponsorWall", "Public Sponsor Wall")}
+                </Link>
+              </li>
+              <li>
+                <Link href="/sponsor/dashboard" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  {t("nav.sponsorPortal", "Sponsor Portal")}
+                </Link>
+              </li>
             </ul>
           </div>
 

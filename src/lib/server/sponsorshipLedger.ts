@@ -36,6 +36,8 @@ export interface SponsorshipRecord {
   sponsorEmail: string;
   sponsorPhone?: string;
   userId?: string | null;
+  /** Sponsor Wall consent as given at this checkout. */
+  displayOnWall?: boolean;
   tierId: string;
   tierName: string;
   frequency: "one_time" | "monthly";
@@ -312,6 +314,115 @@ export async function findSponsorshipByPledgeRef(
   return row ? toRecord(row) : null;
 }
 
+// ------------------------------------------------------- supporter-account reads
+//
+// The sponsor portal needs to see a supporter's own commitments. These live here
+// rather than in `sponsorRepository.ts` because this module owns `pet_sponsorships`;
+// a second module querying the same table is how two sources of truth start.
+
+/** Every commitment claimed by a supporter account. */
+export async function listSponsorshipsByUserId(
+  userId: string
+): Promise<SponsorshipRecord[]> {
+  if (!isLedgerPersistent()) {
+    return memorySponsorships.filter((row) => row.userId === userId);
+  }
+
+  const rows = await prisma.petSponsorship.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(toRecord);
+}
+
+/** Every commitment made under an email address, claimed or not. */
+export async function listSponsorshipsByEmail(
+  sponsorEmail: string
+): Promise<SponsorshipRecord[]> {
+  const normalised = sponsorEmail.trim().toLowerCase();
+
+  if (!isLedgerPersistent()) {
+    return memorySponsorships.filter(
+      (row) => row.sponsorEmail.toLowerCase() === normalised
+    );
+  }
+
+  const rows = await prisma.petSponsorship.findMany({
+    where: { sponsorEmail: normalised },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(toRecord);
+}
+
+/**
+ * Attaches every unclaimed commitment made under `sponsorEmail` to a supporter account.
+ *
+ * Guarded on `userId: null`, so a second claim cannot move a commitment that already
+ * belongs to someone. Returns how many moved.
+ */
+export async function claimSponsorshipsForUser(
+  userId: string,
+  sponsorEmail: string
+): Promise<number> {
+  const normalised = sponsorEmail.trim().toLowerCase();
+
+  if (!isLedgerPersistent()) {
+    let claimed = 0;
+    memorySponsorships = memorySponsorships.map((row) => {
+      if (row.sponsorEmail.toLowerCase() === normalised && !row.userId) {
+        claimed += 1;
+        return { ...row, userId };
+      }
+      return row;
+    });
+    return claimed;
+  }
+
+  const { count } = await prisma.petSponsorship.updateMany({
+    where: { sponsorEmail: normalised, userId: null },
+    data: { userId },
+  });
+  return count;
+}
+
+/**
+ * Cancels a supporter's own recurring commitment.
+ *
+ * Scoped to `userId` as well as `pledgeRef`, so a reference in a request cannot reach
+ * another supporter's row, and guarded on `ACTIVE` so a cancelled commitment is not
+ * cancelled twice.
+ */
+export async function cancelSponsorshipForUser(
+  userId: string,
+  pledgeRef: string,
+  options?: { now?: Date }
+): Promise<SponsorshipRecord | null> {
+  const when = options?.now ?? new Date();
+
+  if (!isLedgerPersistent()) {
+    const index = memorySponsorships.findIndex(
+      (row) =>
+        row.pledgeRef === pledgeRef && row.userId === userId && row.status === "ACTIVE"
+    );
+    if (index < 0) return null;
+    const record: SponsorshipRecord = {
+      ...memorySponsorships[index],
+      status: "CANCELLED",
+    };
+    memorySponsorships[index] = record;
+    return record;
+  }
+
+  const { count } = await prisma.petSponsorship.updateMany({
+    where: { pledgeRef, userId, status: "ACTIVE" },
+    data: { status: "CANCELLED", cancelledAt: when },
+  });
+  if (count === 0) return null;
+
+  const row = await prisma.petSponsorship.findUnique({ where: { pledgeRef } });
+  return row ? toRecord(row) : null;
+}
+
 // ---------------------------------------------------------------------- shape
 
 interface SponsorshipRow {
@@ -322,6 +433,7 @@ interface SponsorshipRow {
   sponsorEmail: string;
   sponsorPhone: string | null;
   userId: string | null;
+  displayOnWall: boolean;
   tierId: string;
   tierName: string;
   frequency: string;
@@ -344,6 +456,7 @@ function toRecord(row: SponsorshipRow): SponsorshipRecord {
     sponsorEmail: row.sponsorEmail,
     sponsorPhone: row.sponsorPhone ?? undefined,
     userId: row.userId,
+    displayOnWall: row.displayOnWall,
     tierId: row.tierId,
     tierName: row.tierName,
     frequency: row.frequency === "monthly" ? "monthly" : "one_time",
