@@ -31,6 +31,7 @@ export function Navbar() {
     { href: "/donate", label: t("nav.donate", "Donate") },
     { href: "/applications/track", label: t("nav.trackApplication", "Track Application") },
     { href: "/bulletins", label: t("nav.bulletins", "Updates & News") },
+    { href: "/faq", label: t("nav.faq", "FAQ") },
     { href: "/#how-it-works", label: t("nav.adoptionProcess", "Adoption Process") },
     { href: "/#support", label: t("nav.volunteerFoster", "Volunteer & Foster") },
   ];

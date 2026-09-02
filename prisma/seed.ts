@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import { FAQ_SEED_CONTENT } from "../src/lib/domain/faq";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -207,7 +208,35 @@ async function main() {
   }
   console.log(`  ✓ ${applicationsData.length} adoption applications seeded.`);
 
-  // 5. Initial Audit Log
+  // 5. Seed the public FAQ knowledge base.
+  // Upserted by stable id so re-running the seed refreshes the launch copy
+  // without duplicating entries or clobbering staff-authored FAQs.
+  for (const faq of FAQ_SEED_CONTENT) {
+    await prisma.faq.upsert({
+      where: { id: faq.id },
+      update: {
+        category: faq.category,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+      },
+      create: {
+        id: faq.id,
+        category: faq.category,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+        isPublished: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${FAQ_SEED_CONTENT.length} FAQ entries seeded.`);
+
+  // 6. Initial Audit Log
   await prisma.auditLog.create({
     data: {
       action: "DATABASE_SEEDED",
@@ -220,6 +249,7 @@ async function main() {
         seededPets: petsData.length,
         seededApplications: applicationsData.length,
         seededStaff: staffUsers.length,
+        seededFaqs: FAQ_SEED_CONTENT.length,
       },
     },
   });
