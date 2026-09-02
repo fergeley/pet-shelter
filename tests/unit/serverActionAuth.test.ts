@@ -23,7 +23,10 @@ const AUTH_TOKENS = [
   "assertAuthorized",
   "verifyAdminSession",
   "getAdminActorOrThrow",
-  // Named per-feature gates that call assertAuthorized internally.
+  // The permission layer that replaced direct role checks.
+  "assertHasPermission",
+  "requirePermission",
+  // Named per-feature gates that call one of the above internally.
   "requireFaqEditor",
 ];
 
@@ -39,6 +42,8 @@ const INTENTIONALLY_PUBLIC: Record<string, string> = {
   registerAction: "account creation",
   logoutAction: "clears the session; safe for anyone",
   getCurrentUserAction: "returns the caller's own session or null",
+  acceptInvitation:
+    "an invitee has no session yet; the single-use invitation token is the credential",
 
   // Public-facing submissions from visitors who are not staff.
   submitApplication: "adoption applications come from the public",

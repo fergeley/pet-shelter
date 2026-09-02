@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { EMAIL_BRAND, EMAIL_TONE } from "@/lib/presentation/emailTokens";
 import { Resend } from "resend";
@@ -13,6 +13,28 @@ import {
   getServerSettingsWithSource,
   updateServerSettings as persistServerSettings,
 } from "@/lib/server/settingsRepository";
+
+/**
+ * Field names whose values must never reach the audit trail.
+ *
+ * The SETTINGS_UPDATED entry records a full before/after of the settings
+ * object, and /admin/audit renders those details to anyone holding
+ * VIEW_AUDIT_LOG. Without this, saving the settings form wrote the live Resend
+ * API key into the log in plaintext. Matched by suffix so a future credential
+ * field is redacted by default rather than by remembering to add it here.
+ */
+const SECRET_FIELD_PATTERN = /(key|secret|token|password)$/i;
+
+function redactSecrets(settings: ShelterSettingsInput): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(settings).map(([field, value]) => {
+      if (!SECRET_FIELD_PATTERN.test(field)) return [field, value];
+      // Preserve whether a value was set, which is the part an auditor needs,
+      // without disclosing the value itself.
+      return [field, typeof value === "string" && value.length > 0 ? "[redacted]" : ""];
+    })
+  );
+}
 
 // `getShelterSettings` used to live here: an ungated `"use server"` export
 // returning the whole settings object — `resendApiKey`, the storage config and
@@ -45,25 +67,14 @@ const QR_SETTING_KEYS = [
   "paymentPayload",
 ] as const;
 
-function pickQrSettings(settings: Record<string, unknown>): Record<string, string> {
+function pickQrSettings(settings: unknown): Record<string, string> {
+  const source = settings as Record<string, unknown>;
   const picked: Record<string, string> = {};
   for (const key of QR_SETTING_KEYS) {
-    const value = settings[key];
+    const value = source[key];
     picked[key] = typeof value === "string" ? value : "";
   }
   return picked;
-}
-
-/**
- * Strips credentials before a settings snapshot reaches `audit_logs`. Audit
- * rows are readable by every admin and are deliberately immutable, so a key
- * captured there cannot be rotated out of the history.
- */
-function redactSettingsForAudit(settings: unknown): Record<string, unknown> {
-  const copy = { ...(settings as Record<string, unknown>) };
-  const secret = copy.resendApiKey;
-  copy.resendApiKey = typeof secret === "string" && secret !== "" ? "[redacted]" : "";
-  return copy;
 }
 
 /**
@@ -82,8 +93,8 @@ export async function loadShelterSettings(): Promise<{
   settings: Partial<ShelterSettingsInput>;
   fromDatabase: boolean;
 }> {
-  const session = await getCurrentSession();
-  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
 
   const { settings, fromDatabase } = await getServerSettingsWithSource();
 
@@ -107,8 +118,12 @@ export async function getVolunteerFormLinks(): Promise<{
   volunteerFormUrl: string;
   volunteerFormResponsesUrl: string;
 }> {
-  const session = await getCurrentSession();
-  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+  // Was [ADMIN, COORDINATOR]. Expressed as the capability those two roles
+  // stood for, so the guard keeps admitting exactly them while a role added
+  // later is judged on what it may do rather than on its name. Matches the
+  // check behind the shortcut in the admin layout.
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
 
   const settings = await getServerSettingsAsync();
   return {
@@ -121,8 +136,8 @@ export async function updateShelterSettings(
   data: ShelterSettingsInput
 ): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
 
     const validated = shelterSettingsSchema.parse(data);
     const previous = await getServerSettingsAsync();
@@ -135,17 +150,14 @@ export async function updateShelterSettings(
       action: "SETTINGS_UPDATED",
       entity: "ShelterSettings",
       entityId: "global-settings",
-      details: {
-        before: redactSettingsForAudit(previous),
-        after: redactSettingsForAudit(updated),
-      },
+      details: { before: redactSecrets(previous), after: redactSecrets(updated) },
     });
 
     // A QR change alters what donors scan to send money, so it gets its own
     // immutable entry with a narrow before/after rather than being buried in a
     // whole-settings diff.
-    const beforeQr = pickQrSettings(previous as unknown as Record<string, unknown>);
-    const afterQr = pickQrSettings(updated as unknown as Record<string, unknown>);
+    const beforeQr = pickQrSettings(previous);
+    const afterQr = pickQrSettings(updated);
     if (QR_SETTING_KEYS.some((key) => beforeQr[key] !== afterQr[key])) {
       recordAuditLog({
         actorId: session.id,
@@ -181,8 +193,11 @@ export async function sendTestEmailAction(input: {
   customMessage?: string;
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    // Was [ADMIN, COORDINATOR] before the RBAC migration: sending a test email
+    // is an operational act, not a configuration change, so it stays available
+    // to the Volunteer Coordinator.
+    assertHasPermission(session, PERMISSIONS.SEND_SHELTER_EMAIL);
 
     const recipient = input.recipientEmail.trim();
     if (!recipient || !recipient.includes("@")) {

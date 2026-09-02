@@ -332,8 +332,10 @@ describe("STRICT_PERSISTENCE off (default): graceful in-memory fallback", () => 
 
   it("falls back to the seeded staff accounts", async () => {
     const admin = await findUserByEmail("admin@hopeforstrays.org");
-    expect(admin?.role).toBe(ROLES.ADMIN);
-    expect(await listUsers()).toHaveLength(4);
+    expect(admin?.role).toBe(ROLES.SUPER_ADMIN);
+    // One demo account per canonical role: Super Admin, Volunteer Coordinator,
+    // Animal Manager, Content Editor, Staff.
+    expect(await listUsers()).toHaveLength(5);
   });
 
   it("keeps a user create working against the memory store", async () => {

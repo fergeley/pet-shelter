@@ -9,8 +9,9 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
-import { UnauthorizedError } from "@/lib/security/rbac";
+import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
@@ -66,13 +67,34 @@ export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
   return getPublicPets(filters);
 }
 
-// `getAdminPets` used to live here. As an export of a `"use server"` module it
-// was an unauthenticated POST endpoint returning archived animals and per-pet
-// application counts to any caller — the hazard `getVolunteerFormLinks` in
-// actions/settings.ts documents. Its only consumer is the /admin/pets server
-// component, which Next prerenders with no session, so an authorization throw
-// would have broken the build. The logic moved to
-// `@/lib/domain/adminPetCatalog`, a plain function the page imports directly.
+/**
+ * Admin catalog query: includes all pets (archived and active) with linked application counts.
+ *
+ * Guarded because /admin/pets is a Server Component that calls this directly.
+ * The admin layout is a client component and hides the table until its session
+ * effect resolves, but server-component output is serialised into the RSC
+ * flight payload regardless of whether the layout mounts it — so without this
+ * check an anonymous request to /admin/pets received the whole inventory,
+ * archived animals and application counts included. Authorization belongs as
+ * close to the data as possible; the route-level 403 is a separate concern.
+ */
+export async function getAdminPets(): Promise<(Pet & { applicationCount: number })[]> {
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.MANAGE_PETS);
+
+  const allPets = await getServerPetsAsync();
+  const apps = await getServerApplicationsAsync();
+
+  return allPets.map((pet) => {
+    const petApps = apps.filter(
+      (a) => a.petId === pet.id || a.petName.toLowerCase() === pet.name.toLowerCase()
+    );
+    return {
+      ...pet,
+      applicationCount: petApps.length,
+    };
+  });
+}
 
 export async function getPetById(id: string): Promise<Pet | null> {
   return findServerPetById(id);
@@ -81,13 +103,16 @@ export async function getPetById(id: string): Promise<Pet | null> {
 /**
  * The actor to attribute a privileged pet mutation to.
  *
- * `verifyAdminSession()` now names the principal it authorized, so the second
- * `getCurrentSession()` read this used to do is gone -- and with it the case
- * where the legacy token authorized the request but a lower-privileged session
- * cookie was present, and *that* user got written into the audit row.
+ * `verifyAdminSession()` names the principal it authorized, so the second
+ * session read this used to do is gone -- and with it the case where the legacy
+ * token authorized the request but a lower-privileged session cookie was
+ * present, and *that* user got written into the audit row.
+ *
+ * Asks for MANAGE_PETS specifically rather than "is an operator", so a
+ * CONTENT_EDITOR cannot reach the pet mutations.
  */
 async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
-  const principal = await verifyAdminSession();
+  const principal = await verifyAdminSession(PERMISSIONS.MANAGE_PETS);
   if (principal) return principal;
 
   // Nothing authorized this, in any environment. There was a

@@ -7,15 +7,13 @@ import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import { getAuditLogs } from "@/lib/domain/auditLog";
 import {
   getPublicPets,
+  getAdminPets,
   createPet,
   updatePet,
   toggleArchivePet,
   deletePet,
   updatePetStatus,
 } from "@/actions/pets";
-// Moved out of the action module: it was an ungated server action returning
-// archived animals to any caller.
-import { getAdminPetCatalog } from "@/lib/domain/adminPetCatalog";
 import { submitApplication } from "@/actions/applications";
 import { insertServerPet } from "@/lib/server/petRepository";
 import { Pet } from "@/types/pet";
@@ -266,7 +264,7 @@ describe("Soft Deletes & Query Filtering", () => {
     expect(publicPets.some((p) => p.id === testPetId)).toBe(false);
 
     // SHOULD appear in admin pets with isArchived: true
-    const adminPets = await getAdminPetCatalog();
+    const adminPets = await getAdminPets();
     const archivedInAdmin = adminPets.find((p) => p.id === testPetId);
     expect(archivedInAdmin).toBeDefined();
     expect(archivedInAdmin?.isArchived).toBe(true);
@@ -359,6 +357,24 @@ describe("Unauthenticated pet mutations are refused", () => {
     };
   }
 
+  /**
+   * Reads the admin catalogue with a real administrator session.
+   *
+   * The mutation under test is attempted with no cookie, but the verification
+   * read is itself a privileged query now that `getAdminPets()` is
+   * authorization-guarded — an anonymous call throws rather than returning an
+   * empty list. Signing in only for the read keeps each test's unauthenticated
+   * precondition exactly where it belongs: on the mutation.
+   */
+  async function readAdminPetsAuthorized() {
+    mockCookieMap.set(SESSION_COOKIE_NAME, { value: sealSession(REAL_ADMIN) });
+    try {
+      return await getAdminPets();
+    } finally {
+      mockCookieMap.delete(SESSION_COOKIE_NAME);
+    }
+  }
+
   it("names nobody as the principal when no cookie authorizes the request", async () => {
     await expect(verifyAdminSession()).resolves.toBeNull();
   });
@@ -370,7 +386,7 @@ describe("Unauthenticated pet mutations are refused", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(REFUSED);
-    expect((await getAdminPetCatalog()).some((p) => p.name === name)).toBe(false);
+    expect((await readAdminPetsAuthorized()).some((p) => p.name === name)).toBe(false);
   });
 
   it("refuses updatePet, and leaves the stored record untouched", async () => {
@@ -378,7 +394,7 @@ describe("Unauthenticated pet mutations are refused", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(REFUSED);
-    const stored = (await getAdminPetCatalog()).find((p) => p.id === existingPetId);
+    const stored = (await readAdminPetsAuthorized()).find((p) => p.id === existingPetId);
     expect(stored?.name).toBe(`Doggo_${existingPetId}`);
   });
 
@@ -387,7 +403,7 @@ describe("Unauthenticated pet mutations are refused", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(REFUSED);
-    expect((await getAdminPetCatalog()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
+    expect((await readAdminPetsAuthorized()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
     const publicPets = await getPublicPets({ search: existingPetId });
     expect(publicPets.some((p) => p.id === existingPetId)).toBe(true);
   });
@@ -397,7 +413,7 @@ describe("Unauthenticated pet mutations are refused", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(REFUSED);
-    expect((await getAdminPetCatalog()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
+    expect((await readAdminPetsAuthorized()).find((p) => p.id === existingPetId)?.isArchived).toBe(false);
   });
 
   it("refuses updatePetStatus, and the status does not move", async () => {
@@ -405,7 +421,7 @@ describe("Unauthenticated pet mutations are refused", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(REFUSED);
-    expect((await getAdminPetCatalog()).find((p) => p.id === existingPetId)?.status).toBe("Available");
+    expect((await readAdminPetsAuthorized()).find((p) => p.id === existingPetId)?.status).toBe("Available");
   });
 
   it("writes no audit row for a refused mutation", async () => {

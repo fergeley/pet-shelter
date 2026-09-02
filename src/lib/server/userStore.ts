@@ -1,5 +1,6 @@
 import { hashPassword } from "@/lib/security/crypto";
 import { Role, ROLES } from "@/lib/security/rbac";
+import { USER_STATUSES, type UserStatus } from "@/lib/security/permissions";
 import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError } from "@/lib/persistenceMode";
 
@@ -9,6 +10,7 @@ interface DbUserRecord {
   name: string;
   passwordHash: string;
   role: string;
+  status: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -19,17 +21,24 @@ export interface UserRecord {
   name: string;
   passwordHash: string;
   role: Role;
+  /**
+   * Account lifecycle state. Carried here so the authentication path can reject
+   * a suspended or not-yet-activated member in the same query that fetches the
+   * password hash, instead of making a second round-trip to memberStore.
+   * In-memory demo accounts are always ACTIVE.
+   */
+  status: UserStatus;
   createdAt: string;
   updatedAt: string;
 }
 
 // Initial pre-seeded demo staff accounts
-const INITIAL_STAFF_USERS: Array<Omit<UserRecord, "passwordHash"> & { initialPassword: string }> = [
+const INITIAL_STAFF_USERS: Array<Omit<UserRecord, "passwordHash" | "status"> & { initialPassword: string }> = [
   {
     id: "usr-admin-01",
     email: "admin@hopeforstrays.org",
     name: "Dr. Sarah Tan",
-    role: ROLES.ADMIN,
+    role: ROLES.SUPER_ADMIN,
     initialPassword: "admin123",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
@@ -38,28 +47,37 @@ const INITIAL_STAFF_USERS: Array<Omit<UserRecord, "passwordHash"> & { initialPas
     id: "usr-coord-01",
     email: "coordinator@hopeforstrays.org",
     name: "Priya Devi",
-    role: ROLES.COORDINATOR,
+    role: ROLES.VOLUNTEER_COORDINATOR,
     initialPassword: "coord123",
     createdAt: "2026-01-02T00:00:00.000Z",
     updatedAt: "2026-01-02T00:00:00.000Z",
   },
   {
-    id: "usr-staff-01",
-    email: "staff@hopeforstrays.org",
+    id: "usr-animal-01",
+    email: "animals@hopeforstrays.org",
     name: "Ahmad Razak",
-    role: ROLES.STAFF,
-    initialPassword: "staff123",
+    role: ROLES.ANIMAL_MANAGER,
+    initialPassword: "animal123",
     createdAt: "2026-01-03T00:00:00.000Z",
     updatedAt: "2026-01-03T00:00:00.000Z",
   },
   {
-    id: "usr-vol-01",
-    email: "volunteer@hopeforstrays.org",
+    id: "usr-editor-01",
+    email: "content@hopeforstrays.org",
     name: "Mei Ling",
-    role: ROLES.VOLUNTEER,
-    initialPassword: "vol123",
+    role: ROLES.CONTENT_EDITOR,
+    initialPassword: "content123",
     createdAt: "2026-01-04T00:00:00.000Z",
     updatedAt: "2026-01-04T00:00:00.000Z",
+  },
+  {
+    id: "usr-staff-01",
+    email: "staff@hopeforstrays.org",
+    name: "Nurul Aina",
+    role: ROLES.STAFF,
+    initialPassword: "staff123",
+    createdAt: "2026-01-05T00:00:00.000Z",
+    updatedAt: "2026-01-05T00:00:00.000Z",
   },
 ];
 
@@ -92,6 +110,9 @@ function getSeededStaff(): Promise<UserRecord[]> {
         name: staff.name,
         passwordHash: await hashPassword(staff.initialPassword),
         role: staff.role,
+        // Demo accounts are always active; only a database row can be
+        // suspended or awaiting invitation.
+        status: USER_STATUSES.ACTIVE,
         createdAt: staff.createdAt,
         updatedAt: staff.updatedAt,
       }))
@@ -131,6 +152,7 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
         name: dbUser.name,
         passwordHash: dbUser.passwordHash,
         role: dbUser.role as Role,
+        status: (dbUser.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: dbUser.createdAt.toISOString(),
         updatedAt: dbUser.updatedAt.toISOString(),
       };
@@ -158,6 +180,7 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
         name: dbUser.name,
         passwordHash: dbUser.passwordHash,
         role: dbUser.role as Role,
+        status: (dbUser.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: dbUser.createdAt.toISOString(),
         updatedAt: dbUser.updatedAt.toISOString(),
       };
@@ -196,6 +219,7 @@ export async function createUser(data: {
     name: data.name.trim(),
     passwordHash: data.passwordHash,
     role: data.role,
+    status: USER_STATUSES.ACTIVE,
     createdAt: now,
     updatedAt: now,
   };
@@ -215,6 +239,7 @@ export async function createUser(data: {
       name: dbCreated.name,
       passwordHash: dbCreated.passwordHash,
       role: dbCreated.role as Role,
+      status: (dbCreated.status as UserStatus) ?? USER_STATUSES.ACTIVE,
       createdAt: dbCreated.createdAt.toISOString(),
       updatedAt: dbCreated.updatedAt.toISOString(),
     };
@@ -243,6 +268,7 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
         email: u.email,
         name: u.name,
         role: u.role as Role,
+        status: (u.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: typeof u.createdAt === "string" ? u.createdAt : new Date(u.createdAt).toISOString(),
         updatedAt: typeof u.updatedAt === "string" ? u.updatedAt : new Date(u.updatedAt).toISOString(),
       }));
@@ -257,6 +283,7 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
     email: user.email,
     name: user.name,
     role: user.role,
+    status: user.status,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   }));

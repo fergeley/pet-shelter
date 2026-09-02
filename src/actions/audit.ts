@@ -1,15 +1,15 @@
 "use server";
 
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { getAuditLogsAsync, AuditEntry } from "@/lib/domain/auditLog";
 
 export async function fetchAuditLogsAction(
   limit = 200
 ): Promise<{ success: boolean; data?: AuditEntry[]; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.VIEW_AUDIT_LOG);
 
     const boundedLimit = Math.min(Math.max(1, limit), 1000);
     const logs = await getAuditLogsAsync(boundedLimit);

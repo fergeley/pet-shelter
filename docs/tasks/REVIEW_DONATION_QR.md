@@ -17,7 +17,7 @@ Each of these was checked before any code was written.
 
 | Claim | Reality |
 | --- | --- |
-| Restrict writes to `SUPER_ADMIN` / `ANIMAL_MANAGER` | Neither role exists. The `Role` enum is `ADMIN \| COORDINATOR \| STAFF \| VOLUNTEER`, in `schema.prisma` and in the live database. Zero hits repo-wide. |
+| Restrict writes to `SUPER_ADMIN` / `ANIMAL_MANAGER` | Neither existed when this was written; the enum was `ADMIN \| COORDINATOR \| STAFF \| VOLUNTEER`. **The RBAC work has since landed both**, and `Role.ANIMAL_MANAGER` is documented in the schema as owning "Pet profiles, gallery photos, QR codes". The request was right, just early — `qrAccess.ts` now asks the permission layer rather than naming roles. |
 | Extend `ShelterSettings` to persist QR URLs | `ShelterSettings` was never read or written through Prisma. `prisma.shelterSettings` appeared nowhere; settings lived in a module-level `let` and a `localStorage` mirror. Adding columns alone would have changed nothing. |
 | Per-pet field goes in `src/app/admin/pets` | That page is 21 lines. The dialog is `src/components/admin/PetFormDialog.tsx`. |
 | Support uploading PNG, JPG, **SVG** | `/api/upload` allows JPEG/PNG/WebP/GIF with magic-byte checks. SVG was and remains excluded: an SVG served from our own origin under `/uploads/` can carry inline `<script>`. |
