@@ -1,20 +1,24 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminAuth } from "@/lib/client/adminAuth";
 import { PERMISSIONS, roleHasPermission } from "@/lib/security/permissions";
-import { 
-  PawPrint, 
-  Dog, 
-  FileText, 
-  Settings, 
-  LogOut, 
-  ExternalLink, 
+import { getVolunteerFormLinks } from "@/actions/settings";
+import { isUsableFormUrl } from "@/lib/volunteerFormUrl";
+import {
+  PawPrint,
+  Dog,
+  FileText,
+  Settings,
+  LogOut,
+  ExternalLink,
   Bell,
   ShieldCheck,
-  Users
+  ClipboardList,
+  HelpCircle,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,10 +30,33 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, role, isAuthenticated, isLoading, logout } = useAdminAuth();
+  const [volunteerResponsesUrl, setVolunteerResponsesUrl] = useState("");
 
-  // /admin/invite is reached from an emailed link by someone who has no session
-  // yet, so it must not be forced through the sign-in redirect.
+  // /admin/invite is reached from an emailed link by someone who has no
+  // session yet, so it must not be forced through the sign-in redirect.
   const isPublicAdminRoute = pathname === "/admin/login" || pathname === "/admin/invite";
+
+  // Volunteer intake lives in an external Google Form; whoever reviews
+  // applications gets a direct shortcut to its responses sheet. Expressed as the
+  // capability rather than as `ADMIN || COORDINATOR`: the literal pair predates
+  // the permission matrix and silently excluded every role added since.
+  // REVIEW_APPLICATIONS resolves to exactly the same people it used to.
+  const canOpenVolunteerResponses = roleHasPermission(role, PERMISSIONS.REVIEW_APPLICATIONS);
+
+  useEffect(() => {
+    if (!isAuthenticated || !canOpenVolunteerResponses) return;
+    let active = true;
+    getVolunteerFormLinks()
+      .then((links) => {
+        if (active) setVolunteerResponsesUrl(links.volunteerFormResponsesUrl);
+      })
+      .catch(() => {
+        // Non-fatal: the shortcut simply stays hidden.
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAuthenticated, canOpenVolunteerResponses]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicAdminRoute) {
@@ -58,17 +85,16 @@ export default function AdminLayout({
     return null;
   }
 
-  // Nav is filtered by capability so a member is not shown a tab that would
-  // only answer 403. This is presentation, not enforcement: each route and
-  // action guards itself server-side.
-  // A tab is shown when the role holds ANY of its permissions. The settings
-  // page hosts two capabilities at different levels — a Super Admin edits the
-  // shelter configuration, a Volunteer Coordinator only sends a test email — so
-  // gating it on the write permission alone would hide a page the coordinator
-  // still has legitimate work on.
+  // A tab is shown when the role holds ANY of its permissions. This is
+  // presentation, not enforcement: every route and action guards itself
+  // server-side. The settings page hosts two capabilities at different levels —
+  // a Super Admin edits the configuration, a Volunteer Coordinator only sends a
+  // test email — so gating it on the write permission alone would hide a page
+  // the coordinator still has legitimate work on.
   const navLinks = [
     { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog, permissions: [PERMISSIONS.MANAGE_PETS] },
     { href: "/admin/applications", label: "Adoption Applications", icon: FileText, permissions: [PERMISSIONS.VIEW_APPLICATIONS] },
+    { href: "/admin/faqs", label: "FAQ Knowledge Base", icon: HelpCircle, permissions: [PERMISSIONS.MANAGE_CONTENT] },
     { href: "/admin/members", label: "Staff & Permissions", icon: Users, permissions: [PERMISSIONS.MANAGE_MEMBERS] },
     { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck, permissions: [PERMISSIONS.VIEW_AUDIT_LOG] },
     { href: "/admin/settings", label: "Shelter Settings", icon: Settings, permissions: [PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.SEND_SHELTER_EMAIL] },
@@ -104,6 +130,19 @@ export default function AdminLayout({
 
         {/* Top Right Controls */}
         <div className="flex items-center gap-2.5">
+          {canOpenVolunteerResponses && isUsableFormUrl(volunteerResponsesUrl) && (
+            <a
+              href={volunteerResponsesUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="volunteer-responses-shortcut"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border px-3 py-1.5 bg-background"
+            >
+              <ClipboardList className="size-3.5" />
+              Open Volunteer Form Responses
+            </a>
+          )}
+
           <Link
             href="/"
             target="_blank"

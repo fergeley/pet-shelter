@@ -39,6 +39,32 @@ export async function getShelterSettings(): Promise<ShelterSettingsInput> {
   return getServerSettingsAsync();
 }
 
+/**
+ * The two volunteer Google Form links, for the admin header shortcut.
+ *
+ * Deliberately narrow rather than reusing `getShelterSettings`. Every export of a
+ * "use server" module is a POST-reachable endpoint on any route that imports it, so
+ * a client component pulling the whole settings object would publish `resendApiKey`
+ * and the storage config alongside it. This returns two URLs and checks the session.
+ */
+export async function getVolunteerFormLinks(): Promise<{
+  volunteerFormUrl: string;
+  volunteerFormResponsesUrl: string;
+}> {
+  // Was [ADMIN, COORDINATOR]. Expressed as the capability those two roles
+  // stood for, so the guard keeps admitting exactly them while a role added
+  // later is judged on what it may do rather than on its name. Matches the
+  // check behind the shortcut in the admin layout.
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
+
+  const settings = await getServerSettingsAsync();
+  return {
+    volunteerFormUrl: settings.volunteerFormUrl ?? "",
+    volunteerFormResponsesUrl: settings.volunteerFormResponsesUrl ?? "",
+  };
+}
+
 export async function updateShelterSettings(
   data: ShelterSettingsInput
 ): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
