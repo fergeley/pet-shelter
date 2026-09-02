@@ -103,6 +103,47 @@ private media URL, and now contains no demo sponsor data either.
 nothing: restoring the `rows.length > 0` guard on `listWallOptInSponsors` fails "does not
 publish demo names on an empty public wall", and nothing else.
 
+## 5. Independent code review (`7728925`)
+
+`/code-review` on the full `master...HEAD` diff returned fifteen findings. Thirteen were
+valid; two were narrower than stated. All are addressed or documented.
+
+**The two critical ones shared a root cause** the self-critique had missed entirely:
+`/donate` is a public, unauthenticated form with no payment gateway behind it, so a
+submitted pledge is an *assertion* — and the ledger was treating it as money received.
+
+1. **Self-granted Gold.** `amountMYR: 1200` (or `monthly` x 100, annualised on the spot)
+   opened every Gold gate on the next request.
+2. **Account takeover.** The form mints a receipt for any email typed into it and returns
+   the number in its own response, so the account-claim challenge could be self-issued.
+   The attacker inherited the victim's history, standing, rescues and gated media.
+
+Both closed on one concept: contributions default to `PENDING`; only `CONFIRMED` ones
+confer a standing or satisfy the claim. Confirming is a staff act the claimant cannot
+perform, which is what removes the first step from both attacks.
+
+**Also fixed:** tests could write to the production database; `isActive: false` was
+unreachable so documented decay could not happen; consent withdrawal reported success on a
+failed write; consent was sticky via `||`; sponsor and staff tokens were interchangeable;
+production `createSponsor` fabricated an account then issued it a session; the wall loaded
+every listed sponsor's password hash; receipt months were UTC beside a Malaysia-time date;
+video links pointed at the iframe endpoint; a dead duplicate `id` survived the
+`[data-print-root]` migration.
+
+**Narrower than reported, verified rather than assumed:** the `Pet` foreign key does not
+mismatch cuids (`prisma/seed.ts` upserts pets under their `pet-001` ids), though it does
+reject dedicated pledges against a reachable *unseeded* database — now documented. And the
+token confusion could not reach the admin console: `verifyAdminSession` checks role, not
+presence.
+
+**What this says about the self-critique in section 4.** It was thorough, applied the
+principles honestly, and still missed the worst bug on the branch — in the single mechanism
+it had defended most explicitly. Recorded in `tasks/lessons.md` and in memory: confidence
+marks a thing as already-checked, and an independent review is not optional on
+security-shaped work.
+
+---
+
 ### What the principles actually changed
 
 Applying them was not a formality — it altered the outcome in three places.
