@@ -12,14 +12,14 @@ fixed** — the reasons are in §3, and they are the substantive half of this re
 
 The three findings that are genuinely defects rather than scaling ceilings.
 
-- [ ] **Seed sponsors must not exist in production.**
+- [x] **Seed sponsors must not exist in production.**
   *Fence:* the seed exists so the app is demonstrable with zero infrastructure — the
   database has never been run here (see the unverified-Postgres note). That purpose is
   real and dev-only, so the fence stays and gets an environment lock rather than a
   demolition.
   *Fix:* `ensureInitialized()` seeds nothing when `NODE_ENV === "production"`.
 
-- [ ] **Stop conflating "query returned nothing" with "database unavailable"** (7 sites).
+- [x] **Stop conflating "query returned nothing" with "database unavailable"** (7 sites).
   *Fence:* copied from `serverStore.getServerPetsAsync`, where "no pets in the DB, show
   the demo pets" is a deliberate seeding convenience. For sponsors, empty is a legitimate
   answer — an empty wall, a sponsor with no pledges, a receipt that does not exist.
@@ -27,7 +27,7 @@ The three findings that are genuinely defects rather than scaling ceilings.
   the extra `if (rows.length > 0)` / `if (row)` guard *inside* the `try`. Deleting those
   guards is purely subtractive — no new abstraction, no probe helper.
 
-- [ ] **Receipt numbers: widen the space, stop swallowing write failures.**
+- [x] **Receipt numbers: widen the space, stop swallowing write failures.**
   *Fence:* four digits keeps the number quotable over the phone on an LHDN tax receipt.
   That is a real constraint; do not replace it with a UUID.
   *Fix:* six digits (same shape, 100x the space) and a loud fallback log. Extract the
@@ -39,15 +39,15 @@ The three findings that are genuinely defects rather than scaling ceilings.
 
 ## 2. Fix — honesty (one commit)
 
-- [ ] **Caretaker Q&A actually delivers the message.** It currently validates,
+- [x] **Caretaker Q&A actually delivers the message.** It currently validates,
   rate-limits, audits `messageLength` and returns success while discarding the body — and
   the UI tells the sponsor it was sent. No fence: I simply did not finish it. Changing the
   copy to hide it would be the temporary fix; dispatching it is the root fix.
-- [ ] **`billingFrequencyOf` mislabels a lapsed sponsor.** A cancelled monthly pledge and
+- [x] **`billingFrequencyOf` mislabels a lapsed sponsor.** A cancelled monthly pledge and
   no one-off falls through to `return "one_time"` and reads "One-time pledges".
-- [ ] **Delete two dead `revalidatePath` calls.** Both targets became `force-dynamic`
+- [x] **Delete two dead `revalidatePath` calls.** Both targets became `force-dynamic`
   after they were written.
-- [ ] **Correct the guide** where it overstates the gate and the media's privacy, and
+- [x] **Correct the guide** where it overstates the gate and the media's privacy, and
   record the scaling ceilings from §3 so they are known rather than hidden.
 
 ## 3. Deliberately NOT fixed
@@ -84,4 +84,38 @@ The three findings that are genuinely defects rather than scaling ceilings.
 
 ## 4. Review
 
-*(filled in after implementation)*
+Two commits, not the three originally proposed. The third was going to be "performance
+items"; applying YAGNI to it left nothing worth doing.
+
+- `f937eb2` — storage boundary. The seed is development-only, seven query sites stopped
+  treating an empty result as an outage, receipt numbers widened to six digits from a
+  single extracted generator, and every silent `catch` now logs.
+- `8d1f90d` — honesty. Caretaker questions are delivered, `billingFrequencyOf` stops
+  mislabelling a lapsed sponsor, two dead `revalidatePath` calls removed, and the guide
+  no longer claims more than the code does.
+
+**Verification:** 281 tests pass (up from 268), `tsc --noEmit` clean, `eslint` 0 errors
+(3 pre-existing TanStack warnings), `npm run build` green with the route table unchanged —
+pet profiles still SSG, sponsor routes still dynamic. Prerendered output still contains no
+private media URL, and now contains no demo sponsor data either.
+
+**Mutation-checked**, because a test that passes both before and after a fix proves
+nothing: restoring the `rows.length > 0` guard on `listWallOptInSponsors` fails "does not
+publish demo names on an empty public wall", and nothing else.
+
+### What the principles actually changed
+
+Applying them was not a formality — it altered the outcome in three places.
+
+1. **Chesterton's Fence saved the fallback.** The obvious reading of the auth bypass is
+   "the memory store is dangerous, remove it". Its purpose is real: this repo has never
+   run the sponsor tables against Postgres, and the seed is what makes the portal
+   demonstrable. The fence stayed; only the credentials left.
+2. **KISS made the main fix subtractive.** The first instinct was an
+   `isDatabaseReachable()` probe. But `try/catch` already draws that line correctly — the
+   bug was an extra guard *inside* the `try`. Deleting seven conditions beat adding an
+   abstraction.
+3. **YAGNI caught a misdiagnosis.** I had filed `gate()` loading items on the locked path
+   as a code defect. It is not: the catalogue is a static import, the count feeds a real
+   product string, and the only thing wrong was a sentence in my own guide. Fixing the
+   code would have added a callback to defend against a migration nobody has planned.
