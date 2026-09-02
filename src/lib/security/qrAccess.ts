@@ -35,3 +35,22 @@ export function canEditGlobalQr(user: SessionUser | null): boolean {
 export function canEditPetQr(user: SessionUser | null): boolean {
   return hasRole(user, [...QR_PET_WRITE_ROLES]);
 }
+
+/**
+ * Role check for a client component holding an admin user from `useAdminAuth`.
+ *
+ * That store's `role` is loosely typed and may arrive lower-case ("admin"), so
+ * it is normalised here rather than at each call site. This gates UI affordances
+ * only — `updateShelterSettings` re-checks the session server-side, which is
+ * what actually enforces the boundary.
+ */
+export function roleCanEditGlobalQr(role: string | null | undefined): boolean {
+  const normalized = (role ?? "").toUpperCase();
+  return (QR_GLOBAL_WRITE_ROLES as readonly string[]).includes(normalized);
+}
+
+/** As `roleCanEditGlobalQr`, for the per-animal scope. */
+export function roleCanEditPetQr(role: string | null | undefined): boolean {
+  const normalized = (role ?? "").toUpperCase();
+  return (QR_PET_WRITE_ROLES as readonly string[]).includes(normalized);
+}

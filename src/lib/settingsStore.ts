@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ShelterSettingsInput } from "@/lib/validations/settings";
+import { DEFAULT_SHELTER_SETTINGS } from "@/lib/domain/shelterSettingsDefaults";
 
 const STORAGE_KEY = "hope_for_strays_settings_v2";
 
@@ -10,30 +11,13 @@ const STORAGE_KEY = "hope_for_strays_settings_v2";
  * missing from here reaches the form as `undefined` and blanks its column on
  * the next save.
  */
-export const defaultSettings: ShelterSettingsInput = {
-  shelterName: "Hope for Strays",
-  email: "info@hopeforstrays.org",
-  phone: "03-7876 5432",
-  address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-  operatingHours: "Tuesday – Sunday: 10:00 AM – 5:00 PM (Closed Mondays)",
-  announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
-  adoptionFeeDog: "Free",
-  adoptionFeeCat: "Free",
-  // Present so the stored shape is complete. Without them the settings form
-  // would submit `undefined` for a QR field and blank the saved code.
-  duitNowQrUrl: "",
-  tngQrUrl: "",
-  bankQrUrl: "",
-  paymentPayload: "",
-  resendApiKey: "",
-  emailFrom: "Hope for Strays <onboarding@resend.dev>",
-  shelterNotificationEmail: "fergeley@gmail.com",
-  storageProvider: "local",
-  s3Bucket: "",
-  s3Region: "ap-southeast-1",
-  s3CdnUrl: "",
-  cloudinaryCloudName: "",
-};
+/**
+ * Re-exported from the domain module rather than restated here. These two lists
+ * were duplicated and had already drifted apart (this copy said
+ * "(Closed Mondays)" and the domain copy did not), so whichever fallback path
+ * fired decided which opening hours the public site showed.
+ */
+export const defaultSettings: ShelterSettingsInput = DEFAULT_SHELTER_SETTINGS;
 
 export function useSettingsStore() {
   const [settings, setSettings] = useState<ShelterSettingsInput>(() => {

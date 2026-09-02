@@ -1,5 +1,10 @@
 import * as z from "zod";
-import { isSafeQrImageUrl, QR_PAYLOAD_MAX_LENGTH } from "@/lib/domain/qrCode";
+import {
+  isSafeImageUrl,
+  isSafeQrImageUrl,
+  qrPayloadByteLength,
+  QR_PAYLOAD_MAX_LENGTH,
+} from "@/lib/domain/qrCode";
 
 /**
  * Shared validators for image locations produced by `/api/upload`.
@@ -7,33 +12,52 @@ import { isSafeQrImageUrl, QR_PAYLOAD_MAX_LENGTH } from "@/lib/domain/qrCode";
  * `/api/upload` returns a same-origin path like `/uploads/1730-ab12-qr.webp`.
  * A bare `z.string().url()` rejects that path outright while happily accepting
  * `javascript:alert(1)`, so every image field in the app uses these instead.
+ *
+ * Pet photos and QR codes get different rules: a photo may sit at any
+ * same-origin path (legacy `/images/...` assets included), while a QR must come
+ * from `/uploads/` or a hosted URL.
  */
 
-const UPLOAD_URL_MESSAGE =
-  "Must be an uploaded image path (/uploads/...) or an absolute https:// URL";
+const IMAGE_URL_MESSAGE =
+  "Must be a same-origin path or an absolute http(s) URL";
+const QR_URL_MESSAGE =
+  "Must be an uploaded image path (/uploads/...) or an absolute http(s) URL";
 
-/** A required image location: an upload path or an https URL. */
+/** A required pet image location. */
 export const uploadedImageUrl = z
   .string()
   .trim()
   .min(1, "An image is required")
-  .refine(isSafeQrImageUrl, UPLOAD_URL_MESSAGE);
+  .refine(isSafeImageUrl, IMAGE_URL_MESSAGE);
 
-/** An optional image location. Empty string means "not set". */
+/** An optional pet image location. Empty string means "not set". */
 export const optionalUploadedImageUrl = z
   .string()
   .trim()
-  .refine((value) => value === "" || isSafeQrImageUrl(value), UPLOAD_URL_MESSAGE)
+  .refine((value) => value === "" || isSafeImageUrl(value), IMAGE_URL_MESSAGE)
   .optional()
   .default("");
 
-/** An optional payment payload rendered into a QR code. */
+/** An optional donation QR image location. Empty string means "not set". */
+export const optionalQrImageUrl = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || isSafeQrImageUrl(value), QR_URL_MESSAGE)
+  .optional()
+  .default("");
+
+/**
+ * An optional payment payload rendered into a QR code.
+ *
+ * Capped on encoded bytes rather than UTF-16 units, because QR capacity is a
+ * byte budget and a multi-byte character costs more than one.
+ */
 export const optionalQrPayload = z
   .string()
   .trim()
-  .max(
-    QR_PAYLOAD_MAX_LENGTH,
-    `Payment payload must be ${QR_PAYLOAD_MAX_LENGTH} characters or fewer`
+  .refine(
+    (value) => qrPayloadByteLength(value) <= QR_PAYLOAD_MAX_LENGTH,
+    `Payment payload must be ${QR_PAYLOAD_MAX_LENGTH} bytes or fewer`
   )
   .optional()
   .default("");

@@ -25,9 +25,14 @@ import { AlertTriangle, Info } from "lucide-react";
 interface QrPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Pending (possibly unsaved) shelter QR image URL. */
+  /**
+   * Pending (possibly unsaved) shelter QR image URL. Leave undefined — never
+   * coerce to "" — so `DonationQrPanel` falls back to `DonationQrProvider`.
+   * The pet dialog passes nothing here and must still preview the shelter's
+   * live QR, which is what a donor would actually see for that animal.
+   */
   shelterQrUrl?: string;
-  /** Pending (possibly unsaved) payment payload. */
+  /** Pending (possibly unsaved) payment payload. Same nullish contract. */
   paymentPayload?: string;
   /** Pending per-animal QR, when previewing from the pet dialog. */
   petCustomQrUrl?: string;
@@ -55,8 +60,8 @@ export function QrPreviewDialog({
   const resolved = resolveDonationQr({
     petCustomQrUrl,
     petName,
-    shelterQrUrl: shelterQrUrl ?? "",
-    paymentPayload: paymentPayload ?? "",
+    shelterQrUrl,
+    paymentPayload,
   });
 
   return (
@@ -76,8 +81,8 @@ export function QrPreviewDialog({
             compact
             petCustomQrUrl={petCustomQrUrl}
             petName={petName}
-            shelterQrUrl={shelterQrUrl ?? ""}
-            paymentPayload={paymentPayload ?? ""}
+            shelterQrUrl={shelterQrUrl}
+            paymentPayload={paymentPayload}
             instructions="Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc."
           />
         </div>

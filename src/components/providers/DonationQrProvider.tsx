@@ -22,6 +22,8 @@ export interface DonationQrConfig {
   tngQrUrl: string;
   bankQrUrl: string;
   paymentPayload: string;
+  /** Used for the caption printed under the code. */
+  shelterName: string;
 }
 
 export const EMPTY_QR_CONFIG: DonationQrConfig = {
@@ -29,6 +31,7 @@ export const EMPTY_QR_CONFIG: DonationQrConfig = {
   tngQrUrl: "",
   bankQrUrl: "",
   paymentPayload: "",
+  shelterName: "",
 };
 
 const DonationQrContext = createContext<DonationQrConfig>(EMPTY_QR_CONFIG);
@@ -46,8 +49,15 @@ export function DonationQrProvider({
       tngQrUrl: value.tngQrUrl ?? "",
       bankQrUrl: value.bankQrUrl ?? "",
       paymentPayload: value.paymentPayload ?? "",
+      shelterName: value.shelterName ?? "",
     }),
-    [value.duitNowQrUrl, value.tngQrUrl, value.bankQrUrl, value.paymentPayload]
+    [
+      value.duitNowQrUrl,
+      value.tngQrUrl,
+      value.bankQrUrl,
+      value.paymentPayload,
+      value.shelterName,
+    ]
   );
 
   return (

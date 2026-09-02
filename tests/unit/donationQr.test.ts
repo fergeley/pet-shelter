@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import qrcode from "qrcode-generator";
 import {
+  isSafeImageUrl,
   isSafeQrImageUrl,
-  normalizeQrImageUrl,
+  qrPayloadByteLength,
   renderQrSvg,
-  renderQrDataUri,
   resolveDonationQr,
   QR_PAYLOAD_MAX_LENGTH,
   QR_UPLOAD_MIME_TYPES,
@@ -31,8 +31,10 @@ describe("isSafeQrImageUrl", () => {
     expect(isSafeQrImageUrl("data:image/png;base64,AAAA")).toBe(false);
   });
 
-  it("rejects plain http", () => {
-    expect(isSafeQrImageUrl("http://example.org/qr.png")).toBe(false);
+  it("accepts plain http, which the S3/MinIO provider can emit", () => {
+    // Rejecting it made /api/upload succeed and the subsequent save fail
+    // validation. Blocking script-bearing schemes is the actual goal.
+    expect(isSafeQrImageUrl("http://minio:9000/bucket/qr.png")).toBe(true);
   });
 
   it("rejects protocol-relative URLs pointing off-origin", () => {
@@ -54,23 +56,6 @@ describe("isSafeQrImageUrl", () => {
   it("rejects empty and whitespace-only values", () => {
     expect(isSafeQrImageUrl("")).toBe(false);
     expect(isSafeQrImageUrl("   ")).toBe(false);
-  });
-});
-
-describe("normalizeQrImageUrl", () => {
-  it("maps absent and blank values to null", () => {
-    expect(normalizeQrImageUrl(null)).toBeNull();
-    expect(normalizeQrImageUrl(undefined)).toBeNull();
-    expect(normalizeQrImageUrl("")).toBeNull();
-    expect(normalizeQrImageUrl("  ")).toBeNull();
-  });
-
-  it("trims a valid value", () => {
-    expect(normalizeQrImageUrl("  /uploads/qr.png ")).toBe("/uploads/qr.png");
-  });
-
-  it("throws on a present but unsafe value rather than silently dropping it", () => {
-    expect(() => normalizeQrImageUrl("javascript:alert(1)")).toThrow();
   });
 });
 
@@ -174,11 +159,6 @@ describe("renderQrSvg", () => {
     expect(() => renderQrSvg("A".repeat(QR_PAYLOAD_MAX_LENGTH + 1))).toThrow();
   });
 
-  it("produces a data URI usable as an img src", () => {
-    const uri = renderQrDataUri(DUITNOW);
-    expect(uri.startsWith("data:image/svg+xml;charset=utf-8,")).toBe(true);
-    expect(decodeURIComponent(uri.split(",")[1])).toContain("<svg");
-  });
 });
 
 describe("resolveDonationQr", () => {
@@ -257,5 +237,88 @@ describe("QR upload MIME types", () => {
   it("covers the raster formats a bank app exports", () => {
     expect(QR_UPLOAD_MIME_TYPES).toContain("image/png");
     expect(QR_UPLOAD_MIME_TYPES).toContain("image/jpeg");
+  });
+});
+
+describe("image URL scopes", () => {
+  it("lets a pet photo sit at any same-origin path", () => {
+    expect(isSafeImageUrl("/images/legacy-bruno.jpg")).toBe(true);
+  });
+
+  it("but confines a QR to /uploads/", () => {
+    // A donation QR is only ever an upload or a hosted image.
+    expect(isSafeQrImageUrl("/images/legacy-bruno.jpg")).toBe(false);
+    expect(isSafeQrImageUrl("/uploads/duitnow.png")).toBe(true);
+  });
+
+  it("still blocks script-bearing schemes in both scopes", () => {
+    for (const bad of ["javascript:alert(1)", "data:image/png;base64,AA", "//evil.example/x.png"]) {
+      expect(isSafeImageUrl(bad)).toBe(false);
+      expect(isSafeQrImageUrl(bad)).toBe(false);
+    }
+  });
+});
+
+describe("payload byte encoding", () => {
+  const NON_ASCII = "Kedai Kopi Café — Señor";
+
+  it("encodes non-ASCII as UTF-8 rather than truncating to the low byte", () => {
+    // qrcode-generator's default encoder is `charCodeAt(i) & 0xff`, which
+    // turns U+2014 into 0x14 and emits a scannable QR carrying a corrupted
+    // payment string. Compare the emitted matrix against one built from
+    // pre-encoded UTF-8 bytes: they must agree.
+    const expectedBytes = new TextEncoder().encode(NON_ASCII);
+    let asLatin1 = "";
+    for (const b of expectedBytes) asLatin1 += String.fromCharCode(b);
+
+    const reference = qrcode(0, "M");
+    reference.addData(asLatin1);
+    reference.make();
+
+    const svg = renderQrSvg(NON_ASCII, { cellSize: 1, margin: 4 });
+    const size = Number(/viewBox="0 0 (\d+)/.exec(svg)![1]);
+    expect(size).toBe(reference.getModuleCount() + 8);
+  });
+
+  it("differs from the naive truncating encoding", () => {
+    const naive = qrcode(0, "M");
+    naive.addData(NON_ASCII);
+    naive.make();
+
+    const utf8 = new TextEncoder().encode(NON_ASCII);
+    let asLatin1 = "";
+    for (const b of utf8) asLatin1 += String.fromCharCode(b);
+    const correct = qrcode(0, "M");
+    correct.addData(asLatin1);
+    correct.make();
+
+    // Different byte counts, so the encodings are genuinely not the same.
+    expect(utf8.length).toBeGreaterThan(NON_ASCII.length);
+    expect(naive.getModuleCount()).not.toBe(correct.getModuleCount());
+  });
+
+  it("measures the cap in encoded bytes, not UTF-16 units", () => {
+    expect(qrPayloadByteLength("——")).toBe(6);
+    // 600 em dashes is 600 chars but 1800 bytes, over the 1200-byte cap.
+    expect(() => renderQrSvg("—".repeat(600))).toThrow(/bytes/);
+  });
+});
+
+describe("caption", () => {
+  it("uses the configured shelter name", () => {
+    const result = resolveDonationQr({
+      shelterQrUrl: "/uploads/shelter.png",
+      shelterName: "Rumah Harapan PJ",
+    });
+    expect(result.caption).toBe("Rumah Harapan PJ");
+  });
+
+  it("names the animal for a dedicated fund drive", () => {
+    const result = resolveDonationQr({
+      petCustomQrUrl: "/uploads/bruno.png",
+      petName: "Bruno",
+      shelterName: "Rumah Harapan PJ",
+    });
+    expect(result.caption).toContain("Bruno");
   });
 });

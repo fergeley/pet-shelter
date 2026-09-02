@@ -137,7 +137,21 @@ export function DonationQrSettings({ form, canEdit }: DonationQrSettingsProps) {
             role="switch"
             aria-checked={autoGenerate}
             disabled={!canEdit}
-            onClick={() => setManualToggle(!autoGenerate)}
+            onClick={() => {
+              const next = !autoGenerate;
+              setManualToggle(next);
+              // Turning the switch off has to clear the payload, not just hide
+              // the field. Otherwise the value is still submitted, still stored,
+              // and `resolveDonationQr` still publishes the generated code — so
+              // an admin switching off to stop a wrong payment string would see
+              // no change on the public site and lose sight of the live value.
+              if (!next) {
+                setValue("paymentPayload", "", {
+                  shouldValidate: true,
+                  shouldDirty: true,
+                });
+              }
+            }}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
               autoGenerate ? "bg-primary" : "bg-muted-foreground/30"
             }`}

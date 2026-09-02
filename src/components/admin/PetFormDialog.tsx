@@ -539,12 +539,16 @@ export function PetFormDialog({
         </form>
       </DialogContent>
 
-      <QrPreviewDialog
-        open={qrPreviewOpen}
-        onOpenChange={setQrPreviewOpen}
-        petCustomQrUrl={watch("customQrUrl") ?? ""}
-        petName={watch("name") || editingPet?.name || "This animal"}
-      />
+      {/* Mounted only while open: otherwise it resolves (and can encode) a QR
+          on every keystroke of the pet form. */}
+      {qrPreviewOpen && (
+        <QrPreviewDialog
+          open={qrPreviewOpen}
+          onOpenChange={setQrPreviewOpen}
+          petCustomQrUrl={watch("customQrUrl") ?? ""}
+          petName={watch("name") || editingPet?.name || "This animal"}
+        />
+      )}
     </Dialog>
   );
 }

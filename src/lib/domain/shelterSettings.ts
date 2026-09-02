@@ -9,6 +9,7 @@ import {
   type PersistedSettingKey,
   type QrSettingKey,
 } from "@/lib/domain/shelterSettingsKeys";
+import { DEFAULT_SHELTER_SETTINGS } from "@/lib/domain/shelterSettingsDefaults";
 
 /**
  * Persistence for shelter settings.
@@ -33,29 +34,7 @@ export {
   type QrSettingKey,
 };
 
-export const DEFAULT_SHELTER_SETTINGS: ShelterSettingsInput = {
-  shelterName: "Hope for Strays",
-  email: "info@hopeforstrays.org",
-  phone: "03-7876 5432",
-  address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-  operatingHours: "Tuesday – Sunday: 10:00 AM – 5:00 PM",
-  announcementBanner:
-    "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
-  adoptionFeeDog: "Free",
-  adoptionFeeCat: "Free",
-  duitNowQrUrl: "",
-  tngQrUrl: "",
-  bankQrUrl: "",
-  paymentPayload: "",
-  resendApiKey: "",
-  emailFrom: "Hope for Strays <onboarding@resend.dev>",
-  shelterNotificationEmail: "fergeley@gmail.com",
-  storageProvider: "local",
-  s3Bucket: "",
-  s3Region: "ap-southeast-1",
-  s3CdnUrl: "",
-  cloudinaryCloudName: "",
-};
+export { DEFAULT_SHELTER_SETTINGS };
 
 /**
  * Holds the non-persisted keys, and serves as the fallback for every key when

@@ -14,6 +14,7 @@ import {
   redactSettingsForAudit,
   writeShelterSettings,
 } from "@/lib/domain/shelterSettings";
+import { PERSISTED_SETTING_KEYS } from "@/lib/domain/shelterSettingsKeys";
 import { Resend } from "resend";
 
 export async function getShelterSettings(): Promise<ShelterSettingsInput> {
@@ -31,15 +32,42 @@ export async function getShelterSettings(): Promise<ShelterSettingsInput> {
  * is true, so a database outage cannot replace real settings with defaults.
  */
 export async function loadShelterSettings(): Promise<{
-  settings: ShelterSettingsInput;
+  settings: Partial<ShelterSettingsInput>;
   fromDatabase: boolean;
 }> {
-  return readShelterSettingsWithSource();
+  // A server action is a POST endpoint whose id ships in the client bundle, so
+  // this needs the same gate as the write path — otherwise anyone could call it.
+  const session = await getCurrentSession();
+  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+  const { settings, fromDatabase } = await readShelterSettingsWithSource();
+
+  // Return only the columns the form hydrates. The full object also carries
+  // `resendApiKey` and the storage credentials, and this response has no reason
+  // to contain them — the same values are redacted before reaching audit_logs.
+  const projected: Partial<ShelterSettingsInput> = {};
+  for (const key of PERSISTED_SETTING_KEYS) {
+    (projected as Record<string, unknown>)[key] =
+      (settings as Record<string, unknown>)[key] ?? "";
+  }
+
+  return { settings: projected, fromDatabase };
 }
 
 export async function updateShelterSettings(
   data: ShelterSettingsInput
-): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
+): Promise<{
+  success: boolean;
+  data?: ShelterSettingsInput;
+  error?: string;
+  /**
+   * False when the values were accepted but never reached Postgres. The caller
+   * must not report an unqualified success in that case: the donation QR would
+   * live in one server instance's memory, donors would keep scanning the old
+   * code, and the upload would vanish on the next restart.
+   */
+  persisted?: boolean;
+}> {
   try {
     const session = await getCurrentSession();
     assertAuthorized(session, [ROLES.ADMIN]);
@@ -91,7 +119,7 @@ export async function updateShelterSettings(
       // Ignored outside Next.js runtime context (e.g. unit tests)
     }
 
-    return { success: true, data: saved };
+    return { success: true, data: saved, persisted };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update shelter settings";
     return { success: false, error: msg };
