@@ -433,6 +433,29 @@ model Donation {
   @@map("donations")
 }
 
+/// A donor who has claimed a sponsor portal account.
+///
+/// Separate from `User`, which is staff. Sponsors authenticate through their own
+/// cookie namespace — see `src/lib/security/sponsorSession.ts` for why the two are
+/// not unified.
+model Sponsor {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  name          String
+  passwordHash  String
+  /// Consent to appear on the public wall. The sponsor's current answer; each
+  /// donation also records the answer given at the time it was made.
+  displayOnWall Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsorships PetSponsorship[]
+
+  @@index([displayOnWall])
+  @@map("sponsors")
+}
+
 /// Licensed veterinarian participating in shelter clinical operations.
 model Veterinarian {
   id            String   @id @default(cuid())
@@ -577,9 +600,18 @@ model PetSponsorship {
   sponsorName  String
   sponsorEmail String
   sponsorPhone String?
-  /// Reserved for a future supporter account. Checkout is guest-only today and
-  /// always leaves this null.
+  /// The supporter account that claims this commitment, once one exists. Checkout is
+  /// still guest-only, so this is null at creation and filled in when the donor claims
+  /// their portal account — see `registerSponsorAction`. Nullable and `SetNull` because a
+  /// commitment outlives an account: deleting the account must not erase the record that
+  /// the money was pledged.
   userId       String?
+  sponsor      Sponsor? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Public Sponsor Wall consent, as given at this checkout. Recorded per commitment
+  /// rather than per account because most supporters have no account when they give; the
+  /// account inherits it when the commitment is claimed.
+  displayOnWall Boolean @default(false)
 
   tierId    String
   /// Tier name as displayed when the commitment was made, snapshotted for the
@@ -618,15 +650,20 @@ model PetSponsorship {
   /// Serves the per-animal supporter count and funding total.
   @@index([petId, status])
   @@index([sponsorEmail])
+  @@index([userId])
   @@map("pet_sponsorships")
 }
 
 /// Per-email-address notification consent.
 ///
-/// Keyed by email rather than by user because supporters are never
-/// authenticated accounts on this platform — `User` is staff-only. The address
-/// is the identity, so a signed token mailed to it is the only credential the
-/// preference page can accept.
+/// Keyed by email rather than by account because a supporter need not have one:
+/// `User` is staff-only, and the `Sponsor` portal account is optional and claimed
+/// after the fact. The address is the identity every supporter has, so a signed
+/// token mailed to it is the only credential the preference page can accept.
+///
+/// Deliberately separate from `PetSponsorship.displayOnWall`, which is consent to be
+/// *listed publicly* rather than consent to be *emailed*. Withdrawing one must not
+/// withdraw the other.
 ///
 /// A missing row means "has never expressed a choice", which reads as opted in.
 /// Rows appear only when someone actually changes something, so this table stays

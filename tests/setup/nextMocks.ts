@@ -292,6 +292,8 @@ beforeEach(async () => {
     idempotency,
     donationLedger,
     sponsorshipLedger,
+    sponsorRepository,
+    sponsorDemoSeed,
     notificationPreferences,
   ] = await Promise.all([
     import("@/lib/server/fallbackState"),
@@ -301,6 +303,8 @@ beforeEach(async () => {
     import("@/lib/security/idempotency"),
     import("@/lib/server/donationLedger"),
     import("@/lib/server/sponsorshipLedger"),
+    import("@/lib/server/sponsorRepository"),
+    import("@/lib/server/sponsorDemoSeed"),
     import("@/lib/server/notificationPreferences"),
   ]);
 
@@ -310,6 +314,11 @@ beforeEach(async () => {
   idempotency.resetIdempotencyStore();
   donationLedger.resetDonationLedger();
   sponsorshipLedger.resetSponsorshipLedger();
+  // Order matters: clearing the demo-seed flag after the ledger is emptied is what lets
+  // the next suite re-seed. Leaving the flag set would give every test after the first an
+  // empty ledger and no standings.
+  sponsorDemoSeed.resetSponsorDemoSeed();
+  await sponsorRepository.resetSponsorRepository();
   notificationPreferences.resetNotificationPreferences();
   await userStore.resetUserStore();
 });

@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 
 const alias = {
   "@": fileURLToPath(new URL("./src", import.meta.url)),
+  // `server-only` is resolved by Next at build time and is not an npm dependency
+  // here, so the sponsor data-access layer that imports it needs a stub to load.
+  "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
 };
 
 /**

@@ -16,6 +16,7 @@ import {
   HandHeart,
   Stethoscope,
   Sparkles,
+  Award,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/providers/ThemeToggle";
@@ -63,6 +64,14 @@ export function Navbar() {
   ];
 
   const getInvolvedLinks = [
+    {
+      href: "/sponsors",
+      label: isMs ? "Dinding Penaja Awam" : "Public Sponsor Wall",
+      desc: isMs
+        ? "Penyokong Gangsa, Perak & Emas kami"
+        : "Our Bronze, Silver & Gold supporters",
+      icon: Award,
+    },
     {
       href: "/get-involved#volunteer",
       label: isMs ? "Sukarelawan Santuari & TNRM" : "Volunteer & Field Shifts",

@@ -115,6 +115,7 @@ export async function createPetSponsorshipAction(
       frequency: validated.frequency,
       amountSen,
       paymentMethod: validated.paymentMethod,
+      displayOnWall: validated.displayOnWall,
       pledgeRef,
       taxIdOrIc: validated.taxIdOrIc?.trim() || undefined,
       notes: validated.notes?.trim() || undefined,
