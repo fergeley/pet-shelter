@@ -1,7 +1,7 @@
 import { resetPets } from "./petRepository";
 import { resetApplications } from "./applicationRepository";
 import { resetRehabNeeds } from "./rehabNeedsCatalog";
-import { resetFaqs } from "./faqCatalog";
+import { resetFaqs } from "./faqRepository";
 import { resetSettings } from "./settingsRepository";
 
 /**

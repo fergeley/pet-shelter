@@ -282,6 +282,15 @@ model ShelterSettings {
   /// without a `Pet.sponsorshipGoalSen` of its own.
   defaultSponsorshipGoalSen Int @default(150000)
 
+  /// Volunteer intake runs through an external Google Form rather than an in-app
+  /// pipeline. `volunteerFormUrl` is the public application form linked from the
+  /// volunteer section of /get-involved; `volunteerFormResponsesUrl` is the
+  /// coordinator-only responses sheet linked from the admin header. Deliberately
+  /// two URLs: the form and its responses live at different addresses.
+  /// Already applied to production, see prisma/sql/2026-09-02-add-volunteer-form-urls.sql
+  volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
+  volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
+
   updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")
@@ -597,4 +606,51 @@ model PetSponsorship {
   @@index([sponsorEmail])
   @@index([userId])
   @@map("pet_sponsorships")
+}
+
+/// Category vocabulary for the public FAQ.
+///
+/// Deliberately identical to the `FaqCategory` union in src/types/faq.ts and to
+/// the keys of FAQ_CATEGORY_LABELS in src/lib/presentation/categoryTabs.ts,
+/// which remains the single declaration of the labels. The three are held in
+/// step by a compile-time assertion in src/lib/server/faqRepository.ts: adding
+/// a member here without adding it there is a type error, not a category that
+/// silently renders as its own raw value.
+enum FaqCategory {
+  tnrm
+  sponsorship
+  adoption
+  visiting
+  get_involved
+  general
+  medical
+}
+
+/// Staff-editable FAQ knowledge base behind /faq and /admin/faqs.
+///
+/// Replaces the read-only src/data/faqs.json catalog, which is retained as the
+/// offline fallback fixture in the same way pets.json backs the Pet repository.
+model Faq {
+  id       String      @id @default(cuid())
+  category FaqCategory
+  question String
+  answer   String      @db.Text
+
+  /// Bahasa Malaysia copy. Nullable because staff may publish an English entry
+  /// and translate it later; the repository resolves the English text in its
+  /// place when mapping to FaqItem, so no reader ever sees a blank Malay
+  /// question and every consumer keeps a plain `string`. Storing the null
+  /// rather than a copy of the English means a later edit to the English text
+  /// still shows through instead of leaving a stale duplicate behind.
+  questionMs String?
+  answerMs   String? @db.Text
+
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, category, displayOrder])
+  @@index([category, displayOrder])
+  @@map("faqs")
 }

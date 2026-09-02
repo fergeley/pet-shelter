@@ -235,9 +235,9 @@ export function Navbar() {
 
             {/* Top Level: FAQ */}
             <Link
-              href="/#faq"
+              href="/faq"
               className={`text-sm font-semibold transition-colors hover:text-foreground focus-visible:ring-2 ${
-                pathname === "/faq" || pathname === "/#faq"
+                pathname === "/faq"
                   ? "text-foreground border-b-2 border-foreground pb-0.5"
                   : "text-muted-foreground"
               }`}
@@ -359,7 +359,7 @@ export function Navbar() {
                     </Link>
 
                     <Link
-                      href="/#faq"
+                      href="/faq"
                       onClick={() => setIsMobileOpen(false)}
                       className="block text-sm font-bold py-2 hover:text-primary transition-colors"
                     >
