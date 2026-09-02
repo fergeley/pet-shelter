@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { revalidatePath } from "next/cache";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import { ROLES, type CanonicalRole } from "@/lib/security/permissions";
 import { INVITE_REDEMPTION_FAILED_MESSAGE } from "@/lib/memberStore";
@@ -33,6 +34,8 @@ const h = vi.hoisted(() => ({
   auditLogs: [] as Record<string, unknown>[],
   sentInvites: [] as { email: string; token: string; roleLabel: string }[],
   emailShouldFail: { value: false },
+  /** When set, the next database read/write throws it. */
+  dbError: { value: null as unknown },
 }));
 
 vi.mock("next/headers", () => ({
@@ -89,13 +92,16 @@ vi.mock("@/lib/prisma", () => {
           const found = h.users.find((u) => match(where, u));
           return found ? project(found) : null;
         },
-        findMany: async () =>
-          [...h.users]
+        findMany: async () => {
+          if (h.dbError.value) throw h.dbError.value;
+          return [...h.users]
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-            .map(project),
+            .map(project);
+        },
         count: async ({ where }: { where: Record<string, unknown> }) =>
           h.users.filter((u) => match(where, u)).length,
         create: async ({ data }: { data: Record<string, unknown> }) => {
+          if (h.dbError.value) throw h.dbError.value;
           if (h.users.some((u) => u.email === data.email)) {
             throw new Error("Unique constraint failed on the fields: (`email`)");
           }
@@ -202,6 +208,7 @@ describe("Member administration actions", () => {
     h.auditLogs.length = 0;
     h.sentInvites.length = 0;
     h.emailShouldFail.value = false;
+    h.dbError.value = null;
     superAdmin = addUser(nextSuperAdminSeed());
   });
 
@@ -281,6 +288,96 @@ describe("Member administration actions", () => {
       const res = await listMembers();
       expect(res.success).toBe(false);
       expect(res.status).toBe(403);
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Revalidation contract                                           */
+  /* ---------------------------------------------------------------- */
+
+  describe("route revalidation", () => {
+    // The table no longer refetches after a mutation. It relies on the action
+    // revalidating this route so Next re-renders it server-side and ships the
+    // updated rows as a fresh prop in the same response
+    // (next/dist/docs .../server-actions.md, "Revalidating data"). If these
+    // calls ever disappear, the roster silently stops updating, so the
+    // dependency is pinned here rather than left to a manual click-through.
+    beforeEach(async () => {
+      await signInAs(superAdmin);
+      vi.mocked(revalidatePath).mockClear();
+    });
+
+    it("revalidates after an invite", async () => {
+      await inviteMember("revalidate@hopeforstrays.org", "Revalidate Me", ROLES.STAFF);
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/members");
+    });
+
+    it("revalidates after a role change", async () => {
+      const target = addUser({ id: "usr-rv1", email: "rv1@hopeforstrays.org" });
+      await updateMemberRole(target.id, ROLES.ANIMAL_MANAGER);
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/members");
+    });
+
+    it("revalidates after a status change", async () => {
+      const target = addUser({ id: "usr-rv2", email: "rv2@hopeforstrays.org" });
+      await toggleMemberStatus(target.id, "SUSPENDED");
+      expect(revalidatePath).toHaveBeenCalledWith("/admin/members");
+    });
+
+    it("does not revalidate when the action was refused", async () => {
+      const res = await updateMemberRole("usr-does-not-exist", ROLES.STAFF);
+      expect(res.success).toBe(false);
+      expect(revalidatePath).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Error reporting                                                 */
+  /* ---------------------------------------------------------------- */
+
+  describe("failure reporting", () => {
+    beforeEach(async () => {
+      await signInAs(superAdmin);
+    });
+
+    it("does not forward internal database detail to the caller", async () => {
+      // Prisma messages embed schema, column names and query fragments. They
+      // are useful in a server log and have no business in a browser.
+      h.dbError.value = new Error(
+        'Invalid `prisma.user.findMany()` invocation: column "users"."inviteTokenHash" does not exist'
+      );
+
+      const res = await listMembers();
+
+      expect(res.success).toBe(false);
+      expect(res.status).toBe(500);
+      expect(res.error).toBe("Failed to load staff members.");
+      expect(res.error).not.toMatch(/prisma|inviteTokenHash|column/i);
+    });
+
+    it("maps a unique-constraint race to 409 rather than 500", async () => {
+      // Two administrators inviting the same address concurrently: the
+      // pre-check passes for both and the loser hits the unique index.
+      const conflict = Object.assign(new Error("Unique constraint failed"), {
+        code: "P2002",
+      });
+      h.dbError.value = conflict;
+
+      const res = await inviteMember("race@hopeforstrays.org", "Race Loser", ROLES.STAFF);
+
+      expect(res.success).toBe(false);
+      expect(res.status).toBe(409);
+      expect(res.error).toMatch(/already has a staff account/i);
+      expect(res.error).not.toMatch(/constraint|P2002/i);
+    });
+
+    it("still reports authorization failures verbatim", async () => {
+      // Guard errors are written for the operator and must survive.
+      h.cookieStore.clear();
+      const res = await listMembers();
+
+      expect(res.status).toBe(401);
+      expect(res.error).toMatch(/sign in/i);
     });
   });
 

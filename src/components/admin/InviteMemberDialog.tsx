@@ -19,6 +19,7 @@ import {
   ROLE_LABELS,
   type CanonicalRole,
 } from "@/lib/security/permissions";
+import { inviteMemberSchema } from "@/lib/validations/member";
 import type { InviteDraft } from "@/hooks/useMemberTableController";
 
 export function InviteMemberDialog({
@@ -36,10 +37,10 @@ export function InviteMemberDialog({
   onChange: (draft: InviteDraft) => void;
   onSubmit: () => void;
 }) {
-  // Mirrors the server-side zod schema so the button is not enabled for input
-  // the action will only reject. The server remains the authority.
-  const isValid =
-    draft.name.trim().length >= 2 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim());
+  // Runs the exact schema the action validates with, rather than a second
+  // hand-written rule that could drift from it. The server remains the
+  // authority; this only decides whether the button is enabled.
+  const isValid = inviteMemberSchema.safeParse(draft).success;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

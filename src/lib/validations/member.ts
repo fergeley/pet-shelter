@@ -8,10 +8,6 @@ import { CANONICAL_ROLES, USER_STATUSES } from "@/lib/security/permissions";
  */
 export const canonicalRoleSchema = z.enum(CANONICAL_ROLES);
 
-export const userStatusSchema = z.enum(
-  Object.values(USER_STATUSES) as [string, ...string[]]
-);
-
 export const inviteMemberSchema = z.object({
   email: z
     .string()

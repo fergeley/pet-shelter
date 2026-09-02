@@ -17,6 +17,16 @@ import { PERMISSIONS, roleHasPermission, type Permission } from "@/lib/security/
  * such as a suspension, which this signature-only check cannot. Deleting this
  * file would cost the correct status code, not the protection.
  *
+ * Scope is deliberately one route. Generalising this into a route -> permission
+ * table for all of /admin was considered and rejected: proxy can only read the
+ * signed cookie, which makes it an optimistic check. Promoting someone
+ * mid-session would then produce a false negative — the DAL refreshes the role
+ * from the database and would allow the request, but the stale cookie would
+ * have proxy reject it before the app ran. Server Functions also POST to the
+ * route they are used on, so a route-level permission would wrongly reject
+ * legitimate actions (a Volunteer Coordinator sending a test email from
+ * /admin/settings, say). Route data is guarded at its source instead.
+ *
  * Proxy runs on the Node.js runtime in Next 16, so the real token codec and
  * permission matrix are reused here rather than reimplemented.
  */
@@ -26,6 +36,28 @@ const GUARDED_ROUTES: { prefix: string; permission: Permission }[] = [
   { prefix: "/admin/members", permission: PERMISSIONS.MANAGE_MEMBERS },
 ];
 
+/**
+ * Returns a document response, which is the documented way to produce a status
+ * from proxy ("Producing a response", proxy.md).
+ *
+ * Two alternatives were considered and rejected on the docs:
+ *
+ * - Serving a different response to client-side navigations. Not possible:
+ *   Next strips `rsc`, `next-router-state-tree` and `next-router-prefetch` from
+ *   `request.headers` in proxy specifically "to prevent accidentally handling
+ *   an RSC request differently than the HTML request as both need to align"
+ *   (proxy.md). There is no supported way to branch on request kind here.
+ * - `NextResponse.rewrite(url, { status })` to reuse app/forbidden.tsx. The
+ *   docs never give `rewrite` an init, and the rewrite branch in
+ *   next/dist/server/lib/router-utils/resolve-routes.js returns no statusCode,
+ *   so the status is silently dropped and you are back to a 200.
+ *
+ * The residual gap — a client-side navigation receiving HTML — is not reachable
+ * in practice: the admin nav only renders a tab to a role that holds its
+ * permission, so a user this function would deny has no link to click and no
+ * prefetch is issued for one. Reaching a denied route means typing the URL,
+ * which is a document request, which is exactly the case this handles.
+ */
 function denialResponse(status: 401 | 403, title: string, message: string): NextResponse {
   // Deliberately minimal: this is a network-boundary rejection, and the styled
   // in-app equivalents are src/app/forbidden.tsx and src/app/unauthorized.tsx.

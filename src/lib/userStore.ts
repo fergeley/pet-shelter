@@ -1,5 +1,6 @@
 import { hashPassword } from "@/lib/security/crypto";
 import { Role, ROLES } from "@/lib/security/rbac";
+import { USER_STATUSES, type UserStatus } from "@/lib/security/permissions";
 import { prisma } from "@/lib/prisma";
 
 interface DbUserRecord {
@@ -8,6 +9,7 @@ interface DbUserRecord {
   name: string;
   passwordHash: string;
   role: string;
+  status: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -18,12 +20,19 @@ export interface UserRecord {
   name: string;
   passwordHash: string;
   role: Role;
+  /**
+   * Account lifecycle state. Carried here so the authentication path can reject
+   * a suspended or not-yet-activated member in the same query that fetches the
+   * password hash, instead of making a second round-trip to memberStore.
+   * In-memory demo accounts are always ACTIVE.
+   */
+  status: UserStatus;
   createdAt: string;
   updatedAt: string;
 }
 
 // Initial pre-seeded demo staff accounts
-const INITIAL_STAFF_USERS: Array<Omit<UserRecord, "passwordHash"> & { initialPassword: string }> = [
+const INITIAL_STAFF_USERS: Array<Omit<UserRecord, "passwordHash" | "status"> & { initialPassword: string }> = [
   {
     id: "usr-admin-01",
     email: "admin@hopeforstrays.org",
@@ -88,6 +97,7 @@ function ensureInitialized(): Promise<void> {
           name: staff.name,
           passwordHash,
           role: staff.role,
+          status: USER_STATUSES.ACTIVE,
           createdAt: staff.createdAt,
           updatedAt: staff.updatedAt,
         });
@@ -114,6 +124,7 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
         name: dbUser.name,
         passwordHash: dbUser.passwordHash,
         role: dbUser.role as Role,
+        status: (dbUser.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: dbUser.createdAt.toISOString(),
         updatedAt: dbUser.updatedAt.toISOString(),
       };
@@ -141,6 +152,7 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
         name: dbUser.name,
         passwordHash: dbUser.passwordHash,
         role: dbUser.role as Role,
+        status: (dbUser.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: dbUser.createdAt.toISOString(),
         updatedAt: dbUser.updatedAt.toISOString(),
       };
@@ -179,6 +191,7 @@ export async function createUser(data: {
     name: data.name.trim(),
     passwordHash: data.passwordHash,
     role: data.role,
+    status: USER_STATUSES.ACTIVE,
     createdAt: now,
     updatedAt: now,
   };
@@ -198,6 +211,7 @@ export async function createUser(data: {
       name: dbCreated.name,
       passwordHash: dbCreated.passwordHash,
       role: dbCreated.role as Role,
+      status: (dbCreated.status as UserStatus) ?? USER_STATUSES.ACTIVE,
       createdAt: dbCreated.createdAt.toISOString(),
       updatedAt: dbCreated.updatedAt.toISOString(),
     };
@@ -223,6 +237,7 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
         email: u.email,
         name: u.name,
         role: u.role as Role,
+        status: (u.status as UserStatus) ?? USER_STATUSES.ACTIVE,
         createdAt: typeof u.createdAt === "string" ? u.createdAt : new Date(u.createdAt).toISOString(),
         updatedAt: typeof u.updatedAt === "string" ? u.updatedAt : new Date(u.updatedAt).toISOString(),
       }));
@@ -237,6 +252,7 @@ export async function listUsers(): Promise<Omit<UserRecord, "passwordHash">[]> {
     email: user.email,
     name: user.name,
     role: user.role,
+    status: user.status,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   }));

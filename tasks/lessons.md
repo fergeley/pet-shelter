@@ -48,3 +48,45 @@ Claimed ~25 call sites re-read the session per request. Wrong: server actions ar
 separate requests, so almost every path checks once. The real duplication was one
 function reading it twice. The optimisation was still worth keeping — the
 overstated justification was not. State the measured win, not the imagined one.
+
+## The framework docs beat your intuition about the framework
+
+Three conclusions from a careful self-review were wrong, and reading the
+bundled `node_modules/next/dist/docs/` overturned all three:
+
+- "The refetch is redundant" — right, but the fix was backwards. `revalidatePath`
+  in an action already re-renders the route and ships new props in the same
+  response; the bug was the `useState` copy that shadowed them.
+- "Branch on the RSC header in proxy" — impossible. Next strips those headers
+  there on purpose so RSC and HTML responses cannot diverge.
+- "Rewrite to a shared 403 route with a status" — the rewrite path drops the
+  status silently.
+
+**Rule:** for anything about framework behaviour in this repo, read
+`node_modules/next/dist/docs/` before proposing a fix, and cite the file. This
+is a modified Next.js; general knowledge of Next is not evidence about it.
+
+## A client `useState` copy of server data is the same defect as a duplicated constant
+
+`MemberDataTable` seeded `useState` from an `initialMembers` prop, so the server
+and the client each believed they owned the roster. Every symptom — the extra
+round-trip, the reconciliation code, the staleness window — came from that one
+decision. Deleting the copy deleted all of them. Server owns data, client owns
+view state. Another instance of [[anything-written-twice-diverges]].
+
+## Audit the guard on every entry point, not just the one you are changing
+
+The RBAC work added a guard to `/admin/members` and left `getAdminPets()`
+unguarded next door, where a Server Component called it directly and shipped the
+whole admin inventory to anonymous visitors in the flight payload. The client
+layout looked like protection and was not.
+
+**Rule:** when adding authorization anywhere, enumerate every sibling entry
+point and check each one. A client-side layout gate is never the boundary, and
+"the UI does not render it" says nothing about what the payload contains.
+
+## Mutation-test the fix, not just the feature
+
+Removing the raw-error leak from `toFailure` felt obviously right, so it shipped
+without a test. Reintroducing the defect proved it: the suite stayed green. Any
+security fix that a reintroduced defect does not break is undefended.

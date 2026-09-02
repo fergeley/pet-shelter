@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from "react";
 import type { SortingState } from "@tanstack/react-table";
 import {
   inviteMember,
-  listMembers,
   resendInvitation,
   toggleMemberStatus,
   updateMemberRole,
@@ -22,11 +21,19 @@ export interface InviteDraft {
 
 const EMPTY_INVITE: InviteDraft = { name: "", email: "", role: "STAFF" };
 
-export function useMemberTableController(
-  initialMembers: MemberRecord[],
-  currentUserId: string
-) {
-  const [members, setMembers] = useState<MemberRecord[]>(initialMembers);
+/**
+ * View-state controller for the staff roster.
+ *
+ * The roster itself is NOT held here. Every member action calls
+ * `revalidatePath("/admin/members")`, and Next re-renders the route server-side
+ * and ships the new RSC payload in the same response, so the updated rows
+ * arrive as a fresh `members` prop. Copying them into `useState` would break
+ * that: client state is preserved across a server re-render, so the copy would
+ * shadow the new data and force a second round-trip to fetch what the first
+ * response already contained. This hook therefore owns only genuine view state
+ * — filters, sorting, dialogs and in-flight markers.
+ */
+export function useMemberTableController(members: MemberRecord[], currentUserId: string) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<MemberStatusFilter>("all");
   const [sorting, setSorting] = useState<SortingState>([{ id: "createdAt", desc: true }]);
@@ -47,21 +54,6 @@ export function useMemberTableController(
   const flashNotice = useCallback((message: string) => {
     setNotice(message);
     setTimeout(() => setNotice(null), 5000);
-  }, []);
-
-  /**
-   * Re-reads the roster from the server.
-   *
-   * Each mutation already returns the updated row, but a full refresh keeps
-   * counts honest when another administrator is working at the same time.
-   */
-  const refresh = useCallback(async () => {
-    const res = await listMembers();
-    if (res.success && res.data) {
-      setMembers(res.data);
-    } else if (res.error) {
-      setError(res.error);
-    }
   }, []);
 
   const filteredMembers = useMemo(() => {
@@ -116,11 +108,10 @@ export function useMemberTableController(
       );
       setIsInviteOpen(false);
       setInviteDraft(EMPTY_INVITE);
-      await refresh();
     } finally {
       setIsSubmitting(false);
     }
-  }, [inviteDraft, flashNotice, refresh]);
+  }, [inviteDraft, flashNotice]);
 
   const handleRoleSubmit = useCallback(async () => {
     if (!roleEditTarget) return;
@@ -135,12 +126,11 @@ export function useMemberTableController(
       }
       flashNotice(`${roleEditTarget.name} is now ${pendingRole.replace(/_/g, " ").toLowerCase()}.`);
       setRoleEditTarget(null);
-      await refresh();
     } finally {
       setIsSubmitting(false);
       setBusyMemberId(null);
     }
-  }, [roleEditTarget, pendingRole, flashNotice, refresh]);
+  }, [roleEditTarget, pendingRole, flashNotice]);
 
   const handleStatusChange = useCallback(
     async (member: MemberRecord, status: UserStatus) => {
@@ -158,12 +148,11 @@ export function useMemberTableController(
             : `${member.name} has been reactivated.`
         );
         setSuspendTarget(null);
-        await refresh();
       } finally {
         setBusyMemberId(null);
       }
     },
-    [flashNotice, refresh]
+    [flashNotice]
   );
 
   const handleResendInvite = useCallback(
@@ -177,12 +166,11 @@ export function useMemberTableController(
           return;
         }
         flashNotice(`A fresh invitation has been sent to ${member.email}.`);
-        await refresh();
       } finally {
         setBusyMemberId(null);
       }
     },
-    [flashNotice, refresh]
+    [flashNotice]
   );
 
   const handleOpenRoleEdit = useCallback((member: MemberRecord) => {
@@ -232,7 +220,6 @@ export function useMemberTableController(
       handleRoleSubmit,
       handleStatusChange,
       handleResendInvite,
-      refresh,
     },
   };
 }

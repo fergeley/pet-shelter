@@ -5,4 +5,6 @@ export * from "./rateLimit";
 export * from "./rbac";
 export * from "./session";
 export * from "../auth";
-export * from "../adminAuth";
+
+// Deliberately NOT re-exporting ../adminAuth: it is a "use client" hook, and
+// this barrel pulls in Prisma via ./dal. Import useAdminAuth directly.

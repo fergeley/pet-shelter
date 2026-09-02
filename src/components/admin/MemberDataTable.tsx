@@ -81,13 +81,18 @@ function formatLastLogin(iso: string | null): { label: string; muted: boolean } 
 }
 
 export function MemberDataTable({
-  initialMembers,
+  members,
   currentUserId,
 }: {
-  initialMembers: MemberRecord[];
+  /**
+   * The roster as the server last rendered it. Not copied into client state:
+   * each mutation revalidates the route, so Next re-renders it server-side and
+   * delivers the updated rows through this prop in the same response.
+   */
+  members: MemberRecord[];
   currentUserId: string;
 }) {
-  const { state, handlers } = useMemberTableController(initialMembers, currentUserId);
+  const { state, handlers } = useMemberTableController(members, currentUserId);
   const {
     filteredMembers,
     counts,

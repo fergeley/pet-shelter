@@ -77,15 +77,6 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
 export const getVerifiedSession = cache(readVerifiedSession);
 
 /**
- * Resolves a verified session or throws `UnauthorizedError` (401).
- */
-export async function requireSession(): Promise<SessionUser> {
-  const session = await getVerifiedSession();
-  if (!session) throw new UnauthorizedError();
-  return session;
-}
-
-/**
  * Resolves a verified session holding `permission`, or throws.
  *
  * Throws `UnauthorizedError` (401) when signed out and `ForbiddenError` (403)

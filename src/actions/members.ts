@@ -2,8 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/security/dal";
-import { PERMISSIONS, USER_STATUSES, ROLE_LABELS, ROLE_DESCRIPTIONS } from "@/lib/security/rbac";
-import { statusForError } from "@/lib/security/rbac";
+import {
+  ForbiddenError,
+  PERMISSIONS,
+  ROLE_DESCRIPTIONS,
+  ROLE_LABELS,
+  UnauthorizedError,
+  USER_STATUSES,
+  statusForError,
+} from "@/lib/security/rbac";
 import { hashPassword } from "@/lib/security/crypto";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
@@ -48,10 +55,40 @@ export interface ActionResult<T = undefined> {
   status?: number;
 }
 
+/** Prisma's unique-constraint violation. */
+function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "P2002"
+  );
+}
+
+/**
+ * Converts a thrown error into a client-safe result.
+ *
+ * Only the guard errors this module raises deliberately carry their message
+ * outward — they are written for the operator. Anything else (a Prisma failure,
+ * a connection error) gets the caller's fallback, because those messages embed
+ * schema and query detail that has no business reaching a browser. The real
+ * error still goes to the server log.
+ */
 function toFailure(error: unknown, fallback: string): ActionResult<never> {
-  const status = statusForError(error);
-  const message = error instanceof Error ? error.message : fallback;
-  return { success: false, error: message, status };
+  if (error instanceof UnauthorizedError || error instanceof ForbiddenError) {
+    return { success: false, error: error.message, status: statusForError(error) };
+  }
+
+  if (isUniqueConstraintError(error)) {
+    // Loses the race against a concurrent invite for the same address.
+    return {
+      success: false,
+      error: "That email address already has a staff account.",
+      status: 409,
+    };
+  }
+
+  console.error("[members action]", error);
+  return { success: false, error: fallback, status: 500 };
 }
 
 /* -------------------------------------------------------------------------- */

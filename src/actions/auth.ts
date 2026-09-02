@@ -11,7 +11,7 @@ import {
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { findUserByEmail, createUser, UserRecord } from "@/lib/userStore";
 import { Role, ROLES, normalizeRole } from "@/lib/security/rbac";
-import { findMemberByEmail, recordLogin } from "@/lib/memberStore";
+import { recordLogin } from "@/lib/memberStore";
 import { USER_STATUSES } from "@/lib/security/permissions";
 
 /**
@@ -93,42 +93,37 @@ export async function loginAction(credentials: {
   // A suspended member must not be able to obtain a fresh 24-hour session, and
   // an invitee's password hash is unusable until they redeem their link.
   //
-  // The lookup is guarded: memberStore talks to Postgres with no in-memory
-  // fallback, and an unreachable database must not take sign-in down with it.
-  // A failed read degrades to the userStore result, matching the trade-off
-  // documented on getVerifiedSession().
-  let member: Awaited<ReturnType<typeof findMemberByEmail>> = null;
-  try {
-    member = await findMemberByEmail(emailKey);
-  } catch {
-    member = null;
-  }
-
-  if (member && member.status !== USER_STATUSES.ACTIVE) {
+  // `status` rides along on the same userStore row that supplied the password
+  // hash, so this costs no extra query. In-memory demo accounts report ACTIVE.
+  if (user.status !== USER_STATUSES.ACTIVE) {
     recordAuditLog({
-      actorId: member.id,
-      actorEmail: member.email,
-      actorRole: member.role,
+      actorId: user.id,
+      actorEmail: user.email,
+      actorRole: normalizeRole(user.role),
       action: "AUTH_LOGIN_BLOCKED",
       entity: "Auth",
-      entityId: member.id,
-      details: { reason: `Account status is ${member.status}` },
+      entityId: user.id,
+      details: { reason: `Account status is ${user.status}` },
     });
 
     return {
       success: false,
       error:
-        member.status === USER_STATUSES.SUSPENDED
+        user.status === USER_STATUSES.SUSPENDED
           ? "This staff account has been suspended. Contact a shelter administrator."
           : "This account has not been activated yet. Please use the invitation link sent to your email.",
     };
   }
 
   // 4. Establish Session & Record Audit Log
-  // The database row wins over the (possibly stale) userStore fallback, so a
-  // role changed in /admin/members applies from the very next sign-in.
-  const effectiveRole = normalizeRole(member?.role ?? user.role);
+  // Normalised so a row still carrying a deprecated alias issues a canonical
+  // session; a role changed in /admin/members applies from the next sign-in.
+  const effectiveRole = normalizeRole(user.role);
   const session = await establishSession({ ...user, role: effectiveRole });
+
+  // Awaited deliberately. Serverless hosts suspend execution once the response
+  // is sent, so a fire-and-forget write here can simply be dropped — and this
+  // is one indexed UPDATE by primary key.
   await recordLogin(user.id);
 
   recordAuditLog({

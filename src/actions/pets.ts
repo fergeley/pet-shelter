@@ -6,7 +6,7 @@ import { Pet } from "@/types/pet";
 import { SessionUser } from "@/lib/security/session";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { hasAdminPermission } from "@/lib/auth";
-import { PERMISSIONS } from "@/lib/security/rbac";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
@@ -62,8 +62,19 @@ export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
 
 /**
  * Admin catalog query: includes all pets (archived and active) with linked application counts.
+ *
+ * Guarded because /admin/pets is a Server Component that calls this directly.
+ * The admin layout is a client component and hides the table until its session
+ * effect resolves, but server-component output is serialised into the RSC
+ * flight payload regardless of whether the layout mounts it — so without this
+ * check an anonymous request to /admin/pets received the whole inventory,
+ * archived animals and application counts included. Authorization belongs as
+ * close to the data as possible; the route-level 403 is a separate concern.
  */
 export async function getAdminPets(): Promise<(Pet & { applicationCount: number })[]> {
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.MANAGE_PETS);
+
   const allPets = await getServerPetsAsync();
   const apps = await getServerApplicationsAsync();
 

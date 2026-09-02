@@ -1,7 +1,7 @@
 import { forbidden, unauthorized } from "next/navigation";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { hasPermission, PERMISSIONS } from "@/lib/security/rbac";
-import { listMemberRecords, type MemberRecord } from "@/lib/memberStore";
+import { listMembers } from "@/actions/members";
 import { MemberDataTable } from "@/components/admin/MemberDataTable";
 
 // The roster reflects live role and status changes, so it must never be
@@ -16,6 +16,10 @@ export const dynamic = "force-dynamic";
  * body rather than a 200 carrying an error message. The surrounding admin
  * layout is a client component whose redirect is a convenience, not a security
  * boundary; this check is the boundary.
+ *
+ * This is also the only read path for the roster. Each member action
+ * revalidates this route, so Next re-renders it here and hands the fresh rows
+ * to the table as a prop — the client never fetches the list itself.
  */
 export default async function AdminMembersPage() {
   const session = await getVerifiedSession();
@@ -28,18 +32,17 @@ export default async function AdminMembersPage() {
     forbidden();
   }
 
-  let members: MemberRecord[] = [];
-  let loadError: string | null = null;
+  // Reuses the guarded action rather than reaching for the store directly, so
+  // there is one authorized read path. Its permission check resolves from the
+  // request-scoped cache populated above, so it costs no extra query.
+  const result = await listMembers();
 
-  try {
-    members = await listMemberRecords();
-  } catch {
-    // Member administration talks to Postgres directly and has no in-memory
-    // fallback: showing an empty roster as though it were the truth could get
-    // an administrator to re-invite people who already exist.
-    loadError =
-      "Could not reach the staff database. The roster below may be incomplete — refresh before making changes.";
-  }
+  // Member administration talks to Postgres directly and has no in-memory
+  // fallback: showing an empty roster as though it were the truth could get an
+  // administrator to re-invite people who already exist.
+  const loadError = result.success
+    ? null
+    : "Could not reach the staff database. The roster below may be incomplete — refresh before making changes.";
 
   return (
     <div className="space-y-6">
@@ -59,7 +62,7 @@ export default async function AdminMembersPage() {
         </div>
       )}
 
-      <MemberDataTable initialMembers={members} currentUserId={session.id} />
+      <MemberDataTable members={result.data ?? []} currentUserId={session.id} />
     </div>
   );
 }
