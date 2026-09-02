@@ -35,10 +35,12 @@ grep AGENT_TEAMS .claude/settings*.json # unset — agent teams disabled
 six months, the four-layer split failed. It is at 597 lines having absorbed two hardening passes;
 the trajectory must stay downward.
 
-**Drift, 2026-08-31:** spec 607, ledger 15 decisions / 8 open, suite unchanged. The +10 on the
-spec is `fa93de3` and `60ce541`; the agent roster and the skill conversion added zero to this
-scope. The condition is a six-month trajectory, not a per-commit ratchet — but this is the wrong
-direction, and the baseline numbers above stay at their registered 2026-08-30 values on purpose.
+**Drift, 2026-08-31 (end of day):** spec **607**, ledger **22 decisions / 8 open**, suite
+**682 passed, 50 files**. The +10 on the spec is `fa93de3` and `60ce541`; the agent roster, the
+skill conversion and the whole guard episode added zero to this scope. Open items are back to their
+registered count — two were opened and both closed the same day. The condition is a six-month
+trajectory, not a per-commit ratchet, and the baseline numbers above stay at their registered
+2026-08-30 values on purpose.
 
 ---
 
@@ -65,28 +67,53 @@ unobserved, and the field reports auto-selection fires only sometimes. **Name th
 treat routing as a bonus.** One cheap measurement is still worth taking —
 `tasks/open/agent-roster-routing-untested.md` — but nothing waits on it.
 
-### T2 — Move sessions onto worktrees
+### T2 — Move sessions onto worktrees *(verified available 2026-08-31 — nothing is blocking it)*
 
 The single highest-value change, and it is one flag. Every hazard in the concurrency notes —
 `git add -A` sweeping another session's work, a shared index, branch switches under a running
 session, injected test defects being repaired into history — exists because two sessions share one
 tree.
 
+**The blocker everyone assumed was never real.** `2026-08-31-worktree-isolation-for-spike-runner-died.md`
+reasoned that a worktree carries no gitignored files, so `node_modules` at 987 MB is absent and no
+verification can run inside one. Measured on 2026-08-31: creation takes **0.68s**, `node_modules` is
+indeed absent, and `npm test` runs anyway — **664 tests green in 10.4s** — because
+`.claude/worktrees/` sits *inside* the repo and Node resolves `node_modules` upward to
+`C:\Users\User\pet-shelter\node_modules`. Secrets do not follow (`.env.local` absent, so the Neon
+production branch is unreachable), and the main checkout is byte-identical before and after,
+`.git/index` included. Evidence:
+`tasks/decisions/2026-08-31-worktrees-are-free-and-the-guard-was-the-wrong-layer.md`.
+
 **Do:** start each session with `claude --worktree <name>`. `.claude/worktrees/` is already
 gitignored (done 2026-08-30; without it, worktree contents appear as untracked files in the main
-checkout, exactly where `git add -A` would sweep them).
+checkout, exactly where `git add -A` would sweep them), and `worktree.baseRef: "head"` is set so a
+worktree starts from this branch rather than 143 commits behind on `master`.
+
+**First thing to check in the next session:** that `claude --worktree` actually places the checkout
+*inside* the repo. Every number above depends on upward `node_modules` resolution; a worktree in a
+temp directory resolves nothing and T2 goes back to being blocked.
+
+**Commit before you switch — this is an action, not a note.** A worktree carries **committed state
+only**. The probe ran 664 tests where the working tree had 682, because that work was uncommitted.
+Starting a worktree session on top of an uncommitted tree means the new session cannot see any of
+it, while the old tree keeps it exposed to the concurrent session'''s `git add -A`. Commit first,
+with pathspecs (`triage-rules.md` §5), then `claude --worktree`.
 
 **Then:** the claim protocol in `midwife.md` §5 becomes the shared-tree fallback it is now
 labelled as, rather than the primary mechanism. If worktrees become the norm, delete it.
 
-### T3 — Decide `.worktreeinclude`, and probably leave it absent
+### T3 — `.worktreeinclude` — **settled 2026-08-31: leave it absent**
 
 A worktree gets no `.env.local`, so it cannot reach the database. **That is a feature here**: those
 credentials point at the Neon *production* branch (RISK VETO §1), so a worktree without them
-cannot write to production at all.
+cannot write to production at all. Verified absent in the 2026-08-31 probe.
 
-**Do:** add `.worktreeinclude` only if a worktree genuinely needs to run the dev server. If so,
-weigh it against copying production credentials into every isolated checkout.
+The other reason to want it — copying `node_modules` in — **evaporated**: it resolves upward from
+inside the repo at zero cost. `.worktreeinclude` therefore buys only the dev server, at the price of
+copying production credentials into every isolated checkout. Not worth it.
+
+**Do:** nothing. Add `.worktreeinclude` only if a worktree genuinely needs the dev server, and weigh
+that against RISK VETO §1 first.
 
 ### T4 — Install the pre-commit hook, or drop it
 
@@ -113,6 +140,13 @@ from ending until it passes — the same move that made kill conditions immutabl
 derived. Candidate check: a GRAVE-labelled turn must have written a `tasks/decisions/` entry.
 
 This is the clearest remaining instance of the spec's own thesis applied to itself.
+
+**Read `tasks/lessons.md` 2026-08-31 before building it.** A `SubagentStop` hook was built, tested
+to 31 cases, and deleted the same day — it could not be proven to fire in the session that wired it,
+and it mitigated a hazard T2 dissolves. A Stop hook here lives in `settings.json`, which the docs say
+a file watcher picks up live, so it does not inherit that specific trap — but it does bind every
+session on this repo, which is why `.claude/hooks/pre-commit` is still uninstalled. Ship it in an
+observe mode that logs, and require a log line from a *later* session before it blocks anything.
 
 ### T6 — Finish the drift test, and answer the reporting question
 

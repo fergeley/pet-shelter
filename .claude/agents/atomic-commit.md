@@ -4,7 +4,10 @@ description: Splits the current working-tree diff into coherent conventional com
 tools: Read, Bash, Grep, Glob
 hooks:
   PreToolUse:
-    - matcher: Bash
+  # An alternation matcher is the only shape ever observed firing here. Omitting it should match
+  # every tool and would avoid repeating SHELL_TOOLS from agent-guard.mjs — but an unverified
+  # matcher fails silently. See tasks/open/matcherless-hook-wiring-unverified.md.
+    - matcher: Bash|PowerShell|BashOutput|KillShell
       hooks:
         - type: command
           command: node

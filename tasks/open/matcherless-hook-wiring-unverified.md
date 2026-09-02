@@ -1,0 +1,53 @@
+# Only one `PreToolUse` matcher shape has ever been observed firing
+
+**Status:** open · opened 2026-08-31 · ASSERTED
+
+The liveness log holds exactly one line in its history:
+
+    2026-08-30T18:08:54.747Z test-writer Write
+
+It came from `matcher: Edit|Write|NotebookEdit`. **An alternation matcher is therefore the only
+frontmatter wiring shape MEASURED to work in this repo.** The docs say `"*"`, `""` or an omitted
+matcher all match every tool, and nothing here has ever confirmed that.
+
+This matters because the failure is silent. A matcher the harness does not honour produces no
+error — the hook simply never runs, and `schema-auditor`'s fence in front of the Neon **production**
+connection string quietly stops existing. It is the same shape as the YAML parse failure in
+`tasks/lessons.md`: a config this repo writes, a parser it does not control, absence as the symptom.
+
+## What was done instead, and what it costs
+
+Both remaining hooks use `matcher: Bash|PowerShell|BashOutput|KillShell` — the verified shape,
+covering every tool that can run a command line. Two costs, both accepted deliberately:
+
+1. **`SHELL_TOOLS` in `.claude/hooks/agent-guard.mjs` is now duplicated as that matcher, in two
+   files.** A tool added to the set but not the matchers is a hook that never fires for it. Named at
+   the source in both places. This is the repo's recurring divergence defect, taken on knowingly
+   because the alternative is an unverified fence.
+2. **`schema-auditor`'s allowlist can no longer fire for non-shell tools.** The guard would deny
+   `Write` or `WebFetch` for that agent, but the hook is not invoked for them. That is a contract
+   violation left unenforced, not a RISK VETO §1 exposure — the production connection string is only
+   reachable through a shell, and shells are covered.
+
+## Agent-checkable trigger
+
+In a session started **after** the definitions carried this wiring (agent definitions are loaded at
+session start — `tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md`):
+
+```bash
+# 1. run schema-auditor on anything, then:
+cat "$TEMP/claude-agent-guard.log"      # Windows; $TMPDIR elsewhere
+```
+
+**Expected:** a `schema-auditor Bash` line, and a denial visible in the agent's own transcript.
+**If no line appears:** the alternation matcher does not fire either, and the guard has never worked
+for this agent — which would also mean the 2026-08-30 line was luck, not evidence.
+
+## Settles when
+
+A line appears for `schema-auditor` or `atomic-commit` under the alternation matcher, **and** a
+second session tries a matcherless entry and gets a line for a non-shell tool. Then the matcher can
+be dropped, both duplications collapse, and cost 2 above disappears.
+
+Until then: **do not remove the matcher to tidy the duplication.** The duplication is the cheaper
+defect.
