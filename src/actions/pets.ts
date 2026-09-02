@@ -124,6 +124,7 @@ export async function createPet(
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
+      customQrUrl: validated.customQrUrl || null,
       isArchived: validated.isArchived ?? false,
       deletedAt: validated.deletedAt ?? null,
       medical: {
@@ -170,6 +171,7 @@ export async function updatePet(
       ...existing,
       ...validated,
       galleryImages: validated.galleryImages || existing.galleryImages || [],
+      customQrUrl: validated.customQrUrl || null,
       isArchived: validated.isArchived ?? existing.isArchived ?? false,
       deletedAt: validated.deletedAt !== undefined ? validated.deletedAt : existing.deletedAt,
       medical: {

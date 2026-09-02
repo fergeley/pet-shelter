@@ -5,29 +5,36 @@ import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/s
 import { getCurrentSession } from "@/lib/security/session";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
+import {
+  peekShelterSettings,
+  pickQrSettings,
+  qrSettingsChanged,
+  readShelterSettings,
+  readShelterSettingsWithSource,
+  redactSettingsForAudit,
+  writeShelterSettings,
+} from "@/lib/domain/shelterSettings";
 import { Resend } from "resend";
 
-let serverSettings: ShelterSettingsInput = {
-  shelterName: "Hope for Strays",
-  email: "info@hopeforstrays.org",
-  phone: "03-7876 5432",
-  address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-  operatingHours: "Tuesday – Sunday: 10:00 AM – 5:00 PM",
-  announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
-  adoptionFeeDog: "Free",
-  adoptionFeeCat: "Free",
-  resendApiKey: "",
-  emailFrom: "Hope for Strays <onboarding@resend.dev>",
-  shelterNotificationEmail: "fergeley@gmail.com",
-  storageProvider: "local",
-  s3Bucket: "",
-  s3Region: "ap-southeast-1",
-  s3CdnUrl: "",
-  cloudinaryCloudName: "",
-};
-
 export async function getShelterSettings(): Promise<ShelterSettingsInput> {
-  return serverSettings;
+  return readShelterSettings();
+}
+
+/**
+ * Loads settings for the admin form, reporting whether they are authoritative.
+ *
+ * The settings page seeds its form from `useSettingsStore`, which is backed by
+ * `localStorage` and therefore only knows what *this* browser last saved. Now
+ * that the QR fields really persist, a second admin opening the page would
+ * otherwise see empty QR fields and blank the saved codes on their next save.
+ * The page overwrites its local copy from here — but only when `fromDatabase`
+ * is true, so a database outage cannot replace real settings with defaults.
+ */
+export async function loadShelterSettings(): Promise<{
+  settings: ShelterSettingsInput;
+  fromDatabase: boolean;
+}> {
+  return readShelterSettingsWithSource();
 }
 
 export async function updateShelterSettings(
@@ -37,9 +44,9 @@ export async function updateShelterSettings(
     const session = await getCurrentSession();
     assertAuthorized(session, [ROLES.ADMIN]);
 
-    const validated = shelterSettingsSchema.parse(data);
-    const previous = { ...serverSettings };
-    serverSettings = { ...validated };
+    const validated = shelterSettingsSchema.parse(data) as ShelterSettingsInput;
+    const previous = await readShelterSettings();
+    const { settings: saved, persisted } = await writeShelterSettings(validated);
 
     recordAuditLog({
       actorId: session.id,
@@ -48,18 +55,43 @@ export async function updateShelterSettings(
       action: "SETTINGS_UPDATED",
       entity: "ShelterSettings",
       entityId: "global-settings",
-      details: { before: previous, after: serverSettings },
+      details: {
+        before: redactSettingsForAudit(previous),
+        after: redactSettingsForAudit(saved),
+        persisted,
+      },
     });
 
+    // A QR change alters what donors scan to send money, so it gets its own
+    // immutable entry with a narrow before/after rather than being buried in
+    // a whole-settings diff.
+    if (qrSettingsChanged(previous, saved)) {
+      recordAuditLog({
+        actorId: session.id,
+        actorEmail: session.email,
+        actorRole: session.role,
+        action: "DONATION_QR_UPDATED",
+        entity: "ShelterSettings",
+        entityId: "global-settings",
+        details: {
+          before: pickQrSettings(previous),
+          after: pickQrSettings(saved),
+          persisted,
+        },
+      });
+    }
+
     try {
-      revalidatePath("/");
-      revalidatePath("/pets");
-      revalidatePath("/admin/settings");
+      // The QR config is read in the root layout, and most routes prerender as
+      // static, so invalidating individual paths would leave a stale QR on the
+      // ones not listed — the SSG pet detail pages in particular. Revalidating
+      // the root *layout* invalidates it and every page beneath it.
+      revalidatePath("/", "layout");
     } catch {
       // Ignored outside Next.js runtime context (e.g. unit tests)
     }
 
-    return { success: true, data: serverSettings };
+    return { success: true, data: saved };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Failed to update shelter settings";
     return { success: false, error: msg };
@@ -80,8 +112,9 @@ export async function sendTestEmailAction(input: {
       return { success: false, error: "Please provide a valid recipient email address." };
     }
 
-    const apiKey = process.env.RESEND_API_KEY || serverSettings.resendApiKey;
-    const fromEmail = serverSettings.emailFrom || process.env.EMAIL_FROM || "Hope for Strays <onboarding@resend.dev>";
+    const settings = peekShelterSettings();
+    const apiKey = process.env.RESEND_API_KEY || settings.resendApiKey;
+    const fromEmail = settings.emailFrom || process.env.EMAIL_FROM || "Hope for Strays <onboarding@resend.dev>";
     const subject = input.customSubject || "🐾 Hope for Strays - Live Test Email Verification";
     const bodyContent = input.customMessage || "This is a test email dispatched directly from the Hope for Strays Admin Dashboard to verify live Resend email integration.";
 

@@ -34,6 +34,7 @@ interface DbPetRecord {
   goodWithCats: boolean;
   goodWithKids: boolean;
   energyLevel: string;
+  customQrUrl: string | null;
   isArchived: boolean;
   deletedAt: Date | string | null;
 }
@@ -104,6 +105,7 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
         tags: p.tags,
         featured: p.featured,
         intakeDate: p.intakeDate,
+        customQrUrl: p.customQrUrl ?? null,
         isArchived: p.isArchived ?? false,
         deletedAt: p.deletedAt ? p.deletedAt.toString() : null,
         medical: {
@@ -201,6 +203,7 @@ export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<
         tags: newPet.tags || [],
         featured: newPet.featured || false,
         intakeDate: newPet.intakeDate,
+        customQrUrl: newPet.customQrUrl || null,
         isArchived: newPet.isArchived ?? false,
         deletedAt: newPet.deletedAt ? new Date(newPet.deletedAt) : null,
         vaccinated: newPet.medical?.vaccinated ?? true,
@@ -260,6 +263,7 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
         tags: updated.tags || [],
         featured: updated.featured || false,
         intakeDate: updated.intakeDate,
+        customQrUrl: updated.customQrUrl || null,
         isArchived: updated.isArchived ?? false,
         deletedAt: updated.deletedAt ? new Date(updated.deletedAt) : null,
         vaccinated: updated.medical?.vaccinated ?? true,
@@ -285,6 +289,27 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
     entityId: id,
     details: { before: previous, after: updated },
   });
+
+  // A per-animal donation QR decides where a donor's money goes, so a change
+  // to it gets its own narrow, immutable entry instead of being buried in the
+  // whole-pet diff above.
+  const previousQr = previous.customQrUrl || "";
+  const updatedQr = updated.customQrUrl || "";
+  if (previousQr !== updatedQr) {
+    recordAuditLog({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      actorRole: actor.role,
+      action: "DONATION_QR_UPDATED",
+      entity: "Pet",
+      entityId: id,
+      details: {
+        petName: updated.name,
+        before: { customQrUrl: previousQr },
+        after: { customQrUrl: updatedQr },
+      },
+    });
+  }
 
   return true;
 }

@@ -1,11 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
 import { useSettingsStore } from "@/lib/settingsStore";
-import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
+import {
+  updateShelterSettings,
+  sendTestEmailAction,
+  loadShelterSettings,
+} from "@/actions/settings";
+import { PERSISTED_SETTING_KEYS } from "@/lib/domain/shelterSettingsKeys";
+import { useAdminAuth } from "@/lib/adminAuth";
+import { DonationQrSettings } from "@/components/admin/DonationQrSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,13 +30,20 @@ import {
   Key,
   ShieldCheck,
   AlertTriangle,
+  QrCode,
   Eye,
   EyeOff,
 } from "lucide-react";
 
 export default function AdminSettingsPage() {
   const { settings, saveSettings, resetToDefaultSettings } = useSettingsStore();
-  const [activeTab, setActiveTab] = useState<"general" | "email" | "storage">("general");
+  const { user } = useAdminAuth();
+  // Display-only gate. `updateShelterSettings` re-checks the role server-side,
+  // so a tampered client cannot write these fields.
+  const canEditQr = (user?.role ?? "").toUpperCase() === "ADMIN";
+  const [activeTab, setActiveTab] = useState<
+    "general" | "email" | "storage" | "donation"
+  >("general");
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
 
@@ -43,16 +57,49 @@ export default function AdminSettingsPage() {
     error?: string;
   } | null>(null);
 
+  const form = useForm<ShelterSettingsInput>({
+    resolver: zodResolver(shelterSettingsSchema),
+    defaultValues: settings,
+  });
+
   const {
     register,
     handleSubmit,
     reset,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<ShelterSettingsInput>({
-    resolver: zodResolver(shelterSettingsSchema),
-    defaultValues: settings,
-  });
+  } = form;
+
+  // `useSettingsStore` is backed by localStorage, so it only knows what this
+  // browser last saved. The QR fields now really persist, so a second admin
+  // would otherwise open the page with empty QR inputs and blank the saved
+  // codes on their next save. Pull the persisted keys from the server once on
+  // mount, and only when they are authoritative.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadShelterSettings()
+      .then(({ settings: server, fromDatabase }) => {
+        if (cancelled || !fromDatabase) return;
+
+        const merged = { ...settingsRef.current } as Record<string, unknown>;
+        for (const key of PERSISTED_SETTING_KEYS) {
+          merged[key] = (server as Record<string, unknown>)[key] ?? "";
+        }
+        saveSettings(merged as typeof settings);
+      })
+      .catch(() => {
+        // Keep the local copy; the save path re-reads before writing.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveSettings]);
 
   useEffect(() => {
     reset(settings);
@@ -156,6 +203,19 @@ export default function AdminSettingsPage() {
         >
           <HardDrive className="size-4" />
           Media Storage Provider
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("donation")}
+          className={`pb-3 px-1 border-b-2 flex items-center gap-2 transition-colors ${
+            activeTab === "donation"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <QrCode className="size-4" />
+          Donation &amp; QR Codes
         </button>
       </div>
 
@@ -446,6 +506,11 @@ export default function AdminSettingsPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* TAB 4: Donation & QR Codes */}
+        {activeTab === "donation" && (
+          <DonationQrSettings form={form} canEdit={canEditQr} />
         )}
 
         {/* Form Footer / Save Actions */}

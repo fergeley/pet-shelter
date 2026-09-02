@@ -63,6 +63,8 @@ export interface Pet {
   intakeDate: string;
   adoptionFee: string;
   featured?: boolean;
+  /** Dedicated donation QR for this animal's medical fund drive. */
+  customQrUrl?: string | null;
   isArchived?: boolean;
   deletedAt?: string | null;
 }

@@ -5,7 +5,12 @@ import { ShelterSettingsInput } from "@/lib/validations/settings";
 
 const STORAGE_KEY = "hope_for_strays_settings_v2";
 
-const defaultSettings: ShelterSettingsInput = {
+/**
+ * Exported so a test can assert the shape stays complete: a persisted key
+ * missing from here reaches the form as `undefined` and blanks its column on
+ * the next save.
+ */
+export const defaultSettings: ShelterSettingsInput = {
   shelterName: "Hope for Strays",
   email: "info@hopeforstrays.org",
   phone: "03-7876 5432",
@@ -14,6 +19,12 @@ const defaultSettings: ShelterSettingsInput = {
   announcementBanner: "Weekend Adoption Drive & Free Microchip Clinic this Saturday 9 AM – 1 PM at Petaling Jaya sanctuary!",
   adoptionFeeDog: "Free",
   adoptionFeeCat: "Free",
+  // Present so the stored shape is complete. Without them the settings form
+  // would submit `undefined` for a QR field and blank the saved code.
+  duitNowQrUrl: "",
+  tngQrUrl: "",
+  bankQrUrl: "",
+  paymentPayload: "",
   resendApiKey: "",
   emailFrom: "Hope for Strays <onboarding@resend.dev>",
   shelterNotificationEmail: "fergeley@gmail.com",
