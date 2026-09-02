@@ -11,7 +11,7 @@ import {
   getFallbackFaqs,
   getFaqCategoryMeta,
   groupFaqsByCategory,
-  planFaqReorder,
+  planFaqRenumber,
   resolveFaqCopy,
   sortFaqs,
 } from "@/lib/domain/faq";
@@ -162,6 +162,32 @@ describe("sortFaqs", () => {
 
     sortFaqs(entries);
     expect(entries.map((e) => e.id)).toEqual(snapshot);
+  });
+
+  it("breaks ties by code unit, not by locale collation", () => {
+    // This list is sorted on the server for the initial HTML and again in the
+    // browser during hydration. `localeCompare` would order these by the
+    // runtime's locale — under en-US it puts "apple" before "Zebra" — so the
+    // two passes could disagree and desync the rendered accordion. Code-unit
+    // order ('Z' = 90 < 'a' = 97) is arbitrary but identical everywhere.
+    const entries = [
+      makeFaq({ id: "lower", displayOrder: 0, question: "apple question?" }),
+      makeFaq({ id: "upper", displayOrder: 0, question: "Zebra question?" }),
+    ];
+    expect(sortFaqs(entries).map((e) => e.id)).toEqual(["upper", "lower"]);
+  });
+
+  it("orders identically regardless of the process locale", () => {
+    const entries = [
+      makeFaq({ id: "a", displayOrder: 0, question: "Ähnlich?" }),
+      makeFaq({ id: "b", displayOrder: 0, question: "Apa khabar?" }),
+      makeFaq({ id: "c", displayOrder: 0, question: "Zoo?" }),
+    ];
+    const first = sortFaqs(entries).map((e) => e.id);
+    // Re-sorting an already-sorted list must be a fixed point.
+    expect(sortFaqs(sortFaqs(entries)).map((e) => e.id)).toEqual(first);
+    // And must not depend on ICU collation, which would fold "Ä" next to "A".
+    expect(first).toEqual(["b", "c", "a"]);
   });
 });
 
@@ -342,52 +368,102 @@ describe("countFaqsByCategory", () => {
   });
 });
 
-describe("planFaqReorder", () => {
-  const entries = [
-    makeFaq({ id: "a", category: "ADOPTION", displayOrder: 0, question: "A" }),
-    makeFaq({ id: "b", category: "ADOPTION", displayOrder: 1, question: "B" }),
-    makeFaq({ id: "c", category: "ADOPTION", displayOrder: 2, question: "C" }),
-    makeFaq({ id: "v", category: "VOLUNTEERING", displayOrder: 0, question: "V" }),
+describe("planFaqRenumber", () => {
+  // Callers pass a single category's siblings; the planner does no filtering.
+  const siblings = [
+    { id: "a", displayOrder: 0, question: "A" },
+    { id: "b", displayOrder: 1, question: "B" },
+    { id: "c", displayOrder: 2, question: "C" },
   ];
 
-  it("swaps with the previous sibling when moving up", () => {
-    const plan = planFaqReorder(entries, "b", "up");
-    expect(plan?.moved.id).toBe("b");
-    expect(plan?.swappedWith.id).toBe("a");
+  /** Applies a plan and returns the resulting order of ids. */
+  function apply(
+    rows: { id: string; displayOrder: number; question: string }[],
+    updates: { id: string; displayOrder: number }[] | null
+  ) {
+    const next = rows.map((r) => {
+      const u = updates?.find((x) => x.id === r.id);
+      return u ? { ...r, displayOrder: u.displayOrder } : r;
+    });
+    return next
+      .sort((x, y) => x.displayOrder - y.displayOrder || (x.question < y.question ? -1 : 1))
+      .map((r) => r.id);
+  }
+
+  it("moves an entry above its previous sibling", () => {
+    const updates = planFaqRenumber(siblings, "b", "up");
+    expect(apply(siblings, updates)).toEqual(["b", "a", "c"]);
   });
 
-  it("swaps with the next sibling when moving down", () => {
-    const plan = planFaqReorder(entries, "b", "down");
-    expect(plan?.moved.id).toBe("b");
-    expect(plan?.swappedWith.id).toBe("c");
+  it("moves an entry below its next sibling", () => {
+    const updates = planFaqRenumber(siblings, "b", "down");
+    expect(apply(siblings, updates)).toEqual(["a", "c", "b"]);
   });
 
-  it("returns null at the top of a category", () => {
-    expect(planFaqReorder(entries, "a", "up")).toBeNull();
+  it("returns null at the top of the list", () => {
+    expect(planFaqRenumber(siblings, "a", "up")).toBeNull();
   });
 
-  it("returns null at the bottom of a category", () => {
-    expect(planFaqReorder(entries, "c", "down")).toBeNull();
+  it("returns null at the bottom of the list", () => {
+    expect(planFaqRenumber(siblings, "c", "down")).toBeNull();
   });
 
-  it("returns null for a lone entry in its category", () => {
-    expect(planFaqReorder(entries, "v", "up")).toBeNull();
-    expect(planFaqReorder(entries, "v", "down")).toBeNull();
-  });
-
-  it("never swaps across categories", () => {
-    // "c" is last in ADOPTION; the VOLUNTEERING entry must not be picked up.
-    expect(planFaqReorder(entries, "c", "down")).toBeNull();
+  it("returns null for a lone entry", () => {
+    const lone = [{ id: "v", displayOrder: 0, question: "V" }];
+    expect(planFaqRenumber(lone, "v", "up")).toBeNull();
+    expect(planFaqRenumber(lone, "v", "down")).toBeNull();
   });
 
   it("returns null for an unknown id", () => {
-    expect(planFaqReorder(entries, "does-not-exist", "up")).toBeNull();
+    expect(planFaqRenumber(siblings, "does-not-exist", "up")).toBeNull();
   });
 
   it("uses sorted position rather than array position", () => {
-    const shuffled = [entries[2], entries[0], entries[1]];
-    const plan = planFaqReorder(shuffled, "c", "up");
-    expect(plan?.swappedWith.id).toBe("b");
+    const shuffled = [siblings[2], siblings[0], siblings[1]];
+    const updates = planFaqRenumber(shuffled, "c", "up");
+    expect(apply(shuffled, updates)).toEqual(["a", "c", "b"]);
+  });
+
+  it("never produces a negative displayOrder when two entries are tied", () => {
+    // Regression: the old swap-with-nudge wrote neighbour-1, so two entries at
+    // displayOrder 0 produced -1 — which faqFormSchema then refuses, locking
+    // the row out of the edit dialog permanently.
+    const tied = [
+      { id: "first", displayOrder: 0, question: "Alpha" },
+      { id: "second", displayOrder: 0, question: "Bravo" },
+    ];
+    const updates = planFaqRenumber(tied, "second", "up");
+    expect(updates).not.toBeNull();
+    for (const u of updates!) {
+      expect(u.displayOrder).toBeGreaterThanOrEqual(0);
+    }
+    expect(apply(tied, updates)).toEqual(["second", "first"]);
+  });
+
+  it("renumbers contiguously from zero, healing gaps and ties", () => {
+    const messy = [
+      { id: "x", displayOrder: 0, question: "X" },
+      { id: "y", displayOrder: 0, question: "Y" },
+      { id: "z", displayOrder: 97, question: "Z" },
+    ];
+    const updates = planFaqRenumber(messy, "z", "up");
+    const finalOrders = messy.map((r) => {
+      const u = updates?.find((x) => x.id === r.id);
+      return u ? u.displayOrder : r.displayOrder;
+    });
+    expect([...finalOrders].sort((a, b) => a - b)).toEqual([0, 1, 2]);
+  });
+
+  it("only reports rows whose displayOrder actually changes", () => {
+    const updates = planFaqRenumber(siblings, "b", "up");
+    expect(updates?.map((u) => u.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const rows = siblings.map((s) => ({ ...s }));
+    const snapshot = rows.map((r) => `${r.id}:${r.displayOrder}`);
+    planFaqRenumber(rows, "b", "up");
+    expect(rows.map((r) => `${r.id}:${r.displayOrder}`)).toEqual(snapshot);
   });
 });
 

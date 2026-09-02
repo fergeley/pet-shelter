@@ -3,20 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession, SessionUser } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { assertAuthorized } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { faqFormSchema, FaqFormInput, FaqCategoryValue } from "@/lib/validations/faq";
-import { FaqEntry, getFallbackFaqs, planFaqReorder, sortFaqs } from "@/lib/domain/faq";
+import { FaqEntry, getFallbackFaqs, planFaqRenumber, sortFaqs } from "@/lib/domain/faq";
+import { FAQ_EDITOR_ROLES } from "@/lib/domain/faqAccess";
 
-/**
- * Roles permitted to manage the FAQ knowledge base.
- *
- * The task brief names `SUPER_ADMIN` and `CONTENT_EDITOR`, which do not exist
- * in this codebase's `Role` enum. They map onto the two roles that already
- * carry those responsibilities: ADMIN owns the platform, COORDINATOR edits
- * public-facing content.
- */
-const FAQ_EDITOR_ROLES = [ROLES.ADMIN, ROLES.COORDINATOR] as const;
+// Shared with src/app/admin/faqs/page.tsx — see the note in faqAccess.ts for
+// why the list cannot live in this file.
 
 interface FaqRow {
   id: string;
@@ -80,21 +74,29 @@ function revalidateFaqSurfaces(): void {
  * the page never renders empty during a database outage. This mirrors the
  * fallback behaviour already used by `auditLog.ts` and `serverStore.ts`.
  */
-export async function getPublicFaqs(): Promise<FaqEntry[]> {
+export async function getPublicFaqs(options?: {
+  /** Narrows the read to one category, so callers that only render one
+   *  (the /pets adoption strip) do not pull every answer body. */
+  category?: FaqCategoryValue;
+}): Promise<FaqEntry[]> {
+  const category = options?.category;
+
   try {
     const rows = await prisma.faq.findMany({
-      where: { isPublished: true },
+      where: { isPublished: true, ...(category ? { category } : {}) },
       orderBy: [{ displayOrder: "asc" }, { question: "asc" }],
     });
 
-    if (rows.length > 0) {
-      return (rows as unknown as FaqRow[]).map(toEntry);
-    }
+    // An empty result is an ANSWER, not a failure: it means staff have
+    // unpublished everything. Treating it as an outage and substituting the
+    // bundled content would resurrect retracted copy on the public page and
+    // leave no way for an admin to empty /faq.
+    return (rows as unknown as FaqRow[]).map(toEntry);
   } catch {
-    // Fall through to bundled content.
+    // Only a genuine database error falls back to the bundled content.
+    const fallback = getFallbackFaqs();
+    return sortFaqs(category ? fallback.filter((f) => f.category === category) : fallback);
   }
-
-  return sortFaqs(getFallbackFaqs());
 }
 
 /**
@@ -110,14 +112,15 @@ export async function getPublicFaqs(): Promise<FaqEntry[]> {
 export async function getAdminFaqs(): Promise<FaqEntry[]> {
   await requireFaqEditor();
 
-  try {
-    const rows = await prisma.faq.findMany({
-      orderBy: [{ category: "asc" }, { displayOrder: "asc" }, { question: "asc" }],
-    });
-    return (rows as unknown as FaqRow[]).map(toEntry);
-  } catch {
-    return sortFaqs(getFallbackFaqs());
-  }
+  // No fallback here, deliberately. The public page can substitute bundled
+  // content because it only has to render prose. An editor must not: the
+  // bundled rows carry ids that may not exist in the database, so every Edit,
+  // Delete and Move on them would fail with "FAQ entry not found" while the
+  // table insists the data is there. An outage has to surface as an outage.
+  const rows = await prisma.faq.findMany({
+    orderBy: [{ category: "asc" }, { displayOrder: "asc" }, { question: "asc" }],
+  });
+  return (rows as unknown as FaqRow[]).map(toEntry);
 }
 
 export async function createFaq(
@@ -275,38 +278,46 @@ export async function reorderFaq(
   try {
     const actor = await requireFaqEditor();
 
-    const rows = await prisma.faq.findMany();
-    const entries = (rows as unknown as FaqRow[]).map(toEntry);
+    // Read and write inside one transaction, with the category's rows locked.
+    // Reading first and writing afterwards let two coordinators reordering
+    // adjacent rows both plan against the same pre-swap snapshot and clobber
+    // each other. Only this entry's own category is read, and only the three
+    // columns ordering needs — the previous unfiltered findMany pulled every
+    // row's full 5,000-character answer and answerMs on every arrow click.
+    const outcome = await prisma.$transaction(async (tx) => {
+      const target = await tx.faq.findUnique({
+        where: { id },
+        select: { id: true, category: true, question: true },
+      });
+      if (!target) return { notFound: true as const };
 
-    const plan = planFaqReorder(entries, id, direction);
-    if (!plan) {
+      await tx.$queryRaw`SELECT id FROM "faqs" WHERE category = ${target.category}::"FaqCategory" FOR UPDATE`;
+
+      const siblings = await tx.faq.findMany({
+        where: { category: target.category },
+        select: { id: true, displayOrder: true, question: true },
+      });
+
+      const updates = planFaqRenumber(siblings, id, direction);
       // Already at the top or bottom of its category: nothing to do.
+      if (!updates || updates.length === 0) return { noop: true as const };
+
+      for (const row of updates) {
+        await tx.faq.update({
+          where: { id: row.id },
+          data: { displayOrder: row.displayOrder },
+        });
+      }
+
+      return { question: target.question, updates };
+    });
+
+    if ("notFound" in outcome) {
+      return { success: false, error: "FAQ entry not found" };
+    }
+    if ("noop" in outcome) {
       return { success: true };
     }
-
-    const { moved, swappedWith } = plan;
-
-    // Two entries can legitimately share a displayOrder (ties break on the
-    // question text), in which case a straight swap would not move anything.
-    // Nudge the neighbour past the moved entry instead.
-    const movedOrder =
-      moved.displayOrder === swappedWith.displayOrder
-        ? direction === "up"
-          ? swappedWith.displayOrder - 1
-          : swappedWith.displayOrder + 1
-        : swappedWith.displayOrder;
-    const neighbourOrder =
-      moved.displayOrder === swappedWith.displayOrder
-        ? swappedWith.displayOrder
-        : moved.displayOrder;
-
-    await prisma.$transaction([
-      prisma.faq.update({ where: { id: moved.id }, data: { displayOrder: movedOrder } }),
-      prisma.faq.update({
-        where: { id: swappedWith.id },
-        data: { displayOrder: neighbourOrder },
-      }),
-    ]);
 
     recordAuditLog({
       actorId: actor.id,
@@ -317,10 +328,8 @@ export async function reorderFaq(
       entityId: id,
       details: {
         direction,
-        question: moved.question,
-        swappedWith: swappedWith.question,
-        from: moved.displayOrder,
-        to: movedOrder,
+        question: outcome.question,
+        renumbered: outcome.updates,
       },
     });
 

@@ -60,7 +60,10 @@ export function FaqDataTable({ initialFaqs }: { initialFaqs: FaqEntry[] }) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingFaq, setEditingFaq] = useState<FaqEntry | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<FaqEntry | null>(null);
+  /** Row-action failures, shown in the page banner. */
   const [error, setError] = useState<string | null>(null);
+  /** Create/edit failures, shown inside the dialog that is covering the banner. */
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const faqs = initialFaqs;
 
@@ -105,22 +108,27 @@ export function FaqDataTable({ initialFaqs }: { initialFaqs: FaqEntry[] }) {
 
   function handleOpenCreate() {
     setEditingFaq(null);
+    setSaveError(null);
     setIsFormOpen(true);
   }
 
   function handleOpenEdit(faq: FaqEntry) {
     setEditingFaq(faq);
+    setSaveError(null);
     setIsFormOpen(true);
   }
 
   async function handleSave(data: FaqFormInput) {
-    setError(null);
+    // A failed save reports into the dialog, not the page banner: the banner
+    // sits behind the still-open modal, so routing errors there showed the
+    // admin nothing while the Save button silently re-enabled.
+    setSaveError(null);
     const result = editingFaq
       ? await updateFaq(editingFaq.id, data)
       : await createFaq(data);
 
     if (!result.success) {
-      setError(result.error ?? "Could not save the FAQ entry.");
+      setSaveError(result.error ?? "Could not save the FAQ entry.");
       return;
     }
 
@@ -338,9 +346,13 @@ export function FaqDataTable({ initialFaqs }: { initialFaqs: FaqEntry[] }) {
 
       <FaqFormDialog
         open={isFormOpen}
-        onOpenChange={setIsFormOpen}
+        onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) setSaveError(null);
+        }}
         editingFaq={editingFaq}
         nextDisplayOrder={nextDisplayOrder}
+        error={saveError}
         onSave={handleSave}
       />
 

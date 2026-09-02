@@ -5,13 +5,9 @@
  * cookie signed by the app's own HMAC secret, then reads the public page back.
  * Every FAQ it creates is deleted again at the end.
  */
-import "dotenv/config";
-import dotenv from "dotenv";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { Pool } from "pg";
-
-dotenv.config({ path: ".env.local" });
+import { createPool } from "./lib/db.mjs";
 
 const BASE = process.env.E2E_BASE || "http://localhost:3459";
 const SECRET =
@@ -137,13 +133,12 @@ function check(label, condition, detail = "") {
   }
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const pool = createPool();
 
 const MARKER = `E2E probe ${Date.now()}`;
 let createdId = null;
+/** (id, displayOrder) of the reordered category, captured before section 8. */
+let orderSnapshot = null;
 
 try {
   console.log("\n1. Role gate on /admin/faqs");
@@ -335,31 +330,46 @@ try {
     const before = await pool.query(
       `select id, "displayOrder" from "faqs" where category='VOLUNTEERING' order by "displayOrder", question`
     );
+    // Captured so the finally block can put the seeded rows back exactly as
+    // they were, rather than leaving the live ordering reshuffled.
+    orderSnapshot = before.rows.map((r) => ({ id: r.id, displayOrder: r.displayOrder }));
+
     const idx = before.rows.findIndex((r) => r.id === createdId);
     check("probe row is last in its category", idx === before.rows.length - 1);
 
-    const neighbour = before.rows[idx - 1];
-    const moved = await callAction("reorderFaq", [createdId, "up"], ADMIN);
-    check("reorderFaq succeeds", moved.success === true, JSON.stringify(moved));
+    // Guard before indexing: with idx <= 0 there is no preceding sibling, and
+    // `before.rows[-1].displayOrder` would throw a TypeError that escapes to
+    // the outer catch, skipping the remaining sections — including the delete
+    // that removes the probe row from the live public page.
+    if (idx <= 0) {
+      check("cannot test reordering without a preceding sibling", false, `idx=${idx}`);
+    } else {
+      const neighbour = before.rows[idx - 1];
+      const moved = await callAction("reorderFaq", [createdId, "up"], ADMIN);
+      check("reorderFaq succeeds", moved.success === true, JSON.stringify(moved));
 
-    // Assert the ordering outcome rather than exact numbers: when the two rows
-    // share a displayOrder a plain swap would be a no-op, so the action nudges
-    // the moved row past its neighbour instead. Either way the invariant is
-    // that the moved row now sorts before the one it passed.
-    const after = await pool.query(
-      `select id, "displayOrder" from "faqs" where category='VOLUNTEERING' order by "displayOrder", question`
-    );
-    const posMoved = after.rows.findIndex((r) => r.id === createdId);
-    const posNeighbour = after.rows.findIndex((r) => r.id === neighbour.id);
-    const orders = Object.fromEntries(after.rows.map((r) => [r.id, r.displayOrder]));
-    check(
-      `moved row now sorts before its neighbour (orders ${before.rows[idx].displayOrder}/${neighbour.displayOrder} -> ${orders[createdId]}/${orders[neighbour.id]})`,
-      posMoved === idx - 1 && posNeighbour === idx
-    );
-    check(
-      "the category still holds the same number of rows",
-      after.rows.length === before.rows.length
-    );
+      // Assert the ordering outcome rather than exact numbers: the action
+      // renumbers the category contiguously, so the absolute values change.
+      const after = await pool.query(
+        `select id, "displayOrder" from "faqs" where category='VOLUNTEERING' order by "displayOrder", question`
+      );
+      const posMoved = after.rows.findIndex((r) => r.id === createdId);
+      const posNeighbour = after.rows.findIndex((r) => r.id === neighbour.id);
+      const orders = Object.fromEntries(after.rows.map((r) => [r.id, r.displayOrder]));
+      check(
+        `moved row now sorts before its neighbour (orders ${before.rows[idx].displayOrder}/${neighbour.displayOrder} -> ${orders[createdId]}/${orders[neighbour.id]})`,
+        posMoved === idx - 1 && posNeighbour === idx
+      );
+      check(
+        "the category still holds the same number of rows",
+        after.rows.length === before.rows.length
+      );
+      check(
+        "renumbering leaves no negative displayOrder",
+        after.rows.every((r) => r.displayOrder >= 0),
+        JSON.stringify(orders)
+      );
+    }
 
     const atTop = await pool.query(
       `select id from "faqs" where category='VOLUNTEERING' order by "displayOrder", question limit 1`
@@ -450,10 +460,26 @@ try {
   }
   await pool.query(`delete from "faqs" where question like '%E2E probe%'`).catch(() => {});
 
-  // Section 8 rewrites displayOrder on a real seeded row. Re-run
-  // `npx tsx scripts/seed-faqs.ts` afterwards to restore the seeded ordering;
-  // its upsert rewrites displayOrder for every seeded id.
-  console.log("cleanup: probe rows removed (re-run seed-faqs.ts to restore ordering)");
+  // Section 8 rewrites displayOrder on real seeded rows. Restore them here
+  // rather than printing a note asking a human to re-run the seeder: this
+  // suite runs against the Neon production branch, so a forgotten follow-up
+  // would leave the public FAQ page permanently reshuffled for real visitors.
+  if (orderSnapshot) {
+    let restored = 0;
+    for (const row of orderSnapshot) {
+      if (row.id === createdId) continue;
+      const r = await pool
+        .query('update "faqs" set "displayOrder" = $1 where id = $2 and "displayOrder" <> $1', [
+          row.displayOrder,
+          row.id,
+        ])
+        .catch(() => null);
+      if (r?.rowCount) restored += r.rowCount;
+    }
+    console.log(`cleanup: probe rows removed, ${restored} seeded displayOrder value(s) restored`);
+  } else {
+    console.log("cleanup: probe rows removed");
+  }
   await pool.end();
 }
 

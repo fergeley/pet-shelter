@@ -27,19 +27,18 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
   const status = typeof searchParams.status === "string" ? (searchParams.status as PetStatus) : undefined;
   const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
 
-  const initialPets = await getPublicPets({
-    species,
-    size,
-    ageCategory,
-    status,
-    search,
-  });
-
   // Adoption FAQs come from the same database the /faq page reads, so staff
-  // edits made in the admin panel show up here too.
-  const adoptionFaqs = (await getPublicFaqs()).filter(
-    (faq) => faq.category === "ADOPTION"
-  );
+  // edits made in the admin panel show up here too. The two reads are
+  // independent, so they run together — awaiting them in sequence made this
+  // dynamic page's TTFB the sum of both round trips instead of the longer one.
+  const [initialPets, publicFaqs] = await Promise.all([
+    getPublicPets({ species, size, ageCategory, status, search }),
+    getPublicFaqs({ category: "ADOPTION" }),
+  ]);
+
+  // Resolved here rather than inside the client component so an empty list
+  // still means "nothing published" and the seed prose stays server-side.
+  const adoptionFaqs = publicFaqs;
 
   return (
     <div className="min-h-screen bg-card pb-20">

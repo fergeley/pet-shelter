@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 import { faqFormSchema, FaqFormInput } from "@/lib/validations/faq";
 import { FAQ_CATEGORIES, FaqEntry } from "@/lib/domain/faq";
@@ -26,6 +26,8 @@ interface FaqFormDialogProps {
   editingFaq?: FaqEntry | null;
   /** Suggested displayOrder for a new entry (end of its category). */
   nextDisplayOrder?: number;
+  /** Server-side save failure, rendered next to the submit button. */
+  error?: string | null;
   onSave: (data: FaqFormInput) => Promise<void> | void;
 }
 
@@ -52,6 +54,7 @@ export function FaqFormDialog({
   onOpenChange,
   editingFaq,
   nextDisplayOrder = 0,
+  error,
   onSave,
 }: FaqFormDialogProps) {
   const {
@@ -181,6 +184,16 @@ export function FaqFormDialog({
             />
             Published — visible on the public FAQ page
           </label>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 border border-destructive/40 bg-destructive/10 px-4 py-3 rounded-xl text-sm text-destructive"
+            >
+              <AlertCircle className="size-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <DialogFooter>
             <Button

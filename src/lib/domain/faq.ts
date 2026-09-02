@@ -94,12 +94,27 @@ export function resolveFaqCopy(
 }
 
 /**
+ * Locale-independent string comparison.
+ *
+ * `localeCompare` without an explicit locale collates using the runtime's
+ * default, which differs between the server (Node's ICU default) and the
+ * browser (the visitor's locale — plausibly ms-MY for this audience). This list
+ * is sorted on the server for the initial HTML and again on the client inside
+ * `FaqBrowser`, so a locale-sensitive tiebreak could order two entries
+ * differently on each side and produce a hydration mismatch. Code-unit order is
+ * arbitrary but identical everywhere, which is what "stable" has to mean here.
+ */
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
  * Deterministic public ordering: `displayOrder` ascending, ties broken by
  * question text so the list never reshuffles between renders.
  */
 export function sortFaqs(entries: readonly FaqEntry[]): FaqEntry[] {
   return [...entries].sort(
-    (a, b) => a.displayOrder - b.displayOrder || a.question.localeCompare(b.question)
+    (a, b) => a.displayOrder - b.displayOrder || compareText(a.question, b.question)
   );
 }
 
@@ -172,29 +187,50 @@ export function countFaqsByCategory(
   return counts;
 }
 
+/** The minimum an entry needs for reorder planning. */
+export interface FaqOrderable {
+  id: string;
+  displayOrder: number;
+  question: string;
+}
+
 /**
- * Computes the swap required to move an entry one slot up or down within its
- * own category. Returns `null` when the entry is already at the boundary.
+ * Plans moving one entry a single slot up or down among its siblings, returning
+ * the rows whose `displayOrder` must change. `null` means the entry is already
+ * at the boundary, or is not in the list.
  *
- * Reordering is expressed as a swap of two `displayOrder` values so the write
- * stays a two-row transaction rather than a full-table renumber.
+ * Callers must pass only the entries of ONE category — ordering is scoped to a
+ * category, and this function deliberately does no filtering of its own so it
+ * can be given a narrow projection rather than whole rows.
+ *
+ * The result renumbers the affected span contiguously from 0 rather than
+ * swapping the two values. A swap looks cheaper but cannot express a move
+ * between two rows that already share a `displayOrder`: the earlier version
+ * nudged the moved row to `neighbour - 1`, which produced -1 whenever two
+ * entries sat at 0. `faqFormSchema` rejects a negative `displayOrder`, so that
+ * row could then never be saved from the edit dialog again. Renumbering also
+ * heals any pre-existing ties and gaps in the category.
  */
-export function planFaqReorder(
-  entries: readonly FaqEntry[],
+export function planFaqRenumber(
+  siblings: readonly FaqOrderable[],
   id: string,
   direction: "up" | "down"
-): { moved: FaqEntry; swappedWith: FaqEntry } | null {
-  const target = entries.find((e) => e.id === id);
-  if (!target) return null;
+): { id: string; displayOrder: number }[] | null {
+  const ordered = [...siblings].sort(
+    (a, b) => a.displayOrder - b.displayOrder || compareText(a.question, b.question)
+  );
 
-  const siblings = sortFaqs(entries.filter((e) => e.category === target.category));
-  const index = siblings.findIndex((e) => e.id === id);
+  const index = ordered.findIndex((e) => e.id === id);
   if (index === -1) return null;
 
   const neighbourIndex = direction === "up" ? index - 1 : index + 1;
-  if (neighbourIndex < 0 || neighbourIndex >= siblings.length) return null;
+  if (neighbourIndex < 0 || neighbourIndex >= ordered.length) return null;
 
-  return { moved: siblings[index], swappedWith: siblings[neighbourIndex] };
+  [ordered[index], ordered[neighbourIndex]] = [ordered[neighbourIndex], ordered[index]];
+
+  return ordered
+    .map((entry, position) => ({ id: entry.id, displayOrder: position }))
+    .filter((row, position) => ordered[position].displayOrder !== row.displayOrder);
 }
 
 /**

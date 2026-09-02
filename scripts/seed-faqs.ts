@@ -4,54 +4,29 @@
  * `npm run db:seed` also re-upserts staff users (rehashing their passwords),
  * shelter settings, every pet and every adoption application from the JSON
  * fixtures. Against a live database that would overwrite real records, so this
- * script performs just the FAQ portion of prisma/seed.ts.
+ * script performs just the FAQ portion of prisma/seed.ts — via the same shared
+ * helper, so the two cannot drift apart.
  */
 import "dotenv/config";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
-import { FAQ_SEED_CONTENT } from "../src/lib/domain/faq";
+import { seedFaqEntries } from "../src/lib/domain/faqSeeding";
+import { createPool, isProductionTarget, resolveConnectionString } from "./lib/db.mjs";
 
 dotenv.config({ path: ".env.local" });
 
 async function main() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL is not set");
+  console.log(
+    "Target:",
+    resolveConnectionString().replace(/:\/\/([^:]+):[^@]+@/, "://$1:***@"),
+    isProductionTarget() ? "(PRODUCTION)" : ""
+  );
 
-  const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
+  const pool = createPool();
   const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
-  let created = 0;
-  let updated = 0;
-
-  for (const faq of FAQ_SEED_CONTENT) {
-    const existing = await prisma.faq.findUnique({ where: { id: faq.id } });
-    await prisma.faq.upsert({
-      where: { id: faq.id },
-      update: {
-        category: faq.category,
-        question: faq.question,
-        answer: faq.answer,
-        questionMs: faq.questionMs,
-        answerMs: faq.answerMs,
-        displayOrder: faq.displayOrder,
-      },
-      create: {
-        id: faq.id,
-        category: faq.category,
-        question: faq.question,
-        answer: faq.answer,
-        questionMs: faq.questionMs,
-        answerMs: faq.answerMs,
-        displayOrder: faq.displayOrder,
-        isPublished: true,
-      },
-    });
-    if (existing) updated++;
-    else created++;
-  }
-
+  const { created, updated } = await seedFaqEntries(prisma);
   const total = await prisma.faq.count();
   console.log(`FAQ seed: ${created} created, ${updated} updated, ${total} rows total.`);
 

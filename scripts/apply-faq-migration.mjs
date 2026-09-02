@@ -1,23 +1,15 @@
 // One-off: applies prisma/migrations/manual/20260902_add_faq/migration.sql.
 // Prints the table list before and after so the blast radius is visible.
-import "dotenv/config";
-import { Pool } from "pg";
 import fs from "node:fs";
-import dotenv from "dotenv";
+import { createPool, isProductionTarget, resolveConnectionString } from "./lib/db.mjs";
 
-dotenv.config({ path: ".env.local" });
+console.log(
+  "TARGET        :",
+  resolveConnectionString().replace(/:\/\/([^:]+):[^@]+@/, "://$1:***@"),
+  isProductionTarget() ? "(PRODUCTION)" : ""
+);
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  console.error("DATABASE_URL is not set");
-  process.exit(1);
-}
-
-const pool = new Pool({
-  connectionString,
-  ssl: { rejectUnauthorized: false },
-  connectionTimeoutMillis: 20000,
-});
+const pool = createPool();
 
 async function tables() {
   const r = await pool.query(

@@ -11,19 +11,11 @@
  *     difference. The temp schema is dropped in a finally block; nothing in
  *     `public` is touched.
  */
-import "dotenv/config";
-import dotenv from "dotenv";
 import fs from "node:fs";
-import { Pool } from "pg";
-
-dotenv.config({ path: ".env.local" });
+import { createPool, runOnOwnConnection } from "./lib/db.mjs";
 
 const TEST_SCHEMA = "faq_race_test";
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-  max: 10,
-});
+const pool = createPool({ max: 10 });
 
 let passed = 0;
 let failed = 0;
@@ -37,18 +29,17 @@ const check = (label, ok, detail = "") => {
   }
 };
 
-/** Runs one statement batch on its own dedicated connection. */
-async function onOwnConnection(sql) {
-  const client = await pool.connect();
-  try {
-    await client.query(sql);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message };
-  } finally {
-    client.release();
-  }
-}
+/**
+ * Runs one statement batch on its own dedicated connection.
+ *
+ * Section 3 deliberately makes batches fail mid-transaction, so the shared
+ * helper's ROLLBACK-before-release matters here: without it those connections
+ * return to the pool "idle in failed transaction" and the finally block's
+ * DROP SCHEMA draws a poisoned one, fails with "current transaction is
+ * aborted", gets swallowed by its .catch, and silently leaves the throwaway
+ * schema behind in the live database while printing a cleanup line.
+ */
+const onOwnConnection = (sql) => runOnOwnConnection(pool, sql);
 
 const migration = fs.readFileSync(
   "prisma/migrations/manual/20260902_add_faq/migration.sql",
@@ -147,13 +138,32 @@ try {
   failed++;
   console.error("UNEXPECTED ERROR:", e.message);
 } finally {
-  await pool.query(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`).catch(() => {});
-  const left = await pool
-    .query(`select count(*)::int n from information_schema.schemata where schema_name=$1`, [
-      TEST_SCHEMA,
-    ])
-    .catch(() => ({ rows: [{ n: -1 }] }));
-  console.log(`\ncleanup: throwaway schema removed (remaining: ${left.rows[0].n})`);
+  // Verify the drop rather than assuming it: a swallowed cleanup failure would
+  // leave a schema in the live database while the script claims success.
+  let removed = false;
+  for (let attempt = 1; attempt <= 3 && !removed; attempt++) {
+    try {
+      await pool.query(`DROP SCHEMA IF EXISTS "${TEST_SCHEMA}" CASCADE`);
+      const left = await pool.query(
+        `select count(*)::int n from information_schema.schemata where schema_name=$1`,
+        [TEST_SCHEMA]
+      );
+      removed = left.rows[0].n === 0;
+      if (!removed) console.log(`cleanup attempt ${attempt}: schema still present`);
+    } catch (e) {
+      console.log(`cleanup attempt ${attempt} failed: ${e.message}`);
+    }
+  }
+
+  if (removed) {
+    console.log(`\ncleanup: throwaway schema "${TEST_SCHEMA}" removed and verified gone`);
+  } else {
+    failed++;
+    console.error(
+      `\n!! cleanup FAILED — schema "${TEST_SCHEMA}" may still exist in the database.\n` +
+        `   Remove it with: DROP SCHEMA "${TEST_SCHEMA}" CASCADE;`
+    );
+  }
   await pool.end();
 }
 

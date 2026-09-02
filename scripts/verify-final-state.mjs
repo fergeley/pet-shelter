@@ -1,11 +1,6 @@
-import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
-import { Pool } from "pg";
+import { createPool } from "./lib/db.mjs";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
+const pool = createPool();
 
 const tables = await pool.query(
   "select table_name from information_schema.tables where table_schema='public' order by 1"

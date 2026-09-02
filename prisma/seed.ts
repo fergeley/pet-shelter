@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
 import { FAQ_SEED_CONTENT } from "../src/lib/domain/faq";
+import { seedFaqEntries } from "../src/lib/domain/faqSeeding";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -210,31 +211,12 @@ async function main() {
 
   // 5. Seed the public FAQ knowledge base.
   // Upserted by stable id so re-running the seed refreshes the launch copy
-  // without duplicating entries or clobbering staff-authored FAQs.
-  for (const faq of FAQ_SEED_CONTENT) {
-    await prisma.faq.upsert({
-      where: { id: faq.id },
-      update: {
-        category: faq.category,
-        question: faq.question,
-        answer: faq.answer,
-        questionMs: faq.questionMs,
-        answerMs: faq.answerMs,
-        displayOrder: faq.displayOrder,
-      },
-      create: {
-        id: faq.id,
-        category: faq.category,
-        question: faq.question,
-        answer: faq.answer,
-        questionMs: faq.questionMs,
-        answerMs: faq.answerMs,
-        displayOrder: faq.displayOrder,
-        isPublished: true,
-      },
-    });
-  }
-  console.log(`  ✓ ${FAQ_SEED_CONTENT.length} FAQ entries seeded.`);
+  // without duplicating entries or clobbering staff-authored FAQs. Shares its
+  // implementation with scripts/seed-faqs.ts so the two cannot diverge.
+  const faqResult = await seedFaqEntries(prisma);
+  console.log(
+    `  ✓ ${faqResult.total} FAQ entries seeded (${faqResult.created} created, ${faqResult.updated} updated).`
+  );
 
   // 6. Initial Audit Log
   await prisma.auditLog.create({

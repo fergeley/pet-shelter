@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Search, X, PhoneCall, HelpCircle } from "lucide-react";
+import { Search, X, HelpCircle } from "lucide-react";
 
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { FaqContactBanner } from "@/components/features/faq/FaqContactBanner";
 import {
   Accordion,
   AccordionItem,
@@ -243,24 +244,8 @@ export function FaqBrowser({ faqs }: { faqs: FaqEntry[] }) {
       )}
 
       {/* Contact fallback */}
-      <div className="mt-4 bg-muted/40 border border-border p-6 max-w-3xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl">
-        <div>
-          <p className="text-base font-bold text-foreground">
-            {isMs ? "Masih ada soalan?" : "Still have a question?"}
-          </p>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {isMs
-              ? "Hubungi meja santuari kami Selasa hingga Ahad, 10:00 pagi – 5:00 petang."
-              : "Call our shelter desk Tuesday through Sunday, 10:00 AM – 5:00 PM."}
-          </p>
-        </div>
-        <a
-          href="tel:+60378765432"
-          className="inline-flex items-center gap-2 bg-foreground text-background px-5 py-2.5 text-sm font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors focus-visible:ring-2 shrink-0 rounded-xl"
-        >
-          <PhoneCall className="size-4" />
-          03-7876 5432
-        </a>
+      <div className="mt-4">
+        <FaqContactBanner />
       </div>
     </div>
   );

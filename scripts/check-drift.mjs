@@ -23,6 +23,7 @@ import "dotenv/config";
 import dotenv from "dotenv";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { classifyDiff } from "./lib/sqlSafety.mjs";
 
 dotenv.config({ path: ".env.local" });
 
@@ -59,32 +60,9 @@ if (result.status !== 0) {
   process.exit(2);
 }
 
-// Strip Prisma's banner lines so only SQL remains.
-const sql = result.stdout
-  .split("\n")
-  .filter((l) => !/^\s*(◇|Loaded Prisma config|Prisma schema loaded|Environment variables)/.test(l))
-  .join("\n")
-  .trim();
-
-// Prisma labels every statement with a leading `-- DropTable` style comment, so
-// comments must be stripped from INSIDE each chunk. Discarding any chunk that
-// merely starts with "--" silently drops every statement and reports a clean
-// database — a false negative, which is the one result this tool must never
-// produce.
-const statements = sql
-  .split(";")
-  .map((chunk) =>
-    chunk
-      .split("\n")
-      .filter((l) => !l.trim().startsWith("--"))
-      .join("\n")
-      .trim()
-  )
-  .filter(Boolean);
-
-const DESTRUCTIVE = /^\s*(DROP\s+(TABLE|TYPE|INDEX|SCHEMA)|ALTER\s+TABLE\s+.*\bDROP\s+(COLUMN|CONSTRAINT)\b)/is;
-const destructive = statements.filter((s) => DESTRUCTIVE.test(s));
-const additive = statements.filter((s) => !DESTRUCTIVE.test(s));
+// Parsing and classification live in ./lib/sqlSafety.mjs so they can be
+// unit-tested; see tests/unit/sqlSafety.test.ts.
+const { statements, destructive, additive } = classifyDiff(result.stdout);
 
 console.log("=".repeat(72));
 console.log("Drift: live database  vs  prisma/schema.prisma");
