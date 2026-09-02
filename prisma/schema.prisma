@@ -282,6 +282,15 @@ model ShelterSettings {
   /// without a `Pet.sponsorshipGoalSen` of its own.
   defaultSponsorshipGoalSen Int @default(150000)
 
+  /// Volunteer intake runs through an external Google Form rather than an in-app
+  /// pipeline. `volunteerFormUrl` is the public application form linked from the
+  /// volunteer section of /get-involved; `volunteerFormResponsesUrl` is the
+  /// coordinator-only responses sheet linked from the admin header. Deliberately
+  /// two URLs: the form and its responses live at different addresses.
+  /// Already applied to production, see prisma/sql/2026-09-02-add-volunteer-form-urls.sql
+  volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
+  volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
+
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")

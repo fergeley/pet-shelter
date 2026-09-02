@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
+import { isPlaceholderFormUrl } from "@/lib/volunteerFormUrl";
 import { useSettingsStore } from "@/lib/client/settingsStore";
 import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   Key,
   ShieldCheck,
   AlertTriangle,
+  ClipboardList,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -62,6 +64,7 @@ export default function AdminSettingsPage() {
   }, [settings, reset]);
 
   const currentStorageProvider = watch("storageProvider");
+  const watchedVolunteerFormUrl = watch("volunteerFormUrl");
 
   const onSubmit = async (data: ShelterSettingsInput) => {
     saveSettings(data);
@@ -237,6 +240,68 @@ export default function AdminSettingsPage() {
                   className="text-sm leading-relaxed"
                   {...register("announcementBanner")}
                 />
+              </div>
+            </div>
+
+            {/* Volunteer intake (external Google Form) */}
+            <div className="space-y-4 border-t border-border pt-4">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-foreground border-b border-border pb-1 flex items-center gap-1.5">
+                <ClipboardList className="size-4 text-success-text" />
+                4. Volunteer Intake Form
+              </h2>
+
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Volunteer applications are collected in an external Google Form. The
+                public <strong className="text-foreground">Apply to Volunteer</strong> button
+                in the volunteer section of <code className="font-mono">/get-involved</code>{" "}
+                opens the form URL below.
+              </p>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="volunteerFormUrl" className="text-xs font-semibold">
+                  Official Volunteer Application Form URL
+                </Label>
+                <Input
+                  id="volunteerFormUrl"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://forms.gle/your-volunteer-form"
+                  className="text-sm py-2.5 font-mono"
+                  {...register("volunteerFormUrl")}
+                />
+                {errors.volunteerFormUrl && (
+                  <p className="text-xs text-destructive">{errors.volunteerFormUrl.message}</p>
+                )}
+                {isPlaceholderFormUrl(watchedVolunteerFormUrl) && !errors.volunteerFormUrl && (
+                  <p className="text-xs text-warning-text flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5 shrink-0" />
+                    Not configured yet — the public page falls back to the WhatsApp
+                    coordinator until you paste a real form URL.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="volunteerFormResponsesUrl" className="text-xs font-semibold">
+                  Volunteer Form Responses Sheet URL
+                </Label>
+                <Input
+                  id="volunteerFormResponsesUrl"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                  className="text-sm py-2.5 font-mono"
+                  {...register("volunteerFormResponsesUrl")}
+                />
+                {errors.volunteerFormResponsesUrl && (
+                  <p className="text-xs text-destructive">
+                    {errors.volunteerFormResponsesUrl.message}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Linked from the <strong className="text-foreground">Volunteer Form Responses</strong>{" "}
+                  shortcut in the admin header. This is the responses sheet, not the public form.
+                </p>
               </div>
             </div>
           </div>
