@@ -13,7 +13,8 @@ So a successful query returning zero rows serves fixture pets. Whether that is
 right depends on a question nobody has answered: **can this table legitimately
 be empty?** For FAQs the answer was yes — staff unpublishing everything is a
 supported action — and the same shape was a real defect there, fixed in PR #13
-(`tasks/open/faq-empty-publish-set-has-no-regression-test.md`).
+and now pinned by `tests/integration/faqEmptyPublishSet.test.ts`
+(`decisions/2026-09-03-empty-faq-table-is-pinned-as-an-answer.md`).
 
 For pets it is arguable in the other direction. A shelter listing zero animals
 is more plausibly a broken connection than a deliberate state, and showing
