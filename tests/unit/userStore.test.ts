@@ -17,12 +17,12 @@ describe("User Store Repository", () => {
   it("should have pre-seeded demo accounts available on initialization", async () => {
     const admin = await findUserByEmail("admin@hopeforstrays.org");
     expect(admin).not.toBeNull();
-    expect(admin?.role).toBe(ROLES.ADMIN);
+    expect(admin?.role).toBe(ROLES.SUPER_ADMIN);
     expect(admin?.name).toBe("Dr. Sarah Tan");
 
     const coord = await findUserByEmail("coordinator@hopeforstrays.org");
     expect(coord).not.toBeNull();
-    expect(coord?.role).toBe(ROLES.COORDINATOR);
+    expect(coord?.role).toBe(ROLES.VOLUNTEER_COORDINATOR);
 
     const staff = await findUserByEmail("staff@hopeforstrays.org");
     expect(staff).not.toBeNull();
@@ -50,13 +50,13 @@ describe("User Store Repository", () => {
       name: "Marcus Aurelius",
       email: "marcus@shelter.org",
       passwordHash,
-      role: ROLES.VOLUNTEER,
+      role: ROLES.CONTENT_EDITOR,
     });
 
     expect(newUser.id).toMatch(/^usr-/);
     expect(newUser.name).toBe("Marcus Aurelius");
     expect(newUser.email).toBe("marcus@shelter.org");
-    expect(newUser.role).toBe(ROLES.VOLUNTEER);
+    expect(newUser.role).toBe(ROLES.CONTENT_EDITOR);
 
     // Verify lookup succeeds
     const found = await findUserByEmail("marcus@shelter.org");

@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { petFormSchema, PetFormInput, PetFilterInput } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
-import { getCurrentSession, SessionUser } from "@/lib/security/session";
-import { verifyAdminSession } from "@/lib/auth";
+import { SessionUser } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { hasAdminPermission } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
@@ -80,20 +82,26 @@ export async function getPetById(id: string): Promise<Pet | null> {
   return findServerPetById(id);
 }
 
+/**
+ * Resolves the actor for a pet mutation, requiring the MANAGE_PETS capability.
+ *
+ * The non-production fallback is pre-existing local-development convenience;
+ * in production an unauthorized caller is rejected.
+ */
 async function getAdminActorOrThrow(): Promise<SessionUser> {
-  const isAuthorized = await verifyAdminSession();
+  const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PETS);
   if (!isAuthorized && process.env.NODE_ENV === "production") {
     throw new Error("Unauthorized: Admin authorization required");
   }
 
-  const session = await getCurrentSession();
+  const session = await getVerifiedSession();
   if (session) return session;
 
   return {
     id: "admin-token-user",
     email: "admin@hopeforstrays.org",
     name: "Shelter Administrator",
-    role: "ADMIN",
+    role: "SUPER_ADMIN",
     expiresAt: Date.now() + 86400000,
   };
 }

@@ -33,29 +33,36 @@ async function main() {
       id: "usr-admin-01",
       email: "admin@hopeforstrays.org",
       name: "Dr. Sarah Tan",
-      role: "ADMIN" as const,
+      role: "SUPER_ADMIN" as const,
       password: "admin123",
     },
     {
       id: "usr-coord-01",
       email: "coordinator@hopeforstrays.org",
       name: "Priya Devi",
-      role: "COORDINATOR" as const,
+      role: "VOLUNTEER_COORDINATOR" as const,
       password: "coord123",
+    },
+    {
+      id: "usr-animal-01",
+      email: "animals@hopeforstrays.org",
+      name: "Ahmad Razak",
+      role: "ANIMAL_MANAGER" as const,
+      password: "animal123",
+    },
+    {
+      id: "usr-editor-01",
+      email: "content@hopeforstrays.org",
+      name: "Mei Ling",
+      role: "CONTENT_EDITOR" as const,
+      password: "content123",
     },
     {
       id: "usr-staff-01",
       email: "staff@hopeforstrays.org",
-      name: "Ahmad Razak",
+      name: "Nurul Aina",
       role: "STAFF" as const,
       password: "staff123",
-    },
-    {
-      id: "usr-vol-01",
-      email: "volunteer@hopeforstrays.org",
-      name: "Mei Ling",
-      role: "VOLUNTEER" as const,
-      password: "vol123",
     },
   ];
 
@@ -66,6 +73,7 @@ async function main() {
       update: {
         name: user.name,
         role: user.role,
+        status: "ACTIVE" as const,
         passwordHash,
       },
       create: {
@@ -73,6 +81,7 @@ async function main() {
         email: user.email,
         name: user.name,
         role: user.role,
+        status: "ACTIVE" as const,
         passwordHash,
       },
     });

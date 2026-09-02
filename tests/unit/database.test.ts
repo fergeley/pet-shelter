@@ -13,7 +13,7 @@ describe("Database & Persistence Integration Layer", () => {
     id: "usr-admin-01",
     email: "admin@hopeforstrays.org",
     name: "Dr. Sarah Tan",
-    role: ROLES.ADMIN,
+    role: ROLES.SUPER_ADMIN,
     expiresAt: Date.now() + 86400000,
   };
 
@@ -38,7 +38,7 @@ describe("Database & Persistence Integration Layer", () => {
 
     const admin = await findUserByEmail("admin@hopeforstrays.org");
     expect(admin).not.toBeNull();
-    expect(admin?.role).toBe("ADMIN");
+    expect(admin?.role).toBe("SUPER_ADMIN");
     expect(admin?.name).toBe("Dr. Sarah Tan");
   });
 

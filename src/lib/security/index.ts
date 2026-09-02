@@ -1,4 +1,5 @@
 export * from "./crypto";
+export * from "./dal";
 export * from "./idempotency";
 export * from "./rateLimit";
 export * from "./rbac";

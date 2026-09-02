@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { Resend } from "resend";
 
@@ -34,8 +34,8 @@ export async function updateShelterSettings(
   data: ShelterSettingsInput
 ): Promise<{ success: boolean; data?: ShelterSettingsInput; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
 
     const validated = shelterSettingsSchema.parse(data);
     const previous = { ...serverSettings };
@@ -72,8 +72,8 @@ export async function sendTestEmailAction(input: {
   customMessage?: string;
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
 
     const recipient = input.recipientEmail.trim();
     if (!recipient || !recipient.includes("@")) {

@@ -39,6 +39,7 @@ async function sendRawEmail({
   text,
   template,
   entityId,
+  entity = "AdoptionApplication",
   replyTo,
 }: {
   to: string | string[];
@@ -47,6 +48,8 @@ async function sendRawEmail({
   text: string;
   template: string;
   entityId?: string;
+  /** Audit-log target entity. Defaults to the historical value. */
+  entity?: string;
   replyTo?: string;
 }): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -66,7 +69,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_SENT",
-      entity: "AdoptionApplication",
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -118,7 +121,7 @@ async function sendRawEmail({
         actorEmail: "mailer@hopeforstrays.org",
         actorRole: "SYSTEM",
         action: "EMAIL_FAILED",
-        entity: "AdoptionApplication",
+        entity,
         entityId: entityId || "system",
         details: {
           template,
@@ -138,7 +141,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_SENT",
-      entity: "AdoptionApplication",
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -159,7 +162,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_FAILED",
-      entity: "AdoptionApplication",
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -647,6 +650,95 @@ Thank you for your life-saving generosity and support of our shelter animals!
     html,
     template: "DONATION_RECEIPT",
     entityId: receipt.receiptNumber,
+  });
+}
+
+/**
+ * 6. Sends a staff invitation containing a single-use, expiring redemption link.
+ *
+ * The raw token appears only here and in the recipient's inbox: the database
+ * holds nothing but its scrypt hash, and the audit trail records the invitation
+ * without the token.
+ */
+export async function sendStaffInvitationEmail(invite: {
+  email: string;
+  name: string;
+  roleLabel: string;
+  roleDescription: string;
+  token: string;
+  expiresAt: Date;
+  invitedByName: string;
+  userId: string;
+}): Promise<EmailResult> {
+  const acceptUrl =
+    `${APP_BASE_URL}/admin/invite` +
+    `?token=${encodeURIComponent(invite.token)}` +
+    `&email=${encodeURIComponent(invite.email)}`;
+
+  const expiryText = invite.expiresAt.toLocaleString("en-MY", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
+
+  const subject = `You have been invited to the ${SHELTER_NAME} staff portal`;
+
+  const plainText = [
+    `Hello ${invite.name},`,
+    ``,
+    `${invite.invitedByName} has invited you to join the ${SHELTER_NAME} staff portal as ${invite.roleLabel}.`,
+    `${invite.roleDescription}`,
+    ``,
+    `Set your password and activate your account:`,
+    acceptUrl,
+    ``,
+    `This link can be used once and expires on ${expiryText}.`,
+    `If you were not expecting this invitation, you can ignore this email — the account stays inactive until the link is used.`,
+    ``,
+    `${SHELTER_NAME}`,
+    SHELTER_ADDRESS,
+  ].join("\n");
+
+  const html = wrapEmailHtml(`
+    <span class="badge">Staff Invitation</span>
+    <h2 style="margin: 0 0 12px; font-size: 20px;">Hello ${invite.name},</h2>
+
+    <p>
+      <strong>${invite.invitedByName}</strong> has invited you to join the
+      ${SHELTER_NAME} staff portal as
+      <strong>${invite.roleLabel}</strong>.
+    </p>
+
+    <div class="card">
+      <strong>Your access level:</strong> ${invite.roleLabel}<br/>
+      <span style="font-size: 13px; color: #475569;">${invite.roleDescription}</span>
+    </div>
+
+    <p>Choose a password to activate your account:</p>
+
+    <p style="text-align: center;">
+      <a href="${acceptUrl}" class="btn-track">Activate Your Staff Account</a>
+    </p>
+
+    <div class="card card-warning">
+      This link works once and expires on <strong>${expiryText}</strong>.
+      If it lapses, ask an administrator to resend your invitation.
+    </div>
+
+    <p style="font-size: 13px; color: #64748b; margin-top: 24px;">
+      If you were not expecting this invitation you can safely ignore this email —
+      the account remains inactive until the link is used.
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: invite.email,
+    subject,
+    text: plainText,
+    html,
+    template: "STAFF_INVITATION",
+    entity: "User",
+    entityId: invite.userId,
   });
 }
 

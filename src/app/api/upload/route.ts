@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAdminSession } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import { getStorageProvider } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -29,7 +30,7 @@ async function validateFileSignature(file: File, expectedType: string): Promise<
 export async function POST(request: NextRequest) {
   try {
     // Authenticate: verify user is admin
-    const isAuthorized = await verifyAdminSession();
+    const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA);
     if (!isAuthorized) {
       return NextResponse.json(
         { error: "Unauthorized: Admin access required" },
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const isAuthorized = await verifyAdminSession();
+    const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA);
     if (!isAuthorized) {
       return NextResponse.json(
         { error: "Unauthorized: Admin access required" },

@@ -38,7 +38,7 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
       expect(response.success).toBe(true);
       expect(response.user).toBeDefined();
       expect(response.user?.email).toBe("admin@hopeforstrays.org");
-      expect(response.user?.role).toBe(ROLES.ADMIN);
+      expect(response.user?.role).toBe(ROLES.SUPER_ADMIN);
 
       // Verify cookie was set
       const sessionCookie = cookieStore.get("hope_shelter_session");
@@ -53,7 +53,7 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
       });
 
       expect(response.success).toBe(true);
-      expect(response.user?.role).toBe(ROLES.COORDINATOR);
+      expect(response.user?.role).toBe(ROLES.VOLUNTEER_COORDINATOR);
     });
 
     it("should reject login with wrong password", async () => {
@@ -157,30 +157,33 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
       expect(res.error).toMatch(/already exists/i);
     });
 
-    it("should reject registration for elevated ADMIN/COORDINATOR roles without security invite PIN", async () => {
+    // Self-service registration no longer accepts a requested role at all.
+    // Elevated access is granted exclusively by inviteMember(), so the shared
+    // invite PIN that previously minted ADMIN accounts is gone.
+    it("should downgrade a requested SUPER_ADMIN role to STAFF", async () => {
       const res = await registerAction({
         name: "Privilege Escalation Attacker",
         email: "attacker@test.com",
         password: "ValidPassword123!",
-        role: ROLES.ADMIN,
-        staffInviteCode: "wrong-code",
+        role: ROLES.SUPER_ADMIN,
       });
 
-      expect(res.success).toBe(false);
-      expect(res.error).toMatch(/invite code is required/i);
+      expect(res.success).toBe(true);
+      expect(res.user?.role).toBe(ROLES.STAFF);
+      expect(res.user?.role).not.toBe(ROLES.SUPER_ADMIN);
     });
 
-    it("should allow registration for elevated roles with valid security invite PIN", async () => {
+    it("should ignore a staff invite code and still assign STAFF", async () => {
       const res = await registerAction({
         name: "New Shelter Coordinator",
         email: "new.coordinator@hopeforstrays.org",
         password: "ValidCoordinatorPassword123!",
-        role: ROLES.COORDINATOR,
+        role: ROLES.VOLUNTEER_COORDINATOR,
         staffInviteCode: "1234",
       });
 
       expect(res.success).toBe(true);
-      expect(res.user?.role).toBe(ROLES.COORDINATOR);
+      expect(res.user?.role).toBe(ROLES.STAFF);
     });
   });
 

@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminAuth } from "@/lib/adminAuth";
+import { PERMISSIONS, roleHasPermission } from "@/lib/security/permissions";
 import { 
   PawPrint, 
   Dog, 
@@ -12,7 +13,8 @@ import {
   LogOut, 
   ExternalLink, 
   Bell,
-  ShieldCheck
+  ShieldCheck,
+  Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -23,17 +25,19 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAdminAuth();
+  const { user, role, isAuthenticated, isLoading, logout } = useAdminAuth();
 
-  const isLoginPage = pathname === "/admin/login";
+  // /admin/invite is reached from an emailed link by someone who has no session
+  // yet, so it must not be forced through the sign-in redirect.
+  const isPublicAdminRoute = pathname === "/admin/login" || pathname === "/admin/invite";
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isLoginPage) {
+    if (!isLoading && !isAuthenticated && !isPublicAdminRoute) {
       router.push("/admin/login");
     }
-  }, [isLoading, isAuthenticated, isLoginPage, router]);
+  }, [isLoading, isAuthenticated, isPublicAdminRoute, router]);
 
-  if (isLoginPage) {
+  if (isPublicAdminRoute) {
     return <>{children}</>;
   }
 
@@ -54,13 +58,17 @@ export default function AdminLayout({
     return null;
   }
 
+  // Nav is filtered by capability so a member is not shown a tab that would
+  // only answer 403. This is presentation, not enforcement: each route and
+  // action guards itself server-side.
   const navLinks = [
-    { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog },
-    { href: "/admin/applications", label: "Adoption Applications", icon: FileText },
-    { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck },
-    { href: "/admin/settings", label: "Shelter Settings", icon: Settings },
-    { href: "/bulletins", label: "Community Bulletins", icon: Bell },
-  ];
+    { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog, permission: PERMISSIONS.MANAGE_PETS },
+    { href: "/admin/applications", label: "Adoption Applications", icon: FileText, permission: PERMISSIONS.VIEW_APPLICATIONS },
+    { href: "/admin/members", label: "Staff & Permissions", icon: Users, permission: PERMISSIONS.MANAGE_MEMBERS },
+    { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck, permission: PERMISSIONS.VIEW_AUDIT_LOG },
+    { href: "/admin/settings", label: "Shelter Settings", icon: Settings, permission: PERMISSIONS.MANAGE_SETTINGS },
+    { href: "/bulletins", label: "Community Bulletins", icon: Bell, permission: null },
+  ].filter((tab) => tab.permission === null || roleHasPermission(role, tab.permission));
 
   return (
     <div className="min-h-screen bg-card flex flex-col">

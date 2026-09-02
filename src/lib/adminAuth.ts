@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { loginAction, registerAction, logoutAction, getCurrentUserAction } from "@/actions/auth";
-import { Role } from "@/lib/security/rbac";
+import { normalizeRole, type CanonicalRole, type Role } from "@/lib/security/permissions";
 
 const AUTH_STORAGE_KEY = "hope_for_strays_admin_session";
 
@@ -10,7 +10,8 @@ export interface AdminUser {
   id?: string;
   email: string;
   name: string;
-  role: "ADMIN" | "COORDINATOR" | "STAFF" | "VOLUNTEER" | "admin" | "staff" | "coordinator";
+  /** May be a deprecated alias when read from a cached localStorage session. */
+  role: Role | string;
 }
 
 export function useAdminAuth() {
@@ -130,8 +131,14 @@ export function useAdminAuth() {
     }
   }, []);
 
+  // Cached localStorage sessions predate the RBAC migration and may hold a
+  // deprecated alias (or an old lowercase value), so the role is folded into
+  // the canonical set before any UI gating reads it.
+  const role: CanonicalRole | null = user ? normalizeRole(user.role) : null;
+
   return {
     user,
+    role,
     isAuthenticated: !!user,
     isLoading,
     login,

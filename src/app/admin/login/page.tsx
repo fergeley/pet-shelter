@@ -21,7 +21,6 @@ import { useAdminAuth } from "@/lib/adminAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Role, ROLES } from "@/lib/security/rbac";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -43,8 +42,6 @@ export default function AdminLoginPage() {
   const [regData, setRegData] = useState({
     name: "",
     email: "",
-    role: ROLES.STAFF as Role,
-    inviteCode: "",
     password: "",
     confirmPassword: "",
   });
@@ -100,8 +97,6 @@ export default function AdminLoginPage() {
       name: regData.name,
       email: regData.email,
       password: regData.password,
-      role: regData.role,
-      staffInviteCode: regData.inviteCode,
     });
 
     if (result.success) {
@@ -128,8 +123,6 @@ export default function AdminLoginPage() {
       setIsSubmitting(false);
     }
   };
-
-  const isElevatedRole = regData.role === ROLES.ADMIN || regData.role === ROLES.COORDINATOR;
 
   return (
     <div className="min-h-screen bg-card flex flex-col justify-center py-10 px-6 sm:px-8 lg:px-10">
@@ -273,10 +266,11 @@ export default function AdminLoginPage() {
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
                     {[
-                      { role: "Admin", email: "admin@hopeforstrays.org", pass: "admin123" },
-                      { role: "Coordinator", email: "coordinator@hopeforstrays.org", pass: "coord123" },
+                      { role: "Super Admin", email: "admin@hopeforstrays.org", pass: "admin123" },
+                      { role: "Volunteer Coord.", email: "coordinator@hopeforstrays.org", pass: "coord123" },
+                      { role: "Animal Manager", email: "animals@hopeforstrays.org", pass: "animal123" },
+                      { role: "Content Editor", email: "content@hopeforstrays.org", pass: "content123" },
                       { role: "Staff", email: "staff@hopeforstrays.org", pass: "staff123" },
-                      { role: "Volunteer", email: "volunteer@hopeforstrays.org", pass: "vol123" },
                     ].map((demo) => (
                       <Button
                         key={demo.role}
@@ -335,43 +329,18 @@ export default function AdminLoginPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <Label htmlFor="reg-role" className="text-xs font-bold uppercase tracking-wider">
-                      Account Role
-                    </Label>
-                    <select
-                      id="reg-role"
-                      value={regData.role}
-                      onChange={(e) => setRegData((prev) => ({ ...prev, role: e.target.value as Role }))}
-                      className="w-full h-9 border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      <option value={ROLES.STAFF}>Shelter Staff (Manage Pets & View Applications)</option>
-                      <option value={ROLES.VOLUNTEER}>Shelter Volunteer (Community & Pet Records)</option>
-                      <option value={ROLES.COORDINATOR}>Adoption Coordinator (Manage Applications)</option>
-                      <option value={ROLES.ADMIN}>System Administrator (Full Access & Settings)</option>
-                    </select>
-                  </div>
-
-                  {isElevatedRole && (
-                    <div className="space-y-1 bg-amber-500/10 border border-amber-500/30 p-2.5 text-xs">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
-                        <KeyRound className="size-3.5" />
-                        <span>Security Invite PIN Required</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground">
-                        Elevated roles require verification. (Demo PIN: <code className="bg-background px-1 border font-mono">1234</code>)
-                      </p>
-                      <Input
-                        id="reg-invite-code"
-                        type="password"
-                        required
-                        value={regData.inviteCode}
-                        onChange={(e) => setRegData((prev) => ({ ...prev, inviteCode: e.target.value }))}
-                        placeholder="Security PIN (e.g. 1234)"
-                        className="text-xs py-1.5 bg-background font-mono mt-1"
-                      />
+                  <div className="space-y-1 bg-muted/40 border border-border p-2.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <KeyRound className="size-3.5" />
+                      <span>Access Level: Shelter Staff</span>
                     </div>
-                  )}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Self-registration creates a read-only Staff account. Animal
+                      Manager, Content Editor, Volunteer Coordinator and Super Admin
+                      access is granted only by invitation from a Super Admin under{" "}
+                      <strong className="text-foreground">Staff &amp; Permissions</strong>.
+                    </p>
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                     <div className="space-y-1">
