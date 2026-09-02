@@ -10,10 +10,26 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  COORDINATOR
-  STAFF
-  VOLUNTEER
+  // --- Canonical roles ---
+  SUPER_ADMIN           // Unrestricted platform access, including staff management
+  ANIMAL_MANAGER        // Pet profiles, gallery photos, QR codes
+  CONTENT_EDITOR        // FAQs, transparency data, bulletins
+  VOLUNTEER_COORDINATOR // Volunteer applications & settings
+  STAFF                 // Standard read-only operational access
+
+  // --- Deprecated aliases, retained so existing rows stay readable ---
+  // Postgres cannot drop an enum value while any row references it, and live
+  // session cookies still carry these. Normalised on read by
+  // normalizeRole() in src/lib/security/permissions.ts. Do not assign.
+  ADMIN                 // -> SUPER_ADMIN
+  COORDINATOR           // -> VOLUNTEER_COORDINATOR
+  VOLUNTEER             // -> STAFF
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
 }
 
 enum PetStatus {
@@ -31,15 +47,26 @@ enum ApplicationStatus {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String     @id @default(cuid())
+  email        String     @unique
   name         String
   passwordHash String
-  role         Role     @default(STAFF)
+  role         Role       @default(STAFF)
+  status       UserStatus @default(ACTIVE)
   pinHash      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+  invitedBy    String?
 
+  // Invitation redemption. The raw token is emailed once and never stored;
+  // only its scrypt hash is persisted, mirroring passwordHash.
+  inviteTokenHash      String?
+  inviteTokenExpiresAt DateTime?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status])
+  @@index([role])
   @@map("users")
 }
 

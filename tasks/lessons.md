@@ -50,6 +50,102 @@ until a review found it.
 **Rule:** mock a dangerous dependency per-test, not globally. Use `vi.hoisted`
 mock functions and give them resolved values for the happy path so the real
 mapping runs, then override with rejections for the failure cases.
+## 2026-09-03 — Fold a deprecated role onto its nearest identity and you transfer its authority
+
+`normalizeRole` mapped the retired VOLUNTEER onto STAFF, which is the closest
+canonical *identity*. But STAFF can read adoption applications and a volunteer
+never could — that is applicant PII under PDPA 2010. Because the session was
+normalised on *read*, the rewrite happened before any permission check saw it,
+so every volunteer account would have gained the grant on deploy.
+
+Two separate ideas were being conflated. Identity ("what should we call this
+role now?") is a display concern. Authority ("what may it do?") is not, and must
+fail closed. The fix: `permissionsForRole` grants nothing to an unrecognised or
+retired role, and sessions are normalised where they are *minted*, never where
+they are read.
+
+**Rule:** an alias table is a migration tool, not an authorization one. Before
+mapping A onto B, diff their permission sets — if B has anything A lacked, the
+mapping is a grant.
+
+## 2026-09-03 — Run every test project locally, not the one you remember
+
+Three careful review passes ran `vitest --project unit` and reported green. CI
+runs `unit`, `integration` and `components`, and the integration project is
+where the VOLUNTEER escalation above surfaced. The local suite had no opinion
+about it at all.
+
+Related: `gh pr checks --watch` exits 0 when it finishes watching, not when the
+checks pass. Reading the exit code produced a confident "CI is green" while two
+jobs were red. Read the job states.
+
+## 2026-09-03 — A backfill is a deploy-ordered step, not a migration detail
+
+The RBAC migration split cleanly into additive DDL (safe against the running
+release, which never reads the new columns) and a role backfill (not safe at
+all). Rewriting an administrator's row to SUPER_ADMIN while the previous release
+is serving still lets them sign in — the login action does not gate on role —
+and then denies every admin route, because that code compares
+`session.role === ROLES.ADMIN` literally.
+
+**Rule:** for any enum widening, ask which half can run before the deploy and
+which cannot, and put the answer in the SQL file rather than in the head of
+whoever is running it. Additive schema first, deploy, backfill last.
+
+## 2026-09-03 — `injected env (0)` is the tell for a worktree database command
+
+`prisma.config.ts` resolves `.env.local` against the current directory, and
+`.env.local` is gitignored so it exists only in the main checkout. Run a Prisma
+command from a worktree and `resolveDatabaseUrl()` silently falls back to
+`localhost:5432`, producing `P1001 Can't reach database server` — which names
+the wrong problem entirely. The database is fine; Prisma never learned its
+address. The `injected env (0)` line above the error is the actual diagnosis.
+
+Fix without moving anything: run from the main checkout and point `--file` at
+the worktree path.
+
+## 2026-09-03 — Collapsing role lists into permissions silently widens access
+
+Rewriting `assertAuthorized(session, [ROLES.X])` into
+`assertHasPermission(session, PERMISSIONS.Y)` looks like a refactor and is not one. Two settings
+guards sat at *different* levels — `updateShelterSettings` was `[ADMIN]`, `sendTestEmailAction` was
+`[ADMIN, COORDINATOR]` — and mapping both onto one permission handed the coordinator the shelter's
+Resend and storage credentials. Before replacing a role list with a permission, diff the old
+allow-list against the new permission's holder set, per call site. `git show <base>:<file>` is the
+source of truth for what the guard used to be, not memory.
+
+## 2026-09-03 — A client `useState` copy of server data is a duplicated source of truth
+
+The members table seeded `useState` from an `initialMembers` prop, so the server and the client each
+believed they owned the roster. Every symptom — an extra round-trip, reconciliation code, a
+staleness window — came from that one decision. `revalidatePath` in a Server Action already
+re-renders the route and ships new props in the same response, but client state is *preserved*
+across that re-render, so the copy silently shadowed them. Deleting the copy deleted all of it.
+Server owns data, client owns view state.
+
+## 2026-09-03 — A client-side layout gate says nothing about what the payload contains
+
+`/admin/pets` is a Server Component calling an unguarded `getAdminPets()`. The admin layout renders
+a spinner until its session effect resolves, so the table never appeared — but server-component
+output is serialised into the RSC flight payload regardless, and an anonymous request received the
+whole inventory: 75,453 bytes with `applicationCount`, `rescueStory` and pet names. When adding
+authorization anywhere, enumerate every sibling entry point. "The UI does not render it" is not a
+boundary.
+
+## 2026-09-03 — Mutation-test the fix, not just the feature
+
+Removing a raw-error leak felt obviously right, so it shipped without a test. Reintroducing the
+defect proved it: the suite stayed green. Any security fix that a reintroduced defect does not break
+is undefended. Six defects were re-injected on this branch; five failed loudly, one did not, and
+that one was the bug in the test suite.
+
+## 2026-09-03 — Read the bundled Next docs before proposing a framework fix
+
+Three conclusions from a careful self-review were wrong, and `node_modules/next/dist/docs/`
+overturned all three: the post-mutation refetch fix was backwards; branching on the `RSC` header in
+`proxy` is impossible because Next strips those headers on purpose; and
+`NextResponse.rewrite(url, { status })` silently drops the status. This is a modified Next.js —
+general knowledge of Next is not evidence about it.
 
 ## 2026-08-30 — Check the platform before hand-rolling a mechanism that sounds generic
 

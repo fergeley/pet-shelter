@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/lib/client/adminAuth";
-import { TRANSPARENCY_EDITOR_ROLES } from "@/lib/security/rbac";
+import { PERMISSIONS, roleHasPermission } from "@/lib/security/rbac";
 import {
   EXPENSE_CATEGORIES,
   ExpenseItemRecord,
@@ -50,15 +50,16 @@ import {
  */
 
 /**
- * The server's own list, imported rather than copied.
+ * Mirrors the server guard exactly, by asking the same question of the same
+ * table: does this role hold `MANAGE_CONTENT`?
  *
- * A hand-kept duplicate is exactly the call site that a future role change would
- * miss: widen the server list and the editor still refuses; narrow it and the
- * editor offers a form whose every submit fails authorisation. `AdminUser["role"]`
- * also permits lowercase legacy values, which the server's uppercase enum
- * rejects — so the comparison is deliberately exact, not case-insensitive.
+ * `roleHasPermission` normalises legacy aliases, so a session still carrying
+ * "ADMIN" resolves to SUPER_ADMIN and is admitted, while a hand-kept role list
+ * would have drifted from the server's the first time a role was added.
  */
-const EDITOR_ROLES: readonly string[] = TRANSPARENCY_EDITOR_ROLES;
+function canEditTransparency(role: string | undefined): boolean {
+  return !!role && roleHasPermission(role, PERMISSIONS.MANAGE_CONTENT);
+}
 
 const fieldClass =
   "w-full rounded-lg border border-input bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -137,7 +138,7 @@ export function TransparencyEditor() {
   const [banner, setBanner] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const canEdit = !!user && EDITOR_ROLES.includes(user.role);
+  const canEdit = canEditTransparency(user?.role);
 
   const refresh = useCallback(async () => {
     const res = await getAdminTransparencySnapshotAction();
@@ -231,10 +232,10 @@ export function TransparencyEditor() {
               Insufficient permissions
             </h2>
             <p className="text-sm leading-relaxed text-muted-foreground">
-              Editing published financial figures is restricted to the{" "}
-              <strong className="text-foreground">Admin</strong> and{" "}
-              <strong className="text-foreground">Coordinator</strong> roles. Your
-              account is signed in as{" "}
+              Editing published financial figures needs the{" "}
+              <strong className="text-foreground">Manage content</strong>{" "}
+              permission, held by Super Admin and Content Editor. Your account is
+              signed in as{" "}
               <strong className="text-foreground">{user?.role ?? "unknown"}</strong>.
             </p>
           </div>

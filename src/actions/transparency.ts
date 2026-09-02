@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentSession } from "@/lib/security/session";
 import {
-  assertAuthorized,
+  assertHasPermission,
   ForbiddenError,
-  TRANSPARENCY_EDITOR_ROLES,
+  PERMISSIONS,
   UnauthorizedError,
 } from "@/lib/security/rbac";
 import { checkRateLimit } from "@/lib/security/rateLimit";
@@ -38,8 +38,14 @@ import {
  * The public page reads `readTransparencySnapshot()` directly from its Server
  * Component — no action needed, so the allocation is server-rendered rather
  * than fetched by the browser. Every write here is gated on
- * `TRANSPARENCY_EDITOR_ROLES`, rate limited, recorded in the audit log, and
+ * the `MANAGE_CONTENT` permission, rate limited, recorded in the audit log, and
  * followed by revalidation of both public surfaces that render ledger figures.
+ *
+ * Authorisation is by CAPABILITY (`MANAGE_CONTENT`) rather than a role list.
+ * That permission is held by SUPER_ADMIN and CONTENT_EDITOR — precisely the two
+ * roles the transparency brief named, which this repo has since grown — so the
+ * earlier ADMIN/COORDINATOR mapping is no longer needed. A future role rename
+ * cannot silently widen or close this gate.
  */
 
 export interface ActionResult<T = undefined> {
@@ -128,7 +134,7 @@ function toMessage(err: unknown, fallback: string): string {
  */
 async function authorizeWrite() {
   const session = await getCurrentSession();
-  assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+  assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
 
   const limit = checkRateLimit(
     `transparency:write:${session.id}`,
@@ -152,7 +158,7 @@ export async function getAdminTransparencySnapshotAction(): Promise<
 > {
   try {
     const session = await getCurrentSession();
-    assertAuthorized(session, TRANSPARENCY_EDITOR_ROLES);
+    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
 
     const snapshot = await readTransparencySnapshot({ includeUnpublished: true });
     return { success: true, data: snapshot };

@@ -52,6 +52,23 @@ predicate for "counts as a ledger entry". They didn't, so a refund row appeared 
 the feed while being excluded from the totals — the same two-answers failure one
 level down.
 
+## Authorisation: the brief's roles turned out to exist after all
+
+The feature was first gated on a named constant mapping the brief's
+`SUPER_ADMIN` / `CONTENT_EDITOR` onto this deployment's `ADMIN` / `COORDINATOR`,
+because neither spec role existed. While the branch was out, master introduced
+the permissions layer — and with it both roles, with `CONTENT_EDITOR` documented
+in the schema as covering "FAQs, transparency data, bulletins".
+
+The gate is now the `MANAGE_CONTENT` **permission**, held by `SUPER_ADMIN` and
+`CONTENT_EDITOR` only. That matches the brief exactly, removes the mapping, and
+survives a role being renamed in a way an inline role list would not.
+
+One deliberate narrowing: `COORDINATOR` (which normalises to
+`VOLUNTEER_COORDINATOR`) does **not** hold `MANAGE_CONTENT`, so a coordinator can
+no longer edit published financial figures. That is the brief's intent, and it
+is asserted by a test rather than left implicit.
+
 ## Related
 
 - `[[measure-fallout-before-writing-task-docs]]` — the figures in this doc were

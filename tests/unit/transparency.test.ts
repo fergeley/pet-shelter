@@ -1057,10 +1057,13 @@ const ADMIN = {
   id: "usr-admin-01",
   email: "admin@hopeforstrays.org",
   name: "Admin",
-  role: "ADMIN" as const,
+  role: "SUPER_ADMIN" as const,
   expiresAt: Date.now() + 3_600_000,
 };
 
+const CONTENT_EDITOR = { ...ADMIN, id: "usr-editor-01", role: "CONTENT_EDITOR" as const };
+// Legacy alias: normalises to SUPER_ADMIN, so it keeps access.
+const LEGACY_ADMIN = { ...ADMIN, id: "usr-legacy-01", role: "ADMIN" as const };
 const COORDINATOR = { ...ADMIN, id: "usr-coord-01", role: "COORDINATOR" as const };
 const STAFF = { ...ADMIN, id: "usr-staff-01", role: "STAFF" as const };
 const VOLUNTEER = { ...ADMIN, id: "usr-vol-01", role: "VOLUNTEER" as const };
@@ -1086,9 +1089,15 @@ describe("Transparency server actions", () => {
     expect(res.error).toMatch(/sign in|Authentication/i);
   });
 
+  // The gate is the MANAGE_CONTENT permission, held only by SUPER_ADMIN and
+  // CONTENT_EDITOR. VOLUNTEER_COORDINATOR — which the legacy COORDINATOR role
+  // normalises to — does not hold it, so a coordinator can no longer edit
+  // published financial figures. That is the brief's intent, and a deliberate
+  // narrowing of the earlier role-list gate.
   it.each([
     ["STAFF", STAFF],
     ["VOLUNTEER", VOLUNTEER],
+    ["COORDINATOR", COORDINATOR],
   ])("refuses writes from %s", async (_name, user) => {
     sessionMock.getCurrentSession.mockResolvedValue(user);
     const { saveImpactStatAction } = await import("@/actions/transparency");
@@ -1105,8 +1114,9 @@ describe("Transparency server actions", () => {
   });
 
   it.each([
-    ["ADMIN", ADMIN],
-    ["COORDINATOR", COORDINATOR],
+    ["SUPER_ADMIN", ADMIN],
+    ["CONTENT_EDITOR", CONTENT_EDITOR],
+    ["ADMIN (legacy alias for SUPER_ADMIN)", LEGACY_ADMIN],
   ])("allows %s to edit the ledger", async (_name, user) => {
     sessionMock.getCurrentSession.mockResolvedValue(user);
     const { createExpenseItemAction } = await import("@/actions/transparency");
@@ -1194,7 +1204,7 @@ describe("Transparency server actions", () => {
   });
 
   it("hides an unpublished expense from the public snapshot", async () => {
-    sessionMock.getCurrentSession.mockResolvedValue(COORDINATOR);
+    sessionMock.getCurrentSession.mockResolvedValue(CONTENT_EDITOR);
     const { createExpenseItemAction } = await import("@/actions/transparency");
     const { readTransparencySnapshot } = await import("@/lib/server/transparencyRepository");
 
