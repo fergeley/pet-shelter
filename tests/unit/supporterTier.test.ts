@@ -15,7 +15,7 @@ import {
   RECOGNITION_WINDOW_DAYS,
   PERKS,
 } from "@/lib/domain/supporterTier";
-import { SponsoredDonation } from "@/types/supporter";
+import { TierRelevantContribution } from "@/types/supporter";
 import { senFromRinggit } from "@/lib/domain/money";
 
 const NOW = new Date("2026-09-02T00:00:00.000Z");
@@ -30,25 +30,20 @@ function daysBefore(days: number): string {
  * way the donation action does — so a test can never assert against a figure the
  * production path would not have produced.
  */
+/**
+ * Amounts are given in ringgit and converted at the boundary, the same way the
+ * sponsorship action does — so a test can never assert against a figure the production
+ * path would not have produced. `status` is the ledger's own lifecycle.
+ */
 function contribution(
-  overrides: Partial<SponsoredDonation> & { ringgit?: number } = {}
-): SponsoredDonation {
+  overrides: Partial<TierRelevantContribution> & { ringgit?: number } = {}
+): TierRelevantContribution {
   const { ringgit, ...rest } = overrides;
   return {
-    receiptNumber: "HFS-DON-202609-1000",
-    sponsorId: "spn-test",
-    donorEmail: "donor@example.com",
-    donorName: "Test Donor",
-    tierId: "vaccine",
-    tierName: "Core Vaccination & Deworming",
     amountSen: senFromRinggit(ringgit ?? 50),
     frequency: "one_time",
-    isActive: true,
-    status: "CONFIRMED",
-    displayOnWall: false,
-    targetPetId: null,
-    targetPetName: null,
-    issuedAt: daysBefore(10),
+    status: "ACTIVE",
+    createdAt: daysBefore(10),
     ...rest,
   };
 }
@@ -58,8 +53,8 @@ describe("Supporter tier derivation", () => {
     it("sums one-time pledges made inside the recognition window", () => {
       const total = recognisedContributionSen(
         [
-          contribution({ ringgit: 50, issuedAt: daysBefore(10) }),
-          contribution({ ringgit: 120, issuedAt: daysBefore(200) }),
+          contribution({ ringgit: 50, createdAt: daysBefore(10) }),
+          contribution({ ringgit: 120, createdAt: daysBefore(200) }),
         ],
         NOW
       );
@@ -70,10 +65,10 @@ describe("Supporter tier derivation", () => {
     it("excludes one-time pledges that have aged out of the window", () => {
       const total = recognisedContributionSen(
         [
-          contribution({ ringgit: 50, issuedAt: daysBefore(10) }),
+          contribution({ ringgit: 50, createdAt: daysBefore(10) }),
           contribution({
             ringgit: 5000,
-            issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS + 1),
+            createdAt: daysBefore(RECOGNITION_WINDOW_DAYS + 1),
           }),
         ],
         NOW
@@ -87,7 +82,7 @@ describe("Supporter tier derivation", () => {
         [
           contribution({
             ringgit: 90,
-            issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS - 1),
+            createdAt: daysBefore(RECOGNITION_WINDOW_DAYS - 1),
           }),
         ],
         NOW
@@ -98,7 +93,7 @@ describe("Supporter tier derivation", () => {
 
     it("annualises an active monthly pledge, so recurring giving counts immediately", () => {
       const total = recognisedContributionSen(
-        [contribution({ ringgit: 25, frequency: "monthly", issuedAt: daysBefore(5) })],
+        [contribution({ ringgit: 25, frequency: "monthly", createdAt: daysBefore(5) })],
         NOW
       );
 
@@ -111,8 +106,8 @@ describe("Supporter tier derivation", () => {
           contribution({
             ringgit: 500,
             frequency: "monthly",
-            isActive: false,
-            issuedAt: daysBefore(5),
+            status: "CANCELLED",
+            createdAt: daysBefore(5),
           }),
         ],
         NOW
@@ -129,7 +124,7 @@ describe("Supporter tier derivation", () => {
           contribution({
             ringgit: 30,
             frequency: "monthly",
-            issuedAt: daysBefore(700),
+            createdAt: daysBefore(700),
           }),
         ],
         NOW
@@ -173,8 +168,8 @@ describe("Supporter tier derivation", () => {
     it("lands RM 250 emergency plus RM 120 spay/neuter on Silver", () => {
       const tier = deriveTier(
         [
-          contribution({ ringgit: 250, issuedAt: daysBefore(120) }),
-          contribution({ ringgit: 120, issuedAt: daysBefore(30) }),
+          contribution({ ringgit: 250, createdAt: daysBefore(120) }),
+          contribution({ ringgit: 120, createdAt: daysBefore(30) }),
         ],
         NOW
       );
@@ -191,12 +186,12 @@ describe("Supporter tier derivation", () => {
     it("drops a sponsor out of Gold when their monthly pledge is cancelled", () => {
       const ledger = [
         contribution({ ringgit: 100, frequency: "monthly" }),
-        contribution({ ringgit: 50, issuedAt: daysBefore(20) }),
+        contribution({ ringgit: 50, createdAt: daysBefore(20) }),
       ];
 
       expect(deriveTier(ledger, NOW)).toBe("GOLD");
 
-      ledger[0] = { ...ledger[0], isActive: false };
+      ledger[0] = { ...ledger[0], status: "CANCELLED" };
       expect(deriveTier(ledger, NOW)).toBe("BRONZE");
     });
 
@@ -204,7 +199,7 @@ describe("Supporter tier derivation", () => {
       const aged = [
         contribution({
           ringgit: 250,
-          issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS + 30),
+          createdAt: daysBefore(RECOGNITION_WINDOW_DAYS + 30),
         }),
       ];
 
@@ -304,8 +299,8 @@ describe("Supporter tier derivation", () => {
       // /donate is public and unauthenticated, so a submitted pledge is an assertion.
       // Counting it would make the donation form a self-service Gold button.
       const asserted = [
-        contribution({ ringgit: 5000, status: "PENDING" }),
-        contribution({ ringgit: 1000, frequency: "monthly", status: "PENDING" }),
+        contribution({ ringgit: 5000, status: "PENDING_PAYMENT" }),
+        contribution({ ringgit: 1000, frequency: "monthly", status: "PENDING_PAYMENT" }),
       ];
 
       expect(recognisedContributionSen(asserted, NOW)).toBe(0);
@@ -314,8 +309,8 @@ describe("Supporter tier derivation", () => {
 
     it("do not drag down a standing earned by confirmed ones", () => {
       const mixed = [
-        contribution({ ringgit: 300, status: "CONFIRMED" }),
-        contribution({ ringgit: 9000, status: "PENDING" }),
+        contribution({ ringgit: 300, status: "ACTIVE" }),
+        contribution({ ringgit: 9000, status: "PENDING_PAYMENT" }),
       ];
 
       expect(recognisedContributionSen(mixed, NOW)).toBe(senFromRinggit(300));
@@ -328,7 +323,7 @@ describe("Supporter tier derivation", () => {
       // A cancelled standing order used to fall through to "one_time", which reads as
       // "One-time pledges" on the dashboard and misdescribes the relationship.
       const lapsed = [
-        contribution({ ringgit: 100, frequency: "monthly", isActive: false }),
+        contribution({ ringgit: 100, frequency: "monthly", status: "CANCELLED" }),
       ];
 
       expect(deriveTier(lapsed, NOW)).toBeNull();

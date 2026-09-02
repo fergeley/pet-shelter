@@ -17,13 +17,14 @@ import {
 import {
   findSponsorByEmail,
   createSponsor,
-  linkDonationsToSponsor,
-  findSponsoredDonationByReceipt,
-  listSponsoredDonationsByEmail,
-  confirmSponsoredDonation,
-  cancelRecurringPledge,
   setSponsorWallPreference,
 } from "@/lib/server/sponsorRepository";
+import {
+  listSponsorshipsByEmail,
+  claimSponsorshipsForUser,
+  cancelSponsorshipForUser,
+} from "@/lib/server/sponsorshipLedger";
+import { seedOfflineSponsorships } from "@/lib/server/sponsorDemoSeed";
 import {
   getSponsorDashboard,
   currentSponsorMeetsTier,
@@ -76,20 +77,21 @@ export async function registerSponsorAction(
   }
 
 
-  const donation = await findSponsoredDonationByReceipt(parsed.receiptNumber);
+  await seedOfflineSponsorships();
+  const ownCommitments = await listSponsorshipsByEmail(parsed.email);
 
-  // The receipt must be for a *reconciled* payment.
+  // The receipt number, not the pledge reference, and only from an ACTIVE commitment.
   //
-  // Matching the email alone is not proof of anything: `/donate` is a public form that
-  // mints a receipt for whatever address the caller types and hands the number straight
-  // back in the response. An attacker could pledge RM 5 as victim@example.com, receive
-  // the receipt number, and use it here to claim the victim's entire giving history,
-  // standing and gated media. Requiring CONFIRMED breaks that chain, because confirming a
-  // payment is not something the claimant can do.
-  const isClaimable =
-    donation !== null &&
-    donation.donorEmail === parsed.email &&
-    donation.status === "CONFIRMED";
+  // Matching the email alone proves nothing: sponsorship checkout is public and hands
+  // the caller back the `pledgeRef` it just minted, so an attacker could pledge RM 10 as
+  // victim@example.com and quote it here to claim the victim's history, standing and
+  // gated media. A receipt number is only assigned when a coordinator reconciles the
+  // payment — an act the claimant cannot perform — which is what breaks that chain.
+  const isClaimable = ownCommitments.some(
+    (commitment) =>
+      commitment.status === "ACTIVE" &&
+      commitment.receiptNumber?.toUpperCase() === parsed.receiptNumber
+  );
 
   // One message for every rejection reason, so the form cannot be used to enumerate which
   // receipt numbers exist or which of them have been reconciled.
@@ -122,8 +124,7 @@ export async function registerSponsorAction(
   // Sponsor Wall consent given at checkout seeds the default, but the registrant's own
   // choice wins. OR-ing the two would make consent sticky: a donor who ticked the box at
   // checkout and deliberately unticks it here would still be published.
-  const priorDonations = await listSponsoredDonationsByEmail(parsed.email);
-  const consentedAtCheckout = priorDonations.some((d) => d.displayOnWall);
+  const consentedAtCheckout = ownCommitments.some((c) => c.displayOnWall);
   const displayOnWall = input.displayOnWall === undefined
     ? consentedAtCheckout
     : parsed.displayOnWall;
@@ -136,7 +137,7 @@ export async function registerSponsorAction(
     displayOnWall,
   });
 
-  const linkedContributions = await linkDonationsToSponsor(sponsor.id, sponsor.email);
+  const linkedContributions = await claimSponsorshipsForUser(sponsor.id, sponsor.email);
 
   await setSponsorSessionCookie({
     sponsorId: sponsor.id,
@@ -285,14 +286,14 @@ export async function getSponsorDashboardAction(): Promise<SponsorDashboardDTO |
  * receipt number in the request cannot reach anyone else's ledger.
  */
 export async function cancelRecurringPledgeAction(
-  receiptNumber: string
+  pledgeRef: string
 ): Promise<{ success: boolean; error?: string }> {
   const session = await getCurrentSponsorSession();
   if (!session) {
     return { success: false, error: "Please sign in to manage your pledges." };
   }
 
-  const cancelled = await cancelRecurringPledge(session.sponsorId, receiptNumber);
+  const cancelled = await cancelSponsorshipForUser(session.sponsorId, pledgeRef);
   if (!cancelled) {
     return {
       success: false,
@@ -306,55 +307,8 @@ export async function cancelRecurringPledgeAction(
     actorRole: "SPONSOR",
     action: "RECURRING_PLEDGE_CANCELLED",
     entity: "SponsorContribution",
-    entityId: cancelled.receiptNumber,
-    details: { amountSen: cancelled.amountSen },
-  });
-
-  return { success: true };
-}
-
-/**
- * Staff action: reconcile a pledge against a payment that actually arrived.
- *
- * DuitNow QR and bank transfers land out of band, so a human matches them to receipt
- * numbers. Until that happens a pledge confers no standing and cannot be used to claim an
- * account — which is precisely what stops the public donation form from being a
- * self-service route to Gold, or to someone else's giving history.
- *
- * Restricted to ADMIN and COORDINATOR, and audited, because this is the step that turns an
- * assertion into a privilege.
- */
-export async function confirmContributionAction(
-  receiptNumber: string
-): Promise<{ success: boolean; error?: string }> {
-  const actor = await getCurrentSession();
-
-  try {
-    assertAuthorized(actor, [ROLES.ADMIN, ROLES.COORDINATOR]);
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Not authorized.",
-    };
-  }
-
-  const confirmed = await confirmSponsoredDonation(receiptNumber);
-  if (!confirmed) {
-    return { success: false, error: "No pledge found with that receipt number." };
-  }
-
-  recordAuditLog({
-    actorId: actor.id,
-    actorEmail: actor.email,
-    actorRole: actor.role,
-    action: "CONTRIBUTION_PAYMENT_CONFIRMED",
-    entity: "SponsorContribution",
-    entityId: confirmed.receiptNumber,
-    details: {
-      donorEmail: confirmed.donorEmail,
-      amountSen: confirmed.amountSen,
-      frequency: confirmed.frequency,
-    },
+    entityId: cancelled.pledgeRef,
+    details: { amountSen: cancelled.amountSen, petName: cancelled.petName },
   });
 
   return { success: true };

@@ -5,6 +5,7 @@ import {
   PerkId,
   TierRelevantContribution,
 } from "@/types/supporter";
+import { countsTowardFunding, type SponsorshipStatus } from "./petSponsorship";
 
 /**
  * Rolling window over which giving is recognised toward a standing.
@@ -129,19 +130,21 @@ export function recognisedContributionSen(
   const cutoff = now.getTime() - RECOGNITION_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
   return contributions.reduce((total, contribution) => {
-    // An unconfirmed pledge confers no standing. Without this, `/donate` — a public,
-    // unauthenticated form — would be a self-service Gold button: anyone could assert a
-    // RM 1,200 pledge, or an RM 100 monthly one, and unlock every gate on the next
-    // request without paying anything.
-    if (contribution.status !== "CONFIRMED") return total;
+    // Only a reconciled commitment confers a standing. Sponsorship checkout is a
+    // public, unauthenticated form with no payment gateway behind it, so a
+    // `PENDING_PAYMENT` row is an assertion — counting it would make the form a
+    // self-service route to Gold. `countsTowardFunding` is the ledger's own rule for
+    // the same question, reused rather than restated.
+    if (!countsTowardFunding(contribution.status as SponsorshipStatus)) return total;
 
     if (contribution.frequency === "monthly") {
-      if (!contribution.isActive) return total;
+      // A cancelled standing order is already excluded above: the ledger moves it to
+      // CANCELLED, which `countsTowardFunding` rejects.
       return total + contribution.amountSen * 12;
     }
 
-    const issuedAt = new Date(contribution.issuedAt).getTime();
-    if (Number.isNaN(issuedAt) || issuedAt < cutoff) return total;
+    const createdAt = new Date(contribution.createdAt).getTime();
+    if (Number.isNaN(createdAt) || createdAt < cutoff) return total;
     return total + contribution.amountSen;
   }, 0);
 }

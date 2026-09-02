@@ -44,7 +44,6 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
     donorPhone,
     taxIdOrIc,
     notes,
-    displayOnWall,
     copiedBank,
     isProcessing,
     errorMessage,
@@ -62,7 +61,6 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
     setDonorPhone,
     setTaxIdOrIc,
     setNotes,
-    setDisplayOnWall,
     handleCopyMaybank,
     handleCompleteDonation,
     handleReset,
@@ -425,27 +423,6 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
                 </div>
               </div>
 
-              {/* Public Sponsor Wall opt-in. Consent is stored against this pledge so it
-                  survives until the donor claims a sponsor portal account. */}
-              <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5">
-                <input
-                  type="checkbox"
-                  checked={displayOnWall}
-                  onChange={(e) => setDisplayOnWall(e.target.checked)}
-                  className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary"
-                />
-                <span className="space-y-1">
-                  <span className="block text-sm font-semibold text-foreground">
-                    Display my name on the Hope for Strays Public Sponsor Wall
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    Only your name and sponsorship standing are shown &mdash; never the
-                    amount, your email or your tax number. You can withdraw this at any
-                    time from the sponsor portal.
-                  </span>
-                </span>
-              </label>
-
               {/* Submit & Cancel */}
               <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 border-t border-border pt-5">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -473,7 +450,7 @@ export function SponsorshipModal(props: UseSponsorshipControllerProps) {
               </div>
 
               {/* Printable Official Receipt Dossier */}
-              <div data-print-root className="receipt p-6 sm:p-8 space-y-5 shadow-sm">
+              <div id="donation-receipt-print" className="receipt p-6 sm:p-8 space-y-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-receipt-ink pb-4">
                   <div>
                     <h3 className="font-heading text-xl sm:text-2xl font-extrabold uppercase tracking-tight text-receipt-ink">

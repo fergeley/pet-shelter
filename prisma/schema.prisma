@@ -87,8 +87,13 @@ model Pet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Cost of this animal's care programme, in integer sen, used as the
+  /// denominator of the sponsorship progress shown on its profile. Null means
+  /// "no animal-specific target", and the shelter-wide default applies.
+  sponsorshipGoalSen Int?
+
   applications       AdoptionApplication[]
-  sponsorships       DonationSponsorship[]
+  sponsorships       PetSponsorship[]
   updates            PetUpdate[]
   medicalTimeline    MedicalTimelineEvent[]
   vetAssignments     VetPetAssignment[]
@@ -263,16 +268,21 @@ model AuditLog {
 }
 
 model ShelterSettings {
-  id                 String   @id @default("default-settings")
-  shelterName        String   @default("Hope for Strays")
-  email              String   @default("info@hopeforstrays.org")
-  phone              String   @default("03-7876 5432")
-  address            String   @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
-  operatingHours     String   @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
+  id                 String  @id @default("default-settings")
+  shelterName        String  @default("Hope for Strays")
+  email              String  @default("info@hopeforstrays.org")
+  phone              String  @default("03-7876 5432")
+  address            String  @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
+  operatingHours     String  @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
   announcementBanner String?
-  adoptionFeeDog     String   @default("Free")
-  adoptionFeeCat     String   @default("Free")
-  updatedAt          DateTime @updatedAt
+  adoptionFeeDog     String  @default("Free")
+  adoptionFeeCat     String  @default("Free")
+
+  /// Fallback care-cost target in integer sen (RM 1,500.00) for any animal
+  /// without a `Pet.sponsorshipGoalSen` of its own.
+  defaultSponsorshipGoalSen Int @default(150000)
+
+  updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")
 }
@@ -362,10 +372,6 @@ model Donation {
 
   /// Makes a double-allocation a database error rather than two receipts sharing a
   /// number. The unique index is the real guarantee; the transaction is the mechanism.
-  /// Sponsor-programme state for this receipt. A relation field only: it adds no
-  /// column here, so the append-only guarantee on `donations` is untouched.
-  sponsorship DonationSponsorship?
-
   @@unique([sequenceScope, sequenceValue])
   @@index([issuedAt])
   @@index([donorEmail])
@@ -389,67 +395,10 @@ model Sponsor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sponsorships DonationSponsorship[]
+  sponsorships PetSponsorship[]
 
   @@index([displayOnWall])
   @@map("sponsors")
-}
-
-/// The sponsorship programme's mutable state about one issued donation.
-///
-/// ## Why this is a separate table rather than columns on `Donation`
-///
-/// `donations` is append-only — `donationLedger.ts` exports no update path, and
-/// `prisma/sql/donation_append_only.sql` enforces it with a trigger. That is correct:
-/// a receipt records that money moved, and an issued statutory document must not
-/// change.
-///
-/// Sponsorship state is the opposite kind of thing. It is a *relationship*, and it
-/// changes over the life of the donation: the donor claims an account, a caretaker
-/// reconciles the payment, a recurring pledge is cancelled, consent is withdrawn.
-/// Putting those on `donations` would not merely blur the two lifecycles — every
-/// write would be rejected by the trigger.
-///
-/// So the ledger keeps the immutable fact and this table annotates it. Amount, donor
-/// identity, tier, frequency and receipt number are stored once, on `Donation`, and
-/// read through the relation.
-model DonationSponsorship {
-  /// One row per receipt; the receipt number is the natural key on both sides.
-  receiptNumber String   @id
-  donation      Donation @relation(fields: [receiptNumber], references: [receiptNumber], onDelete: Cascade)
-
-  /// Set when the donor claims a portal account, or when they donate while signed in.
-  /// Null until then: most donations are made by people with no account.
-  sponsorId String?
-  sponsor   Sponsor? @relation(fields: [sponsorId], references: [id], onDelete: SetNull)
-
-  /// PENDING until a caretaker reconciles the pledge against money that arrived.
-  /// `/donate` is public and has no payment gateway behind it, so an unreconciled
-  /// pledge is an assertion. Only CONFIRMED rows count toward a standing or satisfy
-  /// the account-claim challenge.
-  status String @default("PENDING")
-
-  /// False once a recurring pledge is cancelled, which drops the annualised value
-  /// from the sponsor's standing on the next read.
-  isActive Boolean @default(true)
-
-  /// Sponsor Wall consent as given at checkout. Recorded per donation because most
-  /// donors have no account at the moment they give; the account inherits it on claim.
-  displayOnWall Boolean @default(false)
-
-  /// `Donation.targetPetName` is free text on purpose, so a dedication survives the
-  /// pet being archived. This is the join key "My Rescues" needs, and is nullable and
-  /// SetNull for the same reason.
-  targetPetId String?
-  targetPet   Pet?    @relation(fields: [targetPetId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([sponsorId])
-  @@index([targetPetId])
-  @@index([status])
-  @@map("donation_sponsorships")
 }
 
 /// Licensed veterinarian participating in shelter clinical operations.
@@ -558,4 +507,94 @@ model PetCompatibilityRule {
   @@unique([petId, housingType, cohabitantType])
   @@index([petId])
   @@map("pet_compatibility_rules")
+}
+
+/// A supporter's standing commitment to fund one animal's care.
+///
+/// ## Why this is not a `Donation`
+///
+/// `Donation` is an issued receipt: append-only, immutable, and evidence that
+/// money arrived. A sponsorship is the opposite kind of record — a commitment
+/// that has a lifecycle, can be waiting on a bank transfer, and can be
+/// cancelled. Modelling it as a mutable `Donation` would have meant putting a
+/// status column on a statutory document, which is exactly what that model's
+/// comment forbids.
+///
+/// The two meet at reconciliation: when a coordinator matches the transfer,
+/// `issueDonationReceipt()` writes the `Donation` and its gapless number is
+/// copied onto `receiptNumber` here. Until that happens this row carries no
+/// receipt number, because nothing has verified that any money moved — the
+/// supporter was shown a DuitNow QR and told us they paid.
+///
+/// ## Money
+///
+/// `amountSen` is an integer count of sen, as everywhere else. See
+/// `src/lib/domain/money.ts`.
+model PetSponsorship {
+  id String @id @default(cuid())
+
+  /// Nullable, and paired with a denormalised name. Pets are still served from
+  /// `src/data/pets.json` through an in-memory store when the database is empty,
+  /// so a sponsorship can legitimately name an animal that has no row here. The
+  /// snapshot is also what keeps the record readable after a rename or an
+  /// archive, the same reasoning as `AdoptionApplication.petName`.
+  petId   String?
+  pet     Pet?    @relation(fields: [petId], references: [id], onDelete: SetNull)
+  petName String
+
+  sponsorName  String
+  sponsorEmail String
+  sponsorPhone String?
+  /// The supporter account that claims this commitment, once one exists. Checkout is
+  /// still guest-only, so this is null at creation and filled in when the donor claims
+  /// their portal account — see `registerSponsorAction`. Nullable and `SetNull` because a
+  /// commitment outlives an account: deleting the account must not erase the record that
+  /// the money was pledged.
+  userId       String?
+  sponsor      Sponsor? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Public Sponsor Wall consent, as given at this checkout. Recorded per commitment
+  /// rather than per account because most supporters have no account when they give; the
+  /// account inherits it when the commitment is claimed.
+  displayOnWall Boolean @default(false)
+
+  tierId    String
+  /// Tier name as displayed when the commitment was made, snapshotted for the
+  /// same reason as `Donation.tierName`.
+  tierName  String
+  /// "one_time" or "monthly". A plain String, matching `Donation.frequency`,
+  /// constrained at the Zod boundary rather than by a database enum.
+  frequency String @default("one_time")
+  /// Integer sen. RM 80.00 is stored as 8000.
+  amountSen Int
+
+  paymentMethod String
+  /// PENDING_PAYMENT -> ACTIVE | CANCELLED | EXPIRED. Only ACTIVE counts toward
+  /// the public supporter tally and the funding total.
+  status        String @default("PENDING_PAYMENT")
+
+  /// Handed to the supporter at checkout so they can quote it on their transfer.
+  /// Prefixed HFS-PLG, deliberately unlike a receipt number: a coordinator
+  /// reading a bank statement must be able to tell a claim from a receipt.
+  pledgeRef     String  @unique
+  /// The `Donation.receiptNumber` issued for this commitment, once reconciled.
+  /// Unique, so a second reconciliation cannot attach a second receipt to the
+  /// same money.
+  receiptNumber String? @unique
+
+  reconciledAt DateTime?
+  reconciledBy String?
+  cancelledAt  DateTime?
+
+  taxIdOrIc String?
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Serves the per-animal supporter count and funding total.
+  @@index([petId, status])
+  @@index([sponsorEmail])
+  @@index([userId])
+  @@map("pet_sponsorships")
 }

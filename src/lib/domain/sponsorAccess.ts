@@ -3,11 +3,12 @@ import "server-only";
 import { cache } from "react";
 import exclusiveMediaCatalogue from "@/data/exclusiveMedia.json";
 import { getCurrentSponsorSession, SponsorSession } from "@/lib/security/sponsorSession";
+import { findSponsorById, listWallOptInSponsors } from "@/lib/server/sponsorRepository";
 import {
-  findSponsorById,
-  listSponsoredDonationsBySponsorId,
-  listWallOptInSponsors,
-} from "@/lib/server/sponsorRepository";
+  listSponsorshipsByUserId,
+  type SponsorshipRecord,
+} from "@/lib/server/sponsorshipLedger";
+import { seedOfflineSponsorships } from "@/lib/server/sponsorDemoSeed";
 import { getServerPetsAsync } from "@/lib/server/petRepository";
 import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
 import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
@@ -22,7 +23,6 @@ import {
 } from "./supporterTier";
 import {
   SupporterTier,
-  SponsoredDonation,
   SponsorRecord,
   SponsorDashboardDTO,
   SponsoredRescueDTO,
@@ -56,7 +56,7 @@ const CATALOGUE = exclusiveMediaCatalogue as Record<string, PetExclusiveMedia>;
 export interface SponsorContext {
   session: SponsorSession;
   sponsor: SponsorRecord;
-  donations: SponsoredDonation[];
+  sponsorships: SponsorshipRecord[];
   tier: SupporterTier | null;
   recognisedSen: number;
 }
@@ -68,19 +68,23 @@ export interface SponsorContext {
  * read per request rather than one per gate.
  */
 export const getSponsorContext = cache(async (): Promise<SponsorContext | null> => {
+  // Offline demo data is seeded on first read rather than at module load, so the cost
+  // falls only on a request that actually looks at sponsorship state.
+  await seedOfflineSponsorships();
+
   const session = await getCurrentSponsorSession();
   if (!session) return null;
 
   const sponsor = await findSponsorById(session.sponsorId);
   if (!sponsor) return null;
 
-  const donations = await listSponsoredDonationsBySponsorId(sponsor.id);
+  const sponsorships = await listSponsorshipsByUserId(sponsor.id);
   return {
     session,
     sponsor,
-    donations,
-    tier: deriveTier(donations),
-    recognisedSen: recognisedContributionSen(donations),
+    sponsorships,
+    tier: deriveTier(sponsorships),
+    recognisedSen: recognisedContributionSen(sponsorships),
   };
 });
 
@@ -165,10 +169,12 @@ export function deriveRehabStage(
 }
 
 function billingFrequencyOf(
-  donations: SponsoredDonation[]
+  sponsorships: SponsorshipRecord[]
 ): SponsorDashboardDTO["billingFrequency"] {
-  const hasMonthly = donations.some((d) => d.frequency === "monthly" && d.isActive);
-  const hasOneTime = donations.some((d) => d.frequency === "one_time");
+  const hasMonthly = sponsorships.some(
+    (s) => s.frequency === "monthly" && s.status === "ACTIVE"
+  );
+  const hasOneTime = sponsorships.some((s) => s.frequency === "one_time");
   if (hasMonthly && hasOneTime) return "mixed";
   if (hasMonthly) return "monthly";
   if (hasOneTime) return "one_time";
@@ -185,21 +191,22 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
   const context = await getSponsorContext();
   if (!context) return null;
 
-  const { sponsor, donations, tier, recognisedSen } = context;
+  const { sponsor, sponsorships, tier, recognisedSen } = context;
 
-  const byPet = new Map<string, SponsoredDonation[]>();
-  for (const donation of donations) {
-    if (!donation.targetPetId) continue;
-    const bucket = byPet.get(donation.targetPetId);
-    if (bucket) bucket.push(donation);
-    else byPet.set(donation.targetPetId, [donation]);
+  // Grouped by pet so "My Rescues" shows one card per animal, not one per pledge.
+  const byPet = new Map<string, SponsorshipRecord[]>();
+  for (const sponsorship of sponsorships) {
+    if (!sponsorship.petId) continue;
+    const bucket = byPet.get(sponsorship.petId);
+    if (bucket) bucket.push(sponsorship);
+    else byPet.set(sponsorship.petId, [sponsorship]);
   }
 
   // One pet read for the whole dashboard rather than one per sponsored rescue.
   const petsById = new Map((await getServerPetsAsync()).map((pet) => [pet.id, pet]));
 
   const rescues: SponsoredRescueDTO[] = [];
-  for (const [petId, petDonations] of byPet) {
+  for (const [petId, petSponsorships] of byPet) {
     const pet = petsById.get(petId);
     if (!pet) continue;
 
@@ -214,9 +221,9 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
       rehabStage: stage,
       rehabStageMs: stageMs,
       medicalBadges: badges,
-      totalContributedSen: petDonations.reduce((sum, d) => sum + d.amountSen, 0),
-      lastContributionAt: petDonations
-        .map((d) => d.issuedAt)
+      totalContributedSen: petSponsorships.reduce((sum, s) => sum + s.amountSen, 0),
+      lastContributionAt: petSponsorships
+        .map((s) => s.createdAt)
         .sort()
         .reverse()[0],
     });
@@ -234,8 +241,10 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
     recognisedSen,
     amountToNextTierSen: amountToNextTier(recognisedSen),
     nextTier: nextTierAbove(tier),
-    billingFrequency: billingFrequencyOf(donations),
-    hasActiveRecurring: donations.some((d) => d.frequency === "monthly" && d.isActive),
+    billingFrequency: billingFrequencyOf(sponsorships),
+    hasActiveRecurring: sponsorships.some(
+      (s) => s.frequency === "monthly" && s.status === "ACTIVE"
+    ),
     displayOnWall: sponsor.displayOnWall,
     memberSince: sponsor.createdAt,
     perks: PERKS.map((perk) => ({
@@ -301,6 +310,7 @@ export async function getSponsorCertificate(
  * Amounts, emails, tax identifiers and pet dedications are never projected.
  */
 export async function getSponsorWall(): Promise<Record<SupporterTier, SponsorWallEntryDTO[]>> {
+  await seedOfflineSponsorships();
   const rows = await listWallOptInSponsors();
   const wall: Record<SupporterTier, SponsorWallEntryDTO[]> = {
     GOLD: [],
@@ -308,9 +318,9 @@ export async function getSponsorWall(): Promise<Record<SupporterTier, SponsorWal
     BRONZE: [],
   };
 
-  for (const { sponsor, donations } of rows) {
+  for (const { sponsor, sponsorships } of rows) {
     if (!sponsor.displayOnWall) continue;
-    const tier = deriveTier(donations);
+    const tier = deriveTier(sponsorships);
     if (!tier) continue;
     wall[tier].push({
       name: sponsor.name,

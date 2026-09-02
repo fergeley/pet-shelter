@@ -23,8 +23,7 @@ vi.mock("next/headers", () => ({
 const emptyDatabase = {
   prisma: {
     sponsor: { findUnique: async () => null, findMany: async () => [] },
-    donation: { findMany: async () => [] },
-    donationSponsorship: { findMany: async () => [] },
+    petSponsorship: { findMany: async () => [], findUnique: async () => null },
   },
 };
 
@@ -56,14 +55,12 @@ describe("With a database configured, it is authoritative", () => {
     expect(await listWallOptInSponsors()).toEqual([]);
   });
 
-  it("reports an unknown receipt number as unknown", async () => {
+  it("reports an unknown email as holding no commitments", async () => {
     configureDatabase();
-    const { findSponsoredDonationByReceipt } = await import(
-      "@/lib/server/sponsorRepository"
-    );
+    const { listSponsorshipsByEmail } = await import("@/lib/server/sponsorshipLedger");
 
-    // The account-claim challenge depends on "no such receipt" being a real answer.
-    expect(await findSponsoredDonationByReceipt("HFS-DON-202607-0001")).toBeNull();
+    // The account-claim challenge depends on "no such commitment" being a real answer.
+    expect(await listSponsorshipsByEmail("gold@example.com")).toEqual([]);
   });
 });
 
@@ -71,17 +68,19 @@ describe("Offline, the demo sponsors exist so the portal is demonstrable", () =>
   it("resolves them, with standings derived from real ledger donations", async () => {
     vi.resetModules();
     vi.stubEnv("DATABASE_URL", "");
-    const { findSponsorByEmail, listSponsoredDonationsBySponsorId } = await import(
-      "@/lib/server/sponsorRepository"
-    );
+    const { findSponsorByEmail } = await import("@/lib/server/sponsorRepository");
+    const { listSponsorshipsByUserId } = await import("@/lib/server/sponsorshipLedger");
+    const { seedOfflineSponsorships } = await import("@/lib/server/sponsorDemoSeed");
 
     const sponsor = await findSponsorByEmail("gold@example.com");
     expect(sponsor?.id).toBe("spn-gold-01");
 
-    // Seeded through issueDonationReceipt, so the demo exercises the real path.
-    const donations = await listSponsoredDonationsBySponsorId("spn-gold-01");
-    expect(donations.length).toBeGreaterThan(0);
-    expect(donations[0].receiptNumber).toMatch(/^HFS-DON-\d{6}-\d{4,}$/);
+    // Recorded through recordSponsorshipPledge and reconciled through
+    // reconcileSponsorship, so the demo exercises the real path rather than a fixture.
+    await seedOfflineSponsorships();
+    const commitments = await listSponsorshipsByUserId("spn-gold-01");
+    expect(commitments.length).toBeGreaterThan(0);
+    expect(commitments.every((c) => c.status === "ACTIVE")).toBe(true);
   });
 });
 

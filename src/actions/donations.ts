@@ -7,8 +7,6 @@ import {
 } from "@/lib/validations/donation";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
-import { enrolDonation, findSponsorByEmail } from "@/lib/server/sponsorRepository";
-import { getCurrentSponsorSession } from "@/lib/security/sponsorSession";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { findSponsorshipTier } from "@/lib/domain/sponsorshipTiers";
 import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
@@ -125,32 +123,6 @@ export async function submitDonationPledgeAction(
       taxDeductibleRef: issuer.taxDeductibleRef,
       shelterRegistrationNo: issuer.shelterRegistrationNo,
     });
-
-    // 3b. Enrol the receipt in the sponsorship programme.
-    //
-    //     A separate row, not columns on the ledger: `donations` is append-only, and
-    //     sponsorship state is the mutable half — claimed, reconciled, cancelled,
-    //     consent withdrawn. It starts PENDING because this form is public and has no
-    //     payment gateway behind it, so an unreconciled pledge is an assertion and must
-    //     confer neither a standing nor the right to claim an account.
-    //
-    //     Failure here must not fail the donation: the receipt is already durable and
-    //     the donor is owed it. An un-enrolled receipt is recoverable — the sponsor
-    //     portal simply does not see it until someone backfills the row.
-    try {
-      const signedInSponsor = await getCurrentSponsorSession();
-      await enrolDonation({
-        receiptNumber: record.receiptNumber,
-        sponsorId:
-          signedInSponsor?.email === record.donorEmail
-            ? signedInSponsor.sponsorId
-            : (await findSponsorByEmail(record.donorEmail))?.id ?? null,
-        displayOnWall: validated.displayOnWall,
-        targetPetId: optionalText(validated.targetPetId) ?? null,
-      });
-    } catch (err) {
-      console.error("[Sponsorship] Enrolment failed for", record.receiptNumber, err);
-    }
 
     const receipt = toReceiptDTO(record);
 

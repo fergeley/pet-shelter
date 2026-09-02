@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
+import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { getPublicPets } from "@/actions/pets";
 import { DonationReceipt, SponsorshipTier } from "@/types/sponsorship";
@@ -37,7 +38,7 @@ interface DonationWidgetProps {
 export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const { t, isMs } = useLanguage();
   const searchParams = useSearchParams();
-  const { saveDonationReceipt, createDonationReceipt } = useSponsorshipStore();
+  const { saveDonationReceipt } = useSponsorshipStore();
 
   const urlPetName = searchParams.get("pet");
   const urlSponsorPetId = searchParams.get("sponsorPetId");
@@ -96,7 +97,6 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const [donorPhone, setDonorPhone] = useState("");
   const [taxIdOrIc, setTaxIdOrIc] = useState("");
   const [notes, setNotes] = useState("");
-  const [displayOnWall, setDisplayOnWall] = useState(false);
   const [copiedBank, setCopiedBank] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -124,9 +124,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
     }
   }, [pets.length, selectedPet, urlPetName, urlSponsorPetId]);
 
+  // Tier prices differ by frequency, so the payable amount follows the toggle
+  // rather than the one-time list price.
   const finalAmount = isCustomTier
     ? Math.max(5, Number(customAmount) || 5)
-    : selectedTier.amount;
+    : tierAmountFor(selectedTier, frequency);
 
   const handleSelectPet = (pet: Pet | null) => {
     setSelectedPet(pet);
@@ -190,7 +192,6 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
       taxIdOrIc: taxIdOrIc.trim() || undefined,
       notes: notes.trim() || undefined,
       paymentMethod: "duitnow_qr" as const,
-      displayOnWall,
     };
 
     try {
@@ -200,12 +201,17 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         saveDonationReceipt(result.data as DonationReceipt);
         setCompletedReceipt(result.data as DonationReceipt);
       } else {
-        const localReceipt = createDonationReceipt(payload);
-        setCompletedReceipt(localReceipt);
+        // See the note in useSponsorshipController: a receipt number that never
+        // passed through the ledger is not a receipt.
+        setErrorMessage(
+          result.error ||
+            "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+        );
       }
     } catch {
-      const localReceipt = createDonationReceipt(payload);
-      setCompletedReceipt(localReceipt);
+      setErrorMessage(
+        "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -250,7 +256,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
 
         {/* Printable Official Receipt Dossier */}
         <div
-          data-print-root
+          id="donation-receipt-print"
           className="receipt p-6 sm:p-8 space-y-5 shadow-xs"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-receipt-ink pb-4">
@@ -466,7 +472,7 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-2">
                     <span className="font-heading text-xl font-bold text-foreground">
-                      RM {tier.amount}
+                      RM {tierAmountFor(tier, frequency)}
                     </span>
                     <span className="text-3xs font-bold px-2 py-0.5 bg-secondary text-secondary-foreground rounded-md border border-border">
                       {tier.badgeText}
@@ -795,29 +801,6 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             </div>
           </div>
         </div>
-
-        {/* Public Sponsor Wall opt-in. Consent is recorded against this pledge, so it
-            survives until the donor claims a portal account. */}
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border p-3.5">
-          <input
-            type="checkbox"
-            checked={displayOnWall}
-            onChange={(e) => setDisplayOnWall(e.target.checked)}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-primary"
-          />
-          <span className="space-y-1">
-            <span className="block text-sm font-semibold text-foreground">
-              {isMs
-                ? "Paparkan nama saya di Dinding Penaja awam Hope for Strays"
-                : "Display my name on the Hope for Strays Public Sponsor Wall"}
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              {isMs
-                ? "Hanya nama dan taraf penajaan anda dipaparkan — tidak sekali-kali jumlah, e-mel atau nombor cukai. Anda boleh menariknya balik pada bila-bila masa."
-                : "Only your name and sponsorship standing are shown — never the amount, your email or your tax number. You can withdraw this at any time."}
-            </span>
-          </span>
-        </label>
 
         {/* Submit */}
         <div className="pt-3 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">

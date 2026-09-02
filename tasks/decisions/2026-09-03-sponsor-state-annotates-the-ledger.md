@@ -1,4 +1,12 @@
-# Sponsor state annotates the donation ledger; it does not duplicate it
+# Sponsor state annotates the ledger; it does not duplicate it
+
+> **Superseded in part, same day.** The `DonationSponsorship` table this document
+> introduced was itself replaced by `master`'s `PetSponsorship`, which landed hours later
+> and is the better model. The *reasoning* below still stands and is why the final shape
+> is right — an append-only ledger of facts, annotated by a mutable record of the
+> relationship. Only the table name changed. The branch now adds `Sponsor` and populates
+> `PetSponsorship.userId`. See
+> `tasks/open/sponsor-portal-reduces-to-the-account-layer.md`.
 
 **Date:** 2026-09-03
 **Context:** merging the sponsor portal (PR #6) into a `master` that had, meanwhile,

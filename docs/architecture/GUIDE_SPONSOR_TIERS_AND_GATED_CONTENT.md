@@ -29,13 +29,22 @@ IDs.
 `src/lib/domain/supporterTier.ts` is pure and has no I/O. Everything below is unit-tested
 in `tests/unit/supporterTier.test.ts`.
 
-**Only confirmed payments count.** `/donate` is a public, unauthenticated form with no
+**The branch owns accounts, not commitments.** `PetSponsorship` in
+`src/lib/server/sponsorshipLedger.ts` is the record of a supporter's commitment to fund an
+animal; this feature adds `Sponsor` (the portal account) and populates the `userId` column
+that ledger reserved for it. Standings are derived by joining the two — there is no second
+store of commitments. See
+`tasks/decisions/2026-09-03-sponsor-state-annotates-the-ledger.md`.
+
+**Only reconciled commitments count.** `/donate` is a public, unauthenticated form with no
 payment gateway behind it — DuitNow QR and bank transfers arrive out of band — so a
-submitted pledge is an *assertion*, not money received. Every contribution starts
-`PENDING`; a staff member reconciles it against an actual payment via
-`confirmContributionAction` (ADMIN/COORDINATOR only, audited). Without that split, the
-donation form would be a self-service Gold button: anyone could assert an RM 1,200 pledge
-and unlock every gate on the next request.
+submitted pledge is an *assertion*, not money received. Every commitment starts
+`PENDING_PAYMENT`; a coordinator reconciles it against money that arrived via
+`reconcilePetSponsorshipAction`, which is what assigns a receipt number. Without that
+split, the checkout form would be a self-service Gold button: anyone could assert an
+RM 1,200 pledge and unlock every gate on the next request. `countsTowardFunding` in
+`src/lib/domain/petSponsorship.ts` is the single rule for "does this count", reused by
+tier derivation rather than restated.
 
 **Recognised contribution** — a rolling 12-month figure (`RECOGNITION_WINDOW_DAYS = 365`):
 
@@ -193,12 +202,12 @@ every contribution under that email is linked to the new account.
 Missing and mismatched receipts return an identical error message, so the form cannot be
 used to enumerate valid receipt numbers.
 
-**The receipt must also be `CONFIRMED`**, and that requirement is doing most of the work.
-Matching the email alone proves nothing: the donation form mints a receipt for whatever
-address the caller types and returns the number in its own response, so an attacker could
-pledge RM 5 as `victim@example.com`, take the receipt number, and claim the victim's entire
-giving history, standing and gated media. Requiring a reconciled payment breaks that chain,
-because confirming one is not something the claimant can do.
+**The commitment must also be `ACTIVE`**, and that requirement is doing most of the work.
+Matching the email alone proves nothing: sponsorship checkout is public and hands the
+caller back the `pledgeRef` it just minted, so an attacker could pledge RM 10 as
+`victim@example.com` and quote it to claim the victim's entire history, standing and gated
+media. A *receipt number* is only assigned at reconciliation — a coordinator's act, not the
+claimant's — which is what breaks that chain.
 
 **Known limitation.** A confirmed receipt number is still a shared secret rather than a
 verified identity — a donor who forwards their e-Receipt has given away their claim.
@@ -301,7 +310,7 @@ empty-but-healthy database would publish these four names on the public wall.
 
 ## 8. Verification
 
-`npx vitest run` — 292 tests, of which 109 cover this feature:
+`npx vitest run` — 787 tests across the whole suite, of which 96 cover this feature:
 
 | File | Covers |
 |---|---|
@@ -309,8 +318,9 @@ empty-but-healthy database would publish these four names on the public wall.
 | `tests/unit/sponsorAccess.test.ts` | Gates per standing, tampered-cookie rejection, dashboard projection, certificate issuance, wall privacy |
 | `tests/unit/sponsorPetMediaRoute.test.ts` | The serialized HTTP body, asserting private URLs are absent for each standing |
 | `tests/unit/sponsorAuth.test.ts` | Receipt challenge, enumeration resistance, the `"1234"` regression guard, rate limiting, action-level re-authorization |
-| `tests/unit/sponsorLedger.test.ts` | Pledges reaching the ledger, pet-id linkage, consent capture, claim flow |
-| `tests/unit/sponsorStoreFallback.test.ts` | A reachable-but-empty database vs an unreachable one, and that production carries no seed |
+| `tests/unit/sponsorRepositoryMode.test.ts` | A configured database is authoritative; production carries no seed |
+
+Commitments themselves are covered by `tests/unit/petSponsorship.test.ts`, which belongs to the sponsorship ledger rather than to this feature.
 
 ### The build output, checked directly
 

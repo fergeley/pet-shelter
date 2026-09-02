@@ -44,11 +44,13 @@ import { getSponsorDashboard, getSponsorWall } from "@/lib/domain/sponsorAccess"
 import { resetSponsorRepository } from "@/lib/server/sponsorRepository";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
 import {
-  listSponsoredDonationsByEmail,
-  listSponsoredDonationsBySponsorId,
-} from "@/lib/server/sponsorRepository";
+  listSponsorshipsByEmail,
+  listSponsorshipsByUserId,
+} from "@/lib/server/sponsorshipLedger";
 import { sendCaretakerQuestionEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
+import { seedOfflineSponsorships } from "@/lib/server/sponsorDemoSeed";
+import { deriveTier } from "@/lib/domain/supporterTier";
 
 /**
  * Seeded pledge that no account has claimed yet.
@@ -63,9 +65,12 @@ const UNCLAIMED = {
 };
 
 async function loadUnclaimedReceipt(): Promise<string> {
-  const [donation] = await listSponsoredDonationsByEmail(UNCLAIMED.email);
-  if (!donation) throw new Error("Expected a seeded unclaimed donation");
-  return donation.receiptNumber;
+  await seedOfflineSponsorships();
+  const [commitment] = await listSponsorshipsByEmail(UNCLAIMED.email);
+  if (!commitment?.receiptNumber) {
+    throw new Error("Expected a seeded, reconciled unclaimed commitment");
+  }
+  return commitment.receiptNumber;
 }
 
 const STRONG_PASSWORD = "correct-horse-battery";
@@ -109,6 +114,37 @@ describe("Sponsor registration", () => {
 
     expect(result.success).toBe(false);
     expect(cookieStore.has(SPONSOR_SESSION_COOKIE_NAME)).toBe(false);
+  });
+
+  it("refuses a commitment that has not been reconciled", async () => {
+    // The regression this exists for: sponsorship checkout is public and hands the caller
+    // back the pledgeRef it just minted, so an attacker could pledge RM 10 as someone
+    // else and quote it to claim their account. Only a reconciled commitment carries a
+    // receipt number, and reconciling is a coordinator's act.
+    await seedOfflineSponsorships();
+    const [unpaid] = await listSponsorshipsByEmail("pending@example.com");
+
+    expect(unpaid.status).toBe("PENDING_PAYMENT");
+    expect(unpaid.receiptNumber).toBeFalsy();
+
+    const result = await registerSponsorAction({
+      name: "Siti Nurhaliza",
+      email: "pending@example.com",
+      password: STRONG_PASSWORD,
+      receiptNumber: unpaid.pledgeRef.replace("HFS-PLG", "HFS-DON"),
+      displayOnWall: false,
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("grants no standing for an unreconciled commitment, however large", async () => {
+    // RM 5,000 pledged, nothing paid. Counting it would make the public checkout form a
+    // self-service route to Gold.
+    await seedOfflineSponsorships();
+    const [unpaid] = await listSponsorshipsByEmail("pending@example.com");
+
+    expect(deriveTier([unpaid])).toBeNull();
   });
 
   it("refuses a receipt number that does not exist", async () => {
@@ -168,13 +204,14 @@ describe("Sponsor registration", () => {
   });
 
   it("refuses to register an email that already has an account", async () => {
-    const [bronzeDonation] = await listSponsoredDonationsByEmail("bronze@example.com");
+    await seedOfflineSponsorships();
+    const [bronzeDonation] = await listSponsorshipsByEmail("bronze@example.com");
 
     const result = await registerSponsorAction({
       name: "Nurul Aisyah",
       email: "bronze@example.com",
       password: STRONG_PASSWORD,
-      receiptNumber: bronzeDonation.receiptNumber,
+      receiptNumber: bronzeDonation.receiptNumber!,
       displayOnWall: false,
     });
 
@@ -351,22 +388,24 @@ describe("Cancelling a recurring pledge", () => {
     UNCLAIMED.receiptNumber = await loadUnclaimedReceipt();
   });
 
-  async function goldRecurringReceipt(): Promise<string> {
-    const donations = await listSponsoredDonationsBySponsorId("spn-gold-01");
-    const monthly = donations.find((d) => d.frequency === "monthly");
-    if (!monthly) throw new Error("Expected a seeded recurring pledge");
-    return monthly.receiptNumber;
+  /** Cancellation is addressed by pledge reference, not by receipt number. */
+  async function goldRecurringPledgeRef(): Promise<string> {
+    await seedOfflineSponsorships();
+    const commitments = await listSponsorshipsByUserId("spn-gold-01");
+    const monthly = commitments.find((c) => c.frequency === "monthly");
+    if (!monthly) throw new Error("Expected a seeded recurring commitment");
+    return monthly.pledgeRef;
   }
 
   it("drops the standing immediately, which is what makes the decay branch reachable", async () => {
     // Before this action existed, `isActive` was written true everywhere and false
     // nowhere, so the documented "cancelling drops the standing" behaviour was
     // unreachable by any code path.
-    const receipt = await goldRecurringReceipt();
+    const pledgeRef = await goldRecurringPledgeRef();
     await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
     expect((await getSponsorDashboard())!.tier).toBe("GOLD");
 
-    const result = await cancelRecurringPledgeAction(receipt);
+    const result = await cancelRecurringPledgeAction(pledgeRef);
     expect(result.success).toBe(true);
 
     const after = await getSponsorDashboard();
@@ -375,10 +414,10 @@ describe("Cancelling a recurring pledge", () => {
   });
 
   it("refuses a receipt number belonging to another sponsor", async () => {
-    const receipt = await goldRecurringReceipt();
+    const pledgeRef = await goldRecurringPledgeRef();
     await sponsorLoginAction({ email: "silver@example.com", password: "silver123" });
 
-    const result = await cancelRecurringPledgeAction(receipt);
+    const result = await cancelRecurringPledgeAction(pledgeRef);
 
     expect(result.success).toBe(false);
     expect((await getSponsorWall()).GOLD.map((e) => e.name)).toContain(
@@ -387,9 +426,9 @@ describe("Cancelling a recurring pledge", () => {
   });
 
   it("refuses a signed-out caller", async () => {
-    expect((await cancelRecurringPledgeAction(await goldRecurringReceipt())).success).toBe(
-      false
-    );
+    expect(
+      (await cancelRecurringPledgeAction(await goldRecurringPledgeRef())).success
+    ).toBe(false);
   });
 });
 

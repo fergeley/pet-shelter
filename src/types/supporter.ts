@@ -1,4 +1,3 @@
-import type { Sen } from "@/lib/domain/money";
 import { SponsorshipTierId } from "./sponsorship";
 
 /**
@@ -11,9 +10,6 @@ import { SponsorshipTierId } from "./sponsorship";
  * vaccine pledges land the donor at the same standing.
  */
 export type SupporterTier = "BRONZE" | "SILVER" | "GOLD";
-
-/** Whether a pledge has been reconciled against an actual payment. */
-export type ContributionStatus = "PENDING" | "CONFIRMED";
 
 /** Ordinal rank used for `>=` comparisons. A sponsor below Bronze has rank 0. */
 export const TIER_RANK: Record<SupporterTier, number> = {
@@ -40,46 +36,20 @@ export interface Perk {
 }
 
 /**
- * The sponsorship programme's mutable state about one issued donation.
+ * The subset of a `PetSponsorship` that tier derivation reads.
  *
- * Holds nothing the ledger already holds. Amount, donor identity, tier and receipt
- * number live once, on `Donation`; `SponsoredDonation` is the resolved join.
+ * A structural subset rather than an import of `SponsorshipRecord`, so this type — and
+ * everything consuming it, including client components — stays free of the `server-only`
+ * ledger module. `status` is the ledger's own lifecycle: only `ACTIVE` counts, because
+ * `PENDING_PAYMENT` means nothing has checked a bank statement.
  */
-export interface SponsorshipRecord {
-  receiptNumber: string;
-  sponsorId: string | null;
-  status: ContributionStatus;
-  /** False once a recurring pledge is cancelled. */
-  isActive: boolean;
-  /** Wall consent as given at checkout, before any account existed. */
-  displayOnWall: boolean;
-  targetPetId: string | null;
-}
-
-/** A sponsorship row resolved against the ledger record it annotates. */
-export interface SponsoredDonation extends SponsorshipRecord {
-  donorEmail: string;
-  donorName: string;
-  tierId: SponsorshipTierId;
-  tierName: string;
-  /** Exact integer sen, straight from the ledger. Never re-rounded for storage. */
-  amountSen: Sen;
+export interface TierRelevantContribution {
+  amountSen: number;
   frequency: "one_time" | "monthly";
-  targetPetName: string | null;
-  /** ISO-8601 instant the receipt was issued. */
-  issuedAt: string;
+  status: string;
+  /** ISO-8601 instant the commitment was made. */
+  createdAt: string;
 }
-
-/**
- * The subset of a sponsored donation that tier derivation reads.
- *
- * Declared separately so callers can pass a narrow projection — the public wall in
- * particular must not load donor identity just to satisfy a parameter type.
- */
-export type TierRelevantContribution = Pick<
-  SponsoredDonation,
-  "amountSen" | "frequency" | "isActive" | "status" | "issuedAt"
->;
 
 /** A sponsor account. `passwordHash` never leaves the repository layer. */
 export interface SponsorRecord {

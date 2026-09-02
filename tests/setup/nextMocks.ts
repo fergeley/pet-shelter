@@ -284,13 +284,26 @@ export function resetNextMocks(): void {
 beforeEach(async () => {
   resetNextMocks();
 
-  const [fallbackState, userStore, auditLog, rateLimit, idempotency, donationLedger] = await Promise.all([
+  const [
+    fallbackState,
+    userStore,
+    auditLog,
+    rateLimit,
+    idempotency,
+    donationLedger,
+    sponsorshipLedger,
+    sponsorRepository,
+    sponsorDemoSeed,
+  ] = await Promise.all([
     import("@/lib/server/fallbackState"),
     import("@/lib/server/userStore"),
     import("@/lib/domain/auditLog"),
     import("@/lib/security/rateLimit"),
     import("@/lib/security/idempotency"),
     import("@/lib/server/donationLedger"),
+    import("@/lib/server/sponsorshipLedger"),
+    import("@/lib/server/sponsorRepository"),
+    import("@/lib/server/sponsorDemoSeed"),
   ]);
 
   fallbackState.resetServerStore();
@@ -298,5 +311,11 @@ beforeEach(async () => {
   rateLimit.resetRateLimitStore();
   idempotency.resetIdempotencyStore();
   donationLedger.resetDonationLedger();
+  sponsorshipLedger.resetSponsorshipLedger();
+  // Order matters: clearing the demo-seed flag after the ledger is emptied is what lets
+  // the next suite re-seed. Leaving the flag set would give every test after the first an
+  // empty ledger and no standings.
+  sponsorDemoSeed.resetSponsorDemoSeed();
+  await sponsorRepository.resetSponsorRepository();
   await userStore.resetUserStore();
 });
