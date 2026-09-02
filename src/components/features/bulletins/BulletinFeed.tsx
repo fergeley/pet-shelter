@@ -13,7 +13,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { Bulletin, BulletinCategory, BulletinFormData, BulletinTargetPage } from "@/types/bulletin";
-import { useBulletins } from "@/lib/bulletinStore";
+import { useBulletins } from "@/lib/client/bulletinStore";
 import { AdminBulletinModal } from "./AdminBulletinModal";
 import { Button } from "@/components/ui/button";
 
@@ -24,12 +24,18 @@ interface BulletinFeedProps {
   compact?: boolean;
 }
 
-const CATEGORY_LABELS: Record<BulletinCategory, { label: string; badgeClass: string }> = {
-  urgent_need: { label: "Urgent Foster / Need", badgeClass: "bg-red-800 text-white dark:bg-red-950 dark:text-red-200 dark:border dark:border-red-800 font-bold" },
-  clinic: { label: "Clinic / Vaccine", badgeClass: "bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-200 dark:border dark:border-emerald-800 font-bold" },
-  event: { label: "Event", badgeClass: "bg-blue-800 text-white dark:bg-blue-950 dark:text-blue-200 dark:border dark:border-blue-800 font-bold" },
-  happy_tail: { label: "Adoption Update", badgeClass: "bg-purple-900 text-white dark:bg-purple-950 dark:text-purple-200 dark:border dark:border-purple-800 font-bold" },
-  announcement: { label: "Notice", badgeClass: "bg-zinc-800 text-white dark:bg-zinc-800 dark:text-zinc-200 dark:border dark:border-zinc-700 font-bold" },
+/**
+ * Bulletin category → design tone, mirroring the mapping in `@/lib/petStatusPresentation`
+ * and `@/lib/presentation/medicalTimelinePresentation`. `happy_tail` takes `highlight` rather than `success`
+ * because `clinic` already owns green, and two categories sharing a colour makes the
+ * badge legend unreadable.
+ */
+const CATEGORY_LABELS: Record<BulletinCategory, { label: string; toneClass: string }> = {
+  urgent_need: { label: "Urgent Foster / Need", toneClass: "tone-danger" },
+  clinic: { label: "Clinic / Vaccine", toneClass: "tone-success" },
+  event: { label: "Event", toneClass: "tone-info" },
+  happy_tail: { label: "Adoption Update", toneClass: "tone-highlight" },
+  announcement: { label: "Notice", toneClass: "tone-neutral" },
 };
 
 export function BulletinFeed({
@@ -124,7 +130,7 @@ export function BulletinFeed({
       {isAdminMode && (
         <div className="mb-6 bg-muted/50 border border-border p-4 text-sm flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <span className="size-2.5 rounded-full bg-emerald-600 animate-pulse"></span>
+            <span className="size-2.5 rounded-full bg-success-accent animate-pulse"></span>
             <span className="font-semibold text-foreground">
               Admin Editing Mode: You can publish announcements with photos/videos, edit content, and pin high-priority notices.
             </span>
@@ -174,12 +180,12 @@ export function BulletinFeed({
                     {/* Badges & Date */}
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 text-xs uppercase tracking-wider ${catInfo.badgeClass}`}>
+                        <span className={`tone-chip px-3 py-1 ${catInfo.toneClass}`}>
                           {catInfo.label}
                         </span>
 
                         {bulletin.isPinned && (
-                          <span className="inline-flex items-center gap-1 bg-amber-800 dark:bg-amber-950 dark:text-amber-200 dark:border dark:border-amber-800 text-white px-3 py-1 text-xs font-bold uppercase">
+                          <span className="tone-chip tone-warning px-3 py-1">
                             <Pin className="size-3" /> Pinned
                           </span>
                         )}

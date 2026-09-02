@@ -50,7 +50,7 @@ export function ExclusiveGalleryGrid({
               className="object-cover transition-transform duration-300 group-hover:scale-102"
               sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             />
-            <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">
+            <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-0.5 text-2xs font-bold uppercase tracking-wide text-foreground">
               <Camera className="size-3" aria-hidden />
               {isMs ? "Resolusi penuh" : "Full resolution"}
             </span>
@@ -114,7 +114,7 @@ export function ExclusiveVideoDiary({
                 <Play className="size-6 fill-current" aria-hidden />
               </span>
             </span>
-            <span className="absolute bottom-3 right-3 rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-foreground">
+            <span className="absolute bottom-3 right-3 rounded-md bg-background/90 px-1.5 py-0.5 text-2xs font-bold tabular-nums text-foreground">
               {item.durationLabel}
             </span>
           </div>

@@ -4,6 +4,322 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ==========================================================================
+   1. TOKENS — the single source of truth for colour, elevation and shape.
+   --------------------------------------------------------------------------
+   Every semantic value is declared twice (`:root` and `.dark`) and exposed to
+   Tailwind through the `@theme inline` map below. Because the generated
+   utilities resolve to `var(--token)` rather than a literal, `bg-success-surface`
+   already adapts to the theme — call sites must NOT pair it with a `dark:`
+   variant. That indirection is the whole point: it removed ~180 hand-written
+   `dark:` overrides that had drifted out of sync with their light counterparts.
+   ========================================================================== */
+
+:root {
+  /* --- Brand surface palette: cream, terracotta, rosewood (from the paw logo) --- */
+  --background: #fff8f4;
+  --foreground: #2a1b1b;
+  --card: #fffdfb;
+  --card-foreground: #2a1b1b;
+  --popover: #fffdfb;
+  --popover-foreground: #2a1b1b;
+  /* Terracotta, dark enough to work in both directions. It has to host white text AND be
+     readable as text on cream — `text-primary` has 121 call sites and the default button
+     renders `text-primary-foreground` on it at 12px, where WCAG's large-text allowance does
+     not apply. At the previous oklch(67.9% …) it was 3.00:1 and 2.90:1, below AA for both.
+     Hue and chroma are unchanged; only lightness moved, by 11 points.
+     Measured in docs/tasks/TARGET_LIGHT_PRIMARY_CONTRAST.md. */
+  --primary: #b2594f;
+  --primary-hover: #aa5148;
+  --primary-foreground: #fffdfb;
+  --secondary: #f6e3dc;
+  --secondary-hover: #f3d7d1;
+  --secondary-foreground: #3a2524;
+  --muted: #f7efe9;
+  --muted-foreground: #6b4c4a;
+  --accent: #f4c7b6;
+  --accent-foreground: #3a2524;
+  /* Hover wash for ghost / outline controls — one step lighter than `--secondary`. */
+  --accent-subtle: #fff1ec;
+  --accent-subtle-strong: #fbeee9;
+  /* The same red as `--tone-danger-text`, and deliberately not a third one. A destructive
+     action and the danger tone mean the same thing, and two hand-maintained reds is how the
+     palette ends up with a "delete" that does not match "rejected". `designSystemGuards`
+     asserts the two stay equal, so this is a proven copy rather than a hopeful one — the
+     same arrangement the email hex mirror uses.
+     It also has to sit clear of the brand: at the old #b54043 it was ΔEok 0.049 from
+     `--primary`, near enough that `text-destructive` and `text-primary` read alike on cream.
+     This is 0.138 away, and 8.23:1 on card rather than 5.48:1.
+     See docs/tasks/TARGET_DESTRUCTIVE_BRAND_SEPARATION.md. */
+  --destructive: #9f0712;
+  --destructive-foreground: #fffdfb;
+  --border: #ecd7d0;
+  --input: #f1e2dc;
+  --ring: #c66f67;
+  --radius: 1.15rem;
+
+  /* --- Brand mark: the logo tile in the navbar --- */
+  --brand-mark: #f8dfd7;
+  --brand-mark-ring: #edc9c0;
+
+  /* --- Application frame: the neutral mat the branded panel sits on --- */
+  --frame: oklch(92% 0.004 286.32 / 0.8);
+  --frame-panel: oklch(98.5% 0 none);
+  --frame-border: oklch(87.1% 0.006 286.286);
+  --frame-footer: oklch(96.7% 0.001 286.375);
+
+  /* --- Segmented controls: language and theme toggles --- */
+  --control-track: oklch(92% 0.004 286.32);
+  --control-track-border: oklch(87.1% 0.006 286.286);
+  --control-thumb: #ffffff;
+
+  /* --- Semantic tones -------------------------------------------------------
+     Seven meanings, seven slots each. Pick by MEANING, never by hue:
+       success   verified · available · approved · payment received
+       warning   pending · needs attention · caution
+       info      informational · scheduled · submitted
+       care      under rehabilitation or veterinary care
+       danger    rejected · urgent · negative
+       highlight the extra distinguishable colour, with no fixed meaning: for legends
+                 that have run out of meaning tones (the medical timeline's diagnostic
+                 entries, the bulletin feed's adoption updates). Reach for it last.
+       neutral   adopted · archived · inert
+     Slots: surface (tinted panel) · surface-strong (emphasised panel) ·
+            border · text (readable on surface) · accent (icon on page bg) ·
+            solid (filled badge) · on-solid (text on that fill).
+     -------------------------------------------------------------------------- */
+
+
+  /* --- Sponsor standings -----------------------------------------------------
+     Brand identity, not semantic status, so these sit outside the seven-tone
+     contract — the same way the `receipt` tokens do. Slot names are deliberately
+     `-line` / `-label` rather than `-border` / `-text`: a `<name>-border` utility
+     would read as a malformed tone to the guard in designSystemGuards.ts.
+     Three colours rather than one accent because telling Bronze, Silver and Gold
+     apart at a glance is the entire point of a standing. */
+  --standing-bronze: oklch(95.8% 0.028 62.5);
+  --standing-bronze-line: oklch(72.4% 0.093 55.8);
+  --standing-bronze-label: oklch(44.5% 0.088 48.6);
+  --standing-silver: oklch(96.4% 0.005 264.5);
+  --standing-silver-line: oklch(74.6% 0.023 261.3);
+  --standing-silver-label: oklch(45.8% 0.024 259.7);
+  --standing-gold: oklch(96.6% 0.043 96.4);
+  --standing-gold-line: oklch(74.9% 0.121 85.9);
+  --standing-gold-label: oklch(45.2% 0.089 82.4);
+
+  /* success — emerald */
+  --tone-success-surface: oklch(97.9% 0.021 166.113);
+  --tone-success-surface-strong: oklch(95% 0.052 163.051);
+  --tone-success-border: oklch(84.5% 0.143 164.978);
+  --tone-success-text: oklch(43.2% 0.095 166.913);
+  --tone-success-accent: oklch(59.6% 0.145 163.225);
+  --tone-success-solid: oklch(43.2% 0.095 166.913);
+  --tone-success-on-solid: #ffffff;
+
+  /* warning — amber */
+  --tone-warning-surface: oklch(98.7% 0.022 95.277);
+  --tone-warning-surface-strong: oklch(96.2% 0.059 95.617);
+  --tone-warning-border: oklch(87.9% 0.169 91.605);
+  --tone-warning-text: oklch(47.3% 0.137 46.201);
+  --tone-warning-accent: oklch(66.6% 0.179 58.318);
+  --tone-warning-solid: oklch(47.3% 0.137 46.201);
+  --tone-warning-on-solid: #ffffff;
+
+  /* info — sky */
+  --tone-info-surface: oklch(97.7% 0.013 236.62);
+  --tone-info-surface-strong: oklch(95.1% 0.026 236.824);
+  --tone-info-border: oklch(82.8% 0.111 230.318);
+  --tone-info-text: oklch(44.3% 0.11 240.79);
+  --tone-info-accent: oklch(58.8% 0.158 241.966);
+  --tone-info-solid: oklch(44.3% 0.11 240.79);
+  --tone-info-on-solid: #ffffff;
+
+  /* care — indigo */
+  --tone-care-surface: oklch(96.2% 0.018 272.314);
+  --tone-care-surface-strong: oklch(93% 0.034 272.788);
+  --tone-care-border: oklch(78.5% 0.115 274.713);
+  --tone-care-text: oklch(39.8% 0.195 277.366);
+  --tone-care-accent: oklch(51.1% 0.262 276.966);
+  --tone-care-solid: oklch(39.8% 0.195 277.366);
+  --tone-care-on-solid: #ffffff;
+
+  /* danger — red */
+  --tone-danger-surface: oklch(97.1% 0.013 17.38);
+  --tone-danger-surface-strong: oklch(93.6% 0.032 17.717);
+  --tone-danger-border: oklch(80.8% 0.114 19.571);
+  --tone-danger-text: oklch(44.4% 0.177 26.899);
+  --tone-danger-accent: oklch(57.7% 0.245 27.325);
+  --tone-danger-solid: oklch(44.4% 0.177 26.899);
+  --tone-danger-on-solid: #ffffff;
+
+  /* highlight — purple */
+  --tone-highlight-surface: oklch(97.7% 0.014 308.299);
+  --tone-highlight-surface-strong: oklch(94.6% 0.033 307.174);
+  --tone-highlight-border: oklch(82.7% 0.119 306.383);
+  --tone-highlight-text: oklch(43.8% 0.218 303.724);
+  --tone-highlight-accent: oklch(55.8% 0.288 302.321);
+  --tone-highlight-solid: oklch(43.8% 0.218 303.724);
+  --tone-highlight-on-solid: #ffffff;
+
+  /* neutral — zinc */
+  --tone-neutral-surface: oklch(98.5% 0 none);
+  --tone-neutral-surface-strong: oklch(96.7% 0.001 286.375);
+  --tone-neutral-border: oklch(87.1% 0.006 286.286);
+  --tone-neutral-text: oklch(27.4% 0.006 286.033);
+  --tone-neutral-accent: oklch(55.2% 0.016 285.938);
+  --tone-neutral-solid: oklch(37% 0.013 285.805);
+  --tone-neutral-on-solid: #ffffff;
+
+  /* --- Printed tax receipt --------------------------------------------------
+     Deliberately absent from `.dark`: a Sec 44(6) receipt is printed as black
+     ink on white paper whatever the screen theme is, and it has to stay legible
+     through a monochrome printer. Do not "fix" these to theme tokens.
+     -------------------------------------------------------------------------- */
+  --receipt-paper: #ffffff;
+  --receipt-ink: oklch(21% 0.006 285.885);
+  --receipt-ink-soft: oklch(37% 0.013 285.805);
+  --receipt-ink-muted: oklch(44.2% 0.017 285.786);
+  --receipt-ink-faint: oklch(55.2% 0.016 285.938);
+  --receipt-rule: oklch(92% 0.004 286.32);
+  --receipt-panel: oklch(98.5% 0 none);
+  /* The receipt total. Fixed, not `--tone-success-accent`: that one lightens in dark
+     mode and would vanish against the receipt's permanently white paper. */
+  --receipt-ink-accent: oklch(50.8% 0.118 165.612);
+
+  /* --- Payment and channel brand colours, fixed by the third party --- */
+  --brand-duitnow: #ed008c;
+  --brand-whatsapp: #25d366;
+  --brand-whatsapp-hover: #20bd5a;
+}
+
+.dark {
+  --background: #171214;
+  --foreground: #f8efe9;
+  --card: #201a1b;
+  --card-foreground: #f8efe9;
+  --popover: #201a1b;
+  --popover-foreground: #f8efe9;
+  /* The same brand colour as `:root`, re-lit for a dark ground: identical hue (27.9°) and
+     chroma (0.118), with only the lightness chosen for what it sits on. That is the rule the
+     token layer is built on, and this token was the one place breaking it — at #eaa39b it had
+     drifted to its own hue and two thirds of the chroma, which is to say a different, paler
+     colour that merely resembled the brand.
+     It also has to stay clear of `--destructive`: both were pale pinks ΔEok 0.036 apart, and a
+     destructive control read as a primary one. Rotating the hue could not fix that (0.075 even
+     at 60°, where it stops being the brand) because near L 80% pale colours converge —
+     lightness was the lever. This is 0.147 apart, and holds 5.21:1 as text on card.
+     See docs/tasks/TARGET_DARK_BRAND_SEPARATION.md. */
+  --primary: #d17469;
+  /* Hover moves *away* from the background, as in `:root` — there it darkens, here it lightens. */
+  --primary-hover: #dc7e73;
+  --primary-foreground: #221718;
+  --secondary: #382d2d;
+  --secondary-hover: #433535;
+  --secondary-foreground: #f8efe9;
+  --muted: #2a2122;
+  --muted-foreground: #e9d5ca;
+  --accent: #d78d7c;
+  --accent-foreground: #221718;
+  --accent-subtle: #2d2424;
+  --accent-subtle-strong: #34292a;
+  /* Tracks `--tone-danger-text` here too — see the note in `:root`. Note this does NOT fix the
+     dark theme's own problem: `--primary` (#eaa39b) and this are both light pinks, ΔEok 0.036
+     apart, so destructive and brand still read alike in dark mode. That needs the dark primary
+     re-picked, which is a separate decision — recorded in §7 of the target above. */
+  --destructive: #ffa2a2;
+  --destructive-foreground: #221718;
+  --border: #4a3c3c;
+  --input: #433535;
+  --ring: #f2bea7;
+
+  --brand-mark: #382d2d;
+  --brand-mark-ring: #5b4040;
+
+  --frame: oklch(14.1% 0.005 285.823);
+  --frame-panel: oklch(21% 0.006 285.885);
+  --frame-border: oklch(27.4% 0.006 286.033);
+  --frame-footer: oklch(14.1% 0.005 285.823);
+
+  --control-track: oklch(27.4% 0.006 286.033);
+  --control-track-border: oklch(37% 0.013 285.805);
+  --control-thumb: oklch(21% 0.006 285.885);
+
+  /* success — emerald */
+  --tone-success-surface: oklch(26.2% 0.051 172.552 / 0.45);
+  --tone-success-surface-strong: oklch(26.2% 0.051 172.552 / 0.75);
+  --tone-success-border: oklch(43.2% 0.095 166.913);
+  --tone-success-text: oklch(84.5% 0.143 164.978);
+  --tone-success-accent: oklch(76.5% 0.177 163.223);
+  --tone-success-solid: oklch(26.2% 0.051 172.552);
+  --tone-success-on-solid: oklch(90.5% 0.093 164.15);
+
+  /* warning — amber */
+  --tone-warning-surface: oklch(27.9% 0.077 45.635 / 0.45);
+  --tone-warning-surface-strong: oklch(27.9% 0.077 45.635 / 0.75);
+  --tone-warning-border: oklch(47.3% 0.137 46.201);
+  --tone-warning-text: oklch(87.9% 0.169 91.605);
+  --tone-warning-accent: oklch(82.8% 0.189 84.429);
+  --tone-warning-solid: oklch(27.9% 0.077 45.635);
+  --tone-warning-on-solid: oklch(92.4% 0.12 95.746);
+
+  /* info — sky */
+  --tone-info-surface: oklch(29.3% 0.066 243.157 / 0.45);
+  --tone-info-surface-strong: oklch(29.3% 0.066 243.157 / 0.75);
+  --tone-info-border: oklch(44.3% 0.11 240.79);
+  --tone-info-text: oklch(82.8% 0.111 230.318);
+  --tone-info-accent: oklch(74.6% 0.16 232.661);
+  --tone-info-solid: oklch(29.3% 0.066 243.157);
+  --tone-info-on-solid: oklch(90.1% 0.058 230.902);
+
+  /* care — indigo */
+  --tone-care-surface: oklch(25.7% 0.09 281.288 / 0.45);
+  --tone-care-surface-strong: oklch(25.7% 0.09 281.288 / 0.75);
+  --tone-care-border: oklch(39.8% 0.195 277.366);
+  --tone-care-text: oklch(78.5% 0.115 274.713);
+  --tone-care-accent: oklch(67.3% 0.182 276.935);
+  --tone-care-solid: oklch(25.7% 0.09 281.288);
+  --tone-care-on-solid: oklch(87% 0.065 274.039);
+
+  /* danger — red */
+  --tone-danger-surface: oklch(25.8% 0.092 26.042 / 0.45);
+  --tone-danger-surface-strong: oklch(25.8% 0.092 26.042 / 0.75);
+  --tone-danger-border: oklch(44.4% 0.177 26.899);
+  --tone-danger-text: oklch(80.8% 0.114 19.571);
+  --tone-danger-accent: oklch(70.4% 0.191 22.216);
+  --tone-danger-solid: oklch(25.8% 0.092 26.042);
+  --tone-danger-on-solid: oklch(88.5% 0.062 18.334);
+
+
+  /* --- Sponsor standings (dark) --- */
+  --standing-bronze: oklch(31.2% 0.041 55.8 / 0.55);
+  --standing-bronze-line: oklch(48.6% 0.075 52.4);
+  --standing-bronze-label: oklch(82.7% 0.075 66.2);
+  --standing-silver: oklch(31.8% 0.011 261.3 / 0.55);
+  --standing-silver-line: oklch(50.2% 0.021 259.7);
+  --standing-silver-label: oklch(85.1% 0.014 264.5);
+  --standing-gold: oklch(32.4% 0.052 88.6 / 0.55);
+  --standing-gold-line: oklch(51.4% 0.094 85.9);
+  --standing-gold-label: oklch(86.3% 0.098 92.7);
+
+  /* highlight — purple */
+  --tone-highlight-surface: oklch(29.1% 0.149 302.717 / 0.45);
+  --tone-highlight-surface-strong: oklch(29.1% 0.149 302.717 / 0.75);
+  --tone-highlight-border: oklch(43.8% 0.218 303.724);
+  --tone-highlight-text: oklch(82.7% 0.119 306.383);
+  --tone-highlight-accent: oklch(71.4% 0.203 305.504);
+  --tone-highlight-solid: oklch(29.1% 0.149 302.717);
+  --tone-highlight-on-solid: oklch(90.2% 0.063 306.703);
+
+  /* neutral — zinc */
+  --tone-neutral-surface: oklch(27.4% 0.006 286.033 / 0.5);
+  --tone-neutral-surface-strong: oklch(27.4% 0.006 286.033);
+  --tone-neutral-border: oklch(37% 0.013 285.805);
+  --tone-neutral-text: oklch(92% 0.004 286.32);
+  --tone-neutral-accent: oklch(70.5% 0.015 286.067);
+  --tone-neutral-solid: oklch(27.4% 0.006 286.033);
+  --tone-neutral-on-solid: oklch(87.1% 0.006 286.286);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -25,84 +341,335 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-subtle-strong: var(--accent-subtle-strong);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-hover: var(--secondary-hover);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  --color-brand-mark: var(--brand-mark);
+  --color-brand-mark-ring: var(--brand-mark-ring);
+  --color-brand-duitnow: var(--brand-duitnow);
+  --color-brand-whatsapp: var(--brand-whatsapp);
+  --color-brand-whatsapp-hover: var(--brand-whatsapp-hover);
+
+  --color-frame: var(--frame);
+  --color-frame-panel: var(--frame-panel);
+  --color-frame-border: var(--frame-border);
+  --color-frame-footer: var(--frame-footer);
+
+  --color-control-track: var(--control-track);
+  --color-control-track-border: var(--control-track-border);
+  --color-control-thumb: var(--control-thumb);
+
+  --color-success-surface: var(--tone-success-surface);
+  --color-success-surface-strong: var(--tone-success-surface-strong);
+  --color-success-border: var(--tone-success-border);
+  --color-success-text: var(--tone-success-text);
+  --color-success-accent: var(--tone-success-accent);
+  --color-success-solid: var(--tone-success-solid);
+  --color-success-on-solid: var(--tone-success-on-solid);
+
+  --color-warning-surface: var(--tone-warning-surface);
+  --color-warning-surface-strong: var(--tone-warning-surface-strong);
+  --color-warning-border: var(--tone-warning-border);
+  --color-warning-text: var(--tone-warning-text);
+  --color-warning-accent: var(--tone-warning-accent);
+  --color-warning-solid: var(--tone-warning-solid);
+  --color-warning-on-solid: var(--tone-warning-on-solid);
+
+  --color-info-surface: var(--tone-info-surface);
+  --color-info-surface-strong: var(--tone-info-surface-strong);
+  --color-info-border: var(--tone-info-border);
+  --color-info-text: var(--tone-info-text);
+  --color-info-accent: var(--tone-info-accent);
+  --color-info-solid: var(--tone-info-solid);
+  --color-info-on-solid: var(--tone-info-on-solid);
+
+  --color-care-surface: var(--tone-care-surface);
+  --color-care-surface-strong: var(--tone-care-surface-strong);
+  --color-care-border: var(--tone-care-border);
+  --color-care-text: var(--tone-care-text);
+  --color-care-accent: var(--tone-care-accent);
+  --color-care-solid: var(--tone-care-solid);
+  --color-care-on-solid: var(--tone-care-on-solid);
+
+  --color-danger-surface: var(--tone-danger-surface);
+  --color-danger-surface-strong: var(--tone-danger-surface-strong);
+  --color-danger-border: var(--tone-danger-border);
+  --color-danger-text: var(--tone-danger-text);
+  --color-danger-accent: var(--tone-danger-accent);
+  --color-danger-solid: var(--tone-danger-solid);
+  --color-danger-on-solid: var(--tone-danger-on-solid);
+
+  --color-standing-bronze: var(--standing-bronze);
+  --color-standing-bronze-line: var(--standing-bronze-line);
+  --color-standing-bronze-label: var(--standing-bronze-label);
+  --color-standing-silver: var(--standing-silver);
+  --color-standing-silver-line: var(--standing-silver-line);
+  --color-standing-silver-label: var(--standing-silver-label);
+  --color-standing-gold: var(--standing-gold);
+  --color-standing-gold-line: var(--standing-gold-line);
+  --color-standing-gold-label: var(--standing-gold-label);
+  --color-highlight-surface: var(--tone-highlight-surface);
+  --color-highlight-surface-strong: var(--tone-highlight-surface-strong);
+  --color-highlight-border: var(--tone-highlight-border);
+  --color-highlight-text: var(--tone-highlight-text);
+  --color-highlight-accent: var(--tone-highlight-accent);
+  --color-highlight-solid: var(--tone-highlight-solid);
+  --color-highlight-on-solid: var(--tone-highlight-on-solid);
+
+  --color-neutral-surface: var(--tone-neutral-surface);
+  --color-neutral-surface-strong: var(--tone-neutral-surface-strong);
+  --color-neutral-border: var(--tone-neutral-border);
+  --color-neutral-text: var(--tone-neutral-text);
+  --color-neutral-accent: var(--tone-neutral-accent);
+  --color-neutral-solid: var(--tone-neutral-solid);
+  --color-neutral-on-solid: var(--tone-neutral-on-solid);
+
+  --color-receipt-paper: var(--receipt-paper);
+  --color-receipt-ink: var(--receipt-ink);
+  --color-receipt-ink-soft: var(--receipt-ink-soft);
+  --color-receipt-ink-muted: var(--receipt-ink-muted);
+  --color-receipt-ink-faint: var(--receipt-ink-faint);
+  --color-receipt-rule: var(--receipt-rule);
+  --color-receipt-panel: var(--receipt-panel);
+  --color-receipt-ink-accent: var(--receipt-ink-accent);
+
+  /* Type scale, extended below `xs` for metadata labels and legal fine print. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.15rem;
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 1rem;
+
+  /* Shape. `sm`–`2xl` derive from `--radius`; `3xl` and `4xl` are overridden
+     too, because Tailwind's defaults (1.5rem / 2rem) would otherwise land
+     *below* this project's larger `2xl` (2.07rem) and invert the scale. */
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Named shapes for the shells that were carrying arbitrary radii. */
+  --radius-mark: 1rem;
+  --radius-control: 1.25rem;
+  --radius-card: 1.4rem;
+  --radius-dialog: 1.6rem;
+
+  /* Elevation. Warm-tinted so shadows sit on cream without reading as grey. */
+  --shadow-brand-xs: 0 4px 10px rgba(97, 52, 48, 0.08);
+  --shadow-brand-sm: 0 8px 16px rgba(214, 122, 111, 0.18);
+  --shadow-brand-md: 0 8px 18px rgba(215, 122, 111, 0.25);
+  --shadow-brand-lg: 0 10px 28px rgba(72, 45, 41, 0.06);
+  --shadow-brand-xl: 0 20px 45px rgba(49, 34, 30, 0.14);
 }
 
-:root {
-  /* Brand-led warm neutral palette inspired by the paw logo: cream, terracotta, rosewood */
-  --background: #fff8f4;
-  --foreground: #2a1b1b;
-  --card: #fffdfb;
-  --card-foreground: #2a1b1b;
-  --popover: #fffdfb;
-  --popover-foreground: #2a1b1b;
-  --primary: #d77a6f;
-  --primary-foreground: #fffdfb;
-  --secondary: #f6e3dc;
-  --secondary-foreground: #3a2524;
-  --muted: #f7efe9;
-  --muted-foreground: #6b4c4a;
-  --accent: #f4c7b6;
-  --accent-foreground: #3a2524;
-  --destructive: #b54043;
-  --destructive-foreground: #fffdfb;
-  --border: #ecd7d0;
-  --input: #f1e2dc;
-  --ring: #c66f67;
-  --radius: 1.15rem;
-}
-
-.dark {
-  --background: #171214;
-  --foreground: #f8efe9;
-  --card: #201a1b;
-  --card-foreground: #f8efe9;
-  --popover: #201a1b;
-  --popover-foreground: #f8efe9;
-  --primary: #eaa39b;
-  --primary-foreground: #221718;
-  --secondary: #382d2d;
-  --secondary-foreground: #f8efe9;
-  --muted: #2a2122;
-  --muted-foreground: #e9d5ca;
-  --accent: #d78d7c;
-  --accent-foreground: #221718;
-  --destructive: #f39aa4;
-  --destructive-foreground: #221718;
-  --border: #4a3c3c;
-  --input: #433535;
-  --ring: #f2bea7;
-}
+/* ==========================================================================
+   2. BASE — element defaults, so unclassed markup already looks right.
+   ========================================================================== */
 
 @layer base {
   * {
     @apply border-border;
   }
+  html {
+    @apply font-sans scroll-smooth;
+  }
   body {
     @apply bg-background text-foreground;
     line-height: 1.65;
   }
-  html {
-    @apply font-sans scroll-smooth;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-heading tracking-tight;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-foreground;
+    @apply outline-2 outline-offset-2 outline-ring;
+  }
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+  ::placeholder {
+    @apply text-muted-foreground/70;
+  }
+  /* Tabular figures matter here: MYR amounts and receipt totals sit in columns. */
+  .font-mono,
+  table :is(td, th) {
+    font-variant-numeric: tabular-nums;
   }
 }
+
+/* ==========================================================================
+   3. COMPONENTS — the recurring shells, expressed once.
+   --------------------------------------------------------------------------
+   Each shell reads a local `--tone-*` group that a `tone-<name>` class sets,
+   so a caller writes `class="tone-panel tone-care"` and never names a hue.
+   ========================================================================== */
+
+@layer components {
+  /* --- Tone selectors: remap the local tone group, and nothing else. --- */
+  .tone-success {
+    --tone-surface: var(--tone-success-surface);
+    --tone-surface-strong: var(--tone-success-surface-strong);
+    --tone-border: var(--tone-success-border);
+    --tone-text: var(--tone-success-text);
+    --tone-accent: var(--tone-success-accent);
+    --tone-solid: var(--tone-success-solid);
+    --tone-on-solid: var(--tone-success-on-solid);
+  }
+  .tone-warning {
+    --tone-surface: var(--tone-warning-surface);
+    --tone-surface-strong: var(--tone-warning-surface-strong);
+    --tone-border: var(--tone-warning-border);
+    --tone-text: var(--tone-warning-text);
+    --tone-accent: var(--tone-warning-accent);
+    --tone-solid: var(--tone-warning-solid);
+    --tone-on-solid: var(--tone-warning-on-solid);
+  }
+  .tone-info {
+    --tone-surface: var(--tone-info-surface);
+    --tone-surface-strong: var(--tone-info-surface-strong);
+    --tone-border: var(--tone-info-border);
+    --tone-text: var(--tone-info-text);
+    --tone-accent: var(--tone-info-accent);
+    --tone-solid: var(--tone-info-solid);
+    --tone-on-solid: var(--tone-info-on-solid);
+  }
+  .tone-care {
+    --tone-surface: var(--tone-care-surface);
+    --tone-surface-strong: var(--tone-care-surface-strong);
+    --tone-border: var(--tone-care-border);
+    --tone-text: var(--tone-care-text);
+    --tone-accent: var(--tone-care-accent);
+    --tone-solid: var(--tone-care-solid);
+    --tone-on-solid: var(--tone-care-on-solid);
+  }
+  .tone-danger {
+    --tone-surface: var(--tone-danger-surface);
+    --tone-surface-strong: var(--tone-danger-surface-strong);
+    --tone-border: var(--tone-danger-border);
+    --tone-text: var(--tone-danger-text);
+    --tone-accent: var(--tone-danger-accent);
+    --tone-solid: var(--tone-danger-solid);
+    --tone-on-solid: var(--tone-danger-on-solid);
+  }
+  .tone-highlight {
+    --tone-surface: var(--tone-highlight-surface);
+    --tone-surface-strong: var(--tone-highlight-surface-strong);
+    --tone-border: var(--tone-highlight-border);
+    --tone-text: var(--tone-highlight-text);
+    --tone-accent: var(--tone-highlight-accent);
+    --tone-solid: var(--tone-highlight-solid);
+    --tone-on-solid: var(--tone-highlight-on-solid);
+  }
+  .tone-neutral {
+    --tone-surface: var(--tone-neutral-surface);
+    --tone-surface-strong: var(--tone-neutral-surface-strong);
+    --tone-border: var(--tone-neutral-border);
+    --tone-text: var(--tone-neutral-text);
+    --tone-accent: var(--tone-neutral-accent);
+    --tone-solid: var(--tone-neutral-solid);
+    --tone-on-solid: var(--tone-neutral-on-solid);
+  }
+
+  /* Icon, number or rule that carries the tone on the page background. */
+  .tone-ink {
+    color: var(--tone-accent);
+  }
+
+  /* --- Micro label: the uppercase eyebrow above a value or section. --- */
+  .eyebrow {
+    @apply text-3xs font-bold uppercase tracking-wider text-muted-foreground;
+  }
+
+  /* --- Filled status badge. Pair with a tone class. --- */
+  .tone-chip {
+    @apply inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider;
+    background-color: var(--tone-solid);
+    color: var(--tone-on-solid);
+    border-color: transparent;
+  }
+  .dark .tone-chip {
+    border-color: var(--tone-border);
+  }
+  .tone-chip-pill {
+    @apply rounded-full;
+  }
+
+  /* --- Tinted surface: colour only, no box metrics. Pair with a tone class.
+     The call site keeps its own padding, radius and type scale, which is why this
+     rather than a fixed panel shell: the tinted callouts across the app share a
+     colour treatment but almost never share a box. --- */
+  .tone-soft {
+    background-color: var(--tone-surface);
+    border-color: var(--tone-border);
+    color: var(--tone-text);
+  }
+
+  .tone-panel-strong {
+    background-color: var(--tone-surface-strong);
+  }
+
+  /* --- Selected decision pill (application review dialog). Colour and ring only:
+     the button owns its own radius, border width and type scale so the selected and
+     unselected states keep identical metrics and the row does not shift on click. --- */
+  .tone-pill {
+    background-color: var(--tone-surface-strong);
+    border-color: var(--tone-border);
+    color: var(--tone-text);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--tone-accent) 20%, transparent);
+  }
+
+  /* --- Printed tax receipt: paper-fixed, never theme-flipped. --- */
+  .receipt {
+    @apply rounded-xl border-2 font-sans;
+    background-color: var(--receipt-paper);
+    border-color: var(--border);
+    color: var(--receipt-ink);
+  }
+  .receipt-accent {
+    color: var(--receipt-ink-accent);
+  }
+  .receipt-panel {
+    background-color: var(--receipt-panel);
+    border-color: var(--receipt-rule);
+    color: var(--receipt-ink-soft);
+  }
+
+  /* --- Segmented control (language / theme toggles). --- */
+  .segmented {
+    @apply inline-flex items-center rounded-full border p-0.5;
+    background-color: var(--control-track);
+    border-color: var(--control-track-border);
+  }
+  .segmented-thumb {
+    @apply rounded-full shadow-xs;
+    background-color: var(--control-thumb);
+  }
+}
+
+/* ==========================================================================
+   4. PRINT — isolate the receipt and force paper colours.
+   ========================================================================== */
 
 @media print {
   body * {
@@ -121,8 +688,8 @@
     margin: 0 !important;
     padding: 24px !important;
     border: 2px solid #000 !important;
-    background: #fff !important;
-    color: #000 !important;
+    background: var(--receipt-paper) !important;
+    color: var(--receipt-ink) !important;
     box-shadow: none !important;
   }
   [data-slot="dialog-overlay"],

@@ -17,13 +17,13 @@ import {
 import {
   findSponsorByEmail,
   createSponsor,
-  linkContributionsToSponsor,
-  findContributionByReceipt,
-  listContributionsByEmail,
-  confirmContribution,
+  linkDonationsToSponsor,
+  findSponsoredDonationByReceipt,
+  listSponsoredDonationsByEmail,
+  confirmSponsoredDonation,
   cancelRecurringPledge,
   setSponsorWallPreference,
-} from "@/lib/sponsorStore";
+} from "@/lib/server/sponsorRepository";
 import {
   getSponsorDashboard,
   currentSponsorMeetsTier,
@@ -76,7 +76,7 @@ export async function registerSponsorAction(
   }
 
 
-  const contribution = await findContributionByReceipt(parsed.receiptNumber);
+  const donation = await findSponsoredDonationByReceipt(parsed.receiptNumber);
 
   // The receipt must be for a *reconciled* payment.
   //
@@ -87,9 +87,9 @@ export async function registerSponsorAction(
   // standing and gated media. Requiring CONFIRMED breaks that chain, because confirming a
   // payment is not something the claimant can do.
   const isClaimable =
-    contribution !== null &&
-    contribution.donorEmail === parsed.email &&
-    contribution.status === "CONFIRMED";
+    donation !== null &&
+    donation.donorEmail === parsed.email &&
+    donation.status === "CONFIRMED";
 
   // One message for every rejection reason, so the form cannot be used to enumerate which
   // receipt numbers exist or which of them have been reconciled.
@@ -122,8 +122,8 @@ export async function registerSponsorAction(
   // Sponsor Wall consent given at checkout seeds the default, but the registrant's own
   // choice wins. OR-ing the two would make consent sticky: a donor who ticked the box at
   // checkout and deliberately unticks it here would still be published.
-  const priorContributions = await listContributionsByEmail(parsed.email);
-  const consentedAtCheckout = priorContributions.some((c) => c.displayOnWall);
+  const priorDonations = await listSponsoredDonationsByEmail(parsed.email);
+  const consentedAtCheckout = priorDonations.some((d) => d.displayOnWall);
   const displayOnWall = input.displayOnWall === undefined
     ? consentedAtCheckout
     : parsed.displayOnWall;
@@ -136,7 +136,7 @@ export async function registerSponsorAction(
     displayOnWall,
   });
 
-  const linkedContributions = await linkContributionsToSponsor(sponsor.id, sponsor.email);
+  const linkedContributions = await linkDonationsToSponsor(sponsor.id, sponsor.email);
 
   await setSponsorSessionCookie({
     sponsorId: sponsor.id,
@@ -307,7 +307,7 @@ export async function cancelRecurringPledgeAction(
     action: "RECURRING_PLEDGE_CANCELLED",
     entity: "SponsorContribution",
     entityId: cancelled.receiptNumber,
-    details: { amountMYR: cancelled.amountMYR },
+    details: { amountSen: cancelled.amountSen },
   });
 
   return { success: true };
@@ -338,8 +338,8 @@ export async function confirmContributionAction(
     };
   }
 
-  const contribution = await confirmContribution(receiptNumber);
-  if (!contribution) {
+  const confirmed = await confirmSponsoredDonation(receiptNumber);
+  if (!confirmed) {
     return { success: false, error: "No pledge found with that receipt number." };
   }
 
@@ -349,11 +349,11 @@ export async function confirmContributionAction(
     actorRole: actor.role,
     action: "CONTRIBUTION_PAYMENT_CONFIRMED",
     entity: "SponsorContribution",
-    entityId: contribution.receiptNumber,
+    entityId: confirmed.receiptNumber,
     details: {
-      donorEmail: contribution.donorEmail,
-      amountMYR: contribution.amountMYR,
-      frequency: contribution.frequency,
+      donorEmail: confirmed.donorEmail,
+      amountSen: confirmed.amountSen,
+      frequency: confirmed.frequency,
     },
   });
 

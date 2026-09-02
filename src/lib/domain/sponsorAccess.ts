@@ -5,14 +5,15 @@ import exclusiveMediaCatalogue from "@/data/exclusiveMedia.json";
 import { getCurrentSponsorSession, SponsorSession } from "@/lib/security/sponsorSession";
 import {
   findSponsorById,
-  listContributionsBySponsorId,
+  listSponsoredDonationsBySponsorId,
   listWallOptInSponsors,
-} from "@/lib/sponsorStore";
-import { getServerPetsAsync } from "@/lib/serverStore";
-import { getPetMedicalTimeline } from "@/lib/medicalTimeline";
+} from "@/lib/server/sponsorRepository";
+import { getServerPetsAsync } from "@/lib/server/petRepository";
+import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
+import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
 import {
   deriveTier,
-  recognisedContributionMYR,
+  recognisedContributionSen,
   amountToNextTier,
   nextTierAbove,
   meetsTier,
@@ -21,7 +22,7 @@ import {
 } from "./supporterTier";
 import {
   SupporterTier,
-  SponsorContributionRecord,
+  SponsoredDonation,
   SponsorRecord,
   SponsorDashboardDTO,
   SponsoredRescueDTO,
@@ -55,9 +56,9 @@ const CATALOGUE = exclusiveMediaCatalogue as Record<string, PetExclusiveMedia>;
 export interface SponsorContext {
   session: SponsorSession;
   sponsor: SponsorRecord;
-  contributions: SponsorContributionRecord[];
+  donations: SponsoredDonation[];
   tier: SupporterTier | null;
-  recognisedMYR: number;
+  recognisedSen: number;
 }
 
 /**
@@ -73,13 +74,13 @@ export const getSponsorContext = cache(async (): Promise<SponsorContext | null> 
   const sponsor = await findSponsorById(session.sponsorId);
   if (!sponsor) return null;
 
-  const contributions = await listContributionsBySponsorId(sponsor.id);
+  const donations = await listSponsoredDonationsBySponsorId(sponsor.id);
   return {
     session,
     sponsor,
-    contributions,
-    tier: deriveTier(contributions),
-    recognisedMYR: recognisedContributionMYR(contributions),
+    donations,
+    tier: deriveTier(donations),
+    recognisedSen: recognisedContributionSen(donations),
   };
 });
 
@@ -164,10 +165,10 @@ export function deriveRehabStage(
 }
 
 function billingFrequencyOf(
-  contributions: SponsorContributionRecord[]
+  donations: SponsoredDonation[]
 ): SponsorDashboardDTO["billingFrequency"] {
-  const hasMonthly = contributions.some((c) => c.frequency === "monthly" && c.isActive);
-  const hasOneTime = contributions.some((c) => c.frequency === "one_time");
+  const hasMonthly = donations.some((d) => d.frequency === "monthly" && d.isActive);
+  const hasOneTime = donations.some((d) => d.frequency === "one_time");
   if (hasMonthly && hasOneTime) return "mixed";
   if (hasMonthly) return "monthly";
   if (hasOneTime) return "one_time";
@@ -184,21 +185,21 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
   const context = await getSponsorContext();
   if (!context) return null;
 
-  const { sponsor, contributions, tier, recognisedMYR } = context;
+  const { sponsor, donations, tier, recognisedSen } = context;
 
-  const byPet = new Map<string, SponsorContributionRecord[]>();
-  for (const contribution of contributions) {
-    if (!contribution.targetPetId) continue;
-    const bucket = byPet.get(contribution.targetPetId);
-    if (bucket) bucket.push(contribution);
-    else byPet.set(contribution.targetPetId, [contribution]);
+  const byPet = new Map<string, SponsoredDonation[]>();
+  for (const donation of donations) {
+    if (!donation.targetPetId) continue;
+    const bucket = byPet.get(donation.targetPetId);
+    if (bucket) bucket.push(donation);
+    else byPet.set(donation.targetPetId, [donation]);
   }
 
   // One pet read for the whole dashboard rather than one per sponsored rescue.
   const petsById = new Map((await getServerPetsAsync()).map((pet) => [pet.id, pet]));
 
   const rescues: SponsoredRescueDTO[] = [];
-  for (const [petId, petContributions] of byPet) {
+  for (const [petId, petDonations] of byPet) {
     const pet = petsById.get(petId);
     if (!pet) continue;
 
@@ -213,9 +214,9 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
       rehabStage: stage,
       rehabStageMs: stageMs,
       medicalBadges: badges,
-      totalContributedMYR: petContributions.reduce((sum, c) => sum + c.amountMYR, 0),
-      lastContributionAt: petContributions
-        .map((c) => c.createdAt)
+      totalContributedSen: petDonations.reduce((sum, d) => sum + d.amountSen, 0),
+      lastContributionAt: petDonations
+        .map((d) => d.issuedAt)
         .sort()
         .reverse()[0],
     });
@@ -230,11 +231,11 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
     name: sponsor.name,
     email: sponsor.email,
     tier,
-    recognisedMYR,
-    amountToNextTierMYR: amountToNextTier(recognisedMYR),
+    recognisedSen,
+    amountToNextTierSen: amountToNextTier(recognisedSen),
     nextTier: nextTierAbove(tier),
-    billingFrequency: billingFrequencyOf(contributions),
-    hasActiveRecurring: contributions.some((c) => c.frequency === "monthly" && c.isActive),
+    billingFrequency: billingFrequencyOf(donations),
+    hasActiveRecurring: donations.some((d) => d.frequency === "monthly" && d.isActive),
     displayOnWall: sponsor.displayOnWall,
     memberSince: sponsor.createdAt,
     perks: PERKS.map((perk) => ({
@@ -246,9 +247,6 @@ export async function getSponsorDashboard(): Promise<SponsorDashboardDTO | null>
     rescues,
   };
 }
-
-/** Registration under which Hope for Strays issues receipts and certificates. */
-const SHELTER_REG_NO = "PPM-021-10-18082021";
 
 /**
  * Stable per-sponsor, per-year certificate suffix.
@@ -290,9 +288,9 @@ export async function getSponsorCertificate(
       day: "numeric",
     }),
     coveringPeriod: `${year - 1}–${year}`,
-    recognisedMYR: context.recognisedMYR,
+    recognisedSen: context.recognisedSen,
     rescueNames: dashboard?.rescues.map((rescue) => rescue.name) ?? [],
-    shelterRegistrationNo: SHELTER_REG_NO,
+    shelterRegistrationNo: currentIssuerIdentity().shelterRegistrationNo,
   };
 }
 
@@ -310,9 +308,9 @@ export async function getSponsorWall(): Promise<Record<SupporterTier, SponsorWal
     BRONZE: [],
   };
 
-  for (const { sponsor, contributions } of rows) {
+  for (const { sponsor, donations } of rows) {
     if (!sponsor.displayOnWall) continue;
-    const tier = deriveTier(contributions);
+    const tier = deriveTier(donations);
     if (!tier) continue;
     wall[tier].push({
       name: sponsor.name,

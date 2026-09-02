@@ -24,14 +24,6 @@ if (typeof setInterval !== "undefined") {
   }
 }
 
-/**
- * Test-only reset so a suite that exercises the limiter does not starve the cases that
- * run after it. Never called from application code.
- */
-export function resetRateLimitStore(): void {
-  rateLimitStore.clear();
-}
-
 export interface RateLimitResult {
   success: boolean;
   remaining: number;
@@ -72,4 +64,16 @@ export function checkRateLimit(key: string, limit = 5, windowMs = 60000): RateLi
     remaining: limit - activeTimestamps.length,
     retryAfterSeconds: 0,
   };
+}
+
+/**
+ * Clears every tracked sliding window.
+ *
+ * Test-only. The limiter is a process-lifetime `Map`, so without this a test
+ * that exhausts the login budget (5/min) would leave the next test rate-limited
+ * for the rest of the run — a classic order-dependent failure. Wired into the
+ * global `beforeEach` in `tests/setup/nextMocks.ts`.
+ */
+export function resetRateLimitStore(): void {
+  rateLimitStore.clear();
 }

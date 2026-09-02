@@ -12,8 +12,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
-vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
-
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -42,7 +40,7 @@ import {
   getSponsorWall,
   getCurrentSupporterTier,
 } from "@/lib/domain/sponsorAccess";
-import { __resetSponsorStoreForTests } from "@/lib/sponsorStore";
+import { resetSponsorRepository } from "@/lib/server/sponsorRepository";
 import exclusiveMedia from "@/data/exclusiveMedia.json";
 
 /** A pet with both a high-res album and a video diary in the private catalogue. */
@@ -81,7 +79,7 @@ function signOut() {
 describe("Tier gates on exclusive pet media", () => {
   beforeEach(async () => {
     signOut();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
   });
 
   it("places the seeded sponsors on Bronze, Silver and Gold", async () => {
@@ -205,7 +203,7 @@ describe("Tier gates on exclusive pet media", () => {
 describe("Sponsor dashboard projection", () => {
   beforeEach(async () => {
     signOut();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
   });
 
   it("returns nothing for a signed-out visitor", async () => {
@@ -268,7 +266,7 @@ describe("Sponsor dashboard projection", () => {
 describe("Sponsorship e-Certificate", () => {
   beforeEach(async () => {
     signOut();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
   });
 
   it("is not issued to a signed-out visitor", async () => {
@@ -306,7 +304,7 @@ describe("Sponsorship e-Certificate", () => {
 describe("Public sponsor wall", () => {
   beforeEach(async () => {
     signOut();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
   });
 
   it("groups opted-in sponsors under their derived standing", async () => {

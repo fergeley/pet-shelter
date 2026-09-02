@@ -11,6 +11,8 @@ import {
   Cat 
 } from "lucide-react";
 import { Pet } from "@/types/pet";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
+import { PetStatusIcon } from "./PetStatusIcon";
 import {
   Dialog,
   DialogContent,
@@ -41,7 +43,8 @@ export function PetDetailDialog({
   const [imgSrc, setImgSrc] = useState(pet?.image || FALLBACK_PET_IMAGE);
   if (!pet) return null;
 
-  const isAvailable = pet.status === "Available";
+  const status = getPetStatusPresentation(pet.status);
+  const isAvailable = status.isAdoptable;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,11 +71,10 @@ export function PetDetailDialog({
             <div>
               <div className="flex items-center gap-2.5 mb-2">
                 <span
-                  className={`px-3 py-1 text-xs font-bold uppercase tracking-wider text-white ${
-                    isAvailable ? "bg-emerald-800 dark:bg-emerald-900" : "bg-amber-800 dark:bg-amber-900"
-                  }`}
+                  className={`${status.badgeClass} gap-1.5 px-3 py-1 text-xs`}
                 >
-                  {isAvailable ? t("common.available", "Available") : t("common.pending", "Pending")}
+                  <PetStatusIcon tone={status.tone} className="size-3.5" />
+                  {t(status.labelKey, status.labelFallback)}
                 </span>
                 <span className="bg-black/85 px-3 py-1 text-xs font-semibold text-white">
                   {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
@@ -81,13 +83,13 @@ export function PetDetailDialog({
               <h2 className="font-heading text-3xl sm:text-4xl font-bold text-white tracking-tight">
                 {pet.name}
               </h2>
-              <p className="text-sm sm:text-base font-medium text-zinc-100 mt-0.5">
+              <p className="text-sm sm:text-base font-medium text-white/90 mt-0.5">
                 {pet.breed} • <span className="font-mono">{pet.weight}</span>
               </p>
             </div>
 
             <div className="text-right hidden sm:block">
-              <span className="text-xs font-semibold uppercase tracking-wider text-emerald-300 block">
+              <span className="text-xs font-semibold uppercase tracking-wider text-white/80 block">
                 {t("petDetail.adoptionFee", "Adoption Fee")}
               </span>
               <p className="font-heading text-2xl font-bold text-white mt-0.5">
@@ -139,7 +141,7 @@ export function PetDetailDialog({
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("petDetail.goodWithDogs", "Dogs")}
                 </p>
-                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithDogs ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithDogs ? "text-success-text " : "text-destructive"}`}>
                   {pet.compatibility.goodWithDogs ? t("petDetail.good", "Good") : t("petDetail.noDogs", "No Dogs")}
                 </p>
               </div>
@@ -149,7 +151,7 @@ export function PetDetailDialog({
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("petDetail.goodWithCats", "Cats")}
                 </p>
-                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithCats ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithCats ? "text-success-text " : "text-destructive"}`}>
                   {pet.compatibility.goodWithCats ? t("petDetail.good", "Good") : t("petDetail.noCats", "No Cats")}
                 </p>
               </div>
@@ -159,7 +161,7 @@ export function PetDetailDialog({
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("petDetail.goodWithKids", "Children")}
                 </p>
-                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithKids ? "text-emerald-800 dark:text-emerald-400" : "text-destructive"}`}>
+                <p className={`text-sm font-bold mt-1 ${pet.compatibility.goodWithKids ? "text-success-text " : "text-destructive"}`}>
                   {pet.compatibility.goodWithKids ? t("petDetail.kidSafe", "Kid-Safe") : t("petDetail.adultsOnly", "Adults Only")}
                 </p>
               </div>
@@ -183,7 +185,7 @@ export function PetDetailDialog({
               <span>{t("petDetail.intakeDate", "Rescue Intake Date")}: {pet.intakeDate}</span>
             </div>
             <div className="font-bold text-foreground text-sm sm:hidden">
-              {t("petDetail.adoptionFee", "Adoption Fee")}: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{pet.adoptionFee.toLowerCase().includes("free") ? (isMs ? "Percuma (RM 0)" : "Free (RM 0)") : pet.adoptionFee}</span>
+              {t("petDetail.adoptionFee", "Adoption Fee")}: <span className="font-semibold text-success-accent ">{pet.adoptionFee.toLowerCase().includes("free") ? (isMs ? "Percuma (RM 0)" : "Free (RM 0)") : pet.adoptionFee}</span>
             </div>
           </div>
 
@@ -206,7 +208,9 @@ export function PetDetailDialog({
               className="text-sm font-semibold px-6 py-2.5 focus-visible:ring-2 cursor-pointer"
             >
               <Heart className="size-4 fill-current mr-1.5" />
-              {isAvailable ? `${t("petDetail.applyToAdopt", "Apply to Adopt")} (${pet.name})` : t("petDetail.adoptionPending", "Adoption Pending")}
+              {isAvailable
+                ? `${t("petDetail.applyToAdopt", "Apply to Adopt")} (${pet.name})`
+                : t(status.labelKey, status.labelFallback)}
             </Button>
           </div>
         </div>

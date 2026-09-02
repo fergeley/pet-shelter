@@ -16,12 +16,20 @@ import { TierBadge } from "./TierBadge";
 import { WallOptInToggle } from "./WallOptInToggle";
 import { SponsorLogoutButton } from "./SponsorLogoutButton";
 import { tierLabel } from "@/lib/domain/supporterTier";
+import { formatMYR, senFromInteger } from "@/lib/domain/money";
 import { SponsorDashboardDTO, SponsoredRescueDTO } from "@/types/supporter";
 
+/**
+ * Semantic tones, not raw palette classes.
+ *
+ * The generated utilities already resolve to `var(--tone-*)` per theme, so pairing them
+ * with a `dark:` variant is both unnecessary and the drift the token layer exists to
+ * remove. See the tokens block at the top of `globals.css`.
+ */
 const STATUS_STYLES: Record<string, string> = {
-  Available: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
-  Pending: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  Adopted: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
+  Available: "bg-success-surface text-success-text",
+  Pending: "bg-warning-surface text-warning-text",
+  Adopted: "bg-info-surface text-info-text",
 };
 
 function formatDate(iso: string, isMs: boolean): string {
@@ -48,7 +56,7 @@ function RescueCard({ rescue }: { rescue: SponsoredRescueDTO }) {
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
         />
         <span
-          className={`absolute left-3 top-3 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
+          className={`absolute left-3 top-3 rounded-full px-2.5 py-0.5 text-2xs font-bold uppercase tracking-wide ${
             STATUS_STYLES[rescue.status] ?? "bg-muted text-muted-foreground"
           }`}
         >
@@ -72,7 +80,7 @@ function RescueCard({ rescue }: { rescue: SponsoredRescueDTO }) {
             {rescue.medicalBadges.map((badge) => (
               <li
                 key={badge}
-                className="rounded-md border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground"
+                className="rounded-md border border-border px-1.5 py-0.5 text-2xs font-medium text-muted-foreground"
               >
                 {badge}
               </li>
@@ -86,7 +94,7 @@ function RescueCard({ rescue }: { rescue: SponsoredRescueDTO }) {
               {isMs ? "Sumbangan anda" : "Your contribution"}
             </dt>
             <dd className="font-bold tabular-nums text-foreground">
-              RM {rescue.totalContributedMYR.toLocaleString("en-MY")}
+              {formatMYR(senFromInteger(rescue.totalContributedSen), { withSymbol: true })}
             </dd>
           </div>
           <div className="flex items-center justify-between">
@@ -122,13 +130,13 @@ export function SponsorDashboardView({
     none: ["No pledges recorded", "Tiada sumbangan direkodkan"],
   };
 
-  const progressPercent = dashboard.amountToNextTierMYR === null
+  const progressPercent = dashboard.amountToNextTierSen === null
     ? 100
     : Math.min(
         100,
         Math.round(
-          (dashboard.recognisedMYR /
-            (dashboard.recognisedMYR + dashboard.amountToNextTierMYR)) *
+          (dashboard.recognisedSen /
+            (dashboard.recognisedSen + dashboard.amountToNextTierSen)) *
             100
         )
       );
@@ -138,7 +146,7 @@ export function SponsorDashboardView({
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
+          <p className="text-2xs font-bold uppercase tracking-widest text-primary">
             {isMs ? "Portal penaja" : "Sponsor portal"}
           </p>
           <h1 className="font-heading text-3xl font-bold text-foreground sm:text-4xl">
@@ -186,17 +194,17 @@ export function SponsorDashboardView({
                   {isMs ? "Diiktiraf (12 bulan)" : "Recognised (12 months)"}
                 </dt>
                 <dd className="text-right font-bold tabular-nums text-foreground">
-                  RM {dashboard.recognisedMYR.toLocaleString("en-MY")}
+                  {formatMYR(senFromInteger(dashboard.recognisedSen), { withSymbol: true })}
                 </dd>
               </div>
             </dl>
 
-            {dashboard.nextTier && dashboard.amountToNextTierMYR !== null ? (
+            {dashboard.nextTier && dashboard.amountToNextTierSen !== null ? (
               <div className="space-y-2 border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground">
                   {isMs
-                    ? `RM ${dashboard.amountToNextTierMYR.toLocaleString("en-MY")} lagi untuk mencapai ${tierLabel(dashboard.nextTier, true)}.`
-                    : `RM ${dashboard.amountToNextTierMYR.toLocaleString("en-MY")} more to reach ${tierLabel(dashboard.nextTier, false)}.`}
+                    ? `${formatMYR(senFromInteger(dashboard.amountToNextTierSen), { withSymbol: true })} lagi untuk mencapai ${tierLabel(dashboard.nextTier, true)}.`
+                    : `${formatMYR(senFromInteger(dashboard.amountToNextTierSen), { withSymbol: true })} more to reach ${tierLabel(dashboard.nextTier, false)}.`}
                 </p>
                 <div
                   className="h-2 w-full overflow-hidden rounded-full bg-muted"

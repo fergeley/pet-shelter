@@ -11,8 +11,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
-vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
-
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -29,7 +27,7 @@ import {
   sealSponsorSession,
   SPONSOR_SESSION_COOKIE_NAME,
 } from "@/lib/security/sponsorSession";
-import { __resetSponsorStoreForTests } from "@/lib/sponsorStore";
+import { resetSponsorRepository } from "@/lib/server/sponsorRepository";
 import { PetExclusiveMediaResponse } from "@/types/supporter";
 import exclusiveMedia from "@/data/exclusiveMedia.json";
 
@@ -73,7 +71,7 @@ async function fetchMedia(petId = PET_ID) {
 describe("GET /api/sponsor/pet-media/[petId]", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
   });
 
   it("marks the response private and uncacheable", async () => {

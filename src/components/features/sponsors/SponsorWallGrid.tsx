@@ -5,10 +5,11 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { tierLabel } from "@/lib/domain/supporterTier";
 import { SupporterTier, SponsorWallEntryDTO } from "@/types/supporter";
 
+/** The same standing tones as `TierBadge`, softened for a list surface. */
 const TIER_ACCENTS: Record<SupporterTier, string> = {
-  GOLD: "border-[#c9a227]/50 bg-[#fdf6e0]/60 dark:border-[#93761c]/50 dark:bg-[#3a3218]/40",
-  SILVER: "border-[#9aa4b2]/50 bg-[#f1f4f8]/60 dark:border-[#697487]/50 dark:bg-[#2a2f38]/40",
-  BRONZE: "border-[#c98a5e]/50 bg-[#fdf1e7]/60 dark:border-[#8a5a35]/50 dark:bg-[#3a2a1d]/40",
+  GOLD: "border-standing-gold-line/50 bg-standing-gold/60",
+  SILVER: "border-standing-silver-line/50 bg-standing-silver/60",
+  BRONZE: "border-standing-bronze-line/50 bg-standing-bronze/60",
 };
 
 function formatYear(iso: string): string {

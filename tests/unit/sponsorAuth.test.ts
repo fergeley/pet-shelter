@@ -2,8 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
-vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
-
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -43,25 +41,41 @@ import {
   unsealSession,
 } from "@/lib/security/session";
 import { getSponsorDashboard, getSponsorWall } from "@/lib/domain/sponsorAccess";
-import { __resetSponsorStoreForTests } from "@/lib/sponsorStore";
+import { resetSponsorRepository } from "@/lib/server/sponsorRepository";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
+import {
+  listSponsoredDonationsByEmail,
+  listSponsoredDonationsBySponsorId,
+} from "@/lib/server/sponsorRepository";
 import { sendCaretakerQuestionEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
 
-/** Seeded pledge that no account has claimed yet. */
+/**
+ * Seeded pledge that no account has claimed yet.
+ *
+ * The receipt number is looked up rather than hard-coded: the ledger allocates it from
+ * a sequence now, so a literal here would pin a number this repository does not choose.
+ */
 const UNCLAIMED = {
   email: "unclaimed@example.com",
   name: "Tan Wei Ming",
-  receiptNumber: "HFS-DON-202607-6600",
+  receiptNumber: "",
 };
+
+async function loadUnclaimedReceipt(): Promise<string> {
+  const [donation] = await listSponsoredDonationsByEmail(UNCLAIMED.email);
+  if (!donation) throw new Error("Expected a seeded unclaimed donation");
+  return donation.receiptNumber;
+}
 
 const STRONG_PASSWORD = "correct-horse-battery";
 
 describe("Sponsor registration", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
+    UNCLAIMED.receiptNumber = await loadUnclaimedReceipt();
   });
 
   it("claims an unattached pledge when the receipt number matches the email", async () => {
@@ -154,11 +168,13 @@ describe("Sponsor registration", () => {
   });
 
   it("refuses to register an email that already has an account", async () => {
+    const [bronzeDonation] = await listSponsoredDonationsByEmail("bronze@example.com");
+
     const result = await registerSponsorAction({
       name: "Nurul Aisyah",
       email: "bronze@example.com",
       password: STRONG_PASSWORD,
-      receiptNumber: "HFS-DON-202603-1041",
+      receiptNumber: bronzeDonation.receiptNumber,
       displayOnWall: false,
     });
 
@@ -200,8 +216,9 @@ describe("Sponsor registration", () => {
 describe("Sponsor login", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
+    UNCLAIMED.receiptNumber = await loadUnclaimedReceipt();
   });
 
   it("signs in a seeded sponsor with the right password", async () => {
@@ -301,8 +318,9 @@ describe("Sponsor login", () => {
 describe("Sponsor Wall preference", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
+    UNCLAIMED.receiptNumber = await loadUnclaimedReceipt();
   });
 
   it("refuses to change a preference for a signed-out visitor", async () => {
@@ -328,17 +346,27 @@ describe("Sponsor Wall preference", () => {
 describe("Cancelling a recurring pledge", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
+    UNCLAIMED.receiptNumber = await loadUnclaimedReceipt();
   });
 
+  async function goldRecurringReceipt(): Promise<string> {
+    const donations = await listSponsoredDonationsBySponsorId("spn-gold-01");
+    const monthly = donations.find((d) => d.frequency === "monthly");
+    if (!monthly) throw new Error("Expected a seeded recurring pledge");
+    return monthly.receiptNumber;
+  }
+
   it("drops the standing immediately, which is what makes the decay branch reachable", async () => {
-    // Before this action existed, `isActive` was written true in eight places and false in
-    // none, so the documented "cancelling drops the standing" behaviour was unreachable.
+    // Before this action existed, `isActive` was written true everywhere and false
+    // nowhere, so the documented "cancelling drops the standing" behaviour was
+    // unreachable by any code path.
+    const receipt = await goldRecurringReceipt();
     await sponsorLoginAction({ email: "gold@example.com", password: "gold123" });
     expect((await getSponsorDashboard())!.tier).toBe("GOLD");
 
-    const result = await cancelRecurringPledgeAction("HFS-DON-202511-5512");
+    const result = await cancelRecurringPledgeAction(receipt);
     expect(result.success).toBe(true);
 
     const after = await getSponsorDashboard();
@@ -347,9 +375,10 @@ describe("Cancelling a recurring pledge", () => {
   });
 
   it("refuses a receipt number belonging to another sponsor", async () => {
+    const receipt = await goldRecurringReceipt();
     await sponsorLoginAction({ email: "silver@example.com", password: "silver123" });
 
-    const result = await cancelRecurringPledgeAction("HFS-DON-202511-5512");
+    const result = await cancelRecurringPledgeAction(receipt);
 
     expect(result.success).toBe(false);
     expect((await getSponsorWall()).GOLD.map((e) => e.name)).toContain(
@@ -358,14 +387,16 @@ describe("Cancelling a recurring pledge", () => {
   });
 
   it("refuses a signed-out caller", async () => {
-    expect((await cancelRecurringPledgeAction("HFS-DON-202511-5512")).success).toBe(false);
+    expect((await cancelRecurringPledgeAction(await goldRecurringReceipt())).success).toBe(
+      false
+    );
   });
 });
 
 describe("Caretaker Q&A (Gold privilege)", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
     vi.clearAllMocks();
   });

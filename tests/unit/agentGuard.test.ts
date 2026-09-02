@@ -1,0 +1,175 @@
+import { describe, it, expect } from "vitest";
+import { execFileSync } from "child_process";
+import { tmpdir } from "os";
+import { join, resolve } from "path";
+import { fileURLToPath } from "url";
+
+/**
+ * `.claude/hooks/agent-guard.mjs` is the only enforcement any sub-agent has,
+ * and it enforces exactly two rules — both irreversible at the step:
+ * `schema-auditor` "never connects to a database", `atomic-commit` "emits
+ * commands, does not run them".
+ *
+ * There is deliberately no rule about an agent leaving product code modified.
+ * That hazard exists only because two sessions share one working tree, and a
+ * worktree per session dissolves it — measured free on this machine, since
+ * `.claude/worktrees/` sits inside the repo and Node resolves `node_modules`
+ * upward from there. See
+ * tasks/decisions/2026-08-31-worktrees-are-free-and-the-guard-was-the-wrong-layer.md
+ *
+ * The guard is invoked by Claude Code, not by this repo, so nothing else here
+ * exercises it. A regression in the git allowlist or the tool allowlist would
+ * be invisible until an agent quietly did the thing it promised not to.
+ *
+ * What this file does NOT establish: that Claude Code runs the hook. Frontmatter
+ * hooks load from the definition as it stood at SESSION START, so a hook wired
+ * mid-session never fires —
+ * tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md.
+ * The liveness log is the only way to tell a working guard from a silent one.
+ *
+ * Background: tasks/decisions/2026-08-31-declared-tools-are-not-a-mechanism.md
+ */
+
+const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "..");
+const GUARD = join(ROOT, ".claude", "hooks", "agent-guard.mjs");
+
+type ToolInput = { command?: string; file_path?: string };
+
+function ask(agent: string | null, tool: string, toolInput: ToolInput): "ALLOW" | "DENY" {
+  const payload: Record<string, unknown> = {
+    hook_event_name: "PreToolUse",
+    cwd: ROOT,
+    tool_name: tool,
+    tool_input: toolInput,
+  };
+  if (agent) {
+    payload.agent_type = agent;
+    payload.agent_id = "test";
+  }
+  const out = execFileSync("node", [GUARD], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    // Redirect the liveness log. Without this, running the suite writes lines
+    // indistinguishable from a real agent invocation, and the liveness signal
+    // stops meaning anything.
+    env: { ...process.env, AGENT_GUARD_LOG: join(tmpdir(), "agent-guard-test.log") },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (!out.trim()) return "ALLOW";
+  const decision = JSON.parse(out).hookSpecificOutput?.permissionDecision;
+  return decision === "deny" ? "DENY" : "ALLOW";
+}
+
+const repoFile = (p: string) => join(ROOT, p);
+
+describe("agent guard", () => {
+  it("has no opinion about the main conversation", () => {
+    // Every rule below is keyed on agent_type. Without one, a human session
+    // must be able to do anything it could do before this file existed.
+    expect(ask(null, "Bash", { command: "git commit -m x" })).toBe("ALLOW");
+    expect(ask(null, "Write", { file_path: repoFile("src/lib/email.ts") })).toBe("ALLOW");
+  });
+
+  describe("schema-auditor has no shell", () => {
+    it("denies every Bash command, not a list of dangerous ones", () => {
+      // prisma.config.ts resolves the production URL at load, so "which
+      // subcommand connects" is not a margin worth reasoning about.
+      expect(ask("schema-auditor", "Bash", { command: "npx prisma validate" })).toBe("DENY");
+      expect(ask("schema-auditor", "Bash", { command: "ls" })).toBe("DENY");
+    });
+
+    it("denies every other execution path, not just the one named Bash", () => {
+      // The premise of this guard is that a declared `tools:` list may not be
+      // enforced. Naming one shell leaves the rest open to the production URL,
+      // and this environment also exposes PowerShell.
+      expect(ask("schema-auditor", "PowerShell", { command: "ls" })).toBe("DENY");
+      expect(ask("schema-auditor", "BashOutput", {})).toBe("DENY");
+      expect(ask("schema-auditor", "Write", { file_path: repoFile("prisma/schema.prisma") })).toBe("DENY");
+      expect(ask("schema-auditor", "WebFetch", {})).toBe("DENY");
+    });
+
+    it("leaves the three tools it declares alone", () => {
+      expect(ask("schema-auditor", "Read", { file_path: repoFile("prisma/schema.prisma") })).toBe("ALLOW");
+      expect(ask("schema-auditor", "Grep", {})).toBe("ALLOW");
+      expect(ask("schema-auditor", "Glob", {})).toBe("ALLOW");
+    });
+  });
+
+  describe("atomic-commit emits git commands rather than running them", () => {
+    it("allows the reads it needs to do its job", () => {
+      expect(ask("atomic-commit", "Bash", { command: "git status --short" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "git diff --cached --name-only" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "git log --format=%h | head -3" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "ls -la" })).toBe("ALLOW");
+    });
+
+    it("denies every write, including chained and sub-shelled ones", () => {
+      expect(ask("atomic-commit", "Bash", { command: "git add -- a.ts" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "git status; git commit -F msg" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "(cd x && git commit -F m)" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "git push --force origin HEAD" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "git stash" })).toBe("DENY");
+    });
+
+    it("finds git wherever it appears, not only after a separator", () => {
+      // Anchoring on separators let every one of these through, and each writes
+      // the index that another session is using.
+      expect(ask("atomic-commit", "Bash", { command: "for f in a b; do git add -- $f; done" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "if true; then git commit -m x; fi" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "env git commit -m x" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: 'sh -c "git commit -m x"' })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "ls | xargs git add" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "time git push" })).toBe("DENY");
+    });
+
+    it("denies the word git inside a string too, because failing closed is the point", () => {
+      // The cost of this false positive is one confusing denial with a message
+      // that says what to do. The cost of the false negative it replaces is a
+      // commit in shared history.
+      expect(ask("atomic-commit", "Bash", { command: 'echo "remember to git add"' })).toBe("DENY");
+    });
+
+    it("denies redirects into another checkout", () => {
+      // triage-rules.md section 5 bans these outright; the guard does not try
+      // to parse them.
+      expect(ask("atomic-commit", "Bash", { command: "git -C /other status" })).toBe("DENY");
+      expect(ask("atomic-commit", "Bash", { command: "GIT_DIR=/x git status" })).toBe("DENY");
+    });
+
+    it("does not read -C on a non-git command as a checkout redirect", () => {
+      expect(ask("atomic-commit", "Bash", { command: "ls -C" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "sort -C file.txt" })).toBe("ALLOW");
+      expect(ask("atomic-commit", "Bash", { command: "git diff | grep -C 3 foo" })).toBe("ALLOW");
+    });
+
+    it("is an allowlist, so an unrecognised subcommand is a write", () => {
+      expect(ask("atomic-commit", "Bash", { command: "git some-new-plumbing-verb" })).toBe("DENY");
+    });
+
+    it("covers the other shell tool this environment exposes", () => {
+      expect(ask("atomic-commit", "PowerShell", { command: "git commit -m x" })).toBe("DENY");
+      expect(ask("atomic-commit", "PowerShell", { command: "git status" })).toBe("ALLOW");
+    });
+  });
+
+  describe("no agent is stopped from writing product code", () => {
+    // Deliberate, and it is the whole shape of this guard. Mutating product
+    // code to watch a test fail is the only way to prove a test discriminates
+    // against code that already works, and a step-level path rule blocked that
+    // through Edit while permitting it through Bash. The thing it was reaching
+    // for — an agent dirtying a tree a second session commits with `git add -A`
+    // — is dissolved by a worktree per session, not by a hook.
+    it("lets any agent edit product code, through any tool", () => {
+      expect(ask("test-writer", "Write", { file_path: repoFile("src/lib/server/prisma.ts") })).toBe("ALLOW");
+      expect(ask("test-writer", "Edit", { file_path: repoFile("prisma/env.ts") })).toBe("ALLOW");
+      expect(ask("test-writer", "Bash", { command: "sed -i s/a/b/ prisma/env.ts" })).toBe("ALLOW");
+      expect(ask("spike-runner", "Bash", { command: "cat > src/probe.ts <<EOF" })).toBe("ALLOW");
+    });
+
+    it("does not restrict the shell an agent needs to run the suite", () => {
+      expect(ask("test-writer", "Bash", { command: "npm test" })).toBe("ALLOW");
+      expect(ask("ui-critic", "Bash", { command: "npx vitest run" })).toBe("ALLOW");
+      expect(ask("spike-runner", "Bash", { command: "npm test" })).toBe("ALLOW");
+    });
+  });
+});

@@ -23,7 +23,7 @@ Invalid `prisma.pet.findMany()` invocation:
 ```
 
 ### Impact
-- Application queries fall back to the built-in memory store (`src/lib/serverStore.ts`), which holds initial seed records in RAM.
+- Application queries fall back to the built-in memory caches (`src/lib/server/*.ts`), which holds initial seed records in RAM.
 - Any newly submitted adoption applications, updated statuses, or modified pet profiles are **not persisted** to PostgreSQL and will be wiped upon the next serverless instance reboot or cold start.
 
 ---

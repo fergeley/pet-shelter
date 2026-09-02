@@ -13,18 +13,22 @@ import {
 export const RECOGNITION_WINDOW_DAYS = 365;
 
 /**
- * Minimum 12-month recognised contribution (MYR) for each standing.
+ * Minimum 12-month recognised contribution for each standing, in **exact integer sen**.
  *
- * Calibrated against the existing purpose funds in `SPONSORSHIP_TIERS`
- * (kibble RM 30, vaccine RM 50, spay/neuter RM 120, emergency medical RM 250)
- * so that the ladder reads naturally in recurring terms:
- *   RM 25/month  -> RM 300/yr  -> Silver
+ * Sen rather than ringgit for the same reason the ledger uses it: a threshold compared
+ * against a float total decides a privilege on a rounding error. See
+ * `src/lib/domain/money.ts`.
+ *
+ * Calibrated against the purpose funds in `SPONSORSHIP_TIERS` (kibble RM 30, vaccine
+ * RM 50, spay/neuter RM 120, emergency medical RM 250) so the ladder reads naturally
+ * in recurring terms:
+ *   RM 25/month  -> RM 300/yr   -> Silver
  *   RM 100/month -> RM 1,200/yr -> Gold
  */
-export const TIER_THRESHOLDS_MYR: Record<SupporterTier, number> = {
-  BRONZE: 50,
-  SILVER: 300,
-  GOLD: 1200,
+export const TIER_THRESHOLDS_SEN: Record<SupporterTier, number> = {
+  BRONZE: 5_000,
+  SILVER: 30_000,
+  GOLD: 120_000,
 };
 
 const TIERS_HIGH_TO_LOW: SupporterTier[] = ["GOLD", "SILVER", "BRONZE"];
@@ -118,7 +122,7 @@ export function tierRequiredForPerk(perkId: PerkId): SupporterTier | null {
  * Monthly pledges are stored as one row (not one row per charge), so nothing is
  * double-counted between the two branches.
  */
-export function recognisedContributionMYR(
+export function recognisedContributionSen(
   contributions: TierRelevantContribution[],
   now: Date = new Date()
 ): number {
@@ -133,19 +137,19 @@ export function recognisedContributionMYR(
 
     if (contribution.frequency === "monthly") {
       if (!contribution.isActive) return total;
-      return total + contribution.amountMYR * 12;
+      return total + contribution.amountSen * 12;
     }
 
-    const createdAt = new Date(contribution.createdAt).getTime();
-    if (Number.isNaN(createdAt) || createdAt < cutoff) return total;
-    return total + contribution.amountMYR;
+    const issuedAt = new Date(contribution.issuedAt).getTime();
+    if (Number.isNaN(issuedAt) || issuedAt < cutoff) return total;
+    return total + contribution.amountSen;
   }, 0);
 }
 
 /** The standing earned by a recognised total, or `null` if it is below Bronze. */
-export function tierForAmount(recognisedMYR: number): SupporterTier | null {
+export function tierForAmount(recognisedSen: number): SupporterTier | null {
   for (const tier of TIERS_HIGH_TO_LOW) {
-    if (recognisedMYR >= TIER_THRESHOLDS_MYR[tier]) return tier;
+    if (recognisedSen >= TIER_THRESHOLDS_SEN[tier]) return tier;
   }
   return null;
 }
@@ -160,7 +164,7 @@ export function deriveTier(
   contributions: TierRelevantContribution[],
   now: Date = new Date()
 ): SupporterTier | null {
-  return tierForAmount(recognisedContributionMYR(contributions, now));
+  return tierForAmount(recognisedContributionSen(contributions, now));
 }
 
 /** The next standing up from `tier`, or `null` at the top of the ladder. */
@@ -172,10 +176,10 @@ export function nextTierAbove(tier: SupporterTier | null): SupporterTier | null 
 }
 
 /** MYR still needed to reach the next standing, or `null` at Gold. */
-export function amountToNextTier(recognisedMYR: number): number | null {
-  const next = nextTierAbove(tierForAmount(recognisedMYR));
+export function amountToNextTier(recognisedSen: number): number | null {
+  const next = nextTierAbove(tierForAmount(recognisedSen));
   if (!next) return null;
-  return Math.max(0, TIER_THRESHOLDS_MYR[next] - recognisedMYR);
+  return Math.max(0, TIER_THRESHOLDS_SEN[next] - recognisedSen);
 }
 
 export function tierLabel(tier: SupporterTier | null, isMs = false): string {

@@ -3,7 +3,8 @@
 import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Pet } from "@/types/pet";
-import { usePetStore } from "@/lib/petStore";
+import { usePetStore } from "@/lib/client/petStore";
+import { matchesStatusFilter } from "@/lib/presentation/petStatusPresentation";
 
 export interface UsePetGalleryControllerProps {
   initialPets?: Pet[];
@@ -180,8 +181,9 @@ export function usePetGalleryController({
         return false;
       }
 
-      // Status Filter
-      if (selectedStatus !== "all" && pet.status !== selectedStatus) {
+      // Status Filter — canonical comparison, or filtering for one spelling of
+      // "In Rehabilitation" silently drops animals filed under the legacy alias.
+      if (!matchesStatusFilter(pet.status, selectedStatus)) {
         return false;
       }
 

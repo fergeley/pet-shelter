@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getPetMedicalTimeline, getCategoryBadgeClasses } from "@/lib/medicalTimeline";
+import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
 import { Pet } from "@/types/pet";
 import petsData from "@/data/pets.json";
 
+// Category → tone/badge mapping moved to src/lib/presentation/; its tests live in
+// tests/unit/medicalTimelinePresentation.test.ts.
 describe("Rescue Intake & Clinical Medical Timeline", () => {
   const seededPets = petsData as unknown as Pet[];
 
@@ -102,14 +104,5 @@ describe("Rescue Intake & Clinical Medical Timeline", () => {
     expect(timeline[0].category).toBe("intake");
     expect(timeline[1].title).toContain("FIV/FeLV");
     expect(timeline[2].category).toBe("treatment");
-  });
-
-  it("should return appropriate category badge styling classes for all categories", () => {
-    expect(getCategoryBadgeClasses("intake")).toContain("blue");
-    expect(getCategoryBadgeClasses("diagnostic")).toContain("purple");
-    expect(getCategoryBadgeClasses("treatment")).toContain("amber");
-    expect(getCategoryBadgeClasses("vaccination")).toContain("emerald");
-    expect(getCategoryBadgeClasses("surgery")).toContain("rose");
-    expect(getCategoryBadgeClasses("clearance")).toContain("emerald");
   });
 });

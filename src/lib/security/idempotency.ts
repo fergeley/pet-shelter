@@ -37,3 +37,15 @@ export async function withIdempotency<T>(
 
   return result;
 }
+
+/**
+ * Drops every cached idempotent response.
+ *
+ * Test-only, and the counterpart to `resetRateLimitStore()`: a replayed key from
+ * an earlier test would otherwise short-circuit the operation under test and
+ * return a stale response instead of executing it. Wired into the global
+ * `beforeEach` in `tests/setup/nextMocks.ts`.
+ */
+export function resetIdempotencyStore(): void {
+  idempotencyStore.clear();
+}

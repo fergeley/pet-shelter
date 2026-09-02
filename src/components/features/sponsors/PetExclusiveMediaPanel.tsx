@@ -57,7 +57,7 @@ export function PetExclusiveMediaPanel({ petId, petName }: PetExclusiveMediaPane
       className="space-y-8 rounded-3xl border border-border bg-card p-6 sm:p-8"
     >
       <div className="space-y-1">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
+        <p className="text-2xs font-bold uppercase tracking-widest text-primary">
           {isMs ? "Untuk penaja" : "For sponsors"}
         </p>
         <h2

@@ -13,8 +13,40 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useAdoptionFormController } from "@/hooks/useAdoptionFormController";
+import {
+  useAdoptionFormController,
+  type AdoptionFormValues,
+} from "@/hooks/useAdoptionFormController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+
+/**
+ * Bilingual labels for every `housingType` the schema accepts.
+ *
+ * Typed as a total `Record` over the schema's own union, so adding a value to
+ * `adoptionFormSchema.housingType` without labelling it is a compile error. The
+ * options below are then derived from this table rather than written out by
+ * hand, which is what makes the control and the validator incapable of drifting
+ * apart.
+ *
+ * They had drifted: the markup previously offered `own_house_yard`,
+ * `rent_house_yard`, `apartment` and `condo`, none of which the schema accepts.
+ * Because the select renders no validation message, choosing any of them failed
+ * `zodResolver` silently and the submit button simply did nothing.
+ */
+const HOUSING_TYPE_LABELS: Record<
+  AdoptionFormValues["housingType"],
+  { en: string; ms: string }
+> = {
+  landed_terrace: { en: "Terrace / Link House (Landed)", ms: "Rumah Teres / Berangkai (Bertanah)" },
+  semi_d_bungalow: { en: "Semi-Detached / Bungalow", ms: "Rumah Berkembar / Banglo" },
+  condo_apartment: { en: "Condominium / Apartment / Flat", ms: "Kondominium / Pangsapuri / Flat" },
+  townhouse: { en: "Townhouse", ms: "Rumah Bandar" },
+  other: { en: "Other Property Type", ms: "Jenis Hartanah Lain" },
+};
+
+const HOUSING_TYPE_OPTIONS = Object.entries(HOUSING_TYPE_LABELS) as Array<
+  [AdoptionFormValues["housingType"], { en: string; ms: string }]
+>;
 
 interface AdoptionFormProps {
   selectedPet: Pet | null;
@@ -171,11 +203,11 @@ export function AdoptionForm(props: AdoptionFormProps) {
                       {...register("housingType")}
                       className="w-full bg-background border border-input px-3.5 py-2.5 text-sm sm:text-base text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
                     >
-                      <option value="own_house_yard">{t("adoptionForm.housingOwnHouse", "Landed House with Yard (Owned)")}</option>
-                      <option value="rent_house_yard">{t("adoptionForm.housingRentHouse", "Landed House with Yard (Rented)")}</option>
-                      <option value="apartment">{t("adoptionForm.housingApartment", "Apartment / Flat (Pet-friendly rules)")}</option>
-                      <option value="condo">{t("adoptionForm.housingCondo", "Condominium (Pet-friendly management)")}</option>
-                      <option value="other">{t("adoptionForm.housingOther", "Other Property Type")}</option>
+                      {HOUSING_TYPE_OPTIONS.map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {isMs ? label.ms : label.en}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
@@ -310,7 +342,7 @@ export function AdoptionForm(props: AdoptionFormProps) {
         ) : (
           /* Confirmation */
           <div className="py-6 px-2 text-center space-y-4">
-            <div className="mx-auto flex size-14 items-center justify-center bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 rounded-full">
+            <div className="mx-auto flex size-14 items-center justify-center tone-soft tone-panel-strong tone-success border rounded-full">
               <CheckCircle2 className="size-8" />
             </div>
 

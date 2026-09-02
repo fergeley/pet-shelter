@@ -67,7 +67,7 @@ export function UpgradeNudge({
         </div>
 
         <div className="flex-1 space-y-2">
-          <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary">
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-2xs font-bold uppercase tracking-wide text-primary">
             <Sparkles className="size-3" aria-hidden />
             {isMs ? `Keistimewaan ${required}` : `${required} privilege`}
           </p>

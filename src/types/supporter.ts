@@ -1,13 +1,14 @@
+import type { Sen } from "@/lib/domain/money";
 import { SponsorshipTierId } from "./sponsorship";
 
 /**
  * Loyalty standing earned by a sponsor.
  *
- * This is deliberately a different axis from `SponsorshipTierId` in `./sponsorship`.
- * A `SponsorshipTierId` is a *purpose fund* the donor buys (kibble, vaccine, spay/neuter,
- * emergency medical). A `SupporterTier` is a *standing* the donor earns from their giving
- * history. They are orthogonal: a single RM 250 emergency-medical pledge and five RM 50
- * vaccine pledges both land the donor at the same standing.
+ * Deliberately a different axis from `SponsorshipTierId` in `./sponsorship`. A
+ * `SponsorshipTierId` is a *purpose fund* the donor buys (kibble, vaccine, spay/neuter,
+ * emergency medical). A `SupporterTier` is a *standing* they earn from their giving
+ * history. They are orthogonal: one RM 250 emergency-medical pledge and five RM 50
+ * vaccine pledges land the donor at the same standing.
  */
 export type SupporterTier = "BRONZE" | "SILVER" | "GOLD";
 
@@ -38,54 +39,49 @@ export interface Perk {
   labelMs: string;
 }
 
-/** One contribution in a sponsor's ledger. */
-export interface SponsorContributionRecord {
-  id: string;
-  sponsorId: string | null;
+/**
+ * The sponsorship programme's mutable state about one issued donation.
+ *
+ * Holds nothing the ledger already holds. Amount, donor identity, tier and receipt
+ * number live once, on `Donation`; `SponsoredDonation` is the resolved join.
+ */
+export interface SponsorshipRecord {
   receiptNumber: string;
+  sponsorId: string | null;
+  status: ContributionStatus;
+  /** False once a recurring pledge is cancelled. */
+  isActive: boolean;
+  /** Wall consent as given at checkout, before any account existed. */
+  displayOnWall: boolean;
+  targetPetId: string | null;
+}
+
+/** A sponsorship row resolved against the ledger record it annotates. */
+export interface SponsoredDonation extends SponsorshipRecord {
   donorEmail: string;
   donorName: string;
   tierId: SponsorshipTierId;
   tierName: string;
-  amountMYR: number;
+  /** Exact integer sen, straight from the ledger. Never re-rounded for storage. */
+  amountSen: Sen;
   frequency: "one_time" | "monthly";
-  /** Monthly pledges stop counting toward standing once cancelled. */
-  isActive: boolean;
-  /**
-   * Payment state.
-   *
-   * `/donate` is a public form with no payment gateway behind it, so a submitted pledge
-   * is an assertion, not money received. Only `CONFIRMED` rows confer anything.
-   */
-  status: ContributionStatus;
-  /** Sponsor Wall consent given at the moment of this pledge. */
-  displayOnWall: boolean;
-  targetPetId: string | null;
   targetPetName: string | null;
-  createdAt: string;
+  /** ISO-8601 instant the receipt was issued. */
+  issuedAt: string;
 }
 
 /**
- * The subset of a contribution that tier derivation reads.
+ * The subset of a sponsored donation that tier derivation reads.
  *
- * Declared separately so callers can hand over a narrow database projection instead of a
- * whole row — the public wall in particular must not select password hashes just to
- * satisfy a parameter type.
+ * Declared separately so callers can pass a narrow projection — the public wall in
+ * particular must not load donor identity just to satisfy a parameter type.
  */
 export type TierRelevantContribution = Pick<
-  SponsorContributionRecord,
-  "amountMYR" | "frequency" | "isActive" | "status" | "createdAt"
+  SponsoredDonation,
+  "amountSen" | "frequency" | "isActive" | "status" | "issuedAt"
 >;
 
-/** A sponsor as the public wall needs them. Deliberately carries no password hash. */
-export interface WallSponsor {
-  id: string;
-  name: string;
-  displayOnWall: boolean;
-  createdAt: string;
-}
-
-/** A sponsor account. `passwordHash` never leaves the data-access layer. */
+/** A sponsor account. `passwordHash` never leaves the repository layer. */
 export interface SponsorRecord {
   id: string;
   email: string;
@@ -96,19 +92,27 @@ export interface SponsorRecord {
   updatedAt: string;
 }
 
+/** A sponsor as the public wall needs them. Deliberately carries no password hash. */
+export interface WallSponsor {
+  id: string;
+  name: string;
+  displayOnWall: boolean;
+  createdAt: string;
+}
+
 /**
  * What the dashboard is allowed to know about the signed-in sponsor.
- * Excludes password hashes, tax IDs and other donors' data by construction.
+ * Excludes password hashes, tax identifiers and other donors' data by construction.
  */
 export interface SponsorDashboardDTO {
   sponsorId: string;
   name: string;
   email: string;
   tier: SupporterTier | null;
-  /** 12-month rolling recognised contribution, in MYR. */
-  recognisedMYR: number;
-  /** MYR still needed to reach the next standing; null once Gold. */
-  amountToNextTierMYR: number | null;
+  /** 12-month rolling recognised contribution, in exact sen. */
+  recognisedSen: number;
+  /** Sen still needed to reach the next standing; null once Gold. */
+  amountToNextTierSen: number | null;
   nextTier: SupporterTier | null;
   billingFrequency: "one_time" | "monthly" | "mixed" | "none";
   hasActiveRecurring: boolean;
@@ -125,13 +129,13 @@ export interface SponsoredRescueDTO {
   breed: string;
   species: string;
   image: string;
-  /** Adoption pipeline status: Available / Pending / Adopted. */
+  /** Adoption pipeline status. */
   status: string;
   /** Derived rehabilitation stage, from the pet's medical timeline. */
   rehabStage: string;
   rehabStageMs: string;
   medicalBadges: string[];
-  totalContributedMYR: number;
+  totalContributedSen: number;
   lastContributionAt: string;
 }
 
@@ -159,8 +163,8 @@ export interface ExclusiveVideoItem {
  *
  * The locked branch has no `items` key at all. That absence is the security property:
  * an under-tier caller has nothing to read, and TypeScript refuses code that tries.
- * Lives here rather than in the `server-only` access layer so client components can name
- * the type without importing server code.
+ * Lives here rather than in the `server-only` access layer so client components can
+ * name the type without importing server code.
  */
 export type GatedPayload<T> =
   | {
@@ -186,8 +190,8 @@ export interface PetExclusiveMediaResponse {
 /**
  * Everything printed on a sponsorship e-Certificate.
  *
- * Built server-side from a verified standing. Nothing on the certificate is computed in
- * the browser, so a sponsor cannot print themselves a tier they have not earned.
+ * Built server-side from a verified standing. Nothing on it is computed in the
+ * browser, so a sponsor cannot print themselves a tier they have not earned.
  */
 export interface CertificateData {
   sponsorName: string;
@@ -195,7 +199,7 @@ export interface CertificateData {
   certificateNumber: string;
   issuedOn: string;
   coveringPeriod: string;
-  recognisedMYR: number;
+  recognisedSen: number;
   rescueNames: string[];
   shelterRegistrationNo: string;
 }

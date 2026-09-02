@@ -3,7 +3,11 @@ import { donationPledgeSchema } from "@/lib/validations/donation";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { sendDonationReceiptEmail } from "@/lib/email";
 import { getAuditLogs } from "@/lib/domain/auditLog";
-import { RECEIPT_NUMBER_PATTERN } from "@/lib/domain/receiptNumber";
+import { findDonationByReceiptNumber, listDonations } from "@/lib/server/donationLedger";
+import {
+  LHDN_TAX_DEDUCTIBLE_REF,
+  STATUTORY_ROS_REGISTRATION_NO,
+} from "@/lib/domain/shelterIdentity";
 
 describe("Donation & Sponsorship Validation Schema", () => {
   it("should validate a standard donation pledge successfully", () => {
@@ -96,14 +100,13 @@ describe("Donation Server Action (submitDonationPledgeAction)", () => {
     expect(result.data).toBeDefined();
 
     if (result.data) {
-      // Asserted against the generator's own pattern so the two cannot drift apart.
-      expect(result.data.receiptNumber).toMatch(RECEIPT_NUMBER_PATTERN);
+      expect(result.data.receiptNumber).toMatch(/^HFS-DON-\d{6}-\d{4}$/);
       expect(result.data.donorName).toBe("Kenneth Lee");
       expect(result.data.donorEmail).toBe("kenneth.lee@example.com");
       expect(result.data.amountMYR).toBe(250);
       expect(result.data.targetPetName).toBe("Barnaby");
-      expect(result.data.taxDeductibleRef).toBe("LHDN.01/35/42/51/179-6.4912");
-      expect(result.data.shelterRegistrationNo).toBe("PPM-021-10-18082021");
+      expect(result.data.taxDeductibleRef).toBe(LHDN_TAX_DEDUCTIBLE_REF);
+      expect(result.data.shelterRegistrationNo).toBe(STATUTORY_ROS_REGISTRATION_NO);
       expect(result.data.tierName).toBe("Emergency Medical & Trauma Care");
     }
 
@@ -161,12 +164,110 @@ describe("Donation Receipt Transactional Email Dispatcher", () => {
       targetPetName: "Luna",
       taxIdOrIc: "910101-10-1234",
       notes: "Thanks for taking care of Luna!",
-      taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-      shelterRegistrationNo: "PPM-021-10-18082021",
+      taxDeductibleRef: LHDN_TAX_DEDUCTIBLE_REF,
+      shelterRegistrationNo: STATUTORY_ROS_REGISTRATION_NO,
     };
 
     const emailResult = await sendDonationReceiptEmail(mockReceipt);
     expect(emailResult.success).toBe(true);
     expect(emailResult.simulated).toBe(true);
+  });
+});
+
+describe("Donation persistence (the ledger is the system of record)", () => {
+  const basePledge = {
+    donorName: "Nurul Aisyah",
+    donorEmail: "nurul.aisyah@example.com",
+    tierId: "kibble" as const,
+    amountMYR: 30,
+    frequency: "one_time" as const,
+    paymentMethod: "duitnow_qr" as const,
+  };
+
+  it("writes a retrievable receipt rather than only emailing one", async () => {
+    // The defect this closes: the action previously minted a receipt number,
+    // emailed it, and stored nothing. The number existed only in the donor's
+    // inbox and an audit-log string, so it could not back an LHDN claim.
+    const result = await submitDonationPledgeAction(basePledge);
+    expect(result.success).toBe(true);
+
+    const stored = await findDonationByReceiptNumber(result.data!.receiptNumber);
+    expect(stored).not.toBeNull();
+    expect(stored?.donorName).toBe("Nurul Aisyah");
+    expect(stored?.tierName).toBe("1-Week Nutrition & Kibble Fund");
+  });
+
+  it("issues gapless, contiguous receipt numbers across donations", async () => {
+    const first = await submitDonationPledgeAction(basePledge);
+    const second = await submitDonationPledgeAction({
+      ...basePledge,
+      donorEmail: "second.donor@example.com",
+    });
+    const third = await submitDonationPledgeAction({
+      ...basePledge,
+      donorEmail: "third.donor@example.com",
+    });
+
+    const serials = [first, second, third].map(
+      (r) => Number(r.data!.receiptNumber.split("-").pop())
+    );
+    expect(serials).toEqual([1, 2, 3]);
+
+    const ledger = await listDonations();
+    expect(ledger).toHaveLength(3);
+  });
+
+  it("keeps the receipt-number format the email template and CSV export expect", async () => {
+    const result = await submitDonationPledgeAction(basePledge);
+    expect(result.data!.receiptNumber).toMatch(/^HFS-DON-\d{6}-\d{4}$/);
+  });
+
+  it("stores the amount as exact sen while the DTO still exposes ringgit", async () => {
+    const result = await submitDonationPledgeAction({ ...basePledge, amountMYR: 19.9 });
+
+    expect(result.success).toBe(true);
+    expect(result.data!.amountMYR).toBe(19.9);
+
+    const stored = await findDonationByReceiptNumber(result.data!.receiptNumber);
+    expect(stored?.amountSen).toBe(1990);
+  });
+
+  it("rejects a sub-sen amount instead of rounding it onto a tax document", async () => {
+    const result = await submitDonationPledgeAction({ ...basePledge, amountMYR: 30.005 });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/two decimal places/);
+    expect(await listDonations()).toHaveLength(0);
+  });
+
+  it("snapshots the issuer identity onto the row, not just the emailed DTO", async () => {
+    const result = await submitDonationPledgeAction(basePledge);
+    const stored = await findDonationByReceiptNumber(result.data!.receiptNumber);
+
+    // Correcting the ROS number later (P2) must not retroactively rewrite
+    // receipts already filed with LHDN, so each row carries its own copy.
+    expect(stored?.shelterRegistrationNo).toBe(STATUTORY_ROS_REGISTRATION_NO);
+    expect(stored?.taxDeductibleRef).toBe("LHDN.01/35/42/51/179-6.4912");
+  });
+
+  it("links the audit entry to the ledger row it describes", async () => {
+    const result = await submitDonationPledgeAction(basePledge);
+
+    const donationLog = getAuditLogs(10).find((l) => l.action === "DONATION_RECEIVED");
+    const stored = await findDonationByReceiptNumber(result.data!.receiptNumber);
+
+    expect(donationLog?.entity).toBe("Donation");
+    expect(donationLog?.entityId).toBe(result.data!.receiptNumber);
+    expect((donationLog?.details as Record<string, unknown>).donationId).toBe(stored?.id);
+  });
+
+  it("records nothing at all when validation fails", async () => {
+    const result = await submitDonationPledgeAction({
+      ...basePledge,
+      amountMYR: 1, // below the RM 5 minimum
+    });
+
+    expect(result.success).toBe(false);
+    expect(await listDonations()).toHaveLength(0);
   });
 });

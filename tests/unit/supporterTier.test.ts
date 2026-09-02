@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   deriveTier,
-  recognisedContributionMYR,
+  recognisedContributionSen,
   tierForAmount,
   meetsTier,
   rankOf,
@@ -11,11 +11,12 @@ import {
   nextTierAbove,
   amountToNextTier,
   tierLabel,
-  TIER_THRESHOLDS_MYR,
+  TIER_THRESHOLDS_SEN,
   RECOGNITION_WINDOW_DAYS,
   PERKS,
 } from "@/lib/domain/supporterTier";
-import { SponsorContributionRecord } from "@/types/supporter";
+import { SponsoredDonation } from "@/types/supporter";
+import { senFromRinggit } from "@/lib/domain/money";
 
 const NOW = new Date("2026-09-02T00:00:00.000Z");
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -24,89 +25,94 @@ function daysBefore(days: number): string {
   return new Date(NOW.getTime() - days * DAY_MS).toISOString();
 }
 
+/**
+ * Amounts are given in ringgit for readability and converted at the boundary, the same
+ * way the donation action does — so a test can never assert against a figure the
+ * production path would not have produced.
+ */
 function contribution(
-  overrides: Partial<SponsorContributionRecord> = {}
-): SponsorContributionRecord {
+  overrides: Partial<SponsoredDonation> & { ringgit?: number } = {}
+): SponsoredDonation {
+  const { ringgit, ...rest } = overrides;
   return {
-    id: "con-test",
-    sponsorId: "spn-test",
     receiptNumber: "HFS-DON-202609-1000",
+    sponsorId: "spn-test",
     donorEmail: "donor@example.com",
     donorName: "Test Donor",
     tierId: "vaccine",
     tierName: "Core Vaccination & Deworming",
-    amountMYR: 50,
+    amountSen: senFromRinggit(ringgit ?? 50),
     frequency: "one_time",
     isActive: true,
     status: "CONFIRMED",
     displayOnWall: false,
     targetPetId: null,
     targetPetName: null,
-    createdAt: daysBefore(10),
-    ...overrides,
+    issuedAt: daysBefore(10),
+    ...rest,
   };
 }
 
 describe("Supporter tier derivation", () => {
-  describe("recognisedContributionMYR", () => {
+  describe("recognisedContributionSen", () => {
     it("sums one-time pledges made inside the recognition window", () => {
-      const total = recognisedContributionMYR(
+      const total = recognisedContributionSen(
         [
-          contribution({ amountMYR: 50, createdAt: daysBefore(10) }),
-          contribution({ amountMYR: 120, createdAt: daysBefore(200) }),
+          contribution({ ringgit: 50, issuedAt: daysBefore(10) }),
+          contribution({ ringgit: 120, issuedAt: daysBefore(200) }),
         ],
         NOW
       );
 
-      expect(total).toBe(170);
+      expect(total).toBe(senFromRinggit(170));
     });
 
     it("excludes one-time pledges that have aged out of the window", () => {
-      const total = recognisedContributionMYR(
+      const total = recognisedContributionSen(
         [
-          contribution({ amountMYR: 50, createdAt: daysBefore(10) }),
+          contribution({ ringgit: 50, issuedAt: daysBefore(10) }),
           contribution({
-            amountMYR: 5000,
-            createdAt: daysBefore(RECOGNITION_WINDOW_DAYS + 1),
+            ringgit: 5000,
+            issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS + 1),
           }),
         ],
         NOW
       );
 
-      expect(total).toBe(50);
+      expect(total).toBe(senFromRinggit(50));
     });
 
     it("counts a pledge on the last day of the window", () => {
-      const total = recognisedContributionMYR(
+      const total = recognisedContributionSen(
         [
           contribution({
-            amountMYR: 90,
-            createdAt: daysBefore(RECOGNITION_WINDOW_DAYS - 1),
+            ringgit: 90,
+            issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS - 1),
           }),
         ],
         NOW
       );
 
-      expect(total).toBe(90);
+      expect(total).toBe(senFromRinggit(90));
     });
 
     it("annualises an active monthly pledge, so recurring giving counts immediately", () => {
-      const total = recognisedContributionMYR(
-        [contribution({ amountMYR: 25, frequency: "monthly", createdAt: daysBefore(5) })],
+      const total = recognisedContributionSen(
+        [contribution({ ringgit: 25, frequency: "monthly", issuedAt: daysBefore(5) })],
         NOW
       );
 
-      expect(total).toBe(300);
+      expect(total).toBe(senFromRinggit(300));
     });
 
     it("ignores a cancelled monthly pledge entirely, whatever its age", () => {
-      const total = recognisedContributionMYR(
+      const total = recognisedContributionSen(
         [
           contribution({
-            amountMYR: 500,
+            ringgit: 500,
             frequency: "monthly",
             isActive: false,
-            createdAt: daysBefore(5),
+            issuedAt: daysBefore(5),
           }),
         ],
         NOW
@@ -118,57 +124,57 @@ describe("Supporter tier derivation", () => {
     it("counts an active monthly pledge even once it predates the window", () => {
       // A two-year-old standing order is a stronger relationship than a recent one-off,
       // so ageing it out would punish exactly the donors this programme retains.
-      const total = recognisedContributionMYR(
+      const total = recognisedContributionSen(
         [
           contribution({
-            amountMYR: 30,
+            ringgit: 30,
             frequency: "monthly",
-            createdAt: daysBefore(700),
+            issuedAt: daysBefore(700),
           }),
         ],
         NOW
       );
 
-      expect(total).toBe(360);
+      expect(total).toBe(senFromRinggit(360));
     });
 
     it("returns zero for an empty ledger", () => {
-      expect(recognisedContributionMYR([], NOW)).toBe(0);
+      expect(recognisedContributionSen([], NOW)).toBe(0);
     });
   });
 
   describe("tierForAmount thresholds", () => {
     it("awards no standing below the Bronze threshold", () => {
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.BRONZE - 1)).toBeNull();
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.BRONZE - 1)).toBeNull();
       expect(tierForAmount(0)).toBeNull();
     });
 
     it("awards each standing exactly at its threshold", () => {
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.BRONZE)).toBe("BRONZE");
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.SILVER)).toBe("SILVER");
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.GOLD)).toBe("GOLD");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.BRONZE)).toBe("BRONZE");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.SILVER)).toBe("SILVER");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.GOLD)).toBe("GOLD");
     });
 
     it("holds the lower standing one ringgit below each boundary", () => {
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.SILVER - 1)).toBe("BRONZE");
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.GOLD - 1)).toBe("SILVER");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.SILVER - 1)).toBe("BRONZE");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.GOLD - 1)).toBe("SILVER");
     });
 
     it("stays Gold above the top threshold", () => {
-      expect(tierForAmount(TIER_THRESHOLDS_MYR.GOLD * 10)).toBe("GOLD");
+      expect(tierForAmount(TIER_THRESHOLDS_SEN.GOLD * 10)).toBe("GOLD");
     });
   });
 
   describe("deriveTier", () => {
     it("lands a single RM 50 vaccine pledge on Bronze", () => {
-      expect(deriveTier([contribution({ amountMYR: 50 })], NOW)).toBe("BRONZE");
+      expect(deriveTier([contribution({ ringgit: 50 })], NOW)).toBe("BRONZE");
     });
 
     it("lands RM 250 emergency plus RM 120 spay/neuter on Silver", () => {
       const tier = deriveTier(
         [
-          contribution({ amountMYR: 250, createdAt: daysBefore(120) }),
-          contribution({ amountMYR: 120, createdAt: daysBefore(30) }),
+          contribution({ ringgit: 250, issuedAt: daysBefore(120) }),
+          contribution({ ringgit: 120, issuedAt: daysBefore(30) }),
         ],
         NOW
       );
@@ -178,14 +184,14 @@ describe("Supporter tier derivation", () => {
 
     it("lands an RM 100 monthly pledge on Gold", () => {
       expect(
-        deriveTier([contribution({ amountMYR: 100, frequency: "monthly" })], NOW)
+        deriveTier([contribution({ ringgit: 100, frequency: "monthly" })], NOW)
       ).toBe("GOLD");
     });
 
     it("drops a sponsor out of Gold when their monthly pledge is cancelled", () => {
       const ledger = [
-        contribution({ amountMYR: 100, frequency: "monthly" }),
-        contribution({ amountMYR: 50, createdAt: daysBefore(20) }),
+        contribution({ ringgit: 100, frequency: "monthly" }),
+        contribution({ ringgit: 50, issuedAt: daysBefore(20) }),
       ];
 
       expect(deriveTier(ledger, NOW)).toBe("GOLD");
@@ -197,8 +203,8 @@ describe("Supporter tier derivation", () => {
     it("drops a sponsor to no standing once their only pledge ages out", () => {
       const aged = [
         contribution({
-          amountMYR: 250,
-          createdAt: daysBefore(RECOGNITION_WINDOW_DAYS + 30),
+          ringgit: 250,
+          issuedAt: daysBefore(RECOGNITION_WINDOW_DAYS + 30),
         }),
       ];
 
@@ -279,13 +285,17 @@ describe("Supporter tier derivation", () => {
     });
 
     it("reports the shortfall to the next standing", () => {
-      expect(amountToNextTier(0)).toBe(TIER_THRESHOLDS_MYR.BRONZE);
-      expect(amountToNextTier(50)).toBe(TIER_THRESHOLDS_MYR.SILVER - 50);
-      expect(amountToNextTier(370)).toBe(TIER_THRESHOLDS_MYR.GOLD - 370);
+      expect(amountToNextTier(0)).toBe(TIER_THRESHOLDS_SEN.BRONZE);
+      expect(amountToNextTier(senFromRinggit(50))).toBe(
+        TIER_THRESHOLDS_SEN.SILVER - senFromRinggit(50)
+      );
+      expect(amountToNextTier(senFromRinggit(370))).toBe(
+        TIER_THRESHOLDS_SEN.GOLD - senFromRinggit(370)
+      );
     });
 
     it("reports no shortfall at Gold", () => {
-      expect(amountToNextTier(TIER_THRESHOLDS_MYR.GOLD)).toBeNull();
+      expect(amountToNextTier(TIER_THRESHOLDS_SEN.GOLD)).toBeNull();
     });
   });
 
@@ -294,21 +304,21 @@ describe("Supporter tier derivation", () => {
       // /donate is public and unauthenticated, so a submitted pledge is an assertion.
       // Counting it would make the donation form a self-service Gold button.
       const asserted = [
-        contribution({ amountMYR: 5000, status: "PENDING" }),
-        contribution({ amountMYR: 1000, frequency: "monthly", status: "PENDING" }),
+        contribution({ ringgit: 5000, status: "PENDING" }),
+        contribution({ ringgit: 1000, frequency: "monthly", status: "PENDING" }),
       ];
 
-      expect(recognisedContributionMYR(asserted, NOW)).toBe(0);
+      expect(recognisedContributionSen(asserted, NOW)).toBe(0);
       expect(deriveTier(asserted, NOW)).toBeNull();
     });
 
     it("do not drag down a standing earned by confirmed ones", () => {
       const mixed = [
-        contribution({ amountMYR: 300, status: "CONFIRMED" }),
-        contribution({ amountMYR: 9000, status: "PENDING" }),
+        contribution({ ringgit: 300, status: "CONFIRMED" }),
+        contribution({ ringgit: 9000, status: "PENDING" }),
       ];
 
-      expect(recognisedContributionMYR(mixed, NOW)).toBe(300);
+      expect(recognisedContributionSen(mixed, NOW)).toBe(senFromRinggit(300));
       expect(deriveTier(mixed, NOW)).toBe("SILVER");
     });
   });
@@ -318,11 +328,11 @@ describe("Supporter tier derivation", () => {
       // A cancelled standing order used to fall through to "one_time", which reads as
       // "One-time pledges" on the dashboard and misdescribes the relationship.
       const lapsed = [
-        contribution({ amountMYR: 100, frequency: "monthly", isActive: false }),
+        contribution({ ringgit: 100, frequency: "monthly", isActive: false }),
       ];
 
       expect(deriveTier(lapsed, NOW)).toBeNull();
-      expect(recognisedContributionMYR(lapsed, NOW)).toBe(0);
+      expect(recognisedContributionSen(lapsed, NOW)).toBe(0);
     });
   });
 

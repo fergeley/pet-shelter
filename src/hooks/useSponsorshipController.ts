@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Pet } from "@/types/pet";
 import { SponsorshipTier, DonationReceipt, SponsorshipTierId } from "@/types/sponsorship";
-import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/sponsorshipStore";
+import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { submitDonationPledgeAction } from "@/actions/donations";
 
 export interface UseSponsorshipControllerProps {

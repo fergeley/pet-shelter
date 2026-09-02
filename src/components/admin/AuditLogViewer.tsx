@@ -14,17 +14,19 @@ import {
   CheckCircle2,
   HeartHandshake,
   Settings,
-  Layers
+  Layers,
+  type LucideIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useAuditLogController, AuditTabFilter } from "@/hooks/useAuditLogController";
 
 export function AuditLogViewer() {
   const { state, handlers } = useAuditLogController();
-  const { filteredLogs, counts, activeTab, isLoading, error, filter, exportNotice } = state;
+  const { filteredLogs, counts, activeTab, isLoading, error, filter, exportNotice, isExporting } =
+    state;
   const { setFilter, setActiveTab, loadLogs, handleExportReceiptsCsv, handleExportAuditTrailCsv } = handlers;
 
-  const tabs: { id: AuditTabFilter; label: string; icon: typeof Layers; count: number }[] = [
+  const tabs: { id: AuditTabFilter; label: string; icon: LucideIcon; count: number }[] = [
     { id: "all", label: "All Audit Records", icon: Layers, count: counts.all },
     { id: "receipts", label: "LHDN Tax Receipts", icon: Receipt, count: counts.receipts },
     { id: "adoptions", label: "Adoptions & Pets", icon: HeartHandshake, count: counts.adoptions },
@@ -36,7 +38,7 @@ export function AuditLogViewer() {
       {/* Header Info & Actions */}
       <div className="border border-border bg-background p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center bg-emerald-800 text-white dark:bg-emerald-950 dark:text-emerald-300">
+          <div className="flex size-9 items-center justify-center bg-success-solid text-white ">
             <ShieldCheck className="size-5" />
           </div>
           <div>
@@ -53,14 +55,17 @@ export function AuditLogViewer() {
             variant="outline"
             size="xs"
             onClick={handleExportReceiptsCsv}
-            disabled={isLoading}
-            className="text-xs gap-1.5 font-semibold bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300 hover:bg-emerald-100/70"
+            // The export is a server round trip now. Without this, a second click
+            // clears the notice the first one set -- including the truncation
+            // warning that deliberately does not auto-dismiss.
+            disabled={isLoading || isExporting}
+            className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
             title="Export official donation receipts formatted for Malaysian LHDN Section 44(6) tax reporting"
           >
             <Receipt className="size-3.5" />
             <span>Export Receipts CSV (LHDN)</span>
             {counts.receipts > 0 && (
-              <span className="px-1.5 py-0.2 bg-emerald-800 text-white dark:bg-emerald-700 text-[10px] font-bold rounded-xs">
+              <span className="px-1.5 py-0.2 bg-success-solid text-white text-3xs font-bold rounded-xs">
                 {counts.receipts}
               </span>
             )}
@@ -95,8 +100,8 @@ export function AuditLogViewer() {
 
       {/* Export Status Notification */}
       {exportNotice && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 text-xs text-emerald-900 dark:text-emerald-200 flex items-center gap-2 animate-in fade-in-50">
-          <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div className="tone-soft tone-success border p-3 text-xs flex items-center gap-2 animate-in fade-in-50">
+          <CheckCircle2 className="size-4 shrink-0 text-success-accent " />
           <span>{exportNotice}</span>
         </div>
       )}
@@ -121,7 +126,7 @@ export function AuditLogViewer() {
                 <Icon className="size-3.5" />
                 <span>{tab.label}</span>
                 <span
-                  className={`ml-1 px-1.5 py-0.2 text-[10px] rounded-xs font-mono font-bold ${
+                  className={`ml-1 px-1.5 py-0.2 text-3xs rounded-xs font-mono font-bold ${
                     isActive ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
                   }`}
                 >
@@ -162,7 +167,7 @@ export function AuditLogViewer() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-bold tracking-wider text-[11px]">
+                <tr className="border-b border-border bg-muted/40 text-muted-foreground uppercase font-bold tracking-wider text-2xs">
                   <th className="p-3">Timestamp</th>
                   <th className="p-3">Actor & Role</th>
                   <th className="p-3">Action Event</th>
@@ -180,13 +185,13 @@ export function AuditLogViewer() {
                   const details = (log.details || {}) as Record<string, unknown>;
 
                   return (
-                    <tr key={log.id} className={`hover:bg-muted/20 transition-colors ${isDonation ? "bg-emerald-50/30 dark:bg-emerald-950/15" : ""}`}>
-                      <td className="p-3 whitespace-nowrap font-mono text-muted-foreground text-[11px]">
+                    <tr key={log.id} className={`hover:bg-muted/20 transition-colors ${isDonation ? "bg-success-surface " : ""}`}>
+                      <td className="p-3 whitespace-nowrap font-mono text-muted-foreground text-2xs">
                         <div className="flex items-center gap-1.5">
                           <Clock className="size-3 text-foreground" />
                           <span>{new Date(log.createdAt).toLocaleTimeString()}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground">{new Date(log.createdAt).toLocaleDateString()}</span>
+                        <span className="text-3xs text-muted-foreground">{new Date(log.createdAt).toLocaleDateString()}</span>
                       </td>
 
                       <td className="p-3 whitespace-nowrap">
@@ -194,9 +199,9 @@ export function AuditLogViewer() {
                           <User className="size-3 text-muted-foreground" />
                           {log.actorEmail}
                         </div>
-                        <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border ${
+                        <span className={`inline-block mt-0.5 px-1.5 py-0.2 text-3xs font-bold uppercase tracking-wider border ${
                           isDonation 
-                            ? "bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700" 
+                            ? "tone-soft tone-panel-strong tone-success" 
                             : "bg-muted border-border"
                         }`}>
                           {log.actorRole}
@@ -206,13 +211,13 @@ export function AuditLogViewer() {
                       <td className="p-3 whitespace-nowrap">
                         <span className={`font-mono text-xs font-bold px-2 py-0.5 border ${
                           isDonation 
-                            ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-800" 
+                            ? "tone-soft tone-panel-strong tone-success" 
                             : "bg-primary/10 text-foreground border-primary/20"
                         }`}>
                           {log.action}
                         </span>
                         {isDonation && details.amountMYR !== undefined && (
-                          <span className="block mt-1 font-mono text-[11px] font-bold text-emerald-800 dark:text-emerald-300">
+                          <span className="block mt-1 font-mono text-2xs font-bold text-success-text ">
                             RM {Number(details.amountMYR).toFixed(2)}
                           </span>
                         )}
@@ -224,15 +229,15 @@ export function AuditLogViewer() {
                           <strong className="text-foreground">{log.entityId}</strong>
                         </div>
                         {isDonation && details.donorName ? (
-                          <span className="block text-[11px] text-muted-foreground font-sans font-medium">
+                          <span className="block text-2xs text-muted-foreground font-sans font-medium">
                             Donor: {String(details.donorName)}
                           </span>
                         ) : null}
                       </td>
 
-                      <td className="p-3 text-[11px] font-mono text-muted-foreground max-w-xs truncate">
+                      <td className="p-3 text-2xs font-mono text-muted-foreground max-w-xs truncate">
                         {log.details ? (
-                          <pre className="bg-muted/50 p-1.5 border border-border text-[10px] whitespace-pre-wrap overflow-x-auto max-h-24">
+                          <pre className="bg-muted/50 p-1.5 border border-border text-3xs whitespace-pre-wrap overflow-x-auto max-h-24">
                             {JSON.stringify(log.details, null, 2)}
                           </pre>
                         ) : (

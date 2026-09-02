@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { Pet, MedicalTimelineCategory } from "@/types/pet";
-import { getPetMedicalTimeline, getCategoryBadgeClasses } from "@/lib/medicalTimeline";
+import { getPetMedicalTimeline } from "@/lib/domain/medicalTimeline";
+import { getCategoryBadgeClasses } from "@/lib/presentation/medicalTimelinePresentation";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
   ShieldCheck,
@@ -46,17 +47,17 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
   const getCategoryIcon = (category: MedicalTimelineCategory) => {
     switch (category) {
       case "intake":
-        return <Activity className="size-3.5 sm:size-4 text-blue-700 dark:text-blue-300" />;
+        return <Activity className="size-3.5 sm:size-4 text-info-text " />;
       case "diagnostic":
-        return <Stethoscope className="size-3.5 sm:size-4 text-purple-700 dark:text-purple-300" />;
+        return <Stethoscope className="size-3.5 sm:size-4 text-highlight-text" />;
       case "treatment":
-        return <CheckCircle2 className="size-3.5 sm:size-4 text-amber-700 dark:text-amber-300" />;
+        return <CheckCircle2 className="size-3.5 sm:size-4 text-warning-text " />;
       case "vaccination":
-        return <Syringe className="size-3.5 sm:size-4 text-emerald-700 dark:text-emerald-300" />;
+        return <Syringe className="size-3.5 sm:size-4 text-success-text " />;
       case "surgery":
-        return <Scissors className="size-3.5 sm:size-4 text-rose-700 dark:text-rose-300" />;
+        return <Scissors className="size-3.5 sm:size-4 text-danger-text " />;
       case "clearance":
-        return <FileCheck2 className="size-3.5 sm:size-4 text-emerald-700 dark:text-emerald-300" />;
+        return <FileCheck2 className="size-3.5 sm:size-4 text-success-text " />;
       default:
         return <ShieldCheck className="size-3.5 sm:size-4 text-foreground" />;
     }
@@ -82,7 +83,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 border-b border-border pb-2.5">
         <div>
           <h3 className="font-heading text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <ShieldCheck className="size-5 text-emerald-700 dark:text-emerald-400" />
+            <ShieldCheck className="size-5 text-success-text " />
             {t("medicalTimeline.title", "Rescue & Veterinary Care Timeline")}
           </h3>
           {!compact && (
@@ -93,8 +94,8 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         </div>
 
         {/* Verification Tag */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-[11px] font-bold text-emerald-800 dark:text-emerald-300 rounded-full shrink-0">
-          <Check className="size-3 text-emerald-600 dark:text-emerald-400 stroke-[3]" />
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 tone-soft tone-success border text-2xs font-bold rounded-full shrink-0">
+          <Check className="size-3 text-success-accent stroke-[3]" />
           <span>{isMs ? "Rekod Sahih Veterinar" : "Shelter Vet Certified"}</span>
         </div>
       </div>
@@ -128,7 +129,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
         <div className="relative pl-6 sm:pl-8 space-y-4 pt-2">
           {/* Vertical Connecting Guide */}
           <div
-            className="absolute left-2.75 sm:left-3.75 top-3 bottom-3 w-0.5 bg-zinc-300 dark:bg-zinc-700"
+            className="absolute left-2.75 sm:left-3.75 top-3 bottom-3 w-0.5 bg-neutral-border "
             aria-hidden="true"
           />
 
@@ -146,12 +147,12 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
               <div className="bg-background border border-border rounded-xl p-3.5 sm:p-4 shadow-xs space-y-1.5 transition-colors hover:border-foreground/30">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <span className="font-mono text-2xs font-bold text-muted-foreground uppercase tracking-wider">
                       {formatDate(event.date)}
                     </span>
                     {event.badge && (
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getCategoryBadgeClasses(
+                        className={`text-3xs font-bold px-2 py-0.5 rounded-full border ${getCategoryBadgeClasses(
                           event.category
                         )}`}
                       >
@@ -161,8 +162,8 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
                   </div>
 
                   {event.verified && (
-                    <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                      <Check className="size-3 text-emerald-600 dark:text-emerald-400 stroke-[2.5]" />
+                    <span className="text-3xs text-muted-foreground font-medium flex items-center gap-1">
+                      <Check className="size-3 text-success-accent stroke-[2.5]" />
                       {t("common.verified", "Verified")}
                     </span>
                   )}
@@ -177,7 +178,7 @@ export function MedicalTimeline({ pet, compact = false }: MedicalTimelineProps) 
                 </p>
 
                 {event.veterinarian && (
-                  <div className="pt-1 text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <div className="pt-1 text-2xs text-muted-foreground flex items-center gap-1.5">
                     <Stethoscope className="size-3 text-primary shrink-0" />
                     <span>
                       {t("medicalTimeline.verifiedBy", "Verified by")} <strong>{event.veterinarian}</strong>

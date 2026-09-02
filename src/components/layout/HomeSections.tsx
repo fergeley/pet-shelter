@@ -1,13 +1,13 @@
 "use client";
 
+import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
 import React from "react";
 import Link from "next/link";
 import { 
   FileText, 
   Users, 
-  Home as HomeIcon, 
+  HomeIcon, 
   Phone,
-  HeartHandshake,
   Clock,
   MapPin,
   MessageCircle,
@@ -15,75 +15,299 @@ import {
   Truck,
   Heart,
   ShieldCheck,
-  ArrowRight
+  ArrowRight,
+  Stethoscope,
+  GraduationCap,
+  Sparkles,
+  Scissors,
+  CheckCircle2,
+  Package
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function HomeGalleryHeader() {
-  const { t } = useLanguage();
+  return null;
+}
+
+/**
+ * FE-03: "Our Work" — The 3 Core Pillars of Hope for Strays UM:
+ * 1. TNRM (Trap-Neuter-Return-Manage)
+ * 2. Education & Campus Coexistence
+ * 3. Clinical Rehabilitation & Medical Care
+ */
+export function HomeOurWorkSection() {
+  const { isMs } = useLanguage();
+
+  const pillars = [
+    {
+      icon: Scissors,
+      tagEn: "Pillar 1: Population Control",
+      tagMs: "Teras 1: Kawalan Populasi",
+      titleEn: "TNRM (Trap-Neuter-Return-Manage)",
+      titleMs: "TNRM (Tangkap-Mandul-Lepas-Urus)",
+      descEn:
+        "Culling fails because of the 'Vacuum Effect' — removing strays invites new fertile animals to colonize the area. Humane TNRM stabilizes colonies, stops breeding cycles, and protects community health.",
+      descMs:
+        "Penyingkiran haiwan gagal kerana 'Kesan Vakum' — kawasan kosong akan diduduki haiwan jalanan baru yang tidak mandul. TNRM menstabilkan populasi secara saintifik dan berkesan.",
+      highlightsEn: [
+        "Ear-notching (left ear) for clear identification",
+        "Managed feeding stations across UM campus",
+        "Rabies & core vaccination upon spay surgery",
+      ],
+      highlightsMs: [
+        "Penandaan telinga kiri (ear-notching) rasmi",
+        "Stesen makanan berjadual di sekitar kampus UM",
+        "Vaksinasi teras & pencegahan rabies semasa mandul",
+      ],
+      accent: "border-success-accent/30 bg-success-surface",
+      badgeColor: "text-success-text bg-success-surface",
+    },
+    {
+      icon: GraduationCap,
+      tagEn: "Pillar 2: Community Coexistence",
+      tagMs: "Teras 2: Kewujudan Bersama",
+      titleEn: "Education & Coexistence",
+      titleMs: "Pendidikan & Harmoni Kampus",
+      descEn:
+        "Long-term stray welfare requires shifting human perception. We conduct student workshops, bite-prevention campaigns, and advocate for humane campus guidelines across Universiti Malaya.",
+      descMs:
+        "Kesejahteraan haiwan jalanan bermula dengan pemahaman manusia. Kami menganjurkan bengkel pelajar, kempen keselamatan, dan advokasi polisi kebajikan kampus.",
+      highlightsEn: [
+        "Campus stray safety & bite prevention seminars",
+        "Anti-abandonment and responsible pet ownership",
+        "Student volunteer warden & feeding network",
+      ],
+      highlightsMs: [
+        "Seminar keselamatan & pencegahan gigitan haiwan",
+        "Kempen anti-pembuangan haiwan peliharaan",
+        "Rangkaian skuad sukarelawan & warden pelajar",
+      ],
+      accent: "border-warning-accent/30 bg-warning-surface",
+      badgeColor: "text-warning-text bg-warning-surface",
+    },
+    {
+      icon: Stethoscope,
+      tagEn: "Pillar 3: Clinical Care",
+      tagMs: "Teras 3: Rawatan Klinikal",
+      titleEn: "Sanctuary & Rehabilitation",
+      titleMs: "Santuari & Rumah Pemulihan",
+      descEn:
+        "Animals with severe fractures, chronic mange, or trauma are admitted to our Petaling Jaya Rehabilitation House. Under veterinary supervision, they receive medical care until fully healed.",
+      descMs:
+        "Haiwan yang cedera parah, menghidap kurap teruk, atau trauma dimasukkan ke Rumah Pemulihan Petaling Jaya kami untuk rawatan rapi dan terapi pemulihan berterusan.",
+      highlightsEn: [
+        "Post-op sterile recovery enclosures & wound care",
+        "Medicated baths & demodicosis/sarcoptic therapy",
+        "100% free adoptions for cleared animals",
+      ],
+      highlightsMs: [
+        "Kandang pemulihan steril & rawatan luka",
+        "Mandian berubat kurap & pemulihan bulu",
+        "Adopsi percuma 100% setelah sembuh sepenuhnya",
+      ],
+      accent: "border-care-accent/30 bg-care-surface",
+      badgeColor: "text-care-text bg-care-surface",
+    },
+  ];
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-8">
-      <div>
-        <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-          {t("home.availableTitle", "Animals Ready for Adoption")}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t("home.availableSubtitle", "Health-checked, vaccinated, microchipped, and sterilized before rehoming.")}
-        </p>
+    <section id="our-work" className="border-t border-border bg-background py-16 sm:py-20">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto space-y-12">
+        {/* Header */}
+        <div className="max-w-3xl space-y-3">
+          {/* <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+            <Sparkles className="size-3.5" />
+            {isMs ? "Misi & Metodologi Kami" : "Our Mission & 3-Pillar Framework"}
+          </div> */}
+          <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-foreground">
+            {isMs ? "Kerja Kami" : "Our Work"}
+          </h2>
+          {/* <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
+            {isMs
+              ? "Kami menggabungkan TNRM, pendidikan, dan pemulihan klinikal untuk membina kehidupan yang lebih selamat bagi haiwan dan komuniti."
+              : "We combine TNRM, education, and rehabilitation to create safer outcomes for animals and the community around them."}
+          </p> */}
+        </div>
+
+        {/* 3 Pillars Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {pillars.map((pillar, idx) => {
+            const Icon = pillar.icon;
+            return (
+              <div
+                key={idx}
+                className={`border ${pillar.accent} p-7 sm:p-8 rounded-3xl space-y-6 flex flex-col justify-between shadow-xs`}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-2xs font-bold uppercase tracking-wider px-3 py-1 rounded-full ${pillar.badgeColor}`}>
+                      {isMs ? pillar.tagMs : pillar.tagEn}
+                    </span>
+                    <div className="flex size-10 items-center justify-center bg-card border border-border rounded-xl">
+                      <Icon className="size-5 text-foreground" />
+                    </div>
+                  </div>
+
+                  <h3 className="font-heading text-xl sm:text-2xl font-bold text-foreground">
+                    {isMs ? pillar.titleMs : pillar.titleEn}
+                  </h3>
+
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    {isMs ? pillar.descMs : pillar.descEn}
+                  </p>
+
+                  <div className="space-y-2 pt-2 border-t border-border/40">
+                    {(isMs ? pillar.highlightsMs : pillar.highlightsEn).map((item, hIdx) => (
+                      <div key={hIdx} className="flex items-start gap-2 text-xs text-foreground/90 font-medium">
+                        <CheckCircle2 className="size-3.5 text-primary shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-border/60">
+                  <Link
+                    href={idx === 0 ? "/#how-it-works" : idx === 1 ? "/get-involved" : "/needs"}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-foreground hover:text-primary transition-colors"
+                  >
+                    <span>{isMs ? "Ketahui Lebih Lanjut" : "Learn More"}</span>
+                    <ArrowRight className="size-3.5" />
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <Link
-        href="/pets"
-        className={buttonVariants({
-          variant: "outline",
-          size: "sm",
-          className: "self-start sm:self-auto text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl",
-        })}
-      >
-        {t("home.viewAllPets", "View All Animals")}
-        <ArrowRight className="size-4 ml-1.5" />
-      </Link>
-    </div>
+    </section>
+  );
+}
+
+export function HomeQuickActionsSection() {
+  const { isMs } = useLanguage();
+
+  const actions = [
+    {
+      title: isMs ? "Adopsi" : "Adopt",
+      description: isMs
+        ? "Temui haiwan yang sedia untuk perumahan baharu dan hantar permohonan adopsi dengan mudah."
+        : "Meet animals ready for a new home and apply to adopt in just a few steps.",
+      href: "/pets",
+      icon: Heart,
+    },
+    {
+      title: isMs ? "Sukarelawan" : "Volunteer",
+      description: isMs
+        ? "Bantu di santuari, lawatan mingguan, dan aktiviti komuniti tanpa pengalaman terdahulu."
+        : "Support the sanctuary through weekly care, walking, transport, and community events.",
+      href: "/get-involved",
+      icon: Users,
+    },
+    {
+      title: isMs ? "Derma" : "Donate",
+      description: isMs
+        ? "Sokong makanan, ubat, operasi dan pemulihan klinikal untuk haiwan yang memerlukan."
+        : "Fund food, treatment, surgery, and recovery costs for rescued animals in need.",
+      href: "/donate",
+      icon: Package,
+    },
+    {
+      title: isMs ? "Taja" : "Sponsor",
+      description: isMs
+        ? "Taja pemulihan haiwan, rawatan veterinar, dan penjagaan jangka panjang setiap bulan."
+        : "Sponsor ongoing care, treatment, and rehabilitation for animals who need longer-term support.",
+      href: "/needs",
+      icon: ShieldCheck,
+    },
+  ];
+
+  return (
+    <section className="border-t border-border bg-card py-14 sm:py-18">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto space-y-8">
+        <div className="max-w-2xl space-y-2">
+          <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
+            {isMs ? "Tindakan Pantas" : "Quick actions"}
+          </span>
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+            {isMs ? "Bersama Kami Membantu Haiwan" : "Choose a way to help"}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                key={action.title}
+                href={action.href}
+                className="group flex h-full flex-col gap-4 rounded-2xl border border-border bg-background p-5 shadow-xs transition-colors hover:border-primary/40 hover:bg-muted/40"
+              >
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon className="size-5" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-heading text-xl font-bold text-foreground">{action.title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{action.description}</p>
+                </div>
+                <div className="mt-auto inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-foreground">
+                  {isMs ? "Lihat lagi" : "Learn more"}
+                  <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 
 export function HomeProcessSection() {
-  const { t } = useLanguage();
+  const { isMs } = useLanguage();
 
   const steps = [
     {
       num: "01",
-      title: t("home.step1Title", "Browse & Submit Application"),
-      description: t("home.step1Desc", "Browse our adoptable dogs and cats online or visit our Petaling Jaya sanctuary. Submit a straightforward application to register your household interest."),
+      title: isMs ? "Pilih Haiwan & Hantar Permohonan" : "Browse & Submit Application",
+      description: isMs
+        ? "Lihat profil anjing & kucing reskue kami secara dalam talian atau kunjungi santuari PJ. Hantar borang ringkas untuk mendaftar minat keluarga anda."
+        : "Browse our adoptable dogs and cats online or visit our Petaling Jaya sanctuary. Submit a straightforward application to register your household interest.",
       icon: FileText,
     },
     {
       num: "02",
-      title: t("home.step2Title", "Meet & Socialize"),
-      description: t("home.step2Desc", "Spend time interacting with the animal in our outdoor play yard or cat room. If you have resident pets, we arrange a structured, supervised introduction."),
+      title: isMs ? "Sesi Suai Kenal di Santuari" : "Meet & Socialize",
+      description: isMs
+        ? "Luangkan masa berinteraksi dengan haiwan di laman luar atau bilik kucing santuari. Kami mengatur pengenalan berstruktur jika anda mempunyai haiwan sedia ada."
+        : "Spend time interacting with the animal in our outdoor play yard or cat room. If you have resident pets, we arrange a structured, supervised introduction.",
       icon: Users,
     },
     {
       num: "03",
-      title: t("home.step3Title", "Finalize & Welcome Home"),
-      description: t("home.step3Desc", "Sign our standard adoption agreement with no hidden fees. All animals are already vaccinated, microchipped, and spayed or neutered."),
+      title: isMs ? "Lengkapkan Adopsi (100% Percuma)" : "Finalize & Welcome Home",
+      description: isMs
+        ? "Tandatangani perjanjian adopsi standard tanpa sebarang yuran tersembunyi. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya."
+        : "Sign our standard adoption agreement with zero adoption fees. All animals are already vaccinated, microchipped, and spayed or neutered.",
       icon: HomeIcon,
     },
   ];
 
   return (
     <section id="how-it-works" className="border-t border-border bg-background py-14 sm:py-18">
-      <div className="w-full px-6 sm:px-8 lg:px-12">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
         <div className="max-w-2xl mb-10">
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
-            {t("home.protocolBadge", "Adoption Protocol")}
+            {isMs ? "Protokol Adopsi Santuari" : "Adoption Protocol"}
           </span>
           <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-1">
-            {t("home.processTitle", "How Adoption Works")}
+            {isMs ? "Bagaimana Proses Adopsi Berfungsi" : "How Adoption Works"}
           </h2>
           <p className="text-base text-muted-foreground mt-2 leading-relaxed">
-            {t("home.processSubtitle", "Our structured adoption process ensures responsible matching between animals and families across Selangor and the Klang Valley.")}
+            {isMs
+              ? "Proses berstruktur kami memastikan padanan yang bertanggungjawab antara haiwan reskue dan keluarga di seluruh Lembah Klang."
+              : "Our structured adoption process ensures responsible matching between animals and families across Selangor and the Klang Valley."}
           </p>
         </div>
 
@@ -121,41 +345,51 @@ export function HomeProcessSection() {
 }
 
 export function HomeStandardsSection() {
-  const { t } = useLanguage();
+  const { isMs } = useLanguage();
 
   const shelterProtocols = [
     {
-      title: t("home.protocol1Title", "Complete Veterinary Protocol"),
-      description: t("home.protocol1Desc", "Every rescue animal undergoes full veterinary health screening, spay/neuter surgery, core vaccinations (6-in-1 / FVRCP), internal deworming, and microchip registration before rehoming."),
+      title: isMs ? "Protokol Veterinar Lengkap" : "Complete Veterinary Protocol",
+      description: isMs
+        ? "Setiap haiwan menjalani pemeriksaan kesihatan lengkap, pembedahan pemandulan, vaksinasi teras 6-dalam-1 / FVRCP, ubat cacing, dan mikrocip sebelum adopsi."
+        : "Every rescue animal undergoes full veterinary health screening, spay/neuter surgery, core vaccinations (6-in-1 / FVRCP), internal deworming, and microchip registration before rehoming.",
     },
     {
-      title: t("home.protocol2Title", "100% Free Adoption Policy"),
-      description: t("home.protocol2Desc", "We do not sell animals or charge commercial adoption fees. Rescues are placed into qualified homes purely based on lifestyle compatibility and animal welfare."),
+      title: isMs ? "Polisi Adopsi Percuma 100%" : "100% Free Adoption Policy",
+      description: isMs
+        ? "Kami tidak menjual haiwan atau mengenakan yuran adopsi komersial. Penempatan dibuat berdasarkan keserasian gaya hidup dan kebajikan haiwan."
+        : "We do not sell animals or charge commercial adoption fees. Rescues are placed into qualified homes purely based on lifestyle compatibility and animal welfare.",
     },
     {
-      title: t("home.protocol3Title", "Post-Adoption Guidance & Safety Net"),
-      description: t("home.protocol3Desc", "Our team provides ongoing behavioral transition guidance. If an adopter's life circumstances ever change, we maintain an unconditional open-door policy to welcome the animal back."),
+      title: isMs ? "Bimbingan & Jaring Keselamatan" : "Post-Adoption Guidance & Safety Net",
+      description: isMs
+        ? "Kami menyediakan bimbingan tingkah laku berterusan. Jika situasi hidup pengadopsi berubah, kami mengekalkan polisi pintu terbuka tanpa syarat untuk menerima semula haiwan."
+        : "Our team provides ongoing behavioral transition guidance. If an adopter's life circumstances ever change, we maintain an unconditional open-door policy to welcome the animal back.",
     },
     {
-      title: t("home.protocol4Title", "Structured Premise & Lifestyle Review"),
-      description: t("home.protocol4Desc", "We verify basic living suitability (landed housing vs high-rise pet guidelines, fenced perimeter safety, and household consensus) to ensure a safe, lasting match."),
+      title: isMs ? "Semakan Kediaman & Keselamatan" : "Structured Premise & Lifestyle Review",
+      description: isMs
+        ? "Kami menyemak kesesuaian asas kediaman (pagar selamat, kelulusan bangunan bertingkat) bagi memastikan persekitaran hidup yang kekal dan selamat."
+        : "We verify basic living suitability (landed housing vs high-rise pet guidelines, fenced perimeter safety, and household consensus) to ensure a safe, lasting match.",
     },
   ];
 
   return (
     <section id="mission" className="border-t border-border bg-card py-14 sm:py-18">
-      <div className="w-full px-6 sm:px-8 lg:px-12">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
           <div className="lg:col-span-5 space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-semibold border border-border rounded-md">
               <ShieldCheck className="size-3.5 text-foreground" />
-              <span>{t("home.rosRegistered", "Malaysian Registered Society: PPM-012-10-18042016")}</span>
+              <span>{(isMs ? "Persatuan Berdaftar ROS Malaysia: " : "Malaysian Registered Society: ") + PUBLIC_ROS_REGISTRATION_NO}</span>
             </div>
             <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-              {t("home.standardsTitle", "Our Animal Welfare & Sanctuary Standards")}
+              {isMs ? "Piawaian Kebajikan & Santuari Haiwan" : "Our Animal Welfare & Sanctuary Standards"}
             </h2>
             <p className="text-base text-muted-foreground leading-relaxed">
-              {t("home.standardsDesc", "Operating in Petaling Jaya since 2016, Hope for Strays rescues, rehabilitates, and rehomes homeless dogs and cats. We maintain strict medical transparency and welfare standards for every intake.")}
+              {isMs
+                ? "Beroperasi di Petaling Jaya dan kampus Universiti Malaya sejak 2016, Hope for Strays menyelamat, memulihkan, dan mencari keluarga baru untuk anjing dan kucing terbiar dengan ketelusan klinikal penuh."
+                : "Operating across Petaling Jaya and Universiti Malaya campus since 2016, Hope for Strays rescues, rehabilitates, and rehomes homeless dogs and cats with complete clinical transparency."}
             </p>
             <div className="pt-2">
               <Link
@@ -165,7 +399,7 @@ export function HomeStandardsSection() {
                   className: "text-xs font-semibold uppercase tracking-wider px-5 py-2.5 rounded-xl",
                 })}
               >
-                {t("home.supportBtn", "Support Our Sanctuary")}
+                {isMs ? "Sokong Santuari Kami" : "Support Our Sanctuary"}
               </Link>
             </div>
           </div>
@@ -190,11 +424,11 @@ export function HomeStandardsSection() {
 }
 
 export function HomeCommunitySection() {
-  const { t, isMs } = useLanguage();
+  const { isMs } = useLanguage();
 
   return (
     <section id="support" className="border-t border-border bg-background py-14 sm:py-18">
-      <div className="w-full px-6 sm:px-8 lg:px-12">
+      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
         {/* Section Header */}
         <div className="max-w-3xl mb-8 space-y-2">
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
@@ -286,7 +520,7 @@ export function HomeCommunitySection() {
                   rel="noopener noreferrer"
                   className={buttonVariants({
                     size: "sm",
-                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 bg-emerald-800 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600 rounded-xl",
+                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 bg-success-solid text-white hover:bg-success-solid dark:hover:bg-success-solid rounded-xl",
                   })}
                 >
                   <MessageCircle className="size-4" />
@@ -308,15 +542,15 @@ export function HomeCommunitySection() {
                 </a>
 
                 <Link
-                  href="/donate"
+                  href="/get-involved"
                   className={buttonVariants({
                     variant: "outline",
                     size: "sm",
                     className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 rounded-xl",
                   })}
                 >
-                  <HeartHandshake className="size-4" />
-                  {t("nav.donate", "Donate & Sponsor Care")}
+                  <Users className="size-4" />
+                  {isMs ? "Semua Laluan Penglibatan" : "Get Involved Page"}
                 </Link>
               </div>
             </div>
@@ -329,7 +563,7 @@ export function HomeCommunitySection() {
               <div className="flex items-center gap-2 pb-2 border-b border-border">
                 <Clock className="size-4 text-foreground" />
                 <h3 className="font-heading text-base font-bold text-foreground uppercase tracking-wider">
-                  {t("footer.visitingHoursTitle", "Walk-in Sanctuary Visiting Hours")}
+                  {isMs ? "Waktu Lawatan Santuari Walk-In" : "Walk-in Sanctuary Visiting Hours"}
                 </h3>
               </div>
 
@@ -340,13 +574,13 @@ export function HomeCommunitySection() {
                 </div>
                 <div className="flex justify-between items-center py-1 text-muted-foreground">
                   <span className="font-medium">{isMs ? "Isnin" : "Mondays"}</span>
-                  <span className="text-xs italic">{t("footer.closedMondays", "Closed (Sanctuary Cleaning & Vet Rounds)")}</span>
+                  <span className="text-xs italic">{isMs ? "Tutup (Sanitasi Santuari & Lawatan Vet)" : "Closed (Sanctuary Cleaning & Vet Rounds)"}</span>
                 </div>
               </div>
 
               <div className="flex items-start gap-2 text-xs text-muted-foreground pt-1">
                 <MapPin className="size-4 text-foreground shrink-0 mt-0.5" />
-                <span>{t("footer.address", "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")}</span>
+                <span>No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia</span>
               </div>
 
               <div className="pt-2">
@@ -364,28 +598,25 @@ export function HomeCommunitySection() {
               </div>
             </div>
 
-            {/* In-Kind Shelter Wishlist */}
+            {/* In-Kind Shelter Wishlist Banner */}
             <div className="border border-border bg-muted/30 p-5 space-y-3 rounded-2xl">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                {isMs ? "Penghantaran Barangan Keperluan" : "In-Kind Donation Drop-offs"}
-              </h4>
-              <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside leading-relaxed">
-                {isMs ? (
-                  <>
-                    <li>Kibble kering anak anjing & kucing (belum dibuka)</li>
-                    <li>Tuala bersih, selimut & alas serap kencing</li>
-                    <li>Mainan Kongs getah & mangkuk keluli tahan karat</li>
-                    <li>Tali cawak nilon 6 kaki & kolar martingale</li>
-                  </>
-                ) : (
-                  <>
-                    <li>Dry puppy & kitten kibble (unopened bags)</li>
-                    <li>Clean towels, fleece blankets & pee pads</li>
-                    <li>Kongs, durable chew toys & stainless steel bowls</li>
-                    <li>Standard 6ft nylon leashes & martingale collars</li>
-                  </>
-                )}
-              </ul>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+                  <Package className="size-3.5 text-primary" />
+                  {isMs ? "Keperluan Rumah Pemulihan" : "Rehab House Wishlist"}
+                </h4>
+                <Link
+                  href="/needs"
+                  className="text-2xs font-bold text-primary hover:underline"
+                >
+                  {isMs ? "Lihat Senarai Penuh →" : "View Full List →"}
+                </Link>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {isMs
+                  ? "Sokong rawatan 40+ haiwan reskue dengan menyumbang makanan berkhasiat, ubat cuci F10, alas serap kencing, dan perangkap sangkar TNRM."
+                  : "Support 40+ recovering rescues with clinical diet foods, F10 disinfectant, pee pads, and humane TNRM trap cages."}
+              </p>
             </div>
           </div>
         </div>

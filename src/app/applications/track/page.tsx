@@ -218,14 +218,14 @@ function ApplicationTrackerContent() {
                       &bull; {result.petBreed}
                     </span>
                   )}
-                  <span className="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="tone-soft tone-success border text-3xs font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                     {t("common.freeAdoption", "100% Free Adoption")}
                   </span>
                 </div>
 
                 <p className="text-xs text-muted-foreground">
                   {isMs ? "Pemohon" : "Applicant"}: <strong>{result.applicantName}</strong> &bull; {isMs ? "Rujukan" : "Reference"}:{" "}
-                  <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[11px]">
+                  <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-2xs">
                     {result.id}
                   </code>
                 </p>
@@ -264,7 +264,7 @@ function ApplicationTrackerContent() {
                   >
                     <CheckCircle2 className="size-5 mx-auto text-primary" />
                     <p className="text-xs font-bold uppercase">{t("tracking.step1", "1. Received")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step1Sub", "In Queue")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step1Sub", "In Queue")}</p>
                   </div>
 
                   {/* Step 2 */}
@@ -281,7 +281,7 @@ function ApplicationTrackerContent() {
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step2", "2. Review")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step2Sub", "Coordinator Screen")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step2Sub", "Coordinator Screen")}</p>
                   </div>
 
                   {/* Step 3 */}
@@ -298,32 +298,32 @@ function ApplicationTrackerContent() {
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step3", "3. Meet & Greet")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step3Sub", "Interaction")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step3Sub", "Interaction")}</p>
                   </div>
 
                   {/* Step 4 */}
                   <div
                     className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
                       currentStep >= 3
-                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                        ? "tone-soft tone-success"
                         : "bg-muted/30 border-border text-muted-foreground"
                     }`}
                   >
                     <Heart
                       className={`size-5 mx-auto ${
-                        currentStep >= 3 ? "text-emerald-600" : "text-muted-foreground"
+                        currentStep >= 3 ? "text-success-accent" : "text-muted-foreground"
                       }`}
                     />
                     <p className="text-xs font-bold uppercase">{t("tracking.step4", "4. Approved")}</p>
-                    <p className="text-[11px] text-muted-foreground">{t("tracking.step4Sub", "Homebound")}</p>
+                    <p className="text-2xs text-muted-foreground">{t("tracking.step4Sub", "Homebound")}</p>
                   </div>
                 </div>
 
                 {/* Scheduled Interview Card */}
                 {result.interviewDetails && (
-                  <div className="p-5 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-sky-950 dark:text-sky-200 space-y-3 animate-in">
+                  <div className="p-5 rounded-xl tone-soft tone-info border space-y-3 animate-in">
                     <div className="flex items-center gap-2">
-                      <Calendar className="size-4 text-sky-600 dark:text-sky-400" />
+                      <Calendar className="size-4 text-info-accent " />
                       <h4 className="text-xs font-bold uppercase tracking-wider">
                         {t("tracking.meetGreetTitle", "Scheduled Meet & Greet Appointment")}
                       </h4>
@@ -349,7 +349,7 @@ function ApplicationTrackerContent() {
                     </div>
 
                     {result.interviewDetails.coordinatorNotes && (
-                      <div className="bg-background/80 p-3 rounded-lg text-xs border border-sky-200 dark:border-sky-800">
+                      <div className="bg-background/80 p-3 rounded-lg text-xs border border-info-border ">
                         <strong>{t("tracking.coordinatorNote", "Coordinator Note:")}</strong> {result.interviewDetails.coordinatorNotes}
                       </div>
                     )}
@@ -364,7 +364,7 @@ function ApplicationTrackerContent() {
                           }
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 bg-sky-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-sky-700 transition"
+                          className="inline-flex items-center gap-1.5 bg-info-solid text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-info-solid transition"
                         >
                           <Video className="size-3.5" /> {t("tracking.joinMeetingBtn", "Join Video Meeting →")}
                         </a>
@@ -375,7 +375,7 @@ function ApplicationTrackerContent() {
                           )}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 bg-sky-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-sky-700 transition"
+                          className="inline-flex items-center gap-1.5 bg-info-solid text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-info-solid transition"
                         >
                           <MapPin className="size-3.5" /> {t("tracking.viewMapBtn", "View Location on Google Maps")}
                         </a>
@@ -386,8 +386,8 @@ function ApplicationTrackerContent() {
 
                 {/* Approved State Celebration Card */}
                 {result.status === "APPROVED" && (
-                  <div className="p-5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 space-y-3 animate-in">
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                  <div className="p-5 rounded-xl tone-soft tone-success border space-y-3 animate-in">
+                    <div className="flex items-center gap-2 text-success-text ">
                       <FileCheck2 className="size-5" />
                       <h4 className="text-sm font-bold">
                         🎉 {t("tracking.approvedTitle", "Congratulations! Your Adoption is Approved!")}
@@ -398,7 +398,7 @@ function ApplicationTrackerContent() {
                         ? `Penyelaras adopsi kami telah meluluskan permohonan anda untuk ${result.petName}. Anda dijemput hadir ke pusat perlindungan untuk melengkapkan urusan Adopsi 100% Percuma dan mengambil pasport perubatan ${result.petName}.`
                         : `Our adoption coordinator has officially approved your application for ${result.petName}. You are welcome to come to the shelter to complete the 100% Free Adoption formalities and collect ${result.petName}'s medical passport.`}
                     </p>
-                    <div className="text-xs space-y-1 bg-background/80 p-3 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                    <div className="text-xs space-y-1 bg-background/80 p-3 rounded-lg border border-success-border ">
                       <strong>{t("tracking.checklistTitle", "Checklist for Adoption Day:")}</strong>
                       <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">
                         <li>{t("tracking.checklistItem1", "Original IC or Passport for adoption charter signing.")}</li>
@@ -411,7 +411,7 @@ function ApplicationTrackerContent() {
 
                 {/* Under Review Guidance Card */}
                 {result.status === "UNDER_REVIEW" && !result.interviewDetails && (
-                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs space-y-1">
+                  <div className="p-4 rounded-xl tone-soft tone-warning border text-xs space-y-1">
                     <p className="font-semibold">⏳ {t("tracking.reviewTitle", "Review Currently in Progress")}</p>
                     <p className="text-muted-foreground leading-relaxed">
                       {t("tracking.reviewDesc", "Our team is reviewing your household profile. We will reach out via WhatsApp or email to confirm a Meet & Greet time slot.")}
@@ -423,7 +423,7 @@ function ApplicationTrackerContent() {
               /* Rejected State Closure Card */
               <div className="bg-card border border-border rounded-2xl p-6 sm:p-8 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <AlertCircle className="size-5 text-amber-600" />
+                  <AlertCircle className="size-5 text-warning-accent" />
                   <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
                     {t("tracking.closedTitle", "Application Status: Closed")}
                   </h3>
@@ -458,7 +458,7 @@ function ApplicationTrackerContent() {
                   href="https://wa.me/60123456789"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 bg-emerald-600 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition"
+                  className="inline-flex items-center gap-1.5 bg-success-solid text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold hover:bg-success-solid transition"
                 >
                   <MessageCircle className="size-3.5" /> {t("tracking.whatsAppBtn", "WhatsApp Coordinator")}
                 </a>

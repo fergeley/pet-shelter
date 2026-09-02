@@ -11,8 +11,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 
-vi.mock("@/lib/prisma", async () => await import("../stubs/unreachablePrisma"));
-
 vi.mock("next/headers", () => ({
   cookies: async () => ({
     get: (name: string) => cookieStore.get(name),
@@ -31,12 +29,13 @@ vi.mock("next/cache", () => ({
 
 import { submitDonationPledgeAction } from "@/actions/donations";
 import {
-  __resetSponsorStoreForTests,
-  findContributionByReceipt,
-  listContributionsByEmail,
-  confirmContribution,
-} from "@/lib/sponsorStore";
+  resetSponsorRepository,
+  findSponsoredDonationByReceipt,
+  listSponsoredDonationsByEmail,
+  confirmSponsoredDonation,
+} from "@/lib/server/sponsorRepository";
 import { deriveTier } from "@/lib/domain/supporterTier";
+import { senFromRinggit } from "@/lib/domain/money";
 import { getSponsorDashboard } from "@/lib/domain/sponsorAccess";
 import { registerSponsorAction, sponsorLoginAction } from "@/actions/sponsors";
 import { resetRateLimitStore } from "@/lib/security/rateLimit";
@@ -44,7 +43,7 @@ import { resetRateLimitStore } from "@/lib/security/rateLimit";
 describe("Donation pledges reach the sponsorship ledger", () => {
   beforeEach(async () => {
     cookieStore.clear();
-    await __resetSponsorStoreForTests();
+    await resetSponsorRepository();
     resetRateLimitStore();
   });
 
@@ -60,9 +59,9 @@ describe("Donation pledges reach the sponsorship ledger", () => {
 
     expect(result.success).toBe(true);
 
-    const contribution = await findContributionByReceipt(result.data!.receiptNumber);
+    const contribution = await findSponsoredDonationByReceipt(result.data!.receiptNumber);
     expect(contribution).not.toBeNull();
-    expect(contribution!.amountMYR).toBe(50);
+    expect(contribution!.amountSen).toBe(5_000);
     expect(contribution!.tierId).toBe("vaccine");
     expect(contribution!.donorEmail).toBe("aisha.karim@example.com");
   });
@@ -80,7 +79,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       paymentMethod: "duitnow_qr",
     });
 
-    const contribution = await findContributionByReceipt(result.data!.receiptNumber);
+    const contribution = await findSponsoredDonationByReceipt(result.data!.receiptNumber);
     expect(contribution!.targetPetId).toBe("pet-003");
     expect(contribution!.targetPetName).toBe("Luna");
   });
@@ -103,11 +102,11 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       paymentMethod: "duitnow_qr",
     });
 
-    expect((await findContributionByReceipt(optedIn.data!.receiptNumber))!.displayOnWall).toBe(
+    expect((await findSponsoredDonationByReceipt(optedIn.data!.receiptNumber))!.displayOnWall).toBe(
       true
     );
     expect(
-      (await findContributionByReceipt(optedOut.data!.receiptNumber))!.displayOnWall
+      (await findSponsoredDonationByReceipt(optedOut.data!.receiptNumber))!.displayOnWall
     ).toBe(false);
   });
 
@@ -121,7 +120,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       paymentMethod: "duitnow_qr",
     });
 
-    const contribution = await findContributionByReceipt(result.data!.receiptNumber);
+    const contribution = await findSponsoredDonationByReceipt(result.data!.receiptNumber);
     expect(contribution!.sponsorId).toBeNull();
     expect(contribution!.status).toBe("PENDING");
   });
@@ -146,7 +145,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
 
     expect((await registerSponsorAction(claimArgs)).success).toBe(false);
 
-    await confirmContribution(result.data!.receiptNumber);
+    await confirmSponsoredDonation(result.data!.receiptNumber);
 
     expect((await registerSponsorAction(claimArgs)).success).toBe(true);
     expect((await getSponsorDashboard())!.rescues.map((r) => r.petId)).toContain("pet-005");
@@ -203,7 +202,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       paymentMethod: "duitnow_qr",
     });
 
-    await confirmContribution(result.data!.receiptNumber);
+    await confirmSponsoredDonation(result.data!.receiptNumber);
 
     await registerSponsorAction({
       name: "Ben Lee",
@@ -215,7 +214,7 @@ describe("Donation pledges reach the sponsorship ledger", () => {
 
     const dashboard = await getSponsorDashboard();
     expect(dashboard!.tier).toBe("SILVER");
-    expect(dashboard!.recognisedMYR).toBe(300);
+    expect(dashboard!.recognisedSen).toBe(senFromRinggit(300));
     expect(dashboard!.hasActiveRecurring).toBe(true);
   });
 
@@ -229,13 +228,13 @@ describe("Donation pledges reach the sponsorship ledger", () => {
       paymentMethod: "duitnow_qr",
     });
 
-    const contribution = await findContributionByReceipt(result.data!.receiptNumber);
+    const contribution = await findSponsoredDonationByReceipt(result.data!.receiptNumber);
     expect(contribution!.status).toBe("PENDING");
     expect(deriveTier([contribution!])).toBeNull();
   });
 
   it("does not write a ledger row for a rejected pledge", async () => {
-    const before = (await listContributionsByEmail("ben.lee@example.com")).length;
+    const before = (await listSponsoredDonationsByEmail("ben.lee@example.com")).length;
 
     const result = await submitDonationPledgeAction({
       donorName: "Ben Lee",
@@ -246,6 +245,6 @@ describe("Donation pledges reach the sponsorship ledger", () => {
     });
 
     expect(result.success).toBe(false);
-    expect(await listContributionsByEmail("ben.lee@example.com")).toHaveLength(before);
+    expect(await listSponsoredDonationsByEmail("ben.lee@example.com")).toHaveLength(before);
   });
 });

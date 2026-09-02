@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-// Imported rather than restated, so the form and the generator cannot disagree.
-import { RECEIPT_NUMBER_PATTERN } from "@/lib/domain/receiptNumber";
-
-export { RECEIPT_NUMBER_PATTERN };
+/**
+ * Matches the receipt numbers `donationLedger.ts` issues: `HFS-DON-YYYYMM-NNNN`, padded
+ * to at least four digits and deliberately not truncated beyond them — a shelter issuing
+ * more than 9,999 receipts in a month gets a wider serial rather than a wrapped one.
+ */
+export const RECEIPT_NUMBER_PATTERN = /^HFS-DON-\d{6}-\d{4,}$/;
 
 export const sponsorRegistrationSchema = z.object({
   name: z
@@ -28,7 +30,7 @@ export const sponsorRegistrationSchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(RECEIPT_NUMBER_PATTERN, "Enter a receipt number in the form HFS-DON-202608-482145"),
+    .regex(RECEIPT_NUMBER_PATTERN, "Enter a receipt number in the form HFS-DON-202608-0001"),
   displayOnWall: z.boolean().default(false),
 });
 

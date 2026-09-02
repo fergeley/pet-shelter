@@ -86,8 +86,6 @@ export interface DonationReceiptDTO {
   frequency: "one_time" | "monthly";
   paymentMethod: "duitnow_qr" | "online_banking" | "card";
   targetPetName?: string;
-  targetPetId?: string;
-  displayOnWall: boolean;
   taxIdOrIc?: string;
   notes?: string;
   taxDeductibleRef: string;

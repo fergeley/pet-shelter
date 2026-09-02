@@ -7,21 +7,19 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
 import { SupporterTier } from "@/types/supporter";
 
 /**
- * Tier colours are set as explicit light/dark pairs rather than theme tokens: the three
- * standings need to stay distinguishable from each other, which a single accent token
- * cannot do.
+ * One colour per standing, declared in `globals.css` as `--standing-*`.
+ *
+ * Outside the seven-tone contract on purpose: a standing is brand identity, not
+ * semantic status. They resolve per theme through the token layer, so no `dark:`
+ * variant belongs here.
  */
 const TIER_STYLES: Record<SupporterTier, string> = {
-  BRONZE:
-    "border-[#c98a5e] bg-[#fdf1e7] text-[#8a4f24] dark:border-[#8a5a35] dark:bg-[#3a2a1d] dark:text-[#e6b98d]",
-  SILVER:
-    "border-[#9aa4b2] bg-[#f1f4f8] text-[#4a5567] dark:border-[#697487] dark:bg-[#2a2f38] dark:text-[#c7d0dc]",
-  GOLD:
-    "border-[#c9a227] bg-[#fdf6e0] text-[#7a5f0c] dark:border-[#93761c] dark:bg-[#3a3218] dark:text-[#e8cf7d]",
+  BRONZE: "border-standing-bronze-line bg-standing-bronze text-standing-bronze-label",
+  SILVER: "border-standing-silver-line bg-standing-silver text-standing-silver-label",
+  GOLD: "border-standing-gold-line bg-standing-gold text-standing-gold-label",
 };
 
-const NO_TIER_STYLE =
-  "border-border bg-muted text-muted-foreground";
+const NO_TIER_STYLE = "border-border bg-muted text-muted-foreground";
 
 export function TierBadge({
   tier,
