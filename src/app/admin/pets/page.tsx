@@ -2,7 +2,15 @@ import { PetDataTable } from "@/components/admin/PetDataTable";
 import { getAdminPets } from "@/actions/pets";
 
 export default async function AdminPetsPage() {
-  const pets = await getAdminPets();
+  // getAdminPets is authorization-guarded and throws for an unauthorized
+  // caller. Mirror /admin/applications and fall through to the client shell,
+  // which redirects to the sign-in page, rather than crashing the route.
+  let pets;
+  try {
+    pets = await getAdminPets();
+  } catch {
+    pets = undefined;
+  }
 
   return (
     <div className="space-y-6">
