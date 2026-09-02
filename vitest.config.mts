@@ -41,6 +41,15 @@ export default defineConfig({
           // "Server Component / jsdom Trap" in
           // docs/tasks/TESTING_STRATEGY_AND_MULTI_AGENT_PLAN.md.
           include: ["tests/unit/**/*.test.{ts,tsx}"],
+
+          // Same cause as the components tier below, and the same fix. The
+          // architectural guards here walk the whole source tree synchronously;
+          // under full-suite parallel load on Windows three of them crossed the
+          // 5s default and failed as timeouts rather than assertions, while
+          // passing in isolation. Observed: shelterIdentity (~6s), agentGuard
+          // (5507ms), clinical5NF. Raised rather than worked around — trimming
+          // a guard to fit the clock would mean scanning less.
+          testTimeout: 20_000,
         },
       },
       {

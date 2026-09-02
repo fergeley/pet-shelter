@@ -1,0 +1,8 @@
+# Deliberately narrow. A repo-wide `* text=auto` would renormalize every file in
+# the tree at once, and a concurrent session is committing to this branch.
+#
+# `core.autocrlf=true` on this machine checks files out with CRLF. For a shell
+# script that means the shebang becomes `#!/bin/sh\r`, which POSIX shells reject
+# with "bad interpreter". The hooks are the only shell scripts here, and they are
+# the files most likely to be run on a machine that is not this one.
+.claude/hooks/* text eol=lf

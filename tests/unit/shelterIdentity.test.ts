@@ -103,6 +103,9 @@ describe("statutory literals are confined to this module", () => {
     return out;
   }
 
+  // Walks the whole src/ tree synchronously, which costs ~6s under full-suite parallel load and
+  // once failed as a timeout rather than an assertion. The tier's `testTimeout` in
+  // vitest.config.mts covers it; do not re-add a per-test timeout here.
   it("appears in no file under src/ other than shelterIdentity.ts", () => {
     const offenders: string[] = [];
 
