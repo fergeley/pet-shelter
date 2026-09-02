@@ -37,7 +37,7 @@ interface DonationWidgetProps {
 export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const { t, isMs } = useLanguage();
   const searchParams = useSearchParams();
-  const { saveDonationReceipt, createDonationReceipt } = useSponsorshipStore();
+  const { saveDonationReceipt } = useSponsorshipStore();
 
   const urlPetName = searchParams.get("pet");
   const urlSponsorPetId = searchParams.get("sponsorPetId");
@@ -198,12 +198,17 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         saveDonationReceipt(result.data as DonationReceipt);
         setCompletedReceipt(result.data as DonationReceipt);
       } else {
-        const localReceipt = createDonationReceipt(payload);
-        setCompletedReceipt(localReceipt);
+        // See the note in useSponsorshipController: a receipt number that never
+        // passed through the ledger is not a receipt.
+        setErrorMessage(
+          result.error ||
+            "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+        );
       }
     } catch {
-      const localReceipt = createDonationReceipt(payload);
-      setCompletedReceipt(localReceipt);
+      setErrorMessage(
+        "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+      );
     } finally {
       setIsProcessing(false);
     }
