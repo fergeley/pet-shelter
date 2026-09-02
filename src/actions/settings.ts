@@ -17,9 +17,13 @@ import {
 import { PERSISTED_SETTING_KEYS } from "@/lib/domain/shelterSettingsKeys";
 import { Resend } from "resend";
 
-export async function getShelterSettings(): Promise<ShelterSettingsInput> {
-  return readShelterSettings();
-}
+// `getShelterSettings` used to live here: an ungated `"use server"` export that
+// returned the whole settings object, `resendApiKey` included, to any caller
+// that POSTed its action id. It had no production callers — only a test — so it
+// is removed rather than gated. Server-side callers should use
+// `readShelterSettings` from `@/lib/domain/shelterSettings` directly, which is
+// a plain function and not an HTTP endpoint; admin UI callers use
+// `loadShelterSettings` below, which is authorized and projected.
 
 /**
  * Loads settings for the admin form, reporting whether they are authoritative.

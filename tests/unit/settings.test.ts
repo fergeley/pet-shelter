@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shelterSettingsSchema } from "@/lib/validations/settings";
 import {
-  getShelterSettings,
   updateShelterSettings,
   sendTestEmailAction,
 } from "@/actions/settings";
 import { getAuditLogs } from "@/lib/domain/auditLog";
+// Not the removed server action: reading settings server-side goes through
+// the domain module, which is a plain function rather than an HTTP endpoint.
+import { readShelterSettings } from "@/lib/domain/shelterSettings";
 
 // Mock session to simulate authenticated admin user
 vi.mock("@/lib/security/session", () => ({
@@ -75,7 +77,7 @@ describe("Shelter Settings & Live Test Email Action", () => {
       expect(result.success).toBe(true);
       expect(result.data?.shelterName).toBe("Hope for Strays Sanctuary");
 
-      const current = await getShelterSettings();
+      const current = await readShelterSettings();
       expect(current.shelterName).toBe("Hope for Strays Sanctuary");
 
       const logs = getAuditLogs(10);
