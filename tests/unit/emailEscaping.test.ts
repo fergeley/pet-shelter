@@ -18,7 +18,7 @@ const EMAIL_SOURCE = resolve(process.cwd(), "src/lib/email.ts");
 
 /** Interpolation bodies that carry text a member of the public typed. */
 const FORM_SUPPLIED =
-  /\b(donorName|donorEmail|donorPhone|tierName|taxIdOrIc|targetPetName|notes|applicantName|applicantNotes|coordinatorNotes|currentPets|currentPetDetails|address|petName|petBreed|housingType|experienceDescription|message|adminNotes|adminReviewNotes|location)\b/;
+  /\b(donorName|donorEmail|donorPhone|tierName|taxIdOrIc|targetPetName|notes|applicantName|applicantNotes|coordinatorNotes|coordinatorName|currentPets|currentPetDetails|address|petName|petBreed|housingType|householdExperience|hasFencedYard|experienceDescription|message|adminNotes|adminReviewNotes|location|phone|email)\b/;
 
 /** `${ ... }`, tolerating one level of nested braces. */
 const INTERPOLATION = /\$\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g;
