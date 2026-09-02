@@ -1,9 +1,10 @@
-import { PrismaClient, PetStatus, ApplicationStatus } from "@prisma/client";
+import { PrismaClient, PetStatus, ApplicationStatus, FaqCategory } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import faqsData from "../src/data/faqs.json";
 import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
 import { getSampleLedger } from "../src/lib/domain/transparencySample";
 
@@ -481,6 +482,35 @@ async function main() {
       "  ⏭ Skipped the sample financial ledger. Set SEED_SAMPLE_TRANSPARENCY=true to include it (development demos only)."
     );
   }
+  // 5. Seed the public FAQ knowledge base.
+  // Upserted by the fixture's stable ids, exactly like the pets above, so
+  // re-running refreshes the launch copy without duplicating rows.
+  // `isPublished` is set only on create: re-seeding must not silently
+  // republish an entry that staff have taken down.
+  for (const faq of faqsData) {
+    await prisma.faq.upsert({
+      where: { id: faq.id },
+      update: {
+        category: faq.category as FaqCategory,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+      },
+      create: {
+        id: faq.id,
+        category: faq.category as FaqCategory,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+        isPublished: faq.isPublished,
+      },
+    });
+  }
+  console.log(`  ✓ ${faqsData.length} FAQ entries seeded.`);
 
   // 6. Initial Audit Log
   await prisma.auditLog.create({
@@ -499,6 +529,7 @@ async function main() {
         seededReports: seedSampleLedger ? sampleLedger.reports.length : 0,
         seededImpactStats: seedSampleLedger ? sampleLedger.impactStats.length : 0,
         sampleLedgerSeeded: seedSampleLedger,
+        seededFaqs: faqsData.length,
       },
     },
   });
