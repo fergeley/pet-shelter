@@ -1,6 +1,15 @@
 "use client";
 
-import { Search, RotateCcw, Dog, Cat, SlidersHorizontal, X } from "lucide-react";
+import {
+  Search,
+  RotateCcw,
+  Dog,
+  Cat,
+  SlidersHorizontal,
+  X,
+  Compass,
+  HeartHandshake,
+} from "lucide-react";
 import { Pet } from "@/types/pet";
 import { PetCard } from "./PetCard";
 import { PetDetailDialog } from "./PetDetailDialog";
@@ -8,9 +17,21 @@ import { AdoptionForm } from "@/components/features/adoptions/AdoptionForm";
 import { PetMatchQuiz } from "./PetMatchQuiz";
 import { SponsorshipModal } from "./SponsorshipModal";
 import { Button } from "@/components/ui/button";
-import { Compass, HeartHandshake } from "lucide-react";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+
+/**
+ * i18n keys for the lifecycle band names. The year range printed beside each name is derived
+ * from `AGE_BAND_MIN_MONTHS`, not written here — hand-written ranges drifted from the maths and
+ * left both 3 and 7 claimed by two filter options at once (PS-114).
+ */
+const AGE_BAND_LABEL_KEYS: Record<(typeof AGE_BANDS)[number], string> = {
+  puppy_kitten: "pets.puppyKitten",
+  young: "pets.young",
+  adult: "pets.adult",
+  senior: "pets.senior",
+};
 
 interface PetGalleryProps {
   initialPets?: Pet[];
@@ -105,9 +126,9 @@ export function PetGallery({
             {t("common.sponsor", "Sponsor")}
           </Button>
 
-          <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
+          {/* <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
             {filteredPets.length} / {pets.length} {isMs ? "haiwan" : "animals"}
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -195,7 +216,7 @@ export function PetGallery({
           </div>
 
           {/* Secondary Dropdown Selects */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-3 border-t border-border/60">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3.5 pt-3 border-t border-border/60">
             <div>
               <label htmlFor="filter-age" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
                 {t("pets.ageFilter", "Age Group")}
@@ -207,10 +228,11 @@ export function PetGallery({
                 className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
                 <option value="all">{isMs ? "Semua Umur" : "All Ages"}</option>
-                <option value="puppy_kitten">{isMs ? "Anak Haiwan (< 1 thn)" : "Puppy / Kitten (< 1 yr)"}</option>
-                <option value="young">{isMs ? "Muda (1 – 3 thn)" : "Young (1 – 3 yrs)"}</option>
-                <option value="adult">{isMs ? "Dewasa (3 – 7 thn)" : "Adult (3 – 7 yrs)"}</option>
-                <option value="senior">{isMs ? "Warga Emas (7+ thn)" : "Senior (7+ yrs)"}</option>
+                {AGE_BANDS.map((band) => (
+                  <option key={band} value={band}>
+                    {`${t(AGE_BAND_LABEL_KEYS[band])} (${formatAgeBandRange(band, isMs ? "ms" : "en")})`}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -243,11 +265,12 @@ export function PetGallery({
               >
                 <option value="all">{isMs ? "Semua Status" : "All Statuses"}</option>
                 <option value="Available">{isMs ? "Tersedia untuk Adopsi" : "Available for Adoption"}</option>
+                <option value="In Rehabilitation">{isMs ? "Dalam Pemulihan" : "In Rehabilitation"}</option>
                 <option value="Pending">{isMs ? "Sedang Diproses" : "Application Pending"}</option>
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end">
+            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end min-w-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -255,7 +278,7 @@ export function PetGallery({
                   setActivePetForAdoption(filteredPets[0] || pets[0]);
                   setIsAdoptionOpen(true);
                 }}
-                className="w-full text-sm font-semibold py-2 focus-visible:ring-2 cursor-pointer"
+                className="w-full min-w-0 whitespace-nowrap text-[11px] sm:text-xs font-semibold px-3 py-2 focus-visible:ring-2 cursor-pointer"
               >
                 {t("common.apply", "Adoption Form")}
               </Button>
@@ -266,13 +289,20 @@ export function PetGallery({
 
       {/* Grid */}
       {filteredPets.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
-          {filteredPets.map((pet) => (
+        <div
+          className={
+            featuredOnly
+              ? "grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 items-stretch"
+              : "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-stretch"
+          }
+        >
+          {(featuredOnly ? filteredPets.slice(0, 4) : filteredPets).map((pet) => (
             <PetCard
               key={pet.id}
               pet={pet}
               onSelectPet={handleOpenDetail}
               onAdoptPet={handleOpenAdoption}
+              onSponsorPet={handleOpenSponsor}
             />
           ))}
         </div>

@@ -1,16 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, unsealSession } from "@/lib/security/sessionToken";
 import { PERMISSIONS, roleHasPermission, type Permission } from "@/lib/security/permissions";
+import { EMAIL_BRAND, EMAIL_TONE } from "@/lib/presentation/emailTokens";
 
 /**
  * Pre-render authorization for privileged admin routes.
  *
  * This exists for one reason: HTTP status. A page that calls `forbidden()`
  * renders the 403 UI, but the response has already begun streaming as a 200 and
- * Next.js cannot change the status once headers are sent (see
- * node_modules/next/dist/docs/.../loading.md, "Status Codes"). The check has to
- * run before the response streams to produce a real 403, and proxy is where
- * that happens.
+ * Next.js cannot change the status once headers are sent -- see the "Status
+ * Codes" section of the bundled Next.js loading docs. The check has to run
+ * before the response streams to produce a real 403, and proxy is where that
+ * happens.
  *
  * It is a status layer, not the security boundary. The page and every server
  * action guard themselves independently, and only they can see database state
@@ -61,6 +62,12 @@ const GUARDED_ROUTES: { prefix: string; permission: Permission }[] = [
 function denialResponse(status: 401 | 403, title: string, message: string): NextResponse {
   // Deliberately minimal: this is a network-boundary rejection, and the styled
   // in-app equivalents are src/app/forbidden.tsx and src/app/unauthorized.tsx.
+  //
+  // Colours come from the email hex mirror rather than literals. This document
+  // is assembled outside the CSS pipeline, so it cannot use the design-system
+  // custom properties -- emailTokens is the sanctioned mirror of those tokens
+  // for exactly that situation, and it keeps this page in step with the palette
+  // instead of freezing a copy of it.
   const body = `<!doctype html>
 <html lang="en">
 <head>
@@ -69,12 +76,12 @@ function denialResponse(status: 401 | 403, title: string, message: string): Next
 <meta name="robots" content="noindex">
 <title>${status} ${title}</title>
 </head>
-<body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;background:#f8fafc;color:#1e293b">
+<body style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;margin:0;display:flex;min-height:100vh;align-items:center;justify-content:center;background:${EMAIL_BRAND.muted};color:${EMAIL_BRAND.foreground}">
 <main style="max-width:32rem;padding:2rem;text-align:center">
-<p style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#b91c1c;margin:0 0 .5rem">${status} — ${title}</p>
+<p style="font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${EMAIL_TONE.danger.text};margin:0 0 .5rem">${status} — ${title}</p>
 <h1 style="font-size:1.5rem;margin:0 0 .75rem">${message}</h1>
-<p style="font-size:.875rem;color:#64748b;margin:0 0 1.5rem">Ask a Super Admin to review your role under Staff &amp; Permissions.</p>
-<a href="/admin/pets" style="font-size:.75rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#1e293b;border:1px solid #cbd5e1;padding:.6rem 1rem;text-decoration:none">Back to Admin</a>
+<p style="font-size:.875rem;color:${EMAIL_BRAND.mutedForeground};margin:0 0 1.5rem">Ask a Super Admin to review your role under Staff &amp; Permissions.</p>
+<a href="/admin/pets" style="font-size:.75rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:${EMAIL_BRAND.foreground};border:1px solid ${EMAIL_BRAND.border};padding:.6rem 1rem;text-decoration:none">Back to Admin</a>
 </main>
 </body>
 </html>`;

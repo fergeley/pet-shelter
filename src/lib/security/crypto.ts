@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
+import { getSessionSecret } from "@/lib/security/secrets";
 
-const DEFAULT_SECRET = process.env.SESSION_SECRET || "hope-for-strays-secret-key-32-chars-long-secure-salt!";
-const ENCRYPTION_KEY = crypto.createHash("sha256").update(DEFAULT_SECRET).digest(); // 32 bytes key for AES-256
+// Resolved at module load so a production boot with a missing, weak, or
+// still-default SESSION_SECRET fails immediately instead of signing cookies
+// with a key published in this repository. See @/lib/security/secrets.
+const SESSION_SECRET = getSessionSecret();
+const ENCRYPTION_KEY = crypto.createHash("sha256").update(SESSION_SECRET).digest(); // 32 bytes key for AES-256
 const IV_LENGTH = 12; // 12 bytes for GCM
 
 /**
@@ -45,7 +49,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
  * Generates an HMAC-SHA256 signature for a given payload string.
  */
 export function signPayload(payload: string): string {
-  const hmac = crypto.createHmac("sha256", DEFAULT_SECRET);
+  const hmac = crypto.createHmac("sha256", SESSION_SECRET);
   hmac.update(payload);
   return hmac.digest("hex");
 }
@@ -64,6 +68,19 @@ export function verifySignature(payload: string, signature: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Constant-time comparison of two secret strings (invite codes, shared keys).
+ *
+ * Both sides are hashed first so the comparison always runs over equal-length
+ * buffers: `crypto.timingSafeEqual` throws on a length mismatch, and bailing
+ * out early on length would leak the secret's size.
+ */
+export function timingSafeCompare(actual: string, expected: string): boolean {
+  const actualDigest = crypto.createHash("sha256").update(actual, "utf8").digest();
+  const expectedDigest = crypto.createHash("sha256").update(expected, "utf8").digest();
+  return crypto.timingSafeEqual(actualDigest, expectedDigest);
 }
 
 /**

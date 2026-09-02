@@ -5,7 +5,7 @@ import {
   createUser,
   listUsers,
   resetUserStore,
-} from "@/lib/userStore";
+} from "@/lib/server/userStore";
 import { ROLES } from "@/lib/security/rbac";
 import { hashPassword } from "@/lib/security/crypto";
 

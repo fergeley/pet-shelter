@@ -10,6 +10,7 @@ export interface SponsorshipTier {
   impactMetrics: string;
   badgeText: string;
   featured?: boolean;
+  perks?: string[];
 }
 
 export interface DonationReceipt {

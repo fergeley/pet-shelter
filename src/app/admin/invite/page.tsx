@@ -77,7 +77,7 @@ function AcceptInvitationForm() {
       )}
 
       {done && (
-        <div className="border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+        <div className="border border-success-border bg-success-surface p-3.5 text-xs text-success-text flex items-center gap-2">
           <CheckCircle2 className="size-4 shrink-0" />
           <span>Account activated. Taking you to the staff portal...</span>
         </div>
@@ -128,7 +128,7 @@ function AcceptInvitationForm() {
         Activate Staff Account
       </Button>
 
-      <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+      <p className="text-2xs text-muted-foreground text-center leading-relaxed">
         Already activated?{" "}
         <Link href="/admin/login" className="underline hover:text-foreground">
           Sign in instead

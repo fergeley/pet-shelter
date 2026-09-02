@@ -17,7 +17,7 @@ import {
   EyeOff,
   Clock,
 } from "lucide-react";
-import { useAdminAuth } from "@/lib/adminAuth";
+import { useAdminAuth } from "@/lib/client/adminAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,6 +44,7 @@ export default function AdminLoginPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    inviteCode: "",
   });
 
   // Countdown timer for rate limiting
@@ -97,6 +98,7 @@ export default function AdminLoginPage() {
       name: regData.name,
       email: regData.email,
       password: regData.password,
+      staffInviteCode: regData.inviteCode,
     });
 
     if (result.success) {
@@ -191,7 +193,7 @@ export default function AdminLoginPage() {
             )}
 
             {success && (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 p-3.5 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+              <div className="bg-success-surface border border-success-accent/30 p-3.5 text-xs text-success-text flex items-center gap-2">
                 <CheckCircle2 className="size-4 shrink-0" />
                 <span>{success}</span>
               </div>
@@ -261,7 +263,7 @@ export default function AdminLoginPage() {
                 {/* 1-Click Quick Demo Accounts */}
                 <div className="border-t border-border pt-4 bg-muted/20 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 sm:p-6 space-y-2.5 text-xs">
                   <div className="flex items-center gap-1.5 font-bold text-foreground">
-                    <ShieldCheck className="size-4 text-emerald-800 dark:text-emerald-400" />
+                    <ShieldCheck className="size-4 text-success-text " />
                     <span>1-Click Quick Demo Staff Sign In</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
@@ -278,7 +280,7 @@ export default function AdminLoginPage() {
                         variant="outline"
                         size="xs"
                         onClick={() => handleQuickDemoLogin(demo.email, demo.pass)}
-                        className="text-[11px] font-semibold"
+                        className="text-2xs font-semibold"
                       >
                         {demo.role}
                       </Button>
@@ -334,12 +336,35 @@ export default function AdminLoginPage() {
                       <KeyRound className="size-3.5" />
                       <span>Access Level: Shelter Staff</span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Self-registration creates a read-only Staff account. Animal
-                      Manager, Content Editor, Volunteer Coordinator and Super Admin
-                      access is granted only by invitation from a Super Admin under{" "}
+                    <p className="text-2xs text-muted-foreground leading-relaxed">
+                      Self-registration always creates a read-only Staff account. Animal
+                      Manager, Content Editor, Volunteer Coordinator and Super Admin access
+                      is granted only by invitation from a Super Admin under{" "}
                       <strong className="text-foreground">Staff &amp; Permissions</strong>.
                     </p>
+                  </div>
+
+                  {/* Every role now requires an invite code — the shelter has no anonymous-staff
+                      use case, and STAFF can read applicant PII. Rendering this only for elevated
+                      roles would leave STAFF/VOLUNTEER sign-up rejected with no field to fill. */}
+                  <div className="space-y-1 bg-warning-surface border border-warning-accent/30 p-2.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-warning-text ">
+                      <KeyRound className="size-3.5" />
+                      <span>Staff Invite Code Required</span>
+                    </div>
+                    <p className="text-2xs text-muted-foreground">
+                      All shelter accounts require an invite code. Request one from a shelter
+                      administrator — it is distributed out-of-band and is never shown here.
+                    </p>
+                    <Input
+                      id="reg-invite-code"
+                      type="password"
+                      required
+                      value={regData.inviteCode}
+                      onChange={(e) => setRegData((prev) => ({ ...prev, inviteCode: e.target.value }))}
+                      placeholder="Staff invite code"
+                      className="text-xs py-1.5 bg-background font-mono mt-1"
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">

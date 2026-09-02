@@ -5,6 +5,8 @@ import {
   DomainValidationError,
   validateApplicationTransition,
   validatePetTransition,
+  normalizePetStatus,
+  getAllowedPetStatusTransitions,
 } from "@/lib/domain/stateMachine";
 import { ApplicationStatus } from "@/types/application";
 import { PetStatus } from "@/types/pet";
@@ -136,6 +138,36 @@ describe("State Machine Domain Logic", () => {
       });
     });
 
+    describe("Rehabilitation Transitions", () => {
+      it("should allow an animal to enter rehabilitation from Available or Pending", () => {
+        expect(() => validatePetTransition("Available", "In Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("Pending", "In Rehabilitation")).not.toThrow();
+      });
+
+      it("should allow In Rehabilitation -> Available on veterinary clearance", () => {
+        expect(() => validatePetTransition("In Rehabilitation", "Available")).not.toThrow();
+      });
+
+      it("should reject adopting or reserving an animal still in rehabilitation", () => {
+        expect(() => validatePetTransition("In Rehabilitation", "Adopted")).toThrow(
+          DomainValidationError
+        );
+        expect(() => validatePetTransition("In Rehabilitation", "Pending")).toThrow(
+          DomainValidationError
+        );
+      });
+
+      it("should treat 'Rehabilitation' as an alias of 'In Rehabilitation'", () => {
+        expect(normalizePetStatus("Rehabilitation")).toBe("In Rehabilitation");
+        expect(() => validatePetTransition("Rehabilitation", "In Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("In Rehabilitation", "Rehabilitation")).not.toThrow();
+        expect(() => validatePetTransition("Rehabilitation", "Available")).not.toThrow();
+        expect(() => validatePetTransition("Rehabilitation", "Adopted")).toThrow(
+          DomainValidationError
+        );
+      });
+    });
+
     describe("Invalid Pet Transitions", () => {
       it("should reject Adopted -> Pending directly", () => {
         expect(() => validatePetTransition("Adopted", "Pending")).toThrow(DomainValidationError);
@@ -180,5 +212,49 @@ describe("State Machine Domain Logic", () => {
         ).toThrow(DomainValidationError);
       });
     });
+  });
+});
+
+describe("getAllowedPetStatusTransitions", () => {
+  // A status control has to be able to show the animal's current state, or a controlled
+  // <select> renders whichever option happens to come first — reading, for a rehab
+  // animal, as "Available".
+  it("leads with the animal's current status", () => {
+    expect(getAllowedPetStatusTransitions("Adopted")[0]).toBe("Adopted");
+  });
+
+  it("offers rehabilitation as a move out of Available and Pending", () => {
+    expect(getAllowedPetStatusTransitions("Available")).toContain("In Rehabilitation");
+    expect(getAllowedPetStatusTransitions("Pending")).toContain("In Rehabilitation");
+  });
+
+  // Veterinary clearance back to Available is the only way out of care — an animal under
+  // treatment must not be adoptable straight from the table.
+  it("offers only Available out of rehabilitation", () => {
+    expect(getAllowedPetStatusTransitions("In Rehabilitation")).toEqual([
+      "In Rehabilitation",
+      "Available",
+    ]);
+  });
+
+  it("returns the canonical spelling for an animal stored under the legacy alias", () => {
+    expect(getAllowedPetStatusTransitions("Rehabilitation")).toEqual(
+      getAllowedPetStatusTransitions("In Rehabilitation")
+    );
+  });
+
+  it("omits transitions the graph forbids", () => {
+    expect(getAllowedPetStatusTransitions("Adopted")).not.toContain("Pending");
+  });
+
+  // Whatever a control offers must survive validation, or staff pick a move the server
+  // silently rejects while the optimistic UI keeps showing it.
+  it("only offers moves that validatePetTransition accepts", () => {
+    const statuses: PetStatus[] = ["Available", "Pending", "Adopted", "In Rehabilitation", "Rehabilitation"];
+    for (const from of statuses) {
+      for (const to of getAllowedPetStatusTransitions(from)) {
+        expect(() => validatePetTransition(from, to)).not.toThrow();
+      }
+    }
   });
 });

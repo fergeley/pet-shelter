@@ -8,7 +8,7 @@ import {
   toggleMemberStatus,
   updateMemberRole,
 } from "@/actions/members";
-import type { MemberRecord } from "@/lib/memberStore";
+import type { MemberRecord } from "@/lib/domain/member";
 import { USER_STATUSES, type CanonicalRole, type UserStatus } from "@/lib/security/permissions";
 
 export type MemberStatusFilter = "all" | UserStatus;

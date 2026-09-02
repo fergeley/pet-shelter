@@ -108,13 +108,13 @@ export function InviteMemberDialog({
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
+            <p className="text-2xs text-muted-foreground leading-relaxed">
               {ROLE_DESCRIPTIONS[draft.role]}
             </p>
           </div>
 
           {draft.role === "SUPER_ADMIN" && (
-            <div className="border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+            <div className="border border-warning-border bg-warning-surface p-2.5 text-2xs text-warning-text leading-relaxed">
               Super Admins can manage every record and every other staff account,
               including yours. Grant this only when it is genuinely required.
             </div>

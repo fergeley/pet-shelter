@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { lookupApplicationStatusAction, submitApplication } from "@/actions/applications";
-import { insertServerPet } from "@/lib/serverStore";
+import { insertServerPet } from "@/lib/server/petRepository";
 import { Pet } from "@/types/pet";
 import { SessionUser } from "@/lib/security/session";
 

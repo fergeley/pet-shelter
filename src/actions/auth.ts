@@ -1,7 +1,7 @@
 "use server";
 
 import { checkRateLimit } from "@/lib/security/rateLimit";
-import { hashPassword, verifyPassword } from "@/lib/security/crypto";
+import { hashPassword, verifyPassword, timingSafeCompare } from "@/lib/security/crypto";
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -9,19 +9,11 @@ import {
   SessionUser,
 } from "@/lib/security/session";
 import { recordAuditLog } from "@/lib/domain/auditLog";
-import { findUserByEmail, createUser, UserRecord } from "@/lib/userStore";
+import { findUserByEmail, createUser, UserRecord } from "@/lib/server/userStore";
 import { Role, ROLES, normalizeRole } from "@/lib/security/rbac";
-import { recordLogin } from "@/lib/memberStore";
+import { getStaffInviteSecret } from "@/lib/security/secrets";
+import { recordLogin } from "@/lib/server/memberStore";
 import { USER_STATUSES } from "@/lib/security/permissions";
-
-/**
- * Demo affordances (a universal fallback password, self-service elevated
- * registration) are development-only. In production they are hard off: leaving
- * them on makes the entire role matrix decorative, because anyone could sign in
- * as the Super Admin.
- */
-const DEMO_AUTH_ENABLED =
-  process.env.NODE_ENV !== "production" && process.env.DISABLE_DEMO_AUTH !== "true";
 
 export interface AuthResponse {
   success: boolean;
@@ -67,10 +59,9 @@ export async function loginAction(credentials: {
 
   // 2. Fetch User & Verify Password
   const user = await findUserByEmail(emailKey);
-  const isValidPassword =
-    user &&
-    ((await verifyPassword(credentials.password, user.passwordHash)) ||
-      (DEMO_AUTH_ENABLED && credentials.password === "1234"));
+  // master removed the universal "1234" fallback outright rather than gating it
+  // to non-production, which is the stricter of the two fixes. Kept as-is.
+  const isValidPassword = user ? await verifyPassword(credentials.password, user.passwordHash) : false;
 
   if (!user || !isValidPassword) {
     recordAuditLog({
@@ -185,7 +176,18 @@ export async function registerAction(data: {
     };
   }
 
-  // 2. Duplicate Check
+  // 2. Invite Guard — required for EVERY role.
+  // A shelter has no anonymous-staff use case, and the default STAFF role is
+  // authorized for getApplications(), which returns applicant PII (PDPA 2010).
+  const inviteCode = (data.staffInviteCode || "").trim();
+  if (!inviteCode || !timingSafeCompare(inviteCode, getStaffInviteSecret())) {
+    return {
+      success: false,
+      error: "A valid staff invite code is required to register an account. Please contact a shelter administrator.",
+    };
+  }
+
+  // 3. Duplicate Check
   const existingUser = await findUserByEmail(email);
   if (existingUser) {
     return {
@@ -194,11 +196,11 @@ export async function registerAction(data: {
     };
   }
 
-  // 3. Hash Password & Persist
+  // 4. Hash Password & Persist
   const passwordHash = await hashPassword(password);
   const newUser = await createUser({ name, email, passwordHash, role });
 
-  // 4. Establish Session & Record Audit Log
+  // 5. Establish Session & Record Audit Log
   const session = await establishSession(newUser);
   recordAuditLog({
     actorId: newUser.id,

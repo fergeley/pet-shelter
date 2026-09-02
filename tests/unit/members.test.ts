@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { revalidatePath } from "next/cache";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import { ROLES, type CanonicalRole } from "@/lib/security/permissions";
-import { INVITE_REDEMPTION_FAILED_MESSAGE } from "@/lib/memberStore";
+import { INVITE_REDEMPTION_FAILED_MESSAGE } from "@/lib/server/memberStore";
 
 /**
  * Integration test for the member administration guard chain.
@@ -65,7 +65,7 @@ vi.mock("@/lib/email", () => ({
   }),
 }));
 
-vi.mock("@/lib/prisma", () => {
+vi.mock("@/lib/server/prisma", () => {
   function project(user: FakeUser) {
     return { ...user };
   }

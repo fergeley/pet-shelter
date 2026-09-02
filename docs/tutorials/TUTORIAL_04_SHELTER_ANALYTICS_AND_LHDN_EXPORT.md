@@ -54,7 +54,7 @@ export interface TaxAuditExportRow {
 
 import { getServerPetsAsync, getServerApplicationsAsync } from "@/lib/serverStore";
 import { getAuditLogs } from "@/lib/domain/auditLog";
-import { verifyAdminSession } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import { ShelterMetrics, TaxAuditExportRow } from "@/types/analytics";
 
 export async function getShelterAnalyticsAction(): Promise<ShelterMetrics | null> {

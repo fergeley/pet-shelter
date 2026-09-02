@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { adoptionFormSchema } from "@/hooks/useAdoptionFormController";
-import { SPONSORSHIP_TIERS } from "@/lib/sponsorshipStore";
-import { matchPetsWithQuiz } from "@/lib/matchEngine";
+import { SPONSORSHIP_TIERS } from "@/lib/client/sponsorshipStore";
+import { matchPetsWithQuiz } from "@/lib/domain/matchEngine";
 import initialPetsData from "@/data/pets.json";
 import { Pet } from "@/types/pet";
 import {

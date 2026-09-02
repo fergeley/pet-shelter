@@ -1,0 +1,12 @@
+# SOPS configuration file for pet-shelter
+# Documentation: https://github.com/getsops/sops
+#
+# To add team members or CI/CD recipients, append public age keys to the 'age' list below.
+# Generate a new key pair:
+#   age-keygen -o key.txt
+
+creation_rules:
+  # Encrypt any .env.*, *.enc, or secrets.* file
+  - path_regex: .*(\.env|\.enc|secrets\..*).*$
+    age: >-
+      age1xc6kfgcx8u5rpr93c94059gpn23m4r2zguqkfuy0xr5saqxvsfjq9fwqh4

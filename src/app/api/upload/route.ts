@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hasAdminPermission } from "@/lib/auth";
+import { verifyAdminSession } from "@/lib/security/adminSession";
 import { PERMISSIONS } from "@/lib/security/rbac";
+import { recordAuditLog } from "@/lib/domain/auditLog";
 import { getStorageProvider } from "@/lib/storage";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -29,9 +30,10 @@ async function validateFileSignature(file: File, expectedType: string): Promise<
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate: verify user is admin
-    const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA);
-    if (!isAuthorized) {
+    // Authenticate against the specific capability, and capture who that is so
+    // the upload can be attributed.
+    const principal = await verifyAdminSession(PERMISSIONS.MANAGE_PET_MEDIA);
+    if (!principal) {
       return NextResponse.json(
         { error: "Unauthorized: Admin access required" },
         { status: 403 }
@@ -84,6 +86,27 @@ export async function POST(request: NextRequest) {
     const storageProvider = getStorageProvider();
     const result = await storageProvider.uploadFile(buffer, filename, file.type);
 
+    // Writing a file to shelter storage is a privileged mutation, and
+    // LAYERS.md §9 rule 5 wants one of these on every such mutation. It could
+    // not be written before: this handler was gated by a boolean and had no
+    // actor to name. `authMethod` is carried explicitly so a reader can tell an
+    // upload made by a signed-in admin from one made with the shared secret.
+    recordAuditLog({
+      actorId: principal.id,
+      actorEmail: principal.email,
+      actorRole: principal.role,
+      action: "FILE_UPLOADED",
+      entity: "File",
+      entityId: result.filename,
+      details: {
+        authMethod: principal.authMethod,
+        originalName: file.name,
+        contentType: file.type,
+        size: result.size,
+        provider: result.provider,
+      },
+    });
+
     return NextResponse.json(
       {
         success: true,
@@ -106,8 +129,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA);
-    if (!isAuthorized) {
+    const principal = await verifyAdminSession(PERMISSIONS.MANAGE_PET_MEDIA);
+    if (!principal) {
       return NextResponse.json(
         { error: "Unauthorized: Admin access required" },
         { status: 403 }
@@ -137,6 +160,19 @@ export async function DELETE(request: NextRequest) {
 
     const storageProvider = getStorageProvider();
     const ok = await storageProvider.deleteFile(filename);
+
+    // Recorded whether or not the file was there: an authorized attempt to
+    // remove shelter media is the fact worth keeping, and `deleted` says how it
+    // turned out.
+    recordAuditLog({
+      actorId: principal.id,
+      actorEmail: principal.email,
+      actorRole: principal.role,
+      action: "FILE_DELETED",
+      entity: "File",
+      entityId: filename,
+      details: { authMethod: principal.authMethod, deleted: ok },
+    });
 
     return NextResponse.json({ success: ok });
   } catch (error) {

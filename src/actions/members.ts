@@ -29,7 +29,7 @@ import {
   verifyInviteToken,
   activateInvitedMember,
   type MemberRecord,
-} from "@/lib/memberStore";
+} from "@/lib/server/memberStore";
 import {
   acceptInvitationSchema,
   inviteMemberSchema,

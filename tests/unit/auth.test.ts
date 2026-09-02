@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { loginAction, registerAction, logoutAction, getCurrentUserAction } from "@/actions/auth";
-import { resetUserStore } from "@/lib/userStore";
+import { resetUserStore } from "@/lib/server/userStore";
 import { ROLES } from "@/lib/security/rbac";
+import { SecretConfigurationError } from "@/lib/security/secrets";
+
+// The configured invite secret for this suite. Deliberately not "1234" or
+// "HOPE2026" so the regression tests below prove those literals are dead.
+const TEST_INVITE_CODE = "test-staff-invite-code-2026";
 
 // Mock Next.js next/headers cookies store
 const cookieStore = new Map<string, { name: string; value: string; [key: string]: unknown }>();
@@ -25,7 +30,12 @@ vi.mock("next/headers", () => {
 describe("Authentication Server Actions (Native Register & Login)", () => {
   beforeEach(async () => {
     cookieStore.clear();
+    vi.stubEnv("STAFF_INVITE_SECRET", TEST_INVITE_CODE);
     await resetUserStore();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   describe("loginAction", () => {
@@ -46,19 +56,43 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
       expect(sessionCookie?.value).toMatch(/\./); // base64.signature
     });
 
-    it("should support quick demo login with PIN 1234", async () => {
+    it("should log a coordinator in with their own password hash", async () => {
       const response = await loginAction({
         email: "coordinator@hopeforstrays.org",
-        password: "1234",
+        password: "coord123",
       });
 
       expect(response.success).toBe(true);
       expect(response.user?.role).toBe(ROLES.VOLUNTEER_COORDINATOR);
     });
 
-    it("should reject login with wrong password", async () => {
+    it("must NOT accept the removed universal master password for an existing user", async () => {
+      // Regression: loginAction previously OR-ed `password === "1234"` into the
+      // scrypt check, so that PIN authenticated as any user, including ADMIN.
+      const response = await loginAction({
+        email: "coordinator@hopeforstrays.org",
+        password: "1234",
+      });
+
+      expect(response.success).toBe(false);
+      expect(response.user).toBeUndefined();
+      expect(response.error).toMatch(/Invalid staff email or password/i);
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("must NOT accept the removed master password for the ADMIN account", async () => {
       const response = await loginAction({
         email: "admin@hopeforstrays.org",
+        password: "1234",
+      });
+
+      expect(response.success).toBe(false);
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("should reject login with wrong password", async () => {
+      const response = await loginAction({
+        email: "staff@hopeforstrays.org",
         password: "wrong-password-999",
       });
 
@@ -94,12 +128,13 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
   });
 
   describe("registerAction", () => {
-    it("should register a new staff member and immediately set session cookie", async () => {
+    it("should register a new staff member with a valid invite code and set session cookie", async () => {
       const regResponse = await registerAction({
         name: "Nurul Huda",
         email: "nurul@hopeforstrays.org",
         password: "SecureShelterPass2026!",
         role: ROLES.STAFF,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(regResponse.success).toBe(true);
@@ -127,6 +162,7 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
         email: "short@hopeforstrays.org",
         password: "short",
         role: ROLES.STAFF,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(res.success).toBe(false);
@@ -139,6 +175,7 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
         email: "invalid-email-address",
         password: "ValidPassword123!",
         role: ROLES.STAFF,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(res.success).toBe(false);
@@ -151,6 +188,7 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
         email: "admin@hopeforstrays.org",
         password: "SomePassword123!",
         role: ROLES.STAFF,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(res.success).toBe(false);
@@ -161,11 +199,15 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
     // Elevated access is granted exclusively by inviteMember(), so the shared
     // invite PIN that previously minted ADMIN accounts is gone.
     it("should downgrade a requested SUPER_ADMIN role to STAFF", async () => {
+      // A valid invite code is now required for every registration, so this
+      // supplies one: the property under test is that holding one still does
+      // not let the caller choose their own role.
       const res = await registerAction({
         name: "Privilege Escalation Attacker",
         email: "attacker@test.com",
         password: "ValidPassword123!",
         role: ROLES.SUPER_ADMIN,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(res.success).toBe(true);
@@ -178,12 +220,121 @@ describe("Authentication Server Actions (Native Register & Login)", () => {
         name: "New Shelter Coordinator",
         email: "new.coordinator@hopeforstrays.org",
         password: "ValidCoordinatorPassword123!",
-        role: ROLES.VOLUNTEER_COORDINATOR,
-        staffInviteCode: "1234",
+        role: ROLES.COORDINATOR,
+        staffInviteCode: TEST_INVITE_CODE,
       });
 
       expect(res.success).toBe(true);
       expect(res.user?.role).toBe(ROLES.STAFF);
+    });
+
+    it("must reject the hardcoded HOPE2026 invite literal when a real secret is configured", async () => {
+      const res = await registerAction({
+        name: "Legacy Literal Attacker",
+        email: "hope2026@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.ADMIN,
+        staffInviteCode: "HOPE2026",
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.user).toBeUndefined();
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("must reject the hardcoded demo PIN invite literal when a real secret is configured", async () => {
+      const res = await registerAction({
+        name: "Demo PIN Attacker",
+        email: "pin1234@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.COORDINATOR,
+        staffInviteCode: "1234",
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.user).toBeUndefined();
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("must require an invite code for the default STAFF role, which reads applicant PII", async () => {
+      const res = await registerAction({
+        name: "Anonymous Staff Signup",
+        email: "anon.staff@test.com",
+        password: "ValidPassword123!",
+        // No role supplied: defaults to STAFF, which grants getApplications().
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/invite code is required/i);
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("must require an invite code for the VOLUNTEER role", async () => {
+      const res = await registerAction({
+        name: "Anonymous Volunteer",
+        email: "anon.volunteer@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.VOLUNTEER,
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/invite code is required/i);
+    });
+
+    it("must not publish any credential in the invite failure message", async () => {
+      const res = await registerAction({
+        name: "Message Leak Probe",
+        email: "leak.probe@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.ADMIN,
+        staffInviteCode: "wrong-code",
+      });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toBeDefined();
+      expect(res.error).not.toContain("1234");
+      expect(res.error).not.toContain("HOPE2026");
+      expect(res.error).not.toContain(TEST_INVITE_CODE);
+      expect(res.error).not.toMatch(/for demo/i);
+    });
+
+    it("must fail closed, not open, when STAFF_INVITE_SECRET is unset in production", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("STAFF_INVITE_SECRET", undefined);
+
+      await expect(
+        registerAction({
+          name: "Misconfigured Deploy",
+          email: "misconfigured@test.com",
+          password: "ValidPassword123!",
+          role: ROLES.STAFF,
+          staffInviteCode: "any-guess",
+        })
+      ).rejects.toBeInstanceOf(SecretConfigurationError);
+
+      expect(cookieStore.get("hope_shelter_session")).toBeUndefined();
+    });
+
+    it("should honour a rotated STAFF_INVITE_SECRET at call time", async () => {
+      vi.stubEnv("STAFF_INVITE_SECRET", "rotated-invite-secret-2026");
+
+      const stale = await registerAction({
+        name: "Stale Code Holder",
+        email: "stale.code@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.STAFF,
+        staffInviteCode: TEST_INVITE_CODE,
+      });
+      expect(stale.success).toBe(false);
+
+      const fresh = await registerAction({
+        name: "Fresh Code Holder",
+        email: "fresh.code@test.com",
+        password: "ValidPassword123!",
+        role: ROLES.STAFF,
+        staffInviteCode: "rotated-invite-secret-2026",
+      });
+      expect(fresh.success).toBe(true);
     });
   });
 

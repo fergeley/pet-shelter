@@ -1,20 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { petFormSchema, PetFormInput, PetFilterInput } from "@/lib/validations/pet";
+import {
+  petFormSchema,
+  PetFormInput,
+  PetFilterInput,
+  sortHistoryByDate,
+} from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
-import { SessionUser } from "@/lib/security/session";
+import { normalizePetStatus } from "@/lib/domain/stateMachine";
 import { getVerifiedSession } from "@/lib/security/dal";
-import { hasAdminPermission } from "@/lib/auth";
-import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
+import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
+import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/security/rbac";
 import {
   getServerPetsAsync,
   findServerPetById,
   insertServerPet,
   updateServerPet,
   archiveServerPet,
-  getServerApplicationsAsync,
-} from "@/lib/serverStore";
+} from "@/lib/server/petRepository";
+import { getServerApplicationsAsync } from "@/lib/server/applicationRepository";
 
 /**
  * Public catalog query: only returns active, non-archived pets.
@@ -28,7 +33,9 @@ export async function getPublicPets(filters?: PetFilterInput): Promise<Pet[]> {
   }
 
   if (filters?.status && filters.status !== "all") {
-    filtered = filtered.filter((p) => p.status === filters.status);
+    // Compare canonically so "Rehabilitation" and "In Rehabilitation" match each other.
+    const wantedStatus = normalizePetStatus(filters.status);
+    filtered = filtered.filter((p) => normalizePetStatus(p.status) === wantedStatus);
   }
 
   if (filters?.ageCategory && filters.ageCategory !== "all") {
@@ -94,27 +101,29 @@ export async function getPetById(id: string): Promise<Pet | null> {
 }
 
 /**
- * Resolves the actor for a pet mutation, requiring the MANAGE_PETS capability.
+ * The actor to attribute a privileged pet mutation to.
  *
- * The non-production fallback is pre-existing local-development convenience;
- * in production an unauthorized caller is rejected.
+ * `verifyAdminSession()` names the principal it authorized, so the second
+ * session read this used to do is gone -- and with it the case where the legacy
+ * token authorized the request but a lower-privileged session cookie was
+ * present, and *that* user got written into the audit row.
+ *
+ * Asks for MANAGE_PETS specifically rather than "is an operator", so a
+ * CONTENT_EDITOR cannot reach the pet mutations.
  */
-async function getAdminActorOrThrow(): Promise<SessionUser> {
-  const isAuthorized = await hasAdminPermission(PERMISSIONS.MANAGE_PETS);
-  if (!isAuthorized && process.env.NODE_ENV === "production") {
-    throw new Error("Unauthorized: Admin authorization required");
-  }
+async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
+  const principal = await verifyAdminSession(PERMISSIONS.MANAGE_PETS);
+  if (principal) return principal;
 
-  const session = await getVerifiedSession();
-  if (session) return session;
-
-  return {
-    id: "admin-token-user",
-    email: "admin@hopeforstrays.org",
-    name: "Shelter Administrator",
-    role: "SUPER_ADMIN",
-    expiresAt: Date.now() + 86400000,
-  };
+  // Nothing authorized this, in any environment. There was a
+  // `NODE_ENV === "production"` guard around this throw, which meant every
+  // other build -- `next dev` on a LAN, a preview deployment, a container
+  // that leaves NODE_ENV unset, CI -- handed an unauthenticated caller an
+  // ADMIN principal and let all five mutations below proceed. The typed
+  // error is what the rest of the RBAC layer raises; the message is kept
+  // verbatim because it reaches the admin UI through each action's catch.
+  // See docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
+  throw new UnauthorizedError("Unauthorized: Admin authorization required");
 }
 
 export async function createPet(
@@ -143,6 +152,11 @@ export async function createPet(
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
+      rehabStage: validated.rehabStage,
+      rehabStageMs: validated.rehabStageMs,
+      rehabProgressPercent: validated.rehabProgressPercent,
+      updates: sortHistoryByDate(validated.updates),
+      medicalTimeline: sortHistoryByDate(validated.medicalTimeline),
       isArchived: validated.isArchived ?? false,
       deletedAt: validated.deletedAt ?? null,
       medical: {
@@ -188,6 +202,17 @@ export async function updatePet(
     const updated: Pet = {
       ...existing,
       ...validated,
+      // The submitted form is authoritative for rehabilitation progress: omitting the
+      // fields clears them, so a cleared animal cannot keep a stale progress bar.
+      rehabStage: validated.rehabStage,
+      rehabStageMs: validated.rehabStageMs,
+      rehabProgressPercent: validated.rehabProgressPercent,
+      // Same rule for nested history, and the same reason. Zod drops absent
+      // optional keys, so `{...existing, ...validated}` would silently keep an
+      // event the submitter deleted. Assigning unconditionally makes removal by
+      // omission — not just by an explicit empty array — actually delete rows.
+      updates: sortHistoryByDate(validated.updates),
+      medicalTimeline: sortHistoryByDate(validated.medicalTimeline),
       galleryImages: validated.galleryImages || existing.galleryImages || [],
       isArchived: validated.isArchived ?? existing.isArchived ?? false,
       deletedAt: validated.deletedAt !== undefined ? validated.deletedAt : existing.deletedAt,

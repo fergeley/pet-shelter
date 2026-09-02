@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
-import { useSettingsStore } from "@/lib/settingsStore";
+import { useSettingsStore } from "@/lib/client/settingsStore";
 import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,7 +111,7 @@ export default function AdminSettingsPage() {
       </div>
 
       {savedSuccess && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
+        <div className="tone-soft tone-success border p-4 text-xs font-semibold flex items-center gap-2 rounded-lg shadow-sm animate-in">
           <CheckCircle2 className="size-4 shrink-0" />
           <span>Shelter settings and service parameters updated successfully! Changes are active immediately.</span>
         </div>
@@ -205,19 +205,19 @@ export default function AdminSettingsPage() {
             {/* Standard Adoption Fees */}
             <div className="space-y-4 border-t border-border pt-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-foreground border-b border-border pb-1 flex items-center gap-1.5">
-                <DollarSign className="size-4 text-emerald-600" />
+                <DollarSign className="size-4 text-success-accent" />
                 2. Adoption Fee Model
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="adoptionFeeDog" className="text-xs font-semibold">Dog Adoption Fee *</Label>
-                  <Input id="adoptionFeeDog" {...register("adoptionFeeDog")} className="text-sm py-2.5 font-semibold text-emerald-700 dark:text-emerald-400" />
+                  <Input id="adoptionFeeDog" {...register("adoptionFeeDog")} className="text-sm py-2.5 font-semibold text-success-text " />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="adoptionFeeCat" className="text-xs font-semibold">Cat Adoption Fee *</Label>
-                  <Input id="adoptionFeeCat" {...register("adoptionFeeCat")} className="text-sm py-2.5 font-semibold text-emerald-700 dark:text-emerald-400" />
+                  <Input id="adoptionFeeCat" {...register("adoptionFeeCat")} className="text-sm py-2.5 font-semibold text-success-text " />
                 </div>
               </div>
             </div>
@@ -256,7 +256,7 @@ export default function AdminSettingsPage() {
                     Automate application confirmations, coordinator alerts, status updates, and interview invitations.
                   </p>
                 </div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 px-2.5 py-1 rounded-full">
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold tone-soft tone-success border px-2.5 py-1 rounded-full">
                   <ShieldCheck className="size-3.5" />
                   Service Connected
                 </span>
@@ -271,7 +271,7 @@ export default function AdminSettingsPage() {
                     <button
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      className="text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      className="text-2xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                     >
                       {showApiKey ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                       {showApiKey ? "Hide Key" : "Reveal Key"}
@@ -284,7 +284,7 @@ export default function AdminSettingsPage() {
                     {...register("resendApiKey")}
                     className="text-sm font-mono py-2.5"
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     Leave blank to inherit the global <code className="bg-muted px-1 py-0.5 rounded text-foreground">RESEND_API_KEY</code> from your environment.
                   </p>
                 </div>
@@ -309,7 +309,7 @@ export default function AdminSettingsPage() {
                       {...register("shelterNotificationEmail")}
                       className="text-sm py-2.5 font-mono"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       Receives coordinator alerts whenever a public adopter submits an application.
                     </p>
                   </div>
@@ -362,12 +362,12 @@ export default function AdminSettingsPage() {
                 <div
                   className={`p-3.5 rounded-lg text-xs flex items-start gap-2.5 border ${
                     testResult.success
-                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300"
+                      ? "tone-soft tone-success"
                       : "bg-destructive/10 border-destructive/30 text-destructive"
                   }`}
                 >
                   {testResult.success ? (
-                    <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-emerald-600" />
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5 text-success-accent" />
                   ) : (
                     <AlertTriangle className="size-4 shrink-0 mt-0.5" />
                   )}
@@ -376,7 +376,7 @@ export default function AdminSettingsPage() {
                       {testResult.success ? "Test Email Delivered Successfully!" : "Test Email Dispatch Failed"}
                     </p>
                     {testResult.messageId && (
-                      <p className="font-mono text-[11px]">
+                      <p className="font-mono text-2xs">
                         Resend Message ID: <strong>{testResult.messageId}</strong> {testResult.simulated && "(Simulation Mode)"}
                       </p>
                     )}

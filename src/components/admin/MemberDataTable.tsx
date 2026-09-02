@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { InviteMemberDialog } from "@/components/admin/InviteMemberDialog";
 import { useMemberTableController } from "@/hooks/useMemberTableController";
-import type { MemberRecord } from "@/lib/memberStore";
+import type { MemberRecord } from "@/lib/domain/member";
 import {
   CANONICAL_ROLES,
   ROLE_DESCRIPTIONS,
@@ -49,18 +49,17 @@ import {
 
 /** Role badge colours. Super Admin reads as elevated, the rest as neutral tiers. */
 const ROLE_BADGE: Record<CanonicalRole, string> = {
-  SUPER_ADMIN: "bg-primary/10 text-primary border-primary/30",
-  ANIMAL_MANAGER: "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30",
-  CONTENT_EDITOR: "bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/30",
-  VOLUNTEER_COORDINATOR:
-    "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  SUPER_ADMIN: "bg-highlight-surface text-highlight-text border-highlight-border",
+  ANIMAL_MANAGER: "bg-info-surface text-info-text border-info-border",
+  CONTENT_EDITOR: "bg-care-surface text-care-text border-care-border",
+  VOLUNTEER_COORDINATOR: "bg-warning-surface text-warning-text border-warning-border",
   STAFF: "bg-muted text-muted-foreground border-border",
 };
 
 const STATUS_BADGE: Record<UserStatus, string> = {
-  ACTIVE: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
-  INVITED: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
-  SUSPENDED: "bg-destructive/10 text-destructive border-destructive/30",
+  ACTIVE: "bg-success-surface text-success-text border-success-border",
+  INVITED: "bg-warning-surface text-warning-text border-warning-border",
+  SUSPENDED: "bg-danger-surface text-danger-text border-danger-border",
 };
 
 function formatLastLogin(iso: string | null): { label: string; muted: boolean } {
@@ -141,7 +140,7 @@ export function MemberDataTable({
                   {member.name}
                 </span>
                 {isSelf && (
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 bg-muted text-muted-foreground border border-border">
+                  <span className="text-2xs uppercase font-bold tracking-wider px-1.5 py-0.5 bg-muted text-muted-foreground border border-border">
                     You
                   </span>
                 )}
@@ -159,7 +158,7 @@ export function MemberDataTable({
           return (
             <span
               title={ROLE_DESCRIPTIONS[role]}
-              className={`inline-flex items-center border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${ROLE_BADGE[role]}`}
+              className={`inline-flex items-center border px-2 py-0.5 text-2xs font-bold uppercase tracking-wider ${ROLE_BADGE[role]}`}
             >
               {ROLE_LABELS[role]}
             </span>
@@ -179,12 +178,12 @@ export function MemberDataTable({
           return (
             <div className="space-y-1">
               <span
-                className={`inline-flex items-center border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${STATUS_BADGE[member.status]}`}
+                className={`inline-flex items-center border px-2 py-0.5 text-2xs font-bold uppercase tracking-wider ${STATUS_BADGE[member.status]}`}
               >
                 {member.status}
               </span>
               {expired && (
-                <p className="flex items-center gap-1 text-[10px] font-semibold text-destructive">
+                <p className="flex items-center gap-1 text-2xs font-semibold text-destructive">
                   <MailWarning className="size-3" />
                   Invitation expired
                 </p>
@@ -249,7 +248,7 @@ export function MemberDataTable({
                   size="xs"
                   disabled={isBusy}
                   onClick={() => handleStatusChange(member, USER_STATUSES.ACTIVE)}
-                  className="text-xs gap-1 text-emerald-700 dark:text-emerald-300"
+                  className="text-xs gap-1 text-success-text"
                 >
                   <ShieldCheck className="size-3" />
                   Reactivate
@@ -332,7 +331,7 @@ export function MemberDataTable({
       </div>
 
       {notice && (
-        <div className="border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+        <div className="border border-success-border bg-success-surface p-3.5 text-xs text-success-text flex items-center gap-2">
           <CheckCircle2 className="size-4 shrink-0" />
           <span>{notice}</span>
         </div>

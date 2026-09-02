@@ -14,7 +14,7 @@ export function LanguageToggle({ className = "", showIcon = true }: LanguageTogg
 
   return (
     <div
-      className={`inline-flex items-center rounded-full bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 p-0.5 text-xs font-semibold select-none ${className}`}
+      className={`segmented text-xs font-semibold select-none ${className}`}
       role="group"
       aria-label="Language Selector"
     >
@@ -28,7 +28,7 @@ export function LanguageToggle({ className = "", showIcon = true }: LanguageTogg
         onClick={() => setLanguage("en")}
         className={`px-2 py-0.5 rounded-full transition-all duration-200 cursor-pointer ${
           language === "en"
-            ? "bg-white dark:bg-zinc-900 text-foreground font-bold shadow-xs"
+            ? "segmented-thumb text-foreground font-bold"
             : "text-muted-foreground hover:text-foreground"
         }`}
         aria-pressed={language === "en"}
@@ -41,7 +41,7 @@ export function LanguageToggle({ className = "", showIcon = true }: LanguageTogg
         onClick={() => setLanguage("ms")}
         className={`px-2 py-0.5 rounded-full transition-all duration-200 cursor-pointer ${
           language === "ms"
-            ? "bg-white dark:bg-zinc-900 text-foreground font-bold shadow-xs"
+            ? "segmented-thumb text-foreground font-bold"
             : "text-muted-foreground hover:text-foreground"
         }`}
         aria-pressed={language === "ms"}

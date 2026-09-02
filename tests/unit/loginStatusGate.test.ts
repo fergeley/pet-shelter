@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { loginAction } from "@/actions/auth";
+import { hashPassword } from "@/lib/security/crypto";
 import { USER_STATUSES } from "@/lib/security/permissions";
 import { ROLES } from "@/lib/security/rbac";
 
@@ -18,9 +19,10 @@ const h = vi.hoisted(() => ({
     id: "usr-1",
     email: "member@hopeforstrays.org",
     name: "Test Member",
-    // Deliberately unusable. NODE_ENV is "test", so the development-only demo
-    // password is accepted and password verification is not what is under test.
-    passwordHash: "not-a-real-hash",
+    // Replaced with a real scrypt hash in beforeEach. The universal demo
+    // password was removed from loginAction, so the fixture has to authenticate
+    // for real even though password verification is not what is under test.
+    passwordHash: "",
     // Literals, not the enum constants: vi.hoisted runs before imports.
     role: "ANIMAL_MANAGER" as string,
     status: "ACTIVE" as string,
@@ -39,17 +41,20 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-vi.mock("@/lib/userStore", () => ({
+vi.mock("@/lib/server/userStore", () => ({
   findUserByEmail: vi.fn(async () => {
     h.lookups.count += 1;
     return h.user;
   }),
   createUser: vi.fn(),
+  // The global lifecycle in tests/setup resets the user store before each
+  // test; a partial mock would break every test in the file, not just this one.
+  resetUserStore: vi.fn(async () => {}),
 }));
 
 // memberStore must no longer be consulted on the login path at all.
 const memberStoreCalls = { findMemberByEmail: 0, recordLogin: 0 };
-vi.mock("@/lib/memberStore", () => ({
+vi.mock("@/lib/server/memberStore", () => ({
   recordLogin: vi.fn(async () => {
     memberStoreCalls.recordLogin += 1;
   }),
@@ -60,7 +65,13 @@ vi.mock("@/lib/memberStore", () => ({
 }));
 
 describe("Login account-status gate", () => {
-  beforeEach(() => {
+  const PASSWORD = "CorrectHorseBattery1";
+  let passwordHash: string | null = null;
+
+  beforeEach(async () => {
+    // Derived once: scrypt is deliberately slow.
+    passwordHash ??= await hashPassword(PASSWORD);
+    h.user.passwordHash = passwordHash;
     h.cookieStore.clear();
     h.lookups.count = 0;
     memberStoreCalls.findMemberByEmail = 0;
@@ -70,7 +81,7 @@ describe("Login account-status gate", () => {
   });
 
   it("admits an ACTIVE member and issues a session cookie", async () => {
-    const res = await loginAction({ email: h.user.email, password: "1234" });
+    const res = await loginAction({ email: h.user.email, password: PASSWORD });
 
     expect(res.success).toBe(true);
     expect(res.user?.role).toBe(ROLES.ANIMAL_MANAGER);
@@ -80,7 +91,7 @@ describe("Login account-status gate", () => {
   it("refuses a SUSPENDED member and issues no cookie", async () => {
     h.user.status = USER_STATUSES.SUSPENDED;
 
-    const res = await loginAction({ email: h.user.email, password: "1234" });
+    const res = await loginAction({ email: h.user.email, password: PASSWORD });
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/suspended/i);
@@ -90,7 +101,7 @@ describe("Login account-status gate", () => {
   it("refuses an INVITED member who has not redeemed their link", async () => {
     h.user.status = USER_STATUSES.INVITED;
 
-    const res = await loginAction({ email: h.user.email, password: "1234" });
+    const res = await loginAction({ email: h.user.email, password: PASSWORD });
 
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/not been activated/i);
@@ -100,14 +111,14 @@ describe("Login account-status gate", () => {
   it("normalises a deprecated role stored on the row", async () => {
     h.user.role = "ADMIN";
 
-    const res = await loginAction({ email: h.user.email, password: "1234" });
+    const res = await loginAction({ email: h.user.email, password: PASSWORD });
 
     expect(res.success).toBe(true);
     expect(res.user?.role).toBe(ROLES.SUPER_ADMIN);
   });
 
   it("reads the user exactly once and never re-queries memberStore", async () => {
-    await loginAction({ email: h.user.email, password: "1234" });
+    await loginAction({ email: h.user.email, password: PASSWORD });
 
     expect(h.lookups.count).toBe(1);
     expect(memberStoreCalls.findMemberByEmail).toBe(0);

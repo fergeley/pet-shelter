@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { findMemberAuthStateById } from "@/lib/server/memberStore";
 import { getCurrentSession, type SessionUser } from "./session";
 import {
   ForbiddenError,
@@ -34,10 +34,10 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
   if (!session) return null;
 
   try {
-    const member = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: { role: true, status: true, name: true, email: true },
-    });
+    // Queried through the repository rather than Prisma directly: only
+    // src/lib/server/ may reach the client (LAYERS.md §L-B2), and this module
+    // is authorization policy, not data access.
+    const member = await findMemberAuthStateById(session.id);
 
     // No row: either a demo/in-memory account or a deleted user. Fall through
     // to the cookie rather than locking out the seeded demo logins.
