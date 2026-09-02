@@ -10,6 +10,7 @@ import { recordAuditLog } from "@/lib/domain/auditLog";
 import { sendStaffInvitationEmail } from "@/lib/email";
 import { setSessionCookie } from "@/lib/security/session";
 import {
+  INVITE_REDEMPTION_FAILED_MESSAGE,
   countActiveSuperAdmins,
   createInvitedMember,
   findMemberByEmail,
@@ -287,6 +288,11 @@ export async function updateMemberRole(
       };
     }
 
+    // Currently unreachable, and kept deliberately: MANAGE_MEMBERS is held only
+    // by SUPER_ADMIN and the DAL requires an ACTIVE row, so the actor is always
+    // a second active Super Admin and the count is always >= 2. The lockout is
+    // actually prevented by the self-demotion check above. This becomes the
+    // load-bearing guard the moment MANAGE_MEMBERS is delegated to another role.
     if (target.role === "SUPER_ADMIN" && parsed.data.newRole !== "SUPER_ADMIN") {
       const remaining = await countActiveSuperAdmins();
       if (remaining <= 1) {
@@ -358,6 +364,8 @@ export async function toggleMemberStatus(
       };
     }
 
+    // Unreachable for the same reason as the role guard above, and kept for the
+    // same reason. See the note in updateMemberRole.
     if (
       nextStatus === USER_STATUSES.SUSPENDED &&
       target.role === "SUPER_ADMIN" &&
@@ -416,9 +424,10 @@ export async function toggleMemberStatus(
  * Redeems a staff invitation: verifies the token, sets the chosen password,
  * activates the account and signs the new member in.
  *
- * Deliberately unauthenticated — the emailed token is the credential. Failures
- * are reported with one generic message so the endpoint cannot be used to
- * enumerate which staff emails exist.
+ * Deliberately unauthenticated — the emailed token is the credential. Every
+ * failure returns INVITE_REDEMPTION_FAILED_MESSAGE regardless of cause, so the
+ * endpoint cannot be used to enumerate which staff emails exist; the real
+ * reason is recorded in the audit log instead.
  */
 export async function acceptInvitation(input: {
   email: string;
@@ -447,6 +456,9 @@ export async function acceptInvitation(input: {
 
     const verification = await verifyInviteToken(parsed.data.email, parsed.data.token);
     if (!verification.ok) {
+      // The specific cause goes to the audit log; the caller gets one
+      // indistinguishable message so this endpoint cannot be used to probe
+      // which addresses have staff accounts or pending invitations.
       recordAuditLog({
         actorId: "anonymous",
         actorEmail: parsed.data.email,
@@ -456,7 +468,7 @@ export async function acceptInvitation(input: {
         entityId: parsed.data.email,
         details: { reason: verification.reason },
       });
-      return { success: false, error: verification.reason, status: 400 };
+      return { success: false, error: INVITE_REDEMPTION_FAILED_MESSAGE, status: 400 };
     }
 
     const passwordHash = await hashPassword(parsed.data.password);

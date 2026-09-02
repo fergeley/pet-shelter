@@ -12,7 +12,6 @@ vi.mock("fs/promises", () => ({
 // Mock auth to allow authorized upload tests. The route now asks for the
 // specific MANAGE_PET_MEDIA capability rather than a blanket admin check.
 vi.mock("@/lib/auth", () => ({
-  verifyAdminSession: vi.fn().mockResolvedValue(true),
   hasAdminPermission: vi.fn().mockResolvedValue(true),
 }));
 

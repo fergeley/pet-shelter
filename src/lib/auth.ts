@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getVerifiedSession } from "@/lib/security/dal";
-import { hasAnyPermission, hasPermission, PERMISSIONS, type Permission } from "@/lib/security/rbac";
+import { hasPermission, type Permission } from "@/lib/security/rbac";
 
 /**
  * True when the caller presents the shared `ADMIN_SECRET_KEY` token.
@@ -23,40 +23,18 @@ async function hasAdminSecretToken(): Promise<boolean> {
 /**
  * True when the current caller holds `permission`.
  *
- * Prefer this over `verifyAdminSession` for anything capability-specific: it is
- * what lets an ANIMAL_MANAGER edit pets without also granting them settings or
- * staff administration.
+ * The only admin authorization helper: asking for a specific capability is what
+ * lets an ANIMAL_MANAGER edit pets and upload media without also reaching
+ * shelter settings or staff administration. A coarse "is this an operator?"
+ * predicate used to live here as `verifyAdminSession`; it was removed once
+ * every call site had a capability to name, because a boolean that means
+ * "somebody privileged" invites exactly the over-broad guard this module
+ * exists to prevent.
  */
 export async function hasAdminPermission(permission: Permission): Promise<boolean> {
   try {
     const session = await getVerifiedSession();
     if (hasPermission(session, permission)) return true;
-    return await hasAdminSecretToken();
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Verifies whether the incoming request is authorized for the admin console at
- * all, i.e. holds at least one write capability.
- *
- * Retained for callers that only need a coarse "is this an operator?" answer.
- * New code should call `hasAdminPermission` with the specific capability.
- */
-export async function verifyAdminSession(): Promise<boolean> {
-  try {
-    const session = await getVerifiedSession();
-    const isOperator = hasAnyPermission(session, [
-      PERMISSIONS.MANAGE_MEMBERS,
-      PERMISSIONS.MANAGE_PETS,
-      PERMISSIONS.MANAGE_PET_MEDIA,
-      PERMISSIONS.MANAGE_CONTENT,
-      PERMISSIONS.MANAGE_SETTINGS,
-      PERMISSIONS.REVIEW_APPLICATIONS,
-    ]);
-    if (isOperator) return true;
-
     return await hasAdminSecretToken();
   } catch {
     return false;

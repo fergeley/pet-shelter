@@ -82,8 +82,19 @@ export const PERMISSIONS = {
   DELETE_APPLICATIONS: "DELETE_APPLICATIONS",
   /** FAQs, transparency figures, community bulletins. */
   MANAGE_CONTENT: "MANAGE_CONTENT",
-  /** Shelter-wide settings. */
+  /**
+   * Write shelter-wide settings.
+   *
+   * Super Admin only, and deliberately so: `shelterSettingsSchema` carries the
+   * integration credentials (`resendApiKey`, storage provider configuration),
+   * so this permission is the ability to redirect the shelter's outbound email
+   * and media storage. The spec's "coordinators manage volunteer applications
+   * & settings" is served by SEND_SHELTER_EMAIL below, not by handing the
+   * credential store to a second role.
+   */
   MANAGE_SETTINGS: "MANAGE_SETTINGS",
+  /** Dispatch shelter correspondence, including configuration test emails. */
+  SEND_SHELTER_EMAIL: "SEND_SHELTER_EMAIL",
   /** Read the immutable audit trail. */
   VIEW_AUDIT_LOG: "VIEW_AUDIT_LOG",
 } as const;
@@ -110,10 +121,13 @@ export const ROLE_PERMISSIONS: Record<CanonicalRole, readonly Permission[]> = {
 
   [ROLES.CONTENT_EDITOR]: [PERMISSIONS.MANAGE_CONTENT],
 
+  // Mirrors what a COORDINATOR could do before the RBAC migration: review
+  // applications and send shelter email, but never write shelter-wide settings
+  // (that guard was [ROLES.ADMIN] and stays Super Admin only).
   [ROLES.VOLUNTEER_COORDINATOR]: [
     PERMISSIONS.VIEW_APPLICATIONS,
     PERMISSIONS.REVIEW_APPLICATIONS,
-    PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.SEND_SHELTER_EMAIL,
     PERMISSIONS.VIEW_AUDIT_LOG,
   ],
 
@@ -133,7 +147,8 @@ export const ROLE_DESCRIPTIONS: Record<CanonicalRole, string> = {
   [ROLES.SUPER_ADMIN]: "Unrestricted platform access, including staff management.",
   [ROLES.ANIMAL_MANAGER]: "Manage pet profiles, gallery photos, and QR codes.",
   [ROLES.CONTENT_EDITOR]: "Manage FAQs, transparency data, and community bulletins.",
-  [ROLES.VOLUNTEER_COORDINATOR]: "Manage volunteer applications and shelter settings.",
+  [ROLES.VOLUNTEER_COORDINATOR]:
+    "Review volunteer and adoption applications, send shelter correspondence, and read the audit log.",
   [ROLES.STAFF]: "Standard read-only operational access.",
 };
 

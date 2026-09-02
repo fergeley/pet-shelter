@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import { ROLES, type CanonicalRole } from "@/lib/security/permissions";
+import { INVITE_REDEMPTION_FAILED_MESSAGE } from "@/lib/memberStore";
 
 /**
  * Integration test for the member administration guard chain.
@@ -427,7 +428,7 @@ describe("Member administration actions", () => {
       expect(superAdmin.role).toBe(ROLES.SUPER_ADMIN);
     });
 
-    it("blocks demoting the last active Super Admin", async () => {
+    it("leaves at least one Super Admin standing after a chain of demotions", async () => {
       const other = addUser({
         id: "usr-super-2",
         email: "super2@hopeforstrays.org",
@@ -485,7 +486,7 @@ describe("Member administration actions", () => {
       expect(superAdmin.status).toBe("ACTIVE");
     });
 
-    it("blocks suspending the last active Super Admin", async () => {
+    it("leaves at least one Super Admin standing after a chain of suspensions", async () => {
       const other = addUser({
         id: "usr-super-3",
         email: "super3@hopeforstrays.org",
@@ -618,7 +619,9 @@ describe("Member administration actions", () => {
         confirmPassword: "MyStrongPassword1",
       });
       expect(expired.success).toBe(false);
-      expect(expired.error).toMatch(/expired/i);
+      // All redemption failures share one message so the endpoint cannot be
+      // used to tell an expired invite from a non-existent account.
+      expect(expired.error).toBe(wrong.error);
     });
 
     it("rejects a password below the minimum length", async () => {
@@ -642,7 +645,7 @@ describe("Member administration actions", () => {
         confirmPassword: "MyStrongPassword1",
       });
       expect(res.success).toBe(false);
-      expect(res.error).toBe("This invitation is no longer valid.");
+      expect(res.error).toBe(INVITE_REDEMPTION_FAILED_MESSAGE);
     });
   });
 });

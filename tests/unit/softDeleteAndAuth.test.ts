@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { verifyAdminSession } from "@/lib/auth";
+import { hasAdminPermission } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/security/rbac";
 import { sealSession, SESSION_COOKIE_NAME } from "@/lib/security/session";
 import {
   getPublicPets,
@@ -28,63 +29,73 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-describe("Security & Route Protection (verifyAdminSession)", () => {
+describe("Security & Route Protection (hasAdminPermission)", () => {
   beforeEach(() => {
     mockCookieMap.clear();
   });
 
-  it("returns true when valid ADMIN cryptographic session cookie is present", async () => {
+  function signIn(id: string, role: string) {
     const token = sealSession({
-      id: "admin-1",
-      email: "admin@hopeforstrays.org",
-      name: "Admin User",
-      role: "ADMIN",
+      id,
+      email: `${id}@hopeforstrays.org`,
+      name: `${role} User`,
+      role: role as Parameters<typeof sealSession>[0]["role"],
     });
     mockCookieMap.set(SESSION_COOKIE_NAME, { value: token });
+  }
 
-    const isAuth = await verifyAdminSession();
-    expect(isAuth).toBe(true);
+  it("admits a pre-migration ADMIN session to every capability", async () => {
+    signIn("admin-1", "ADMIN");
+
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_MEMBERS)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_SETTINGS)).toBe(true);
   });
 
-  it("returns true when valid COORDINATOR session cookie is present", async () => {
-    const token = sealSession({
-      id: "coord-1",
-      email: "coord@hopeforstrays.org",
-      name: "Coord User",
-      role: "COORDINATOR",
-    });
-    mockCookieMap.set(SESSION_COOKIE_NAME, { value: token });
+  it("scopes an ANIMAL_MANAGER to pets and media only", async () => {
+    signIn("animal-1", "ANIMAL_MANAGER");
 
-    const isAuth = await verifyAdminSession();
-    expect(isAuth).toBe(true);
+    // This is the guard the /api/upload route actually uses.
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_MEMBERS)).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_SETTINGS)).toBe(false);
   });
 
-  it("returns false for unauthorized role like VOLUNTEER unless admin secret is provided", async () => {
-    const token = sealSession({
-      id: "vol-1",
-      email: "vol@hopeforstrays.org",
-      name: "Volunteer User",
-      role: "VOLUNTEER",
-    });
-    mockCookieMap.set(SESSION_COOKIE_NAME, { value: token });
+  it("keeps a VOLUNTEER_COORDINATOR out of pets, uploads and shelter settings", async () => {
+    signIn("coord-1", "COORDINATOR");
 
-    const isAuth = await verifyAdminSession();
-    expect(isAuth).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.REVIEW_APPLICATIONS)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.SEND_SHELTER_EMAIL)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA)).toBe(false);
+    // Regression guard: updateShelterSettings was ADMIN-only before the RBAC
+    // migration and must not become reachable by a coordinator, because that
+    // schema carries the Resend and storage credentials.
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_SETTINGS)).toBe(false);
   });
 
-  it("returns true when valid admin_session secret cookie matches", async () => {
+  it("leaves a STAFF session read-only", async () => {
+    signIn("vol-1", "VOLUNTEER");
+
+    expect(await hasAdminPermission(PERMISSIONS.VIEW_APPLICATIONS)).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PET_MEDIA)).toBe(false);
+  });
+
+  it("honours the admin_session break-glass secret", async () => {
     process.env.ADMIN_SECRET_KEY = "test_super_secret_admin_key";
     mockCookieMap.set("admin_session", { value: "test_super_secret_admin_key" });
 
-    const isAuth = await verifyAdminSession();
-    expect(isAuth).toBe(true);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(true);
   });
 
   it("returns false when no session and invalid secret cookie", async () => {
     mockCookieMap.set("admin_session", { value: "wrong_password" });
 
-    const isAuth = await verifyAdminSession();
-    expect(isAuth).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.MANAGE_PETS)).toBe(false);
+    expect(await hasAdminPermission(PERMISSIONS.VIEW_APPLICATIONS)).toBe(false);
   });
 });
 

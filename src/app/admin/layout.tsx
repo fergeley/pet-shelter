@@ -61,14 +61,23 @@ export default function AdminLayout({
   // Nav is filtered by capability so a member is not shown a tab that would
   // only answer 403. This is presentation, not enforcement: each route and
   // action guards itself server-side.
+  // A tab is shown when the role holds ANY of its permissions. The settings
+  // page hosts two capabilities at different levels — a Super Admin edits the
+  // shelter configuration, a Volunteer Coordinator only sends a test email — so
+  // gating it on the write permission alone would hide a page the coordinator
+  // still has legitimate work on.
   const navLinks = [
-    { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog, permission: PERMISSIONS.MANAGE_PETS },
-    { href: "/admin/applications", label: "Adoption Applications", icon: FileText, permission: PERMISSIONS.VIEW_APPLICATIONS },
-    { href: "/admin/members", label: "Staff & Permissions", icon: Users, permission: PERMISSIONS.MANAGE_MEMBERS },
-    { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck, permission: PERMISSIONS.VIEW_AUDIT_LOG },
-    { href: "/admin/settings", label: "Shelter Settings", icon: Settings, permission: PERMISSIONS.MANAGE_SETTINGS },
-    { href: "/bulletins", label: "Community Bulletins", icon: Bell, permission: null },
-  ].filter((tab) => tab.permission === null || roleHasPermission(role, tab.permission));
+    { href: "/admin/pets", label: "Pet Management (CRUD)", icon: Dog, permissions: [PERMISSIONS.MANAGE_PETS] },
+    { href: "/admin/applications", label: "Adoption Applications", icon: FileText, permissions: [PERMISSIONS.VIEW_APPLICATIONS] },
+    { href: "/admin/members", label: "Staff & Permissions", icon: Users, permissions: [PERMISSIONS.MANAGE_MEMBERS] },
+    { href: "/admin/audit", label: "Audit & Security Logs", icon: ShieldCheck, permissions: [PERMISSIONS.VIEW_AUDIT_LOG] },
+    { href: "/admin/settings", label: "Shelter Settings", icon: Settings, permissions: [PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.SEND_SHELTER_EMAIL] },
+    { href: "/bulletins", label: "Community Bulletins", icon: Bell, permissions: null },
+  ].filter(
+    (tab) =>
+      tab.permissions === null ||
+      tab.permissions.some((permission) => roleHasPermission(role, permission))
+  );
 
   return (
     <div className="min-h-screen bg-card flex flex-col">

@@ -219,10 +219,27 @@ export async function recordLogin(userId: string): Promise<void> {
 }
 
 /**
+/**
+ * The single message shown for every failed redemption.
+ *
+ * `acceptInvitation` is unauthenticated, so distinct per-cause messages would
+ * let anyone probe an email address and learn from the wording whether it has
+ * a staff account, whether that account is still pending, and whether its
+ * invitation is live. The specific `reason` below is for the audit log only —
+ * never return it to the caller.
+ */
+export const INVITE_REDEMPTION_FAILED_MESSAGE =
+  "This invitation link is not valid. It may have expired, already been used, " +
+  "or been replaced by a newer one. Ask an administrator to send a new invitation.";
+
+/**
  * Verifies a raw invitation token against the named account.
  *
  * Scoped by email rather than searched by token, because only the scrypt hash
  * is stored and hashes are not reversible or indexable.
+ *
+ * `reason` is diagnostic and MUST NOT be surfaced to an unauthenticated
+ * caller; see INVITE_REDEMPTION_FAILED_MESSAGE.
  */
 export async function verifyInviteToken(
   email: string,
@@ -234,16 +251,16 @@ export async function verifyInviteToken(
   })) as unknown as RawMember | null;
 
   if (!row || !row.inviteTokenHash || !row.inviteTokenExpiresAt) {
-    return { ok: false, reason: "This invitation is no longer valid." };
+    return { ok: false, reason: "No pending invitation for this address." };
   }
   if (row.status !== USER_STATUSES.INVITED) {
-    return { ok: false, reason: "This invitation has already been redeemed." };
+    return { ok: false, reason: `Account status is ${row.status}, not INVITED.` };
   }
   if (row.inviteTokenExpiresAt.getTime() < Date.now()) {
-    return { ok: false, reason: "This invitation has expired. Ask an administrator to resend it." };
+    return { ok: false, reason: "Invitation token expired." };
   }
   if (!(await verifyPassword(token, row.inviteTokenHash))) {
-    return { ok: false, reason: "This invitation link is invalid." };
+    return { ok: false, reason: "Invitation token did not match the stored hash." };
   }
 
   return { ok: true, member: toMemberRecord(row) };

@@ -98,10 +98,20 @@ describe("Role -> permission matrix", () => {
     expect(permissionsForRole(ROLES.CONTENT_EDITOR)).toEqual([PERMISSIONS.MANAGE_CONTENT]);
   });
 
-  it("gives VOLUNTEER_COORDINATOR application review and settings, not pets", () => {
+  it("gives VOLUNTEER_COORDINATOR application review and shelter email, not pets", () => {
     expect(roleHasPermission(ROLES.VOLUNTEER_COORDINATOR, PERMISSIONS.REVIEW_APPLICATIONS)).toBe(true);
-    expect(roleHasPermission(ROLES.VOLUNTEER_COORDINATOR, PERMISSIONS.MANAGE_SETTINGS)).toBe(true);
+    expect(roleHasPermission(ROLES.VOLUNTEER_COORDINATOR, PERMISSIONS.SEND_SHELTER_EMAIL)).toBe(true);
     expect(roleHasPermission(ROLES.VOLUNTEER_COORDINATOR, PERMISSIONS.MANAGE_PETS)).toBe(false);
+  });
+
+  it("restricts MANAGE_SETTINGS to SUPER_ADMIN alone", () => {
+    // updateShelterSettings was [ROLES.ADMIN] before the RBAC migration and
+    // writes the Resend and storage credentials. Widening it to the coordinator
+    // was a real escalation caught in review; this pins it shut.
+    const holders = CANONICAL_ROLES.filter((role) =>
+      roleHasPermission(role, PERMISSIONS.MANAGE_SETTINGS)
+    );
+    expect(holders).toEqual([ROLES.SUPER_ADMIN]);
   });
 
   it("leaves STAFF read-only", () => {

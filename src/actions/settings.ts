@@ -26,6 +26,28 @@ let serverSettings: ShelterSettingsInput = {
   cloudinaryCloudName: "",
 };
 
+/**
+ * Field names whose values must never reach the audit trail.
+ *
+ * The SETTINGS_UPDATED entry records a full before/after of the settings
+ * object, and /admin/audit renders those details to anyone holding
+ * VIEW_AUDIT_LOG. Without this, saving the settings form wrote the live Resend
+ * API key into the log in plaintext. Matched by suffix so a future credential
+ * field is redacted by default rather than by remembering to add it here.
+ */
+const SECRET_FIELD_PATTERN = /(key|secret|token|password)$/i;
+
+function redactSecrets(settings: ShelterSettingsInput): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(settings).map(([field, value]) => {
+      if (!SECRET_FIELD_PATTERN.test(field)) return [field, value];
+      // Preserve whether a value was set, which is the part an auditor needs,
+      // without disclosing the value itself.
+      return [field, typeof value === "string" && value.length > 0 ? "[redacted]" : ""];
+    })
+  );
+}
+
 export async function getShelterSettings(): Promise<ShelterSettingsInput> {
   return serverSettings;
 }
@@ -48,7 +70,7 @@ export async function updateShelterSettings(
       action: "SETTINGS_UPDATED",
       entity: "ShelterSettings",
       entityId: "global-settings",
-      details: { before: previous, after: serverSettings },
+      details: { before: redactSecrets(previous), after: redactSecrets(serverSettings) },
     });
 
     try {
@@ -73,7 +95,10 @@ export async function sendTestEmailAction(input: {
 }): Promise<{ success: boolean; messageId?: string; simulated?: boolean; error?: string }> {
   try {
     const session = await getVerifiedSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_SETTINGS);
+    // Was [ADMIN, COORDINATOR] before the RBAC migration: sending a test email
+    // is an operational act, not a configuration change, so it stays available
+    // to the Volunteer Coordinator.
+    assertHasPermission(session, PERMISSIONS.SEND_SHELTER_EMAIL);
 
     const recipient = input.recipientEmail.trim();
     if (!recipient || !recipient.includes("@")) {

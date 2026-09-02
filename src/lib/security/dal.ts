@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { getCurrentSession, type SessionUser } from "./session";
 import {
@@ -28,7 +29,7 @@ import { USER_STATUSES, normalizeRole } from "./permissions";
  * a transient outage would be a worse trade than a suspension taking effect one
  * session late. Revisit if the in-memory fallback is ever removed.
  */
-export async function getVerifiedSession(): Promise<SessionUser | null> {
+async function readVerifiedSession(): Promise<SessionUser | null> {
   const session = await getCurrentSession();
   if (!session) return null;
 
@@ -54,6 +55,26 @@ export async function getVerifiedSession(): Promise<SessionUser | null> {
     return session;
   }
 }
+
+/**
+ * Request-scoped memoization of the session lookup.
+ *
+ * Re-reading the member row is what makes a suspension take effect immediately,
+ * at the cost of a query per guard. Most entry points check once per request,
+ * so the saving is narrow rather than dramatic — the concrete case is
+ * `getAdminActorOrThrow` in actions/pets.ts, which asks for the capability and
+ * then for the actor and so read the same row twice on every pet mutation.
+ * `cache` collapses that to one query per request, and more importantly makes
+ * the DAL cheap enough to call freely, so a page can gate its UI with
+ * `canCurrentUser` without buying another round-trip.
+ *
+ * Scope note: `cache` is keyed per request in a React server context. Outside
+ * one — unit tests, scripts — it degrades to calling straight through, so
+ * consecutive calls with different cookies still resolve independently and no
+ * session leaks between them. Verified by the auth tests, which sign in as a
+ * different role in each case and assert distinct outcomes.
+ */
+export const getVerifiedSession = cache(readVerifiedSession);
 
 /**
  * Resolves a verified session or throws `UnauthorizedError` (401).
