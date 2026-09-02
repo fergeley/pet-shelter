@@ -63,7 +63,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgrespassword
           POSTGRES_DB: pet_shelter
         ports: ["5432:5432"]
         # Without this the first migration races the server's startup and fails
@@ -74,7 +74,11 @@ jobs:
           --health-timeout=5s
           --health-retries=10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pet_shelter?schema=public
+      # Matches docker-compose.yml and the localhost-pinned db:*:local / test:db
+      # scripts, which hardcode this password. When CI used a different one,
+      # `npm run test:db` overrode DATABASE_URL with the script's value and the
+      # probes failed 28P01 against a database that was running fine.
+      DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -96,7 +100,7 @@ jobs:
         image: postgres:17
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: postgrespassword
           POSTGRES_DB: pet_shelter
         ports: ["5432:5432"]
         options: >-
@@ -105,7 +109,11 @@ jobs:
           --health-timeout=5s
           --health-retries=10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pet_shelter?schema=public
+      # Matches docker-compose.yml and the localhost-pinned db:*:local / test:db
+      # scripts, which hardcode this password. When CI used a different one,
+      # `npm run test:db` overrode DATABASE_URL with the script's value and the
+      # probes failed 28P01 against a database that was running fine.
+      DATABASE_URL: postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public
       # The specs seal their own admin session cookie, so this must match what
       # the server verifies with. Any value over 32 characters works; it is a
       # throwaway for a throwaway database.
