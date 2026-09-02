@@ -10,6 +10,7 @@ import {
   pickQrSettings,
   qrSettingsChanged,
   readShelterSettings,
+  readShelterSettingsWithSource,
   redactSettingsForAudit,
   writeShelterSettings,
 } from "@/lib/domain/shelterSettings";
@@ -17,6 +18,23 @@ import { Resend } from "resend";
 
 export async function getShelterSettings(): Promise<ShelterSettingsInput> {
   return readShelterSettings();
+}
+
+/**
+ * Loads settings for the admin form, reporting whether they are authoritative.
+ *
+ * The settings page seeds its form from `useSettingsStore`, which is backed by
+ * `localStorage` and therefore only knows what *this* browser last saved. Now
+ * that the QR fields really persist, a second admin opening the page would
+ * otherwise see empty QR fields and blank the saved codes on their next save.
+ * The page overwrites its local copy from here — but only when `fromDatabase`
+ * is true, so a database outage cannot replace real settings with defaults.
+ */
+export async function loadShelterSettings(): Promise<{
+  settings: ShelterSettingsInput;
+  fromDatabase: boolean;
+}> {
+  return readShelterSettingsWithSource();
 }
 
 export async function updateShelterSettings(

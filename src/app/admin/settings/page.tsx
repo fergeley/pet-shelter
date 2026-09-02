@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { shelterSettingsSchema, ShelterSettingsInput } from "@/lib/validations/settings";
 import { useSettingsStore } from "@/lib/settingsStore";
-import { updateShelterSettings, sendTestEmailAction } from "@/actions/settings";
+import {
+  updateShelterSettings,
+  sendTestEmailAction,
+  loadShelterSettings,
+} from "@/actions/settings";
+import { PERSISTED_SETTING_KEYS } from "@/lib/domain/shelterSettingsKeys";
 import { useAdminAuth } from "@/lib/adminAuth";
 import { DonationQrSettings } from "@/components/admin/DonationQrSettings";
 import { Button } from "@/components/ui/button";
@@ -64,6 +69,37 @@ export default function AdminSettingsPage() {
     watch,
     formState: { errors, isSubmitting },
   } = form;
+
+  // `useSettingsStore` is backed by localStorage, so it only knows what this
+  // browser last saved. The QR fields now really persist, so a second admin
+  // would otherwise open the page with empty QR inputs and blank the saved
+  // codes on their next save. Pull the persisted keys from the server once on
+  // mount, and only when they are authoritative.
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadShelterSettings()
+      .then(({ settings: server, fromDatabase }) => {
+        if (cancelled || !fromDatabase) return;
+
+        const merged = { ...settingsRef.current } as Record<string, unknown>;
+        for (const key of PERSISTED_SETTING_KEYS) {
+          merged[key] = (server as Record<string, unknown>)[key] ?? "";
+        }
+        saveSettings(merged as typeof settings);
+      })
+      .catch(() => {
+        // Keep the local copy; the save path re-reads before writing.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveSettings]);
 
   useEffect(() => {
     reset(settings);

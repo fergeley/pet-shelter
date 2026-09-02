@@ -1,5 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { ShelterSettingsInput } from "@/lib/validations/settings";
+import {
+  isNullableSettingColumn,
+  PERSISTED_SETTING_KEYS,
+  QR_SETTING_KEYS,
+  SECRET_SETTING_KEYS,
+  SETTINGS_ROW_ID,
+  type PersistedSettingKey,
+  type QrSettingKey,
+} from "@/lib/domain/shelterSettingsKeys";
 
 /**
  * Persistence for shelter settings.
@@ -15,35 +24,14 @@ import { ShelterSettingsInput } from "@/lib/validations/settings";
  * row any admin session can read back.
  */
 
-export const SETTINGS_ROW_ID = "default-settings";
-
-/** Keys backed by real columns on `shelter_settings`. */
-export const PERSISTED_SETTING_KEYS = [
-  "shelterName",
-  "email",
-  "phone",
-  "address",
-  "operatingHours",
-  "announcementBanner",
-  "adoptionFeeDog",
-  "adoptionFeeCat",
-  "duitNowQrUrl",
-  "tngQrUrl",
-  "bankQrUrl",
-  "paymentPayload",
-] as const;
-
-export type PersistedSettingKey = (typeof PERSISTED_SETTING_KEYS)[number];
-
-/** The QR-bearing subset, used for audit diffing and preview. */
-export const QR_SETTING_KEYS = [
-  "duitNowQrUrl",
-  "tngQrUrl",
-  "bankQrUrl",
-  "paymentPayload",
-] as const;
-
-export type QrSettingKey = (typeof QR_SETTING_KEYS)[number];
+export {
+  SETTINGS_ROW_ID,
+  PERSISTED_SETTING_KEYS,
+  QR_SETTING_KEYS,
+  SECRET_SETTING_KEYS,
+  type PersistedSettingKey,
+  type QrSettingKey,
+};
 
 export const DEFAULT_SHELTER_SETTINGS: ShelterSettingsInput = {
   shelterName: "Hope for Strays",
@@ -75,37 +63,38 @@ export const DEFAULT_SHELTER_SETTINGS: ShelterSettingsInput = {
  */
 let memorySettings: ShelterSettingsInput = { ...DEFAULT_SHELTER_SETTINGS };
 
-/** Prisma returns null for an unset optional column; the form model uses "". */
-function fromColumn(value: string | null | undefined): string {
-  return value ?? "";
-}
-
-/** "" means "cleared" to the form but must land in the column as NULL. */
-function toColumn(value: string | null | undefined): string | null {
-  const trimmed = (value ?? "").trim();
-  return trimmed === "" ? null : trimmed;
-}
-
 type ShelterSettingsRow = Record<PersistedSettingKey, string | null> & { id: string };
 
 function mergeRow(row: ShelterSettingsRow): ShelterSettingsInput {
   const merged: ShelterSettingsInput = { ...memorySettings };
+
   for (const key of PERSISTED_SETTING_KEYS) {
-    const value = fromColumn(row[key]);
-    // A required column that somehow came back empty keeps the default rather
-    // than blanking the public site.
-    if (value !== "" || key === "announcementBanner" || (QR_SETTING_KEYS as readonly string[]).includes(key)) {
+    const value = row[key] ?? "";
+    // A nullable column round-trips its emptiness faithfully. A NOT NULL column
+    // that somehow came back empty keeps the in-memory value rather than
+    // blanking the public site.
+    if (isNullableSettingColumn(key) || value !== "") {
       (merged as Record<string, unknown>)[key] = value;
     }
   }
+
   return merged;
 }
 
+export interface ReadSettingsResult {
+  settings: ShelterSettingsInput;
+  /** True only when the values came back from Postgres. */
+  fromDatabase: boolean;
+}
+
 /**
- * Reads settings from Postgres, falling back to the in-memory copy when the
- * row or the database is unavailable.
+ * Reads settings from Postgres, reporting whether the row was actually found.
+ *
+ * Callers that overwrite admin-visible state need `fromDatabase`: treating the
+ * in-memory fallback as authoritative would let a database outage silently
+ * replace real settings with defaults.
  */
-export async function readShelterSettings(): Promise<ShelterSettingsInput> {
+export async function readShelterSettingsWithSource(): Promise<ReadSettingsResult> {
   try {
     const row = (await prisma.shelterSettings.findUnique({
       where: { id: SETTINGS_ROW_ID },
@@ -114,13 +103,18 @@ export async function readShelterSettings(): Promise<ShelterSettingsInput> {
     if (row) {
       const merged = mergeRow(row);
       memorySettings = merged;
-      return merged;
+      return { settings: merged, fromDatabase: true };
     }
   } catch {
-    // Database offline or the QR columns have not been applied yet.
+    // Database offline, or the QR columns have not been applied yet.
   }
 
-  return { ...memorySettings };
+  return { settings: { ...memorySettings }, fromDatabase: false };
+}
+
+/** Convenience wrapper for callers that do not care where the values came from. */
+export async function readShelterSettings(): Promise<ShelterSettingsInput> {
+  return (await readShelterSettingsWithSource()).settings;
 }
 
 export interface WriteSettingsResult {
@@ -141,11 +135,9 @@ export async function writeShelterSettings(
   const columns: Record<string, string | null> = {};
   for (const key of PERSISTED_SETTING_KEYS) {
     const raw = (next as Record<string, unknown>)[key];
-    const value = typeof raw === "string" ? raw : "";
+    const value = typeof raw === "string" ? raw.trim() : "";
     // Required columns are NOT NULL; never write null into them.
-    const isOptionalColumn =
-      key === "announcementBanner" || (QR_SETTING_KEYS as readonly string[]).includes(key);
-    columns[key] = isOptionalColumn ? toColumn(value) : value;
+    columns[key] = isNullableSettingColumn(key) && value === "" ? null : value;
   }
 
   try {
@@ -187,9 +179,6 @@ export function pickQrSettings(
   }
   return picked;
 }
-
-/** Setting keys whose values must never reach the audit log in cleartext. */
-export const SECRET_SETTING_KEYS = ["resendApiKey"] as const;
 
 /**
  * Strips credentials before a settings snapshot is written to `audit_logs`.

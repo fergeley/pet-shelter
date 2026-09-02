@@ -72,23 +72,28 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
   const { instructions, compact = false, className = "" } = props;
   const resolved = resolveDonationQr(useResolvedSources(props));
 
+  // Sizes and spacing mirror what each surface used before this component
+  // absorbed both copies, so extracting the duplicate changes no pixels.
   const frameSize = compact ? "w-36 h-36" : "w-40 h-40";
   const titleSize = compact ? "text-[11px]" : "text-xs";
   const captionSize = compact ? "text-[10px]" : "text-xs";
   const noteSize = compact ? "text-[9px]" : "text-[10px]";
+  const subtitleGap = compact ? "mb-2" : "mb-2.5";
+  const captionGap = compact ? "mt-2" : "mt-2.5";
+  const shadow = compact ? "shadow-sm" : "shadow-xs";
 
   return (
     <div
       className={`border-2 border-[#ed008c] bg-white text-zinc-900 ${
         compact ? "p-4" : "p-5"
-      } rounded-xl flex flex-col items-center justify-center text-center shadow-sm ${className}`}
+      } rounded-xl flex flex-col items-center justify-center text-center ${shadow} ${className}`}
     >
       <div
         className={`${titleSize} font-extrabold uppercase tracking-widest text-[#ed008c] mb-0.5`}
       >
         DuitNow QR
       </div>
-      <div className="text-[10px] text-zinc-600 font-semibold mb-2.5">
+      <div className={`text-[10px] text-zinc-600 font-semibold ${subtitleGap}`}>
         National QR Standard (PayNet Malaysia)
       </div>
 
@@ -120,7 +125,7 @@ export function DonationQrPanel(props: DonationQrPanelProps) {
         )}
       </div>
 
-      <div className={`${captionSize} font-bold text-zinc-800 mt-2.5`}>{resolved.caption}</div>
+      <div className={`${captionSize} font-bold text-zinc-800 ${captionGap}`}>{resolved.caption}</div>
 
       {resolved.isPetSpecific && (
         <div className="mt-1 inline-block rounded-full bg-[#ed008c]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#ed008c]">

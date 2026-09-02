@@ -34,12 +34,14 @@ const QR_FIELDS = [
   {
     name: "tngQrUrl" as const,
     label: "Touch 'n Go eWallet QR",
-    description: "Optional. Held for donors who scan from the TNG app.",
+    description:
+      "Stored, but not yet shown to donors — the public panel renders the DuitNow code only.",
   },
   {
     name: "bankQrUrl" as const,
     label: "Bank Transfer QR",
-    description: "Optional. A bank-issued QR for direct transfers.",
+    description:
+      "Stored, but not yet shown to donors — the public panel renders the DuitNow code only.",
   },
 ];
 
@@ -52,9 +54,12 @@ export function DonationQrSettings({ form, canEdit }: DonationQrSettingsProps) {
   const bankQrUrl = watch("bankQrUrl") ?? "";
   const paymentPayload = watch("paymentPayload") ?? "";
 
-  // The toggle starts on when a payload is already stored, so reopening the tab
-  // does not hide a value that is live on the public site.
-  const [autoGenerate, setAutoGenerate] = useState(paymentPayload.trim() !== "");
+  // The toggle must be on whenever a payload exists, or the tab would hide a
+  // value that is live on the public site. A `useState` initialiser would read
+  // the payload once, before the server hydration lands, and then stay wrong —
+  // so track only the admin's explicit choice and derive the rest.
+  const [manualToggle, setManualToggle] = useState<boolean | null>(null);
+  const autoGenerate = manualToggle ?? paymentPayload.trim() !== "";
 
   const generated = useMemo(() => {
     const payload = paymentPayload.trim();
@@ -132,7 +137,7 @@ export function DonationQrSettings({ form, canEdit }: DonationQrSettingsProps) {
             role="switch"
             aria-checked={autoGenerate}
             disabled={!canEdit}
-            onClick={() => setAutoGenerate((on) => !on)}
+            onClick={() => setManualToggle(!autoGenerate)}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
               autoGenerate ? "bg-primary" : "bg-muted-foreground/30"
             }`}

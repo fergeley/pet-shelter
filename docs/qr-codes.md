@@ -31,6 +31,26 @@ a dedicated medical fund drive.
 A value that fails `isSafeQrImageUrl` falls through to the next source rather
 than throwing at render time.
 
+## Migrate BEFORE merging, not after
+
+Prisma selects every declared column, so the generated client and the live table
+must agree. Verified against the live database on 2026-09-02, with the columns
+still missing:
+
+```
+prisma.pet.findMany()            -> The column `pets.customQrUrl` does not exist
+prisma.shelterSettings.find...() -> The column `shelter_settings.duitNowQrUrl` does not exist
+```
+
+`getServerPetsAsync` catches that and falls back to the in-memory seed array, so
+the site keeps rendering while silently serving eight seed pets instead of real
+data; `insertServerPet` and `updateServerPet` catch it too and only `console.warn`,
+so a pet appears to save and does not persist.
+
+The columns are nullable and additive, which means the pre-merge code cannot see
+them and is completely unaffected by their existence. Running the migration
+first therefore has no downside and closes the window entirely.
+
 ## Applying the database columns
 
 `prisma/schema.prisma` gained five nullable columns. **Do not run
