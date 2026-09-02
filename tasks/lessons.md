@@ -111,3 +111,35 @@ own tests, which asserted the role sets and reported the control as covered.
 **Rule:** after extracting a policy, grep for its callers. A security helper
 with only test importers is worse than none — it produces green coverage for a
 rule nothing enforces.
+
+## Persisted-but-unrendered data is a promise you have not kept
+
+`tngQrUrl` and `bankQrUrl` shipped with a column, a validator, provider context
+and a working upload control — and no surface that rendered them. The admin field
+said "not yet shown to donors", but the upload succeeded and the image landed in
+Postgres, so the interface still said "this works".
+
+**Rule:** a field the user can fill in is a claim that filling it does something.
+Either wire it end to end or do not ship the input. A caveat in help text does
+not cancel a working button.
+
+## Tailwind cannot build a class name from a variable
+
+The QR panel needed a per-channel accent colour. `border-[${accent}]` compiles,
+renders, and produces no style at all — the JIT only sees class names that appear
+literally in the source.
+
+**Rule:** for a colour that varies at runtime, use an inline `style`. Reserve
+Tailwind arbitrary values for literals you have typed out.
+
+## Gating an endpoint is not always the fix
+
+`getAdminPets` was an ungated server action, but its only caller was a server
+component that Next prerenders at build time with no session — adding an
+authorization throw would have broken the build. Two of these were better
+deleted than gated: `getShelterSettings` had no production caller at all, and
+`getAdminPets` only needed to stop being an action.
+
+**Rule:** before gating an exported action, check who calls it. If the answer is
+"a server component" the logic belongs in a plain module; if the answer is
+"nothing", delete it. Removing the endpoint beats guarding it.

@@ -144,26 +144,57 @@ tests, which asserted the role sets and reported the control as covered.
 
 ---
 
-## 3. Still open
+## 3. Closed since the review
 
-- **`tngQrUrl` and `bankQrUrl` persist but nothing renders them.** The columns,
-  validators, provider context and admin uploaders all exist; `DonationQrPanel`
-  reads only `duitNowQrUrl`. The admin field descriptions say so, but the upload
-  control is fully live and the image lands in Postgres, so an admin can
-  reasonably believe donors can pay that way. Either wire the channels into the
-  panel or drop the two columns.
-- **A CI build with no reachable `DATABASE_URL` bakes the placeholder** into every
-  prerendered page. `getDonationQrConfig` catches and returns empty strings, and
-  nothing distinguishes "no QR configured" from "could not reach the database".
-  `revalidatePath("/", "layout")` on the next settings save repairs it.
+### Touch 'n Go and bank QR codes now reach donors
+
+They were persisted, validated and uploadable for a whole release while
+`DonationQrPanel` rendered only `duitNowQrUrl`. The admin field descriptions
+said so, but the upload control was fully live and the image landed in
+Postgres, so an admin could reasonably believe donors could pay that way.
+
+`availableQrChannels` now drives a switcher on the donor panel. DuitNow is
+always offered because it owns the full fallback chain (uploaded image, then a
+code generated from the payment payload, then the placeholder); the other two
+appear only once an image is uploaded for them. A shelter that configures
+DuitNow alone gets `["duitnow"]`, no switcher, and pixel-identical output to
+before — pinned by a test.
+
+Two details worth keeping:
+
+- The payment payload is a DuitNow EMVCo string, so `mergeQrSources` refuses to
+  lend it to another rail. Generating a code from it under a Touch 'n Go tab
+  would show the wrong rail's QR.
+- Channel accents are applied inline rather than as Tailwind classes. Tailwind
+  cannot build a class name from a variable, so `border-[${accent}]` would
+  silently produce no style at all.
+
+### `getAdminPets` is no longer a public endpoint
+
+It was an export of a `"use server"` module with no session check, returning
+archived animals and per-pet application counts to anyone who sent its action
+id. Gating it in place was not an option: its only caller is the `/admin/pets`
+server component, which Next prerenders at build time with no session, so an
+authorization throw would have broken the build.
+
+The logic moved to `src/lib/domain/adminPetCatalog.ts`, a plain function the
+page imports directly — same data path, no endpoint. The `KNOWN GAP` entry that
+held it in the `serverActionAuth` allowlist is gone, and that guard's
+"no stale names" assertion now proves the action no longer exists.
+
+## 3b. Still open
+
+- **A CI build with no reachable `DATABASE_URL` bakes the placeholder** into
+  every prerendered page. `getDonationQrConfig` catches and returns empty
+  strings, and nothing distinguishes "no QR configured" from "could not reach
+  the database". `revalidatePath("/", "layout")` on the next settings save
+  repairs it.
 - **`schema.prisma` still does not declare the drifted rehab objects.** The
   warning header and Procedure A2 are mitigations, not a fix. Reconcile once the
   rehab branch lands.
 - **`updateServerPet` still resolves the pet through the in-memory array**, so a
   record present only in Postgres cannot be updated. Pre-existing, and wider than
   this feature.
-
----
 
 ## 4. Wisdom
 

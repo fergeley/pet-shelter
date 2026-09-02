@@ -11,7 +11,6 @@ import {
   insertServerPet,
   updateServerPet,
   archiveServerPet,
-  getServerApplicationsAsync,
 } from "@/lib/serverStore";
 
 /**
@@ -58,23 +57,13 @@ export async function getPets(filters?: PetFilterInput): Promise<Pet[]> {
   return getPublicPets(filters);
 }
 
-/**
- * Admin catalog query: includes all pets (archived and active) with linked application counts.
- */
-export async function getAdminPets(): Promise<(Pet & { applicationCount: number })[]> {
-  const allPets = await getServerPetsAsync();
-  const apps = await getServerApplicationsAsync();
-
-  return allPets.map((pet) => {
-    const petApps = apps.filter(
-      (a) => a.petId === pet.id || a.petName.toLowerCase() === pet.name.toLowerCase()
-    );
-    return {
-      ...pet,
-      applicationCount: petApps.length,
-    };
-  });
-}
+// `getAdminPets` used to live here. As an export of a `"use server"` module it
+// was an unauthenticated POST endpoint returning archived animals and per-pet
+// application counts to any caller. Its only consumer is the /admin/pets server
+// component, which Next prerenders with no session, so an authorization throw
+// would have broken the build. The logic moved to
+// `@/lib/domain/adminPetCatalog`, a plain function the page imports directly —
+// same data path, no endpoint.
 
 export async function getPetById(id: string): Promise<Pet | null> {
   return findServerPetById(id);

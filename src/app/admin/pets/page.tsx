@@ -1,8 +1,8 @@
 import { PetDataTable } from "@/components/admin/PetDataTable";
-import { getAdminPets } from "@/actions/pets";
+import { getAdminPetCatalog } from "@/lib/domain/adminPetCatalog";
 
 export default async function AdminPetsPage() {
-  const pets = await getAdminPets();
+  const pets = await getAdminPetCatalog();
 
   return (
     <div className="space-y-6">

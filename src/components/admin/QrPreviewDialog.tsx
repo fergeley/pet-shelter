@@ -34,6 +34,12 @@ interface QrPreviewDialogProps {
   shelterQrUrl?: string;
   /** Pending (possibly unsaved) payment payload. Same nullish contract. */
   paymentPayload?: string;
+  /** Pending Touch 'n Go code, so the preview can offer that rail. */
+  tngQrUrl?: string;
+  /** Pending bank-transfer code. */
+  bankQrUrl?: string;
+  /** Pending shelter name, used for the caption under the code. */
+  shelterName?: string;
   /** Pending per-animal QR, when previewing from the pet dialog. */
   petCustomQrUrl?: string;
   petName?: string;
@@ -53,15 +59,35 @@ export function QrPreviewDialog({
   onOpenChange,
   shelterQrUrl,
   paymentPayload,
+  tngQrUrl,
+  bankQrUrl,
+  shelterName,
   petCustomQrUrl,
   petName,
   dirty = false,
 }: QrPreviewDialogProps) {
+  // Only build an override when the caller actually supplied shelter-level
+  // values. The pet dialog passes none, and must keep falling back to the
+  // live provider config so it previews the code a donor would really get.
+  const configOverride =
+    shelterQrUrl === undefined &&
+    paymentPayload === undefined &&
+    tngQrUrl === undefined &&
+    bankQrUrl === undefined
+      ? undefined
+      : {
+          duitNowQrUrl: shelterQrUrl ?? "",
+          tngQrUrl: tngQrUrl ?? "",
+          bankQrUrl: bankQrUrl ?? "",
+          paymentPayload: paymentPayload ?? "",
+          shelterName: shelterName ?? "",
+        };
   const resolved = resolveDonationQr({
     petCustomQrUrl,
     petName,
     shelterQrUrl,
     paymentPayload,
+    shelterName,
   });
 
   return (
@@ -81,9 +107,7 @@ export function QrPreviewDialog({
             compact
             petCustomQrUrl={petCustomQrUrl}
             petName={petName}
-            shelterQrUrl={shelterQrUrl}
-            paymentPayload={paymentPayload}
-            instructions="Scan with Maybank MAE, CIMB, TNG eWallet, Public Bank, etc."
+            configOverride={configOverride}
           />
         </div>
 
