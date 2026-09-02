@@ -23,6 +23,8 @@ const AUTH_TOKENS = [
   "assertAuthorized",
   "verifyAdminSession",
   "getAdminActorOrThrow",
+  // Named per-feature gates that call assertAuthorized internally.
+  "requireFaqEditor",
 ];
 
 /**
@@ -51,9 +53,9 @@ const INTENTIONALLY_PUBLIC: Record<string, string> = {
   // Public content, served on pages any visitor can open. Pre-existing on
   // master and not touched by this change: listed so the guard passes on
   // today's tree, with their payloads not audited field by field here.
-  getFaqsAction: "public FAQ content",
+  getFaqsAction: "published rows only, rendered anonymously by /faq and /pets",
   fetchFaqsAction: "alias of getFaqsAction",
-  getFaqByIdAction: "public FAQ content",
+  getFaqByIdAction: "published rows only, rendered anonymously",
   getRehabNeedsAction: "public rehabilitation needs list",
   fetchRehabNeedsAction: "alias of getRehabNeedsAction",
   getRehabNeedByIdAction: "public rehabilitation need",
