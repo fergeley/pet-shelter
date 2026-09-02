@@ -119,3 +119,14 @@ export function decryptField(encryptedPayload: string): string | null {
     return null;
   }
 }
+
+/**
+ * Generates a URL-safe, cryptographically random token.
+ *
+ * Used for staff invitation links. The raw value is emailed once and never
+ * stored; only `hashPassword(token)` is persisted, so a database disclosure
+ * does not yield usable invitations.
+ */
+export function generateSecureToken(byteLength = 32): string {
+  return crypto.randomBytes(byteLength).toString("base64url");
+}

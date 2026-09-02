@@ -5,6 +5,7 @@ import {
   resetPrismaDouble,
   type PrismaDouble,
 } from "./support/prismaDouble";
+import { signInAs } from "../setup/authSession";
 
 /**
  * Tier 3a — soft-delete filtering under `STRICT_PERSISTENCE=true`.
@@ -124,6 +125,14 @@ describe("soft-delete filtering under strict persistence", () => {
   });
 
   describe("admin catalogue", () => {
+    // getAdminPets() is authorization-guarded: /admin/pets is a Server
+    // Component that calls it directly, so an unguarded read shipped the whole
+    // inventory to anonymous visitors in the RSC payload. These tests are about
+    // filtering, not authorization, so they hold a real session.
+    beforeEach(async () => {
+      await signInAs("ADMIN");
+    });
+
     it("includes archived animals the public catalogue hides", async () => {
       givenPersistedPets();
       const { getAdminPets } = await import("@/actions/pets");

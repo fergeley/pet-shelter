@@ -48,9 +48,9 @@ async function sendRawEmail({
   text,
   template,
   entityId,
+  entity = "AdoptionApplication",
   replyTo,
   extraHeaders,
-  auditEntity = "AdoptionApplication",
   category = "transactional",
 }: {
   to: string | string[];
@@ -59,9 +59,10 @@ async function sendRawEmail({
   text: string;
   template: string;
   entityId?: string;
+  /** Audit-log target entity. Defaults to the historical value. */
+  entity?: string;
   replyTo?: string;
   extraHeaders?: Record<string, string>;
-  auditEntity?: string;
   category?: string;
 }): Promise<EmailResult> {
   const apiKey = process.env.RESEND_API_KEY;
@@ -81,7 +82,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_SENT",
-      entity: auditEntity,
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -134,7 +135,7 @@ async function sendRawEmail({
         actorEmail: "mailer@hopeforstrays.org",
         actorRole: "SYSTEM",
         action: "EMAIL_FAILED",
-        entity: auditEntity,
+        entity,
         entityId: entityId || "system",
         details: {
           template,
@@ -154,7 +155,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_SENT",
-      entity: auditEntity,
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -175,7 +176,7 @@ async function sendRawEmail({
       actorEmail: "mailer@hopeforstrays.org",
       actorRole: "SYSTEM",
       action: "EMAIL_FAILED",
-      entity: auditEntity,
+      entity,
       entityId: entityId || "system",
       details: {
         template,
@@ -1071,11 +1072,103 @@ ${SHELTER_ADDRESS}
     // NOT "Pet": `useAuditLogController` builds its Adoptions tab as
     // entity === "AdoptionApplication" || action.includes("APPLICATION") || entity === "Pet",
     // so filing here would bury the adoption trail under bulk-mail rows.
-    auditEntity: "SponsorNotification",
+    entity: "SponsorNotification",
     category: "sponsor_update",
     extraHeaders: {
       "List-Unsubscribe": `<${input.oneClickUnsubscribeUrl}>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
+}
+
+/**
+ * Sends a staff invitation containing a single-use, expiring redemption link.
+ *
+ * The raw token appears only here and in the recipient's inbox: the database
+ * holds nothing but its scrypt hash, and the audit trail records the invitation
+ * without the token.
+ *
+ * Every interpolated value is escaped. The name and role text originate from an
+ * administrator's form input, and this is an HTML body.
+ */
+export async function sendStaffInvitationEmail(invite: {
+  email: string;
+  name: string;
+  roleLabel: string;
+  roleDescription: string;
+  token: string;
+  expiresAt: Date;
+  invitedByName: string;
+  userId: string;
+}): Promise<EmailResult> {
+  const acceptUrl =
+    `${APP_BASE_URL}/admin/invite` +
+    `?token=${encodeURIComponent(invite.token)}` +
+    `&email=${encodeURIComponent(invite.email)}`;
+
+  const expiryText = invite.expiresAt.toLocaleString("en-MY", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "Asia/Kuala_Lumpur",
+  });
+
+  const subject = `You have been invited to the ${SHELTER_NAME} staff portal`;
+
+  const plainText = [
+    `Hello ${invite.name},`,
+    ``,
+    `${invite.invitedByName} has invited you to join the ${SHELTER_NAME} staff portal as ${invite.roleLabel}.`,
+    `${invite.roleDescription}`,
+    ``,
+    `Set your password and activate your account:`,
+    acceptUrl,
+    ``,
+    `This link can be used once and expires on ${expiryText}.`,
+    `If you were not expecting this invitation, you can ignore this email — the account stays inactive until the link is used.`,
+    ``,
+    `${SHELTER_NAME}`,
+    SHELTER_ADDRESS,
+  ].join("\n");
+
+  const html = wrapEmailHtml(`
+    <span class="badge">Staff Invitation</span>
+    <h2 style="margin: 0 0 12px; font-size: 20px;">Hello ${escapeHtml(invite.name)},</h2>
+
+    <p>
+      <strong>${escapeHtml(invite.invitedByName)}</strong> has invited you to join the
+      ${SHELTER_NAME} staff portal as
+      <strong>${escapeHtml(invite.roleLabel)}</strong>.
+    </p>
+
+    <div class="card">
+      <strong>Your access level:</strong> ${escapeHtml(invite.roleLabel)}<br/>
+      <span style="font-size: 13px; color: ${EMAIL_BRAND.mutedForeground};">${escapeHtml(invite.roleDescription)}</span>
+    </div>
+
+    <p>Choose a password to activate your account:</p>
+
+    <p style="text-align: center;">
+      <a href="${escapeHtml(acceptUrl)}" class="btn-track">Activate Your Staff Account</a>
+    </p>
+
+    <div class="card card-warning">
+      This link works once and expires on <strong>${escapeHtml(expiryText)}</strong>.
+      If it lapses, ask an administrator to resend your invitation.
+    </div>
+
+    <p style="font-size: 13px; color: ${EMAIL_BRAND.mutedForeground}; margin-top: 24px;">
+      If you were not expecting this invitation you can safely ignore this email —
+      the account remains inactive until the link is used.
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: invite.email,
+    subject,
+    text: plainText,
+    html,
+    template: "STAFF_INVITATION",
+    entity: "User",
+    entityId: invite.userId,
+});
 }

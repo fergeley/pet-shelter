@@ -1,9 +1,10 @@
-import { PrismaClient, PetStatus, ApplicationStatus } from "@prisma/client";
+import { PrismaClient, PetStatus, ApplicationStatus, FaqCategory } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import faqsData from "../src/data/faqs.json";
 import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
 
 function hashPasswordSync(password: string): string {
@@ -40,29 +41,36 @@ async function main() {
       id: "usr-admin-01",
       email: "admin@hopeforstrays.org",
       name: "Dr. Sarah Tan",
-      role: "ADMIN" as const,
+      role: "SUPER_ADMIN" as const,
       password: "admin123",
     },
     {
       id: "usr-coord-01",
       email: "coordinator@hopeforstrays.org",
       name: "Priya Devi",
-      role: "COORDINATOR" as const,
+      role: "VOLUNTEER_COORDINATOR" as const,
       password: "coord123",
+    },
+    {
+      id: "usr-animal-01",
+      email: "animals@hopeforstrays.org",
+      name: "Ahmad Razak",
+      role: "ANIMAL_MANAGER" as const,
+      password: "animal123",
+    },
+    {
+      id: "usr-editor-01",
+      email: "content@hopeforstrays.org",
+      name: "Mei Ling",
+      role: "CONTENT_EDITOR" as const,
+      password: "content123",
     },
     {
       id: "usr-staff-01",
       email: "staff@hopeforstrays.org",
-      name: "Ahmad Razak",
+      name: "Nurul Aina",
       role: "STAFF" as const,
       password: "staff123",
-    },
-    {
-      id: "usr-vol-01",
-      email: "volunteer@hopeforstrays.org",
-      name: "Mei Ling",
-      role: "VOLUNTEER" as const,
-      password: "vol123",
     },
   ];
 
@@ -73,6 +81,7 @@ async function main() {
       update: {
         name: user.name,
         role: user.role,
+        status: "ACTIVE" as const,
         passwordHash,
       },
       create: {
@@ -80,6 +89,7 @@ async function main() {
         email: user.email,
         name: user.name,
         role: user.role,
+        status: "ACTIVE" as const,
         passwordHash,
       },
     });
@@ -405,7 +415,37 @@ async function main() {
   }
   console.log(`  ✓ ${applicationsData.length} adoption applications seeded.`);
 
-  // 5. Initial Audit Log
+  // 5. Seed the public FAQ knowledge base.
+  // Upserted by the fixture's stable ids, exactly like the pets above, so
+  // re-running refreshes the launch copy without duplicating rows.
+  // `isPublished` is set only on create: re-seeding must not silently
+  // republish an entry that staff have taken down.
+  for (const faq of faqsData) {
+    await prisma.faq.upsert({
+      where: { id: faq.id },
+      update: {
+        category: faq.category as FaqCategory,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+      },
+      create: {
+        id: faq.id,
+        category: faq.category as FaqCategory,
+        question: faq.question,
+        answer: faq.answer,
+        questionMs: faq.questionMs,
+        answerMs: faq.answerMs,
+        displayOrder: faq.displayOrder,
+        isPublished: faq.isPublished,
+      },
+    });
+  }
+  console.log(`  ✓ ${faqsData.length} FAQ entries seeded.`);
+
+  // 6. Initial Audit Log
   await prisma.auditLog.create({
     data: {
       action: "DATABASE_SEEDED",
@@ -418,6 +458,7 @@ async function main() {
         seededPets: petsData.length,
         seededApplications: applicationsData.length,
         seededStaff: staffUsers.length,
+        seededFaqs: faqsData.length,
       },
     },
   });
