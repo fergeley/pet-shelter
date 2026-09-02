@@ -125,10 +125,26 @@ function stripGitCruft(raw) {
   const text = String(raw).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const scissors = text.indexOf("\n# ------------------------ >8");
   const withoutDiff = scissors === -1 ? text : text.slice(0, scissors);
-  return withoutDiff
-    .split("\n")
-    .filter((line) => !line.startsWith("#"))
-    .join("\n");
+  // `git commit -F` — the path AGENTS.md mandates — uses cleanup=whitespace, which
+  // KEEPS comment lines; only an editor session uses cleanup=strip. Filtering every
+  // `#` line made this lint different bytes than git commits: a body of `#` lines
+  // reported "no body", and a 90-column `#` line escaped rule 6 entirely.
+  //
+  // Git appends its template as a trailing comment block, and only in editor mode.
+  // Drop that block, identified by the lines git itself writes, and treat every other
+  // `#` line as what it is — text the author wrote and git will commit.
+  const lines = withoutDiff.split("\n");
+  let cut = lines.length;
+  while (cut > 0 && (lines[cut - 1].startsWith("#") || lines[cut - 1].trim() === "")) {
+    cut -= 1;
+  }
+  const trailing = lines.slice(cut);
+  const isGitTemplate = trailing.some((line) =>
+    /^#\s*(Please enter|On branch|Changes to be committed|Changes not staged|Untracked files|Your branch|It looks like|Author:|Date:)/.test(
+      line,
+    ),
+  );
+  return (isGitTemplate ? lines.slice(0, cut) : lines).join("\n");
 }
 
 function isTrailer(line) {
@@ -173,7 +189,10 @@ export function lintCommitMessage(raw) {
 
   while (lines.length > 0 && lines[lines.length - 1].trim() === "") lines.pop();
 
-  const subject = lines[0] ?? "";
+  // Git's cleanup removes trailing whitespace from every line, in both `strip` and
+  // `whitespace` mode, so the subject that lands is the trimmed one. Linting the raw
+  // line let a single trailing space hide a rule-4 period and inflate rule 2's count.
+  const subject = (lines[0] ?? "").replace(/[ \t]+$/, "");
 
   if (lines.length === 0) {
     add("empty", "error", 1, "the commit message is empty");
@@ -284,7 +303,11 @@ export function lintCommitMessage(raw) {
   }
 
   // ---------------------------------------------------------------- rule 5
-  const firstWord = (summary.match(/^[A-Za-z']+/) ?? [""])[0].toLowerCase();
+  // Skip leading punctuation — a backtick-quoted identifier, a quote, an em-dash — so
+  // the mood check still sees the first real word. Rule 3 deliberately exempts those
+  // openers from capitalization (tested); rule 5 has no such exemption and never did.
+  const firstWord = (summary.replace(/^[^A-Za-z]+/, "").match(/^[A-Za-z']+/) ?? [""])[0]
+    .toLowerCase();
   if (firstWord && NON_IMPERATIVE.has(firstWord)) {
     add(
       "imperative",
@@ -309,10 +332,24 @@ export function lintCommitMessage(raw) {
     );
   }
 
+  // An unclosed fence used to latch `inFence` on and exempt every remaining line —
+  // trailers included — from rule 6. Count the fences first: if they do not pair, say
+  // so and lint every line rather than trusting a state machine that cannot recover.
+  const fencesBalanced =
+    body.filter((line) => /^\s*```/.test(line)).length % 2 === 0;
+  if (!fencesBalanced) {
+    add(
+      "unclosed-fence",
+      "error",
+      offset + 3,
+      "an unclosed \`\`\` fence would exempt the rest of the body from rule 6 — close it",
+    );
+  }
+
   let inFence = false;
   body.forEach((line, index) => {
     const lineNo = offset + 3 + index;
-    if (/^\s*```/.test(line)) {
+    if (fencesBalanced && /^\s*```/.test(line)) {
       inFence = !inFence;
       return;
     }
@@ -399,7 +436,11 @@ async function main(argv) {
     for (const [key, count] of sorted) {
       process.stdout.write(`  ${key.padEnd(28)} ${count}\n`);
     }
-    process.exit(strict && clean < linted ? 1 : 0);
+    // `process.exit()` discards buffered stdout, and on POSIX stdout to a pipe — which
+    // is what GitHub Actions gives us — is async. The --verbose detail block runs to
+    // tens of KB, so exiting here dropped the diagnosis on exactly the failing run.
+    process.exitCode = strict && clean < linted ? 1 : 0;
+    return;
   }
 
   const raw =
@@ -408,7 +449,10 @@ async function main(argv) {
       : readFileSync(argv[0], "utf8");
 
   const { findings, subject, skipped } = lintCommitMessage(raw);
-  if (skipped || findings.length === 0) process.exit(0);
+  if (skipped || findings.length === 0) {
+    process.exitCode = 0;
+    return;
+  }
 
   process.stderr.write(format(findings, { subject }) + "\n");
   const errors = findings.filter((f) => f.level === "error");
@@ -417,9 +461,11 @@ async function main(argv) {
       "\n  The standard is docs/reference/COMMIT_MESSAGES.md.\n" +
         "  Fix the message, or bypass this once with `git commit --no-verify`.\n\n",
     );
-    process.exit(1);
+    // Set rather than exit, so the message above is flushed before the process ends.
+    process.exitCode = 1;
+    return;
   }
-  process.exit(0);
+  process.exitCode = 0;
 }
 
 // Only run the CLI when executed directly, so the module stays importable by tests.
