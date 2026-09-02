@@ -270,6 +270,38 @@ export async function summarizeSponsorshipsForPet(
   );
 }
 
+/**
+ * Live commitments to one animal, for contacting the people behind them.
+ *
+ * `summarizeSponsorshipsForPet` answers "how much has been raised" and selects
+ * only the columns that question needs. This answers "who should hear about this
+ * animal", so it returns whole records — and it is a separate query rather than a
+ * widening of that one, because a funding total has no business carrying donor
+ * contact details around with it.
+ *
+ * ACTIVE only: a pledge that has not been reconciled is somebody claiming to have
+ * paid, not a supporter. `take` bounds the read, since a popular animal should
+ * not drag an unbounded list into memory to produce a capped mailing.
+ */
+export async function listActiveSponsorshipsForPet(
+  petId: string,
+  take = 500
+): Promise<SponsorshipRecord[]> {
+  if (!isLedgerPersistent()) {
+    return memorySponsorships.filter(
+      (row) => row.petId === petId && row.status === "ACTIVE"
+    );
+  }
+
+  const rows = await prisma.petSponsorship.findMany({
+    where: { petId, status: "ACTIVE" },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
+
+  return rows.map(toRecord);
+}
+
 /** Looks a commitment up by the reference the supporter was given. */
 export async function findSponsorshipByPledgeRef(
   pledgeRef: string

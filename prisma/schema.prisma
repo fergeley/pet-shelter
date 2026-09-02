@@ -11,19 +11,19 @@ datasource db {
 
 enum Role {
   // --- Canonical roles ---
-  SUPER_ADMIN           // Unrestricted platform access, including staff management
-  ANIMAL_MANAGER        // Pet profiles, gallery photos, QR codes
-  CONTENT_EDITOR        // FAQs, transparency data, bulletins
+  SUPER_ADMIN // Unrestricted platform access, including staff management
+  ANIMAL_MANAGER // Pet profiles, gallery photos, QR codes
+  CONTENT_EDITOR // FAQs, transparency data, bulletins
   VOLUNTEER_COORDINATOR // Volunteer applications & settings
-  STAFF                 // Standard read-only operational access
+  STAFF // Standard read-only operational access
 
   // --- Deprecated aliases, retained so existing rows stay readable ---
   // Postgres cannot drop an enum value while any row references it, and live
   // session cookies still carry these. Normalised on read by
   // normalizeRole() in src/lib/security/permissions.ts. Do not assign.
-  ADMIN                 // -> SUPER_ADMIN
-  COORDINATOR           // -> VOLUNTEER_COORDINATOR
-  VOLUNTEER             // -> STAFF
+  ADMIN // -> SUPER_ADMIN
+  COORDINATOR // -> VOLUNTEER_COORDINATOR
+  VOLUNTEER // -> STAFF
 }
 
 enum UserStatus {
@@ -62,8 +62,8 @@ model User {
   inviteTokenHash      String?
   inviteTokenExpiresAt DateTime?
 
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([role])
@@ -633,6 +633,39 @@ model PetSponsorship {
   @@index([sponsorEmail])
   @@index([userId])
   @@map("pet_sponsorships")
+}
+
+/// Per-email-address notification consent.
+///
+/// Keyed by email rather than by account because a supporter need not have one:
+/// `User` is staff-only, and the `Sponsor` portal account is optional and claimed
+/// after the fact. The address is the identity every supporter has, so a signed
+/// token mailed to it is the only credential the preference page can accept.
+///
+/// Deliberately separate from `PetSponsorship.displayOnWall`, which is consent to be
+/// *listed publicly* rather than consent to be *emailed*. Withdrawing one must not
+/// withdraw the other.
+///
+/// A missing row means "has never expressed a choice", which reads as opted in.
+/// Rows appear only when someone actually changes something, so this table stays
+/// small and every row in it is a deliberate statement by a donor.
+model NotificationPreference {
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Photos of animals this address sponsors, sent by their caregivers.
+  photoUpdates Boolean @default(true)
+  /// Shelter news and appeals.
+  newsletter   Boolean @default(true)
+
+  /// Set when every channel is off, so a global unsubscribe is auditable as one
+  /// event rather than inferred from two booleans.
+  unsubscribedAllAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_preferences")
 }
 
 /// Category vocabulary for the public FAQ.

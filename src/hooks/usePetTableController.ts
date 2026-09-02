@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Pet } from "@/types/pet";
 import { PetFormInput } from "@/lib/validations/pet";
+import type { PhotoNotificationOptions } from "@/actions/pets";
 import { usePetStore } from "@/lib/client/petStore";
 import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/presentation/adminPetFilters";
 import { buildPetStatusFilterOptions } from "@/lib/presentation/petStatusPresentation";
@@ -85,7 +86,10 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
     setIsFormOpen(true);
   };
 
-  const handleFormSubmit = async (data: PetFormInput) => {
+  const handleFormSubmit = async (
+    data: PetFormInput,
+    notification?: PhotoNotificationOptions
+  ) => {
     setStatusError(null);
     if (editingPet) {
       const prevPet = pets.find((p) => p.id === editingPet.id);
@@ -106,7 +110,7 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
         setStatusError(errorMessage);
       };
 
-      serverUpdatePet(editingPet.id, data)
+      serverUpdatePet(editingPet.id, data, notification)
         .then((res) => {
           if (res && !res.success) {
             rollback(res.error || "Failed to update pet.");

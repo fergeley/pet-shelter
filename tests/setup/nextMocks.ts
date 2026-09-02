@@ -294,6 +294,7 @@ beforeEach(async () => {
     sponsorshipLedger,
     sponsorRepository,
     sponsorDemoSeed,
+    notificationPreferences,
   ] = await Promise.all([
     import("@/lib/server/fallbackState"),
     import("@/lib/server/userStore"),
@@ -304,6 +305,7 @@ beforeEach(async () => {
     import("@/lib/server/sponsorshipLedger"),
     import("@/lib/server/sponsorRepository"),
     import("@/lib/server/sponsorDemoSeed"),
+    import("@/lib/server/notificationPreferences"),
   ]);
 
   fallbackState.resetServerStore();
@@ -317,5 +319,6 @@ beforeEach(async () => {
   // empty ledger and no standings.
   sponsorDemoSeed.resetSponsorDemoSeed();
   await sponsorRepository.resetSponsorRepository();
+  notificationPreferences.resetNotificationPreferences();
   await userStore.resetUserStore();
 });
