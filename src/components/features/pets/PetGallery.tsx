@@ -278,7 +278,7 @@ export function PetGallery({
                   setActivePetForAdoption(filteredPets[0] || pets[0]);
                   setIsAdoptionOpen(true);
                 }}
-                className="w-full min-w-0 whitespace-nowrap text-[11px] sm:text-xs font-semibold px-3 py-2 focus-visible:ring-2 cursor-pointer"
+                className="w-full min-w-0 whitespace-nowrap text-2xs sm:text-xs font-semibold px-3 py-2 focus-visible:ring-2 cursor-pointer"
               >
                 {t("common.apply", "Adoption Form")}
               </Button>
