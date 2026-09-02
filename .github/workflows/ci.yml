@@ -87,8 +87,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
-      - name: Apply the schema
-        run: npx prisma db push
+      - name: Apply the schema and seed the catalogue
+        # schemaIntegrity.postgres.test.ts verifies a seed round-trip — it reads
+        # the fixture pets back out and counts their updates and timeline events
+        # — so an empty database fails it with "No fixture pets found" rather
+        # than telling you anything about the schema.
+        run: |
+          npx prisma db push
+          npm run db:seed
       - name: Tier 3b probes
         run: npm run test:db
 
