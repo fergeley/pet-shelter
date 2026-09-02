@@ -28,6 +28,9 @@ const AUTH_TOKENS = [
   "requirePermission",
   // Named per-feature gates that call one of the above internally.
   "requireFaqEditor",
+  // Bearer-credential checks, for flows whose caller cannot have a session:
+  // an emailed unsubscribe link carries a signed token instead.
+  "verifyNotificationToken",
 ];
 
 /**

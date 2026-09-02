@@ -18,7 +18,14 @@ import {
   insertServerPet,
   updateServerPet,
   archiveServerPet,
+  getStoredGalleryImages,
 } from "@/lib/server/petRepository";
+import { scheduleAfterResponse } from "@/lib/scheduleAfterResponse";
+import {
+  diffNewGalleryImages,
+  dispatchPetPhotoUpdate,
+} from "@/lib/domain/photoUpdateDispatch";
+import { photoNotificationSchema, PhotoNotificationInput } from "@/lib/validations/pet";
 import { getServerApplicationsAsync } from "@/lib/server/applicationRepository";
 
 /**
@@ -187,9 +194,22 @@ export async function createPet(
   }
 }
 
+/**
+ * Whether to notify this animal's supporters about photos added by this save,
+ * plus an optional caregiver note quoted in the email.
+ *
+ * Explicit opt-in at the API level: the admin form defaults the checkbox to
+ * checked, but no other caller of `updatePet` can mail supporters by accident.
+ * Validated with `photoNotificationSchema` — Server Action arguments are
+ * untrusted input, and this one reaches both the email body and the audit
+ * metadata column.
+ */
+export type PhotoNotificationOptions = PhotoNotificationInput;
+
 export async function updatePet(
   id: string,
-  data: PetFormInput
+  data: PetFormInput,
+  notification?: PhotoNotificationOptions
 ): Promise<{ success: boolean; data?: Pet; error?: string }> {
   try {
     const actor = await getAdminActorOrThrow();
@@ -199,6 +219,31 @@ export async function updatePet(
     if (!existing) {
       return { success: false, error: "Pet not found" };
     }
+
+    const parsedNotification = notification
+      ? photoNotificationSchema.safeParse(notification)
+      : null;
+
+    if (parsedNotification && !parsedNotification.success) {
+      // Surfaced rather than silently dropped: the admin wrote a note that will
+      // not be sent, and needs to know before walking away.
+      return {
+        success: false,
+        error:
+          parsedNotification.error.issues[0]?.message ||
+          "Invalid sponsor notification options",
+      };
+    }
+
+    const notify = parsedNotification?.data;
+    const wantsNotification = notify?.notifySponsors === true;
+
+    // Captured before the write: the dispatcher compares against the gallery as
+    // it stood, not as it is about to stand. Prefer the database over the
+    // in-memory record, which reflects only this instance's own writes and would
+    // make another instance's photos look new again.
+    const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
+    const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
     const updated: Pet = {
       ...existing,
@@ -232,6 +277,27 @@ export async function updatePet(
     };
 
     await updateServerPet(id, updated, actor);
+
+    // Only *newly added* gallery photos trigger supporter mail. Saving the form
+    // after editing a description, or reordering the existing gallery, notifies
+    // nobody.
+    const newPhotos = diffNewGalleryImages(previousGallery, updated.galleryImages);
+
+    if (wantsNotification && newPhotos.length > 0) {
+      // Deferred with `after()` so the admin save returns immediately while the
+      // fan-out runs on an invocation the platform keeps alive.
+      scheduleAfterResponse(() =>
+        dispatchPetPhotoUpdate({
+          petId: id,
+          petName: updated.name,
+          newImageUrls: newPhotos,
+          caption: notify?.caption,
+          notifySponsors: true,
+          petIsArchived: updated.isArchived,
+          actorEmail: actor.email,
+        })
+      );
+    }
 
     revalidatePath("/pets");
     revalidatePath(`/pets/${id}`);
