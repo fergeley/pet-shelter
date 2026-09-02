@@ -48,6 +48,14 @@ export const petSponsorshipSchema = z.object({
     ),
 
   paymentMethod: paymentMethodEnum.default("duitnow_qr"),
+  /**
+   * Public Sponsor Wall opt-in, captured at checkout.
+   *
+   * Recorded against this commitment rather than against a supporter account, because
+   * checkout is guest-only: most supporters have no account at the moment they give. The
+   * account inherits the answer when the commitment is claimed, in `registerSponsorAction`.
+   */
+  displayOnWall: z.boolean().default(false),
 
   taxIdOrIc: z.string().max(30, "Tax ID / IC / SSM number is too long").optional().or(z.literal("")),
   notes: z.string().max(500, "Note to the shelter must be under 500 characters").optional().or(z.literal("")),
@@ -56,7 +64,16 @@ export const petSponsorshipSchema = z.object({
   userId: z.string().max(64).optional(),
 });
 
-export type PetSponsorshipInput = z.infer<typeof petSponsorshipSchema>;
+/**
+ * What a caller *sends*. `z.input`, not `z.infer`: fields carrying `.default()`
+ * (`frequency`, `paymentMethod`, `displayOnWall`) are optional on the way in and
+ * guaranteed on the way out. `z.infer` is the output type, which would force every caller
+ * to restate every default.
+ */
+export type PetSponsorshipInput = z.input<typeof petSponsorshipSchema>;
+
+/** The validated commitment, with every default resolved. */
+export type PetSponsorshipParsed = z.output<typeof petSponsorshipSchema>;
 
 /**
  * Payment rails the shelter can actually settle.

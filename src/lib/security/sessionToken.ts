@@ -60,6 +60,15 @@ export function unsealSession(token: string): SessionUser | null {
     const jsonString = Buffer.from(base64Payload, "base64url").toString("utf8");
     const session: SessionUser = JSON.parse(jsonString);
 
+    // Staff and sponsor tokens are signed with the same key, so a valid signature does
+    // not establish which namespace a token came from. A sponsor payload carries no
+    // `role`; accepting it here would yield a session object that looks signed-in to any
+    // caller testing for presence rather than role. `unsealSponsorSession` rejects a
+    // staff token symmetrically, on its `typ` claim.
+    if (typeof session.role !== "string" || typeof session.id !== "string") {
+      return null;
+    }
+
     if (Date.now() > session.expiresAt) {
       return null; // Session expired
     }
