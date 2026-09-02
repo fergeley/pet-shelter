@@ -1,10 +1,10 @@
-import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, PetStatus, ApplicationStatus } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -13,9 +13,16 @@ function hashPasswordSync(password: string): string {
 }
 
 async function main() {
-  const connectionString =
-    process.env.DATABASE_URL ||
-    "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
+  // Resolved through prisma/env.ts rather than read straight from process.env, so
+  // the seed and `prisma db push` can never disagree about which database they are
+  // talking to. They used to, and the pair still exited 0 while doing it.
+  const connectionString = resolveDatabaseUrl();
+
+  // This script is not additive — see the deleteMany calls in the pet loop below.
+  // Aimed at a shared database it destroys real history rows, and it runs
+  // unattended from an npm script with no confirmation prompt, so the target is
+  // checked before a connection is opened.
+  assertSeedTargetIsLocal(connectionString);
 
   const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
   const pool = new Pool({
@@ -97,20 +104,163 @@ async function main() {
   });
   console.log("  ✓ Shelter settings seeded.");
 
-  // 3. Seed Pets
+  // 3. Seed 5NF Clinical Categories & Certified Veterinarians
+  const procedureCategories = [
+    { id: "intake", name: "Intake Assessment", nameMs: "Penilaian Kemasukan", description: "Initial shelter triage and intake physical examination." },
+    { id: "diagnostic", name: "Diagnostic & Lab", nameMs: "Diagnostik & Makmal", description: "Blood panel, parasite testing, skin cytology, and imaging." },
+    { id: "treatment", name: "Medical Treatment", nameMs: "Rawatan Perubatan", description: "Wound care, antibiotics, IV fluids, and medical stabilization." },
+    { id: "vaccination", name: "Core Vaccination", nameMs: "Vaksinasi Asas", description: "Core vaccines (DHPPiL/FVRCP), deworming, and rabies prophylaxis." },
+    { id: "surgery", name: "Surgical Procedure", nameMs: "Pembedahan", description: "Spay/neuter sterilization, orthopedics, and soft tissue repair." },
+    { id: "clearance", name: "Adoption Medical Clearance", nameMs: "Kebenaran Perubatan Pengangkatan", description: "Final adoption physical clearance and certificate." },
+  ];
+
+  for (const cat of procedureCategories) {
+    await prisma.medicalProcedureCategory.upsert({
+      where: { id: cat.id },
+      update: { name: cat.name, nameMs: cat.nameMs, description: cat.description },
+      create: cat,
+    });
+  }
+
+  const veterinarians = [
+    { id: "vet-01", name: "Dr. Sarah Tan", licenseNumber: "MVC-2018-8892", clinicName: "Hope Veterinary Clinic PJ", phone: "03-7956 1234", email: "dr.sarah@hopevet.my" },
+    { id: "vet-02", name: "Dr. Ramesh Kumar", licenseNumber: "MVC-2015-4120", clinicName: "Selangor Animal Medical Centre", phone: "03-5632 8765", email: "dr.ramesh@selangorvet.my" },
+    { id: "vet-03", name: "Dr. Lim Wei Ling", licenseNumber: "MVC-2020-9931", clinicName: "Damansara Feline & Canine Clinic", phone: "03-7728 5410", email: "dr.lim@damansaravet.my" },
+  ];
+
+  for (const vet of veterinarians) {
+    await prisma.veterinarian.upsert({
+      where: { licenseNumber: vet.licenseNumber },
+      update: { name: vet.name, clinicName: vet.clinicName, phone: vet.phone, email: vet.email },
+      create: vet,
+    });
+  }
+
+  const specializations = [
+    { vetId: "vet-01", categoryId: "intake" },
+    { vetId: "vet-01", categoryId: "diagnostic" },
+    { vetId: "vet-01", categoryId: "treatment" },
+    { vetId: "vet-01", categoryId: "vaccination" },
+    { vetId: "vet-01", categoryId: "surgery" },
+    { vetId: "vet-01", categoryId: "clearance" },
+    { vetId: "vet-02", categoryId: "surgery" },
+    { vetId: "vet-02", categoryId: "treatment" },
+    { vetId: "vet-02", categoryId: "diagnostic" },
+    { vetId: "vet-03", categoryId: "intake" },
+    { vetId: "vet-03", categoryId: "vaccination" },
+    { vetId: "vet-03", categoryId: "clearance" },
+  ];
+
+  for (const spec of specializations) {
+    await prisma.vetSpecialization.upsert({
+      where: { vetId_categoryId: { vetId: spec.vetId, categoryId: spec.categoryId } },
+      update: {},
+      create: spec,
+    });
+  }
+  console.log("  ✓ 5NF Clinical procedure categories & veterinarian specializations seeded.");
+
+  // 4. Seed Pets
   for (const pet of petsData) {
+    // Rehabilitation details exist only on animals currently under care.
+    const rehab = pet as {
+      rehabStage?: string;
+      rehabStageMs?: string;
+      rehabProgressPercent?: number;
+    };
+
+    // Nested history is present on only some fixtures, so the JSON's inferred
+    // type does not carry these keys on every entry.
+    const history = pet as unknown as {
+      updates?: {
+        id: string;
+        date: string;
+        title: string;
+        titleMs?: string;
+        content: string;
+        contentMs?: string;
+        image?: string;
+        category?: string;
+      }[];
+      medicalTimeline?: {
+        id: string;
+        date: string;
+        title: string;
+        titleMs?: string;
+        category: string;
+        description: string;
+        descriptionMs?: string;
+        veterinarian?: string;
+        verified?: boolean;
+        badge?: string;
+        badgeMs?: string;
+      }[];
+    };
+
+    const petUpdates = (history.updates || []).map((u) => ({
+      id: u.id,
+      date: u.date,
+      title: u.title,
+      titleMs: u.titleMs ?? null,
+      content: u.content,
+      contentMs: u.contentMs ?? null,
+      image: u.image ?? null,
+      category: u.category ?? null,
+    }));
+
+    const timelineEvents = (history.medicalTimeline || []).map((e) => {
+      // Resolve vetId from registered veterinarians
+      let vetId: string | null = "vet-01";
+      if (e.veterinarian?.includes("Ramesh")) vetId = "vet-02";
+      else if (e.veterinarian?.includes("Lim")) vetId = "vet-03";
+
+      return {
+        id: e.id,
+        date: e.date,
+        title: e.title,
+        titleMs: e.titleMs ?? null,
+        category: e.category,
+        description: e.description,
+        descriptionMs: e.descriptionMs ?? null,
+        veterinarian: e.veterinarian ?? "Dr. Sarah Tan",
+        vetId,
+        verified: e.verified ?? false,
+        badge: e.badge ?? null,
+        badgeMs: e.badgeMs ?? null,
+      };
+    });
+
+    // History and 5NF join rows keep their fixture ids, so re-seeding clears them
+    // before re-creating rather than relying on an upsert per event.
+    await prisma.petUpdate.deleteMany({ where: { petId: pet.id } });
+    await prisma.medicalTimelineEvent.deleteMany({ where: { petId: pet.id } });
+    await prisma.vetPetAssignment.deleteMany({ where: { petId: pet.id } });
+    await prisma.petCompatibilityRule.deleteMany({ where: { petId: pet.id } });
+
+    const birthDate = (pet as { birthDate?: string }).birthDate || "2024-01-01";
+    const birthDateIsEstimate = (pet as { birthDateIsEstimate?: boolean }).birthDateIsEstimate ?? true;
+
+    const petStatus =
+      pet.status === "In Rehabilitation" || pet.status === "Rehabilitation"
+        ? PetStatus.In_Rehabilitation
+        : pet.status === "Pending"
+          ? PetStatus.Pending
+          : pet.status === "Adopted"
+            ? PetStatus.Adopted
+            : PetStatus.Available;
+
     await prisma.pet.upsert({
       where: { id: pet.id },
       update: {
         name: pet.name,
         species: pet.species,
         breed: pet.breed,
-        age: pet.age,
-        ageCategory: pet.ageCategory,
+        birthDate,
+        birthDateIsEstimate,
         gender: pet.gender,
         size: pet.size,
         weight: pet.weight,
-        status: pet.status,
+        status: petStatus,
         adoptionFee: pet.adoptionFee,
         description: pet.description,
         rescueStory: pet.rescueStory,
@@ -119,6 +269,9 @@ async function main() {
         tags: pet.tags || [],
         featured: pet.featured || false,
         intakeDate: pet.intakeDate,
+        rehabStage: rehab.rehabStage ?? null,
+        rehabStageMs: rehab.rehabStageMs ?? null,
+        rehabProgressPercent: rehab.rehabProgressPercent ?? null,
         vaccinated: pet.medical?.vaccinated ?? true,
         microchipped: pet.medical?.microchipped ?? true,
         spayedNeutered: pet.medical?.spayedNeutered ?? true,
@@ -129,18 +282,20 @@ async function main() {
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
         isArchived: false,
         deletedAt: null,
+        updates: { create: petUpdates },
+        medicalTimeline: { create: timelineEvents },
       },
       create: {
         id: pet.id,
         name: pet.name,
         species: pet.species,
         breed: pet.breed,
-        age: pet.age,
-        ageCategory: pet.ageCategory,
+        birthDate,
+        birthDateIsEstimate,
         gender: pet.gender,
         size: pet.size,
         weight: pet.weight,
-        status: pet.status,
+        status: petStatus,
         adoptionFee: pet.adoptionFee,
         description: pet.description,
         rescueStory: pet.rescueStory,
@@ -149,6 +304,9 @@ async function main() {
         tags: pet.tags || [],
         featured: pet.featured || false,
         intakeDate: pet.intakeDate,
+        rehabStage: rehab.rehabStage ?? null,
+        rehabStageMs: rehab.rehabStageMs ?? null,
+        rehabProgressPercent: rehab.rehabProgressPercent ?? null,
         vaccinated: pet.medical?.vaccinated ?? true,
         microchipped: pet.medical?.microchipped ?? true,
         spayedNeutered: pet.medical?.spayedNeutered ?? true,
@@ -159,13 +317,53 @@ async function main() {
         energyLevel: pet.compatibility?.energyLevel || "Moderate",
         isArchived: false,
         deletedAt: null,
+        updates: { create: petUpdates },
+        medicalTimeline: { create: timelineEvents },
       },
     });
+
+    // 5NF Join: Assign attending veterinarian to pet
+    await prisma.vetPetAssignment.upsert({
+      where: { vetId_petId: { vetId: "vet-01", petId: pet.id } },
+      update: { isPrimary: true },
+      create: { vetId: "vet-01", petId: pet.id, isPrimary: true },
+    });
+
+    // 5NF Join: Seed lifestyle & housing compatibility matrix rules
+    const rules = [
+      { housingType: "condo_apartment", cohabitantType: "resident_dogs", isAllowed: pet.compatibility?.goodWithDogs ?? true },
+      { housingType: "condo_apartment", cohabitantType: "resident_cats", isAllowed: pet.compatibility?.goodWithCats ?? true },
+      { housingType: "condo_apartment", cohabitantType: "toddlers", isAllowed: pet.compatibility?.goodWithKids ?? true },
+      { housingType: "landed_fenced_yard", cohabitantType: "resident_dogs", isAllowed: pet.compatibility?.goodWithDogs ?? true },
+      { housingType: "landed_fenced_yard", cohabitantType: "resident_cats", isAllowed: pet.compatibility?.goodWithCats ?? true },
+      { housingType: "landed_fenced_yard", cohabitantType: "toddlers", isAllowed: pet.compatibility?.goodWithKids ?? true },
+    ];
+
+    for (const rule of rules) {
+      await prisma.petCompatibilityRule.upsert({
+        where: {
+          petId_housingType_cohabitantType: {
+            petId: pet.id,
+            housingType: rule.housingType,
+            cohabitantType: rule.cohabitantType,
+          },
+        },
+        update: { isAllowed: rule.isAllowed },
+        create: {
+          petId: pet.id,
+          housingType: rule.housingType,
+          cohabitantType: rule.cohabitantType,
+          isAllowed: rule.isAllowed,
+        },
+      });
+    }
   }
-  console.log(`  ✓ ${petsData.length} shelter pets seeded.`);
+  console.log(`  ✓ ${petsData.length} shelter pets and 5NF compatibility matrices seeded.`);
 
   // 4. Seed Applications
   for (const app of applicationsData) {
+    const appStatus = app.status as ApplicationStatus;
+
     await prisma.adoptionApplication.upsert({
       where: { id: app.id },
       update: {
@@ -182,7 +380,7 @@ async function main() {
         currentPetDetails: app.currentPetDetails || null,
         householdExperience: app.householdExperience,
         applicantNotes: app.applicantNotes || null,
-        status: app.status,
+        status: appStatus,
         adminReviewNotes: app.adminReviewNotes || null,
       },
       create: {
@@ -200,7 +398,7 @@ async function main() {
         currentPetDetails: app.currentPetDetails || null,
         householdExperience: app.householdExperience,
         applicantNotes: app.applicantNotes || null,
-        status: app.status,
+        status: appStatus,
         adminReviewNotes: app.adminReviewNotes || null,
       },
     });

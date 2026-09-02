@@ -19,12 +19,38 @@ export const APPLICATION_TRANSITION_GRAPH: Record<ApplicationStatus, Application
 };
 
 /**
+ * "Rehabilitation" is an alias of "In Rehabilitation": both denote an animal under
+ * clinical or behavioural care and not yet cleared for adoption. Transitions are
+ * always evaluated against the canonical value.
+ */
+const PET_STATUS_ALIASES: Record<PetStatus, PetStatus> = {
+  Available: "Available",
+  Pending: "Pending",
+  Adopted: "Adopted",
+  "In Rehabilitation": "In Rehabilitation",
+  Rehabilitation: "In Rehabilitation",
+};
+
+/**
+ * Resolves a pet status to its canonical form. Unknown values pass through unchanged
+ * so that callers still fail on genuinely invalid input.
+ */
+export function normalizePetStatus(status: PetStatus): PetStatus {
+  return PET_STATUS_ALIASES[status] ?? status;
+}
+
+// Rehabilitating animals leave care only via veterinary clearance back to Available.
+const REHAB_TRANSITIONS: PetStatus[] = ["Available"];
+
+/**
  * Allowed state transitions for Pets.
  */
 export const PET_TRANSITION_GRAPH: Record<PetStatus, PetStatus[]> = {
-  Available: ["Pending", "Adopted"],
-  Pending: ["Available", "Adopted"],
+  Available: ["Pending", "Adopted", "In Rehabilitation"],
+  Pending: ["Available", "Adopted", "In Rehabilitation"],
   Adopted: ["Available"], // Returned to shelter
+  "In Rehabilitation": REHAB_TRANSITIONS,
+  Rehabilitation: REHAB_TRANSITIONS, // Alias entry — mirrors "In Rehabilitation"
 };
 
 /**
@@ -47,12 +73,31 @@ export function validateApplicationTransition(current: ApplicationStatus, next: 
  * Throws DomainValidationError if the transition is illegal.
  */
 export function validatePetTransition(current: PetStatus, next: PetStatus): void {
-  if (current === next) return;
+  const from = normalizePetStatus(current);
+  const to = normalizePetStatus(next);
+  if (from === to) return;
 
-  const allowedNext = PET_TRANSITION_GRAPH[current] || [];
-  if (!allowedNext.includes(next)) {
+  const allowedNext = (PET_TRANSITION_GRAPH[from] || []).map(normalizePetStatus);
+  if (!allowedNext.includes(to)) {
     throw new DomainValidationError(
       `Illegal pet status transition: Cannot change pet from '${current}' to '${next}'. Allowed: [${allowedNext.join(", ")}]`
     );
   }
+}
+
+/**
+ * The statuses a control may offer for an animal: its own canonical status first, then
+ * every legal move out of it. Everything is normalized, so an animal stored under the
+ * legacy `Rehabilitation` alias resolves to the same list as the canonical spelling and
+ * the alias never appears as a separate choice.
+ *
+ * Deriving the options this way keeps `validatePetTransition` the single authority — a
+ * control cannot offer a move the server would reject, which matters because
+ * `updatePetStatus` returns `{ success: false }` rather than throwing, and the admin
+ * table's optimistic update would otherwise keep displaying the refused state.
+ */
+export function getAllowedPetStatusTransitions(current: PetStatus): PetStatus[] {
+  const from = normalizePetStatus(current);
+  const next = (PET_TRANSITION_GRAPH[from] || []).map(normalizePetStatus);
+  return [...new Set<PetStatus>([from, ...next])];
 }

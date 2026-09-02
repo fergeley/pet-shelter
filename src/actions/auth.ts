@@ -1,7 +1,7 @@
 "use server";
 
 import { checkRateLimit } from "@/lib/security/rateLimit";
-import { hashPassword, verifyPassword } from "@/lib/security/crypto";
+import { hashPassword, verifyPassword, timingSafeCompare } from "@/lib/security/crypto";
 import {
   setSessionCookie,
   clearSessionCookie,
@@ -9,10 +9,9 @@ import {
   SessionUser,
 } from "@/lib/security/session";
 import { recordAuditLog } from "@/lib/domain/auditLog";
-import { findUserByEmail, createUser, UserRecord } from "@/lib/userStore";
+import { findUserByEmail, createUser, UserRecord } from "@/lib/server/userStore";
 import { Role, ROLES } from "@/lib/security/rbac";
-
-const STAFF_INVITE_SECRET = process.env.STAFF_INVITE_SECRET || "1234";
+import { getStaffInviteSecret } from "@/lib/security/secrets";
 
 export interface AuthResponse {
   success: boolean;
@@ -58,10 +57,7 @@ export async function loginAction(credentials: {
 
   // 2. Fetch User & Verify Password
   const user = await findUserByEmail(emailKey);
-  const isValidPassword =
-    user &&
-    ((await verifyPassword(credentials.password, user.passwordHash)) ||
-      credentials.password === "1234");
+  const isValidPassword = user ? await verifyPassword(credentials.password, user.passwordHash) : false;
 
   if (!user || !isValidPassword) {
     recordAuditLog({
@@ -131,15 +127,15 @@ export async function registerAction(data: {
     };
   }
 
-  // 2. Elevated Role Guard
-  if (role === ROLES.ADMIN || role === ROLES.COORDINATOR) {
-    const inviteCode = (data.staffInviteCode || "").trim();
-    if (inviteCode !== STAFF_INVITE_SECRET && inviteCode !== "HOPE2026" && inviteCode !== "1234") {
-      return {
-        success: false,
-        error: `Staff invite code is required to register with '${role}' privileges. Use '1234' for demo.`,
-      };
-    }
+  // 2. Invite Guard — required for EVERY role.
+  // A shelter has no anonymous-staff use case, and the default STAFF role is
+  // authorized for getApplications(), which returns applicant PII (PDPA 2010).
+  const inviteCode = (data.staffInviteCode || "").trim();
+  if (!inviteCode || !timingSafeCompare(inviteCode, getStaffInviteSecret())) {
+    return {
+      success: false,
+      error: "A valid staff invite code is required to register an account. Please contact a shelter administrator.",
+    };
   }
 
   // 3. Duplicate Check

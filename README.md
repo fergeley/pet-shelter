@@ -17,12 +17,30 @@ HFS website serves as a platform as well as a repository of past news for first-
 - **Framework**: [Next.js 16.3.1](https://nextjs.org/) (Turbopack, App Router, React Server Actions) & [React 19.2.8](https://react.dev/).
 - **Language**: TypeScript 5 (Strict Mode, 0 `any` escapes).
 - **Database & ORM**: PostgreSQL with [Prisma 7.9.1](https://www.prisma.io/) (`@prisma/adapter-pg`, connection pooling) & dual-layer in-memory fallback for offline/development resilience.
-- **Styling & UI**: Tailwind CSS v4, Lucide React, and `@base-ui/react` primitives adhering to [`DESIGN_SYSTEM.md`](file:///c:/Users/User/pet-shelter/DESIGN_SYSTEM.md).
+- **Styling & UI**: Tailwind CSS v4, Lucide React, and `@base-ui/react` primitives adhering to [`docs/design-system.md`](docs/design-system.md).
 - **Testing**: Vitest (`24` test suites, `183` tests, 100% passing).
+- **Documentation**: Centralized runbooks, architecture blueprints, and tutorials located in [`docs/`](docs/).
 - **Legal & Compliance**:
   - **Malaysian LHDN Tax Deductible**: Approved non-profit under Subsection 44(6) of the Income Tax Act 1967 (Ref: `LHDN.01/35/42/51/179-6.4912`).
   - **ROS Registry of Societies**: Reg No. `PPM-012-10-18042016`.
   - **PDPA 2010**: Malaysian Personal Data Protection Act compliance.
+
+---
+
+## 📚 Documentation & Runbooks
+
+Comprehensive guides are organized in the [`docs/`](docs/) directory and synchronized with the **Obsidian Knowledge Hub** (`Areas/Pet Shelter/`):
+
+- 📋 **[Sprint Plan & Task Division](docs/tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md)**: 16-task sprint plan divided between Backend Server and Frontend UI engineers.
+- 🤝 **[Cross-Team Architecture Contract](docs/architecture/ARCHITECTURE_CONTRACT_BACKEND_FRONTEND.md)**: TypeScript data contracts, Server Action signatures, and deep-link standards.
+- 🚀 **[Setup & Installation Guide](docs/setup.md)**: Local prerequisites, Postgres/Neon configuration, and environment setup.
+- 🎨 **[Design System & UI Tokens](docs/design-system.md)**: UI philosophy, Tailwind tokens, color variables, and accessible patterns.
+- 🏗️ **[System Architecture Blueprint](docs/architecture/ARCHITECTURE_BLUEPRINT.md)**: High-level architectural topology and server-action contracts.
+- 🗄️ **[Database & ORM Guide](docs/architecture/GUIDE_PRISMA_AND_NEON_ARCHITECTURE.md)**: Prisma, Neon serverless branching, and in-memory dual-layer storage pattern.
+- 📘 **[TNRM & Sponsorship Operations Runbook](docs/runbooks/RUNBOOK_TNRM_AND_SPONSORSHIP_OPERATIONS.md)**: Campus TNRM tracking, Rehabilitation House updates, and sponsor dispatches.
+- 📘 **[Operational Runbook](docs/runbooks/OPERATIONAL_RUNBOOK.md)**: Operations, incident management, rate-limiting, and RBAC administration.
+- 💳 **[Donations & Tax e-Receipts](docs/runbooks/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md)**: DuitNow QR, LHDN Section 44(6) tax receipts, and ROS CSV exports.
+- 🎓 **[Developer Tutorials & Modules](docs/tutorials/)**: Step-by-step masterclasses for Backend, Frontend, and Full-Stack development.
 
 ---
 
@@ -61,33 +79,23 @@ HFS website serves as a platform as well as a repository of past news for first-
 
 ```plaintext
 pet-shelter/
+├── docs/                         # Centralized documentation, blueprints, runbooks, tutorials
+├── prisma/                       # Prisma schema, migrations, and database seed
+├── public/                       # Favicons, icons, and static assets
 ├── src/
-│   ├── actions/                  # Next.js React Server Actions (auth, pets, applications, donations)
-│   ├── app/                      # Next.js App Router pages
-│   │   ├── layout.tsx            # Root layout (LanguageProvider + ThemeProvider)
-│   │   ├── page.tsx              # Homepage
-│   │   ├── pets/                 # Public pet catalog & detail view (/pets/[id])
-│   │   ├── donate/               # Donation portal & LHDN tax relief guide
-│   │   ├── applications/track/   # Public self-service tracking portal
-│   │   ├── bulletins/            # Community bulletins and announcements
-│   │   ├── admin/                # Secure staff dashboard, audit log & settings
-│   │   └── api/upload/           # Multi-provider image upload endpoint (local / S3 / Supabase)
-│   ├── components/               # Domain React components & UI primitives
-│   │   ├── Navbar.tsx            # Header with language & theme toggles
-│   │   ├── Footer.tsx            # Footer with visiting hours, address, and legal links
-│   │   ├── LanguageProvider.tsx  # React Context for bilingual i18n
-│   │   ├── LanguageToggle.tsx    # Accessible [ EN | BM ] switcher
-│   │   ├── MedicalTimeline.tsx   # Interactive vertical clinical timeline
-│   │   ├── PetGallery.tsx        # Faceted pet search & filter catalog
-│   │   ├── AdoptionForm.tsx      # Zod-validated adoption application form
-│   │   └── DonationWidget.tsx    # DuitNow QR & official LHDN tax receipting
-│   ├── data/
-│   │   └── pets.json             # Seeded pet directory with clinical timeline records
-│   ├── lib/                      # Core business logic, i18n dictionary, DB stores & validators
-│   └── types/                    # TypeScript interfaces & types (pet, match, sponsorship, rbac)
+│   ├── actions/                  # Next.js Server Actions (auth, pets, applications, donations)
+│   ├── app/                      # Next.js App Router pages and layouts
+│   ├── components/               # React components (layout, feature modules, shadcn ui)
+│   ├── data/                     # Seeded fallback data fixtures
+│   ├── hooks/                    # Controller and logic React hooks
+│   ├── lib/                      # Core business logic, db client, security, stores, services
+│   └── types/                    # TypeScript interfaces & types
 ├── tests/unit/                   # Vitest unit and integration test suites (24 files, 183 tests)
-├── next.config.ts                # Next.js configuration (images, allowedDevOrigins)
-└── package.json                  # Project dependencies and test scripts
+├── .github/                      # GitHub workflows and CONTRIBUTING.md
+├── AGENTS.md                     # Next.js agent rules & configuration
+├── next.config.ts                # Next.js configuration
+├── tsconfig.json                 # TypeScript compiler configuration
+└── package.json                  # Project dependencies and scripts
 ```
 
 ---

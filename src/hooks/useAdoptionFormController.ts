@@ -5,7 +5,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Pet } from "@/types/pet";
-import { useApplicationStore } from "@/lib/applicationStore";
+import { useApplicationStore } from "@/lib/client/applicationStore";
 import { submitApplication } from "@/actions/applications";
 
 export const adoptionFormSchema = z.object({

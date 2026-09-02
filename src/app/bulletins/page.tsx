@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { BulletinFeed } from "@/components/BulletinFeed";
+import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
 
 export const metadata: Metadata = {
   title: "Bulletins & Updates | Hope for Strays (Petaling Jaya)",
