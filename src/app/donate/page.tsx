@@ -15,46 +15,12 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { DonationWidget } from "@/components/features/donations/DonationWidget";
+import { AllocationSummary } from "@/components/features/transparency/AllocationSummary";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export default function DonatePage() {
   const { t, isMs } = useLanguage();
-
-  const transparencyItems = [
-    {
-      percentage: "45%",
-      title: isMs ? "Rawatan Veterinar & Pembedahan" : "Veterinary Care & Surgeries",
-      desc: isMs
-        ? "Pembedahan trauma kecemasan, pemandulan wajib, vaksinasi teras 6-dalam-1 / FVRCP, dan ujian makmal diagnostik khas."
-        : "Emergency trauma surgeries, compulsory spay/neuter operations, 6-in-1 / FVRCP vaccinations, and specialized diagnostic tests.",
-      color: "bg-emerald-600",
-    },
-    {
-      percentage: "30%",
-      title: isMs ? "Nutrisi Harian & Diet Khas" : "Daily Nutrition & Diets",
-      desc: isMs
-        ? "Kibble berkualiti tinggi dan berprotein seimbang, formula susu anak anjing/kucing baru lahir, serta makanan pemulihan gastrousus."
-        : "Balanced high-protein kibbles, newborn puppy/kitten replacement formulas, and veterinary gastrointestinal recovery foods.",
-      color: "bg-primary",
-    },
-    {
-      percentage: "20%",
-      title: isMs ? "Kebersihan & Sanitasi Pusat Perlindungan" : "Sanctuary Boarding & Hygiene",
-      desc: isMs
-        ? "Sanitasi harian fasiliti, disinfektan gred hospital veterinar, alas tidur bersih, utiliti, dan pasukan penjaga berdedikasi."
-        : "Daily shelter sanitation, veterinary-grade disinfectants, clean bedding, utilities, and dedicated caretaker staff.",
-      color: "bg-amber-600",
-    },
-    {
-      percentage: "5%",
-      title: isMs ? "Logistik Menyelamat Haiwan Terbiar" : "Stray Rescue Logistics",
-      desc: isMs
-        ? "Operasi perangkap berperikemanusiaan, pengangkutan kecemasan jalan raya, dan sangkar transit di seluruh Selangor dan Lembah Klang."
-        : "Humane trapping operations, urgent roadside rescue transport, and transit carriers across Selangor and Klang Valley.",
-      color: "bg-blue-600",
-    },
-  ];
 
   const wishlistCategories = [
     {
@@ -199,68 +165,15 @@ export default function DonatePage() {
             </h2>
             <p className="text-sm sm:text-base text-muted-foreground mt-2 leading-relaxed">
               {isMs
-                ? "Kami beroperasi dengan ketelusan kewangan yang teliti. Sumbangan orang awam diperuntukkan sepenuhnya untuk rawatan perubatan, makanan berprotein tinggi, dan sanitasi fasiliti perlindungan di Selangor."
-                : "We operate with strict financial transparency. Direct public donations are allocated entirely to animal medical treatment, high-protein sustenance, and sanitary shelter housing in Selangor."}
+                ? "Kami beroperasi dengan ketelusan kewangan yang teliti. Peratusan di bawah dikira secara langsung daripada lejar perbelanjaan kami yang disahkan — setiap catatan disokong invois klinik atau pembekal."
+                : "We operate with strict financial transparency. The shares below are computed live from our verified expense ledger — every entry is backed by a clinic or supplier invoice you can ask to inspect."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-            {transparencyItems.map((item, idx) => (
-              <div
-                key={idx}
-                className="border border-border bg-background p-6 rounded-2xl space-y-3 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="font-heading text-3xl font-extrabold text-foreground">
-                      {item.percentage}
-                    </span>
-                    <span className={`size-3 rounded-full ${item.color}`} />
-                  </div>
-                  <h3 className="font-heading text-base font-bold text-foreground">
-                    {item.title}
-                  </h3>
-                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    {item.desc}
-                  </p>
-                </div>
-
-                <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden mt-4">
-                  <div className={`h-full ${item.color}`} style={{ width: item.percentage }} />
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Quick Impact Stats */}
-          <div className="border border-border bg-muted/30 p-6 sm:p-8 rounded-2xl grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
-            <div className="space-y-1">
-              <div className="font-heading text-3xl sm:text-4xl font-bold text-primary">
-                420+
-              </div>
-              <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                {isMs ? "Haiwan Diselamatkan & Dirawat pada 2026" : "Animals Rescued & Treated in 2026"}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="font-heading text-3xl sm:text-4xl font-bold text-primary">
-                100%
-              </div>
-              <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                {isMs ? "Dimandulkan & Divaksin Sebelum Diadopsi" : "Spayed & Vaccinated Before Adoption"}
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <div className="font-heading text-3xl sm:text-4xl font-bold text-primary">
-                RM 0
-              </div>
-              <div className="text-xs uppercase font-bold text-muted-foreground tracking-wider">
-                {isMs ? "Yuran Adopsi Dikenakan Kepada Keluarga" : "Adoption Fee Charged to Families"}
-              </div>
-            </div>
-          </div>
+          {/* Allocation and impact figures are derived from the shared expense
+              ledger, the same source /transparency renders. This page used to
+              hard-code its own percentages and drifted away from the ledger. */}
+          <AllocationSummary />
         </div>
       </section>
 

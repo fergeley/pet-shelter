@@ -30,45 +30,45 @@ model User {
 }
 
 model Pet {
-  id              String         @id @default(cuid())
-  name            String
-  species         String         // dog, cat, other
-  breed           String
-  age             String
-  ageCategory     String         // puppy_kitten, young, adult, senior
-  gender          String         // Male, Female
-  size            String         // Small, Medium, Large
-  weight          String
-  status          String         @default("Available") // Available, Pending, Adopted
-  adoptionFee     String
-  description     String
-  rescueStory     String
-  image           String
-  galleryImages   String[]
-  tags            String[]
-  featured        Boolean        @default(false)
-  intakeDate      String
-  
+  id            String   @id @default(cuid())
+  name          String
+  species       String // dog, cat, other
+  breed         String
+  age           String
+  ageCategory   String // puppy_kitten, young, adult, senior
+  gender        String // Male, Female
+  size          String // Small, Medium, Large
+  weight        String
+  status        String   @default("Available") // Available, Pending, Adopted
+  adoptionFee   String
+  description   String
+  rescueStory   String
+  image         String
+  galleryImages String[]
+  tags          String[]
+  featured      Boolean  @default(false)
+  intakeDate    String
+
   // Medical clearance
-  vaccinated      Boolean        @default(true)
-  microchipped    Boolean        @default(true)
-  spayedNeutered  Boolean        @default(true)
-  specialNeeds    String?
+  vaccinated     Boolean @default(true)
+  microchipped   Boolean @default(true)
+  spayedNeutered Boolean @default(true)
+  specialNeeds   String?
 
   // Compatibility
-  goodWithDogs    Boolean        @default(true)
-  goodWithCats    Boolean        @default(true)
-  goodWithKids    Boolean        @default(true)
-  energyLevel     String         @default("Moderate")
+  goodWithDogs Boolean @default(true)
+  goodWithCats Boolean @default(true)
+  goodWithKids Boolean @default(true)
+  energyLevel  String  @default("Moderate")
 
   // Soft deletion & audit
-  isArchived      Boolean        @default(false)
-  deletedAt       DateTime?
+  isArchived Boolean   @default(false)
+  deletedAt  DateTime?
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  applications    AdoptionApplication[]
+  applications AdoptionApplication[]
 
   @@index([species, status, isArchived])
   @@index([isArchived, status])
@@ -138,4 +138,77 @@ model ShelterSettings {
   updatedAt          DateTime @updatedAt
 
   @@map("shelter_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Financial transparency ("Where Your Money Goes")
+// ---------------------------------------------------------------------------
+
+enum ExpenseCategory {
+  MEDICAL
+  FOOD_NUTRITION
+  SHELTER_MAINTENANCE
+  RESCUE_TNRM
+  STAFF_CARE
+}
+
+/// A single verified shelter expense. Public allocation percentages are DERIVED
+/// from these rows, never stored, so the chart can never drift from the ledger.
+model ExpenseItem {
+  id             String          @id @default(cuid())
+  category       ExpenseCategory
+  title          String
+  /// Amount in sen (1/100 MYR). Integer money: no floating point rounding.
+  amountSen      Int
+  /// ISO-8601 calendar date, "YYYY-MM-DD". Enforced by Zod at every write path
+  /// so lexicographic ordering equals chronological ordering.
+  date           String
+  vendorOrClinic String?
+  petName        String?
+  /// Vendor invoice / clinic receipt reference: what makes an entry "verified".
+  receiptRef     String?
+  isPublished    Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([isPublished, date])
+  @@index([category])
+  @@map("expense_items")
+}
+
+/// Downloadable audit / spending report filed for ROS and AGM compliance.
+model FinancialReport {
+  id          String   @id @default(cuid())
+  year        Int
+  /// 1-12 for a monthly statement; null for an annual report.
+  month       Int?
+  title       String
+  fileUrl     String
+  summary     String?
+  publishedAt DateTime @default(now())
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, year, month])
+  @@map("financial_reports")
+}
+
+/// Headline impact counter shown on the public transparency page.
+model ImpactStat {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  /// Free-form so "180", "42", "100%" and "RM 0" are all expressible.
+  metricValue  String
+  label        String
+  labelMs      String?
+  period       String
+  periodMs     String?
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, displayOrder])
+  @@map("impact_stats")
 }

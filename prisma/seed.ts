@@ -5,6 +5,7 @@ import { Pool } from "pg";
 import crypto from "node:crypto";
 import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
+import transparencyData from "../src/data/transparency.json";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -207,7 +208,92 @@ async function main() {
   }
   console.log(`  ✓ ${applicationsData.length} adoption applications seeded.`);
 
-  // 5. Initial Audit Log
+  // 5. Seed Financial Transparency Ledger
+  //
+  // Loaded from the same src/data/transparency.json the runtime fallback reads,
+  // so a seeded database and an offline render never disagree on the figures.
+  for (const expense of transparencyData.expenses) {
+    await prisma.expenseItem.upsert({
+      where: { id: expense.id },
+      update: {
+        category: expense.category as never,
+        title: expense.title,
+        amountSen: expense.amountSen,
+        date: expense.date,
+        vendorOrClinic: expense.vendorOrClinic,
+        petName: expense.petName,
+        receiptRef: expense.receiptRef,
+        isPublished: true,
+      },
+      create: {
+        id: expense.id,
+        category: expense.category as never,
+        title: expense.title,
+        amountSen: expense.amountSen,
+        date: expense.date,
+        vendorOrClinic: expense.vendorOrClinic,
+        petName: expense.petName,
+        receiptRef: expense.receiptRef,
+        isPublished: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${transparencyData.expenses.length} expense ledger entries seeded.`);
+
+  for (const report of transparencyData.reports) {
+    await prisma.financialReport.upsert({
+      where: { id: report.id },
+      update: {
+        year: report.year,
+        month: report.month,
+        title: report.title,
+        fileUrl: report.fileUrl,
+        summary: report.summary,
+        publishedAt: new Date(report.publishedAt),
+        isPublished: true,
+      },
+      create: {
+        id: report.id,
+        year: report.year,
+        month: report.month,
+        title: report.title,
+        fileUrl: report.fileUrl,
+        summary: report.summary,
+        publishedAt: new Date(report.publishedAt),
+        isPublished: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${transparencyData.reports.length} financial reports seeded.`);
+
+  for (const stat of transparencyData.impactStats) {
+    await prisma.impactStat.upsert({
+      where: { key: stat.key },
+      update: {
+        metricValue: stat.metricValue,
+        label: stat.label,
+        labelMs: stat.labelMs,
+        period: stat.period,
+        periodMs: stat.periodMs,
+        displayOrder: stat.displayOrder,
+        isPublished: true,
+      },
+      create: {
+        id: stat.id,
+        key: stat.key,
+        metricValue: stat.metricValue,
+        label: stat.label,
+        labelMs: stat.labelMs,
+        period: stat.period,
+        periodMs: stat.periodMs,
+        displayOrder: stat.displayOrder,
+        isPublished: true,
+      },
+    });
+  }
+  console.log(`  ✓ ${transparencyData.impactStats.length} impact statistics seeded.`);
+
+  // 6. Initial Audit Log
   await prisma.auditLog.create({
     data: {
       action: "DATABASE_SEEDED",
@@ -220,6 +306,9 @@ async function main() {
         seededPets: petsData.length,
         seededApplications: applicationsData.length,
         seededStaff: staffUsers.length,
+        seededExpenses: transparencyData.expenses.length,
+        seededReports: transparencyData.reports.length,
+        seededImpactStats: transparencyData.impactStats.length,
       },
     },
   });

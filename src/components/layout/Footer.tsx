@@ -64,6 +64,11 @@ export function Footer() {
                   {t("nav.donate", "Shelter Wishlist & Donations")}
                 </Link>
               </li>
+              <li>
+                <Link href="/transparency" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  {t("nav.transparency", "Where Your Money Goes")}
+                </Link>
+              </li>
             </ul>
           </div>
 

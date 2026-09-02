@@ -1,0 +1,53 @@
+"use client";
+
+import React from "react";
+import { ImpactStatRecord } from "@/lib/domain/transparency";
+import { useLanguage } from "@/components/providers/LanguageProvider";
+
+/**
+ * Headline impact counters. These are stat tiles, not a chart: a handful of
+ * unrelated headline numbers ("180", "42", "100%") share no scale, so plotting
+ * them together would invent a comparison that does not exist.
+ */
+export function ImpactStatHighlights({ stats }: { stats: ImpactStatRecord[] }) {
+  const { isMs } = useLanguage();
+
+  if (stats.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border bg-background p-8 text-center">
+        <p className="text-sm text-muted-foreground">
+          {isMs
+            ? "Statistik impak akan diterbitkan sebaik sahaja angka bulan ini disahkan."
+            : "Impact statistics will appear here once this month's figures are verified."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <dl
+      className={`grid grid-cols-1 gap-5 ${
+        stats.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"
+      }`}
+    >
+      {stats.map((stat) => (
+        <div
+          key={stat.key}
+          className="flex flex-col justify-between rounded-2xl border border-border bg-background p-6 shadow-xs"
+        >
+          <dd className="font-heading text-4xl font-extrabold tracking-tight text-primary sm:text-5xl">
+            {stat.metricValue}
+          </dd>
+          <dt className="mt-3 space-y-1.5">
+            <span className="block font-heading text-sm font-bold leading-snug text-foreground">
+              {isMs && stat.labelMs ? stat.labelMs : stat.label}
+            </span>
+            <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {isMs && stat.periodMs ? stat.periodMs : stat.period}
+            </span>
+          </dt>
+        </div>
+      ))}
+    </dl>
+  );
+}
