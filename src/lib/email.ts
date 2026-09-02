@@ -323,7 +323,7 @@ ${SHELTER_ADDRESS}
       <strong>Summary of Submission:</strong><br/>
       Pet: ${escapeHtml(app.petName)}<br/>
       Applicant: ${escapeHtml(app.applicantName)} (${escapeHtml(app.email)} / ${escapeHtml(app.phone)})<br/>
-      Housing: ${escapeHtml(app.housingType.replace(/_/g, " "))} (Fenced yard: ${app.hasFencedYard})<br/>
+      Housing: ${escapeHtml(app.housingType.replace(/_/g, " "))} (Fenced yard: ${escapeHtml(app.hasFencedYard)})<br/>
       Current Pets: ${escapeHtml(app.currentPets)}
     </div>
 
@@ -397,8 +397,8 @@ https://hopeforstrays.org/admin/applications
       <strong>Email:</strong> ${escapeHtml(app.email)}<br/>
       <strong>Phone:</strong> ${escapeHtml(app.phone)}<br/>
       <strong>Address:</strong> ${escapeHtml(app.address)}<br/>
-      <strong>Housing:</strong> ${escapeHtml(app.housingType)} (Fenced: ${app.hasFencedYard})<br/>
-      <strong>Experience:</strong> ${app.householdExperience}<br/>
+      <strong>Housing:</strong> ${escapeHtml(app.housingType)} (Fenced: ${escapeHtml(app.hasFencedYard)})<br/>
+      <strong>Experience:</strong> ${escapeHtml(app.householdExperience)}<br/>
       <strong>Current Pets:</strong> ${escapeHtml(app.currentPets)}<br/>
       <strong>Notes:</strong> ${escapeHtml(fields.notes)}
     </div>
@@ -573,7 +573,7 @@ ${SHELTER_NAME}
       ⏰ <strong>Time:</strong> ${details.interviewTime}<br/>
       📍 <strong>Format:</strong> ${meetingTypeLabel}<br/>
       🏠 <strong>Location:</strong> ${escapeHtml(details.location)}<br/>
-      ${details.coordinatorName ? `👤 <strong>Coordinator:</strong> ${details.coordinatorName}<br/>` : ""}
+      ${details.coordinatorName ? `👤 <strong>Coordinator:</strong> ${escapeHtml(details.coordinatorName)}<br/>` : ""}
     </div>
 
     ${details.coordinatorNotes ? `
