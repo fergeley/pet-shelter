@@ -4,7 +4,10 @@ import { PetGallery } from "@/components/features/pets/PetGallery";
 import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
 import { PetsFaqSection } from "@/components/layout/PetsFaqSection";
 import { getPublicPets } from "@/actions/pets";
-import { getServerFaqsAsync, getServerFaqCategories } from "@/lib/server/faqCatalog";
+import {
+  getServerFaqsAsync,
+  getServerFaqCategoriesAsync,
+} from "@/lib/server/faqRepository";
 import { Loader2 } from "lucide-react";
 import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";
 
@@ -35,10 +38,14 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
     search,
   });
 
-  const initialFaqs = await getServerFaqsAsync();
-  // Only the categories the fixture actually populates, so the tab strip cannot
-  // offer a filter that matches nothing.
-  const initialFaqCategories = getServerFaqCategories();
+  // Only the categories the published data actually populates, so the tab strip
+  // cannot offer a filter that matches nothing. Both reads hit the same source
+  // and are independent, so they run together rather than making this page's
+  // TTFB the sum of two round trips.
+  const [initialFaqs, initialFaqCategories] = await Promise.all([
+    getServerFaqsAsync(),
+    getServerFaqCategoriesAsync(),
+  ]);
 
   return (
     <div className="min-h-screen bg-card pb-20">

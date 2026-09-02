@@ -1,0 +1,58 @@
+import { ShieldAlert } from "lucide-react";
+
+import { FaqDataTable } from "@/components/admin/FaqDataTable";
+import { getCurrentSession } from "@/lib/security/session";
+import { hasRole } from "@/lib/security/rbac";
+import { FAQ_EDITOR_ROLES } from "@/lib/domain/faqAccess";
+import { listFaqRecords } from "@/lib/server/faqRepository";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * FAQ content management.
+ *
+ * The same role list is enforced again inside every action in `@/actions/faqs`,
+ * so this check controls what is rendered rather than what is permitted.
+ */
+export default async function AdminFaqsPage() {
+  const session = await getCurrentSession();
+
+  if (!hasRole(session, [...FAQ_EDITOR_ROLES])) {
+    return (
+      <div className="max-w-xl border border-border bg-background rounded-2xl p-8 space-y-3">
+        <ShieldAlert className="size-7 text-destructive" />
+        <h1 className="font-heading text-xl font-bold text-foreground">
+          You do not have access to FAQ management
+        </h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Editing the public FAQ knowledge base is restricted to Administrator and
+          Coordinator accounts. You are currently signed in as{" "}
+          <strong className="text-foreground">{session?.role ?? "a guest"}</strong>.
+          Please ask an administrator if you need this permission.
+        </p>
+      </div>
+    );
+  }
+
+  const faqs = await listFaqRecords();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+          FAQ Knowledge Base
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+          Questions and answers shown on the public{" "}
+          <a href="/faq" target="_blank" className="underline hover:text-foreground">
+            FAQ page
+          </a>{" "}
+          and in the FAQ section of the animals directory. Changes go live
+          immediately — every edit is recorded in the audit log.
+        </p>
+      </div>
+
+      <FaqDataTable initialFaqs={faqs} />
+    </div>
+  );
+}
