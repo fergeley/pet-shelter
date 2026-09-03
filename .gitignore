@@ -64,19 +64,21 @@ next-env.d.ts
 .deepsec/
 .mcp.json
 .vscode/
-.claude/
+.claude/settings.local.json
+# Claude Code worktrees (per-session isolated checkouts)
+.claude/worktrees/
 *.key
 *.agekey
 keys.txt
 key.txt
 
 # scratch work & local API probes
-scratch/
-*.http
+/scratch/
+obsidian-api.http
 
 # playwright (tier 5) run artifacts — traces, screenshots and videos are kept
 # on failure only, so a green run leaves nothing here
-test-results/
+/test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
