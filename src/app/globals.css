@@ -194,6 +194,23 @@
   --brand-bank-transfer: #334155;
   --brand-whatsapp: #25d366;
   --brand-whatsapp-hover: #20bd5a;
+
+  /* ---------------------------------------------------------------------
+   * Categorical palette for the expense-allocation chart.
+   *
+   * Not a tone: these five carry IDENTITY, not state, so they must not be
+   * drawn from the semantic tones (a category is never "success"). The order
+   * is the CVD-safety mechanism, not decoration — the set was validated for
+   * adjacent-pair colourblind separation and normal-vision separation against
+   * both surfaces. Re-ordering or substituting a hue requires re-validating.
+   * Three light steps sit below 3:1 on the cream surface, which is why the
+   * chart always ships direct labels and a table view.
+   * ------------------------------------------------------------------- */
+  --expense-medical: #2a78d6; /* Veterinary surgery & medicine */
+  --expense-food: #eb6834; /* Food & nutrition */
+  --expense-shelter: #1baf7a; /* Shelter rent & facilities */
+  --expense-rescue: #eda100; /* Rescue & TNRM operations */
+  --expense-staff: #e87ba4; /* Caretaker & volunteer support */
 }
 
 .dark {
@@ -322,6 +339,11 @@
   --tone-neutral-accent: oklch(70.5% 0.015 286.067);
   --tone-neutral-solid: oklch(27.4% 0.006 286.033);
   --tone-neutral-on-solid: oklch(87.1% 0.006 286.286);
+  --expense-medical: #3987e5;
+  --expense-food: #d95926;
+  --expense-shelter: #199e70;
+  --expense-rescue: #c98500;
+  --expense-staff: #d55181;
 }
 
 @theme inline {
@@ -479,6 +501,11 @@
   --shadow-brand-md: 0 8px 18px rgba(215, 122, 111, 0.25);
   --shadow-brand-lg: 0 10px 28px rgba(72, 45, 41, 0.06);
   --shadow-brand-xl: 0 20px 45px rgba(49, 34, 30, 0.14);
+  --color-expense-medical: var(--expense-medical);
+  --color-expense-food: var(--expense-food);
+  --color-expense-shelter: var(--expense-shelter);
+  --color-expense-rescue: var(--expense-rescue);
+  --color-expense-staff: var(--expense-staff);
 }
 
 /* ==========================================================================

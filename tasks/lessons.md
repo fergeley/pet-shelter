@@ -58,6 +58,55 @@ takes the ref as its own argument.
 **Rule:** any probe whose negative result is itself a finding must let stderr through on at least
 one run before the finding is reported. "Not found" and "the command never ran" are the same string
 once stderr is discarded, and only one of them is evidence.
+
+## 2026-09-03 — A fallback that fabricates data is a defect, not resilience
+
+Shipped a transparency page whose offline fallback substituted a bundled sample
+ledger whenever the database read failed or returned nothing. The admin editor
+warned about it; the public page did not. A production deploy against an
+unmigrated database would have published 28 invented expenses, complete with
+realistic invoice references, on the one page whose entire claim is that its
+figures are verified — and `next build` had already baked that state into the
+prerender. A later review found a second door onto the identical bug: the seed
+script inserted the same rows as *published*, which made the read succeed and the
+provenance notice suppress itself.
+
+The tell was that the fallback made an assertion. A cache or a retry asserts
+nothing; substitute data asserts "these are the numbers".
+
+**Rule:** before writing a fallback, ask what it *claims* to the reader. On any
+surface that makes a truth claim — financial, legal, medical, audit — the fallback
+is an honest empty state, never invented content. Gate sample datasets to
+non-production and label them wherever they render. And a provenance field is
+worth nothing until *every* surface that renders the data reads it: adding the
+field and wiring it to one consumer made the risk feel handled, which is worse
+than not having it. Related: [[anything-written-twice-diverges]].
+
+## 2026-09-03 — De-duplicating shared data must not cost server rendering
+
+Two pages held their own hard-coded copies of the same expense split. Collapsing
+them onto one derived source was right, but the shared component fetched on mount
+from a client component, so the donate page lost its server-rendered content, its
+first paint and its crawlability. A correctness fix had been traded for a
+performance and SEO regression, and the whole test suite stayed green through it.
+
+**Rule:** when a client component needs server data, move the fetch up to a Server
+Component and pass props down; never let a shared presentational component fetch
+for itself. After any such refactor, `curl` the affected routes and grep the
+server HTML for the content that should be in it. "The tests pass" does not prove
+the content is still server-rendered.
+
+## 2026-09-03 — A safety mock must stay configurable, or it deletes the coverage
+
+`DATABASE_URL` points at a production branch, so the Prisma client was mocked to
+reject on every call. Correct for safety, and it meant 100% of the row-mapping,
+aggregation and write code never executed. The least-tested code was the code most
+likely to break, and it is exactly where a "database reachable but empty" hole hid
+until a review found it.
+
+**Rule:** mock a dangerous dependency per-test, not globally. Use `vi.hoisted`
+mock functions and give them resolved values for the happy path so the real
+mapping runs, then override with rejections for the failure cases.
 ## 2026-09-03 — Schema changes ship as additive SQL here, never as `db push`
 
 **What happened:** the sponsor portal was ready to merge with two schema changes (a

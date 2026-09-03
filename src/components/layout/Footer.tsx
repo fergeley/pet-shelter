@@ -66,6 +66,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/transparency" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                  {t("nav.transparency", "Where Your Money Goes")}
+                </Link>
+              </li>
+              <li>
                 <Link href="/sponsors" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   {t("nav.sponsorWall", "Public Sponsor Wall")}
                 </Link>

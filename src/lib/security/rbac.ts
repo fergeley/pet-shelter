@@ -1,4 +1,6 @@
-import { SessionUser } from "./session";
+// Type-only so `session.ts` (and its `next/headers` import) never reaches a
+// client bundle that imports a constant from this module.
+import type { SessionUser } from "./session";
 import {
   normalizeRole,
   permissionsForRole,

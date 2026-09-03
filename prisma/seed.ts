@@ -6,6 +6,7 @@ import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
 import faqsData from "../src/data/faqs.json";
 import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
+import { getSampleLedger } from "../src/lib/domain/transparencySample";
 
 function hashPasswordSync(password: string): string {
   const salt = crypto.randomBytes(16).toString("hex");
@@ -415,6 +416,81 @@ async function main() {
   }
   console.log(`  ✓ ${applicationsData.length} adoption applications seeded.`);
 
+  // 5. Seed the SAMPLE financial transparency ledger — explicit opt-in only.
+  //
+  // `assertSeedTargetIsLocal` above already refuses a non-local target, so this
+  // is not about protecting production. It is about what the rows MEAN: these are
+  // invented figures with realistic invoice references, and seeding them marks
+  // them published, which makes /transparency render them as verified shelter
+  // spending indistinguishable from real records. A ledger that exists to prove
+  // honesty should not be populated with fiction unless someone asks for it.
+  const seedSampleLedger = process.env.SEED_SAMPLE_TRANSPARENCY === "true";
+  const sampleLedger = getSampleLedger();
+
+  if (seedSampleLedger) {
+    console.warn(
+      "  ⚠ Seeding the SAMPLE financial ledger. These figures are invented — never present them as real spending."
+    );
+
+    for (const expense of sampleLedger.expenses) {
+      const data = {
+        category: expense.category,
+        title: expense.title,
+        amountSen: expense.amountSen,
+        date: expense.date,
+        vendorOrClinic: expense.vendorOrClinic,
+        petName: expense.petName,
+        receiptRef: expense.receiptRef,
+        isPublished: true,
+      };
+      await prisma.expenseItem.upsert({
+        where: { id: expense.id },
+        update: data,
+        create: { id: expense.id, ...data },
+      });
+    }
+    console.log(`  ✓ ${sampleLedger.expenses.length} expense ledger entries seeded.`);
+
+    for (const report of sampleLedger.reports) {
+      const data = {
+        year: report.year,
+        month: report.month,
+        title: report.title,
+        fileUrl: report.fileUrl,
+        summary: report.summary,
+        publishedAt: new Date(report.publishedAt),
+        isPublished: true,
+      };
+      await prisma.financialReport.upsert({
+        where: { id: report.id },
+        update: data,
+        create: { id: report.id, ...data },
+      });
+    }
+    console.log(`  ✓ ${sampleLedger.reports.length} financial reports seeded.`);
+
+    for (const stat of sampleLedger.impactStats) {
+      const data = {
+        metricValue: stat.metricValue,
+        label: stat.label,
+        labelMs: stat.labelMs,
+        period: stat.period,
+        periodMs: stat.periodMs,
+        displayOrder: stat.displayOrder,
+        isPublished: true,
+      };
+      await prisma.impactStat.upsert({
+        where: { key: stat.key },
+        update: data,
+        create: { id: stat.id, key: stat.key, ...data },
+      });
+    }
+    console.log(`  ✓ ${sampleLedger.impactStats.length} impact statistics seeded.`);
+  } else {
+    console.log(
+      "  ⏭ Skipped the sample financial ledger. Set SEED_SAMPLE_TRANSPARENCY=true to include it (development demos only)."
+    );
+  }
   // 5. Seed the public FAQ knowledge base.
   // Upserted by the fixture's stable ids, exactly like the pets above, so
   // re-running refreshes the launch copy without duplicating rows.
@@ -458,6 +534,10 @@ async function main() {
         seededPets: petsData.length,
         seededApplications: applicationsData.length,
         seededStaff: staffUsers.length,
+        seededExpenses: seedSampleLedger ? sampleLedger.expenses.length : 0,
+        seededReports: seedSampleLedger ? sampleLedger.reports.length : 0,
+        seededImpactStats: seedSampleLedger ? sampleLedger.impactStats.length : 0,
+        sampleLedgerSeeded: seedSampleLedger,
         seededFaqs: faqsData.length,
       },
     },
