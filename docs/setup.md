@@ -62,7 +62,7 @@ ADMIN_PASSWORD="admin123"
 
 # Email Service (Resend SDK)
 RESEND_API_KEY="re_xxxxxxxxxxxxx"
-SENDER_EMAIL="noreply@hopeforstrays.org"
+EMAIL_FROM="Hope for Strays <noreply@hopeforstrays.org>"
 
 # Optional: Observability & Analytics
 NEXT_PUBLIC_VERCEL_ANALYTICS_ID=""

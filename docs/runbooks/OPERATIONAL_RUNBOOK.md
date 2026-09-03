@@ -59,8 +59,8 @@ Key environment variables:
 | Variable | Description | Default / Example |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public` |
-| `SESSION_SECRET` | HMAC-SHA256 key for sealing cookies (32+ chars) | `hope-for-strays-dev-secure-session-secret-key-32-chars-min` |
-| `STAFF_INVITE_SECRET` | Secret PIN for staff invite onboarding | `1234` |
+| `SESSION_SECRET` | HMAC-SHA256 key for sealing cookies (32+ chars) | `dev-only-insecure-session-secret-change-me-before-deploy` *(the development default; production refuses to boot on it)* |
+| `STAFF_INVITE_SECRET` | Secret PIN for staff invite onboarding (16+ chars) | `dev-only-insecure-staff-invite-code-change-me` *(the development default; production refuses to boot on it)* |
 | `RESEND_API_KEY` | Resend API key for transactional emails | `re_123456789...` *(optional; simulated if omitted)* |
 | `SHELTER_NOTIFICATION_EMAIL` | Destination for incoming staff alerts | `applications@hopeforstrays.org` |
 | `PRISMA_LOG` | Enable verbose Prisma query logging | `false` |

@@ -2,6 +2,71 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-03 — A green deploy proves one variable was set, and nothing else
+
+A Vercel production build failed with `SecretConfigurationError` collecting page data for
+`/api/upload`. The cause was correct and deliberate: `crypto.ts` resolves `getSessionSecret()` at
+module load, `next build` imports every route module, and `TARGET_SECRET_HARDENING.md` §5 names
+that exact failure as a gate. Setting the secret cleared it.
+
+What the green build then hid was worse than what the red one showed. `DATABASE_URL`,
+`RESEND_API_KEY`, `EMAIL_FROM`, `SHELTER_NOTIFICATION_EMAIL` and `NEXT_PUBLIC_APP_URL` all degrade
+into something shaped like success: the pet repository serves `src/data/pets.json` fixtures, and
+the mailer returns `{success: true, simulated: true}` and writes an audit row saying the mail was
+sent. Exactly one of eight variables fails loudly, and it is the one that had just been fixed.
+
+**Rule:** when a deploy's only failure mode is loud, enumerate the silent ones before calling it
+done. Grep `process.env.` across `src/`, and for each name ask what the code does when it is
+absent. Every `|| "default"` is a silent failure waiting for production.
+
+**Corollary — identity does not distinguish a fallback; count does.** The build prerendered
+`/pets/pet-001`…, which looked like fixture data, but `prisma/seed.ts` seeds *from that same JSON*,
+so a correctly-seeded database holds identical ids. The ids were unusable as evidence and an early
+call based on them was overstated. What settled it was arithmetic: 10 prerendered paths against 8
+rows in `pets`, and 10 entries in the fixture file. `getServerPetsAsync` returns fixtures both when
+the query throws *and* when it returns zero rows, so the two causes are also indistinguishable —
+only the count separates fixture from database at all.
+
+## 2026-09-03 — A guard cannot recognise a placeholder it has never been shown
+
+`resolveSecret` rejects a value equal to its own `DEV_SECRET_DEFAULTS` entry, and the module comment
+explains why the default is published: it "lets `resolveSecret` recognise an unchanged copy-paste
+deploy." But `.env.example` — the file an operator actually copies — carried a *different*
+vocabulary of fake values, `"replace-me-with-a-random-32-plus-character-secret"` and friends. Those
+are set, are not the dev default, and are 41 to 49 characters long, so they clear every rule. The
+one file the check exists to catch was the one file it could not see.
+
+The fix needed no new runtime branch. Publishing `DEV_SECRET_DEFAULTS` verbatim in `.env.example`
+restores the single vocabulary the mechanism was designed around, and a test pins the two together.
+
+**Rule:** when a check works by comparing against a list of known-bad values, there must be exactly
+one such list. A second set of "obviously fake" strings maintained somewhere else is not redundancy,
+it is the hole. This is [[anything-written-twice-diverges]] wearing a security hat.
+
+**Addendum, same day.** The first fix pinned `.env.example` and its test read that one file. A
+scan of every operator-facing doc then found two more copies, both of which booted green in
+production: `docs/runbooks/OPERATIONAL_RUNBOOK.md` published `SESSION_SECRET` in a column headed
+"Default / Example", and `docs/runbooks/RUNBOOK_PRODUCTION_MEDIA_STORAGE.md` published two more
+inside an env block. So the rule above has a second half: a guard that enforces "exactly one list"
+by reading exactly one file cannot see the copies that make the rule necessary. The guard now
+discovers its inputs — `.env.example`, `docs/setup.md`, and every file in `docs/runbooks/` — so a
+runbook added next week is covered without anyone remembering to add it.
+
+## 2026-09-03 — A probe that can report "missing" must be allowed to report "broken"
+
+`git rev-parse <ref>:<path>` and `git cat-file -e <ref>:<path>` are silently rewritten by MSYS path
+conversion in this Git Bash — `origin/master:.env.example` reaches git as `origin\master;.env.example`
+and fails. It fires on some ref/path shapes and not others, so a loop over several branches returns
+a believable mix of hits and misses rather than an obvious failure.
+
+Wrapped in `2>/dev/null || echo MISSING`, the `fatal:` line vanished and the output read as data. It
+produced a confident, wrong claim to the user — that a file was tracked only on two local branches
+and any fix would be stranded — which a peer session caught. `git ls-tree` is the authority, and it
+takes the ref as its own argument.
+
+**Rule:** any probe whose negative result is itself a finding must let stderr through on at least
+one run before the finding is reported. "Not found" and "the command never ran" are the same string
+once stderr is discarded, and only one of them is evidence.
 ## 2026-09-03 — On a busy trunk, a branch is only as merged as its last sync
 
 The QR branch needed four syncs with `origin/master` in one sitting. Between

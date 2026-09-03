@@ -141,10 +141,10 @@ Ensure the upload route can authenticate admin requests in production:
 
 ```env
 # Session HMAC secret (at least 32 characters)
-SESSION_SECRET="generate-a-secure-random-32-character-secret-key-here"
+SESSION_SECRET="dev-only-insecure-session-secret-change-me-before-deploy"
 
 # Admin fallback key for direct authorization
-ADMIN_SECRET_KEY="generate-a-secure-admin-secret-key-here"
+ADMIN_SECRET_KEY="dev-only-insecure-admin-secret-key-change-me"
 ```
 
 ---

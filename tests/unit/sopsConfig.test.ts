@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
+import { DEV_SECRET_DEFAULTS } from "@/lib/security/secrets";
 
 describe("SOPS & age Configuration Guards", () => {
   const rootDir = path.resolve(__dirname, "../../");
@@ -26,9 +27,16 @@ describe("SOPS & age Configuration Guards", () => {
     expect(content).toContain("sops_age__list");
     expect(content).toContain("ENC[AES256_GCM");
 
-    // Ensure plaintext sensitive strings from .env.example are NOT stored raw
-    expect(content).not.toContain('SESSION_SECRET="replace-me');
-    expect(content).not.toContain('ADMIN_SECRET_KEY="replace-me');
+    // No development default may sit in the encrypted file as plaintext.
+    //
+    // These were previously two literals matching an .env.example placeholder
+    // ("replace-me..."). That placeholder is gone — .env.example now publishes
+    // DEV_SECRET_DEFAULTS verbatim so resolveSecret can recognise an unchanged
+    // copy — which left the assertions searching for a string that exists
+    // nowhere, passing vacuously. Deriving them keeps the check honest.
+    for (const devDefault of Object.values(DEV_SECRET_DEFAULTS)) {
+      expect(content).not.toContain(devDefault);
+    }
   });
 
   it("ensures .gitignore correctly permits .env*.enc while ignoring private keys", () => {
