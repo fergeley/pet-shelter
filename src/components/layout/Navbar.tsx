@@ -105,7 +105,7 @@ export function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 focus-visible:ring-2">
             <div className="flex size-9 items-center justify-center overflow-hidden rounded-mark bg-brand-mark text-primary-foreground shadow-brand-sm ring-1 ring-brand-mark-ring">
-              <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" priority />
+              <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" style={{ width: "auto", height: "auto" }} priority />
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-base sm:text-lg font-bold tracking-tight text-foreground leading-tight">
@@ -298,7 +298,7 @@ export function Navbar() {
                 <SheetHeader>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex size-7 items-center justify-center overflow-hidden rounded-md bg-primary/10 ring-1 ring-border">
-                      <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={28} height={28} className="h-full w-full object-cover" />
+                      <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={28} height={28} className="h-full w-full object-cover" style={{ width: "auto", height: "auto" }} />
                     </div>
                     <SheetTitle className="font-heading text-base font-bold">Hope for Strays UM</SheetTitle>
                   </div>
