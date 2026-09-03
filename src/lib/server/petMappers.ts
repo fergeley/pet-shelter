@@ -36,7 +36,7 @@ export function fromDbPetStatus(status: PrismaPetStatus | string): Pet["status"]
  *
  * Deliberately free of Prisma and of cache state: this module is a pure
  * projection in both directions, which is what lets `petRepository` be read as
- * "cache + persistence" without 380 lines of column mapping in the way.
+ * "DB-first with a fallback mirror" without 380 lines of column mapping in the way.
  */
 
 export interface DbPetRecord {
@@ -113,9 +113,6 @@ export interface DbMedicalTimelineEventRecord {
 /**
  * Columns written to the `pets` table. Kept as a named shape so the insert and
  * update paths cannot drift apart when a new column is added.
- *
- * Scalars only. Nested history cannot travel in a flat column set — see
- * `buildPetHistoryNestedCreate` and the two payload builders below it.
  */
 export interface PetPersistencePayload {
   name: string;
@@ -401,3 +398,4 @@ export function buildPetUpdatePayload(pet: Pet): PetUpdatePayload {
     ...buildPetHistoryNestedCreate(pet),
   };
 }
+
