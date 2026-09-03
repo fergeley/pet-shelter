@@ -43,6 +43,15 @@ restores the single vocabulary the mechanism was designed around, and a test pin
 one such list. A second set of "obviously fake" strings maintained somewhere else is not redundancy,
 it is the hole. This is [[anything-written-twice-diverges]] wearing a security hat.
 
+**Addendum, same day.** The first fix pinned `.env.example` and its test read that one file. A
+scan of every operator-facing doc then found two more copies, both of which booted green in
+production: `docs/runbooks/OPERATIONAL_RUNBOOK.md` published `SESSION_SECRET` in a column headed
+"Default / Example", and `docs/runbooks/RUNBOOK_PRODUCTION_MEDIA_STORAGE.md` published two more
+inside an env block. So the rule above has a second half: a guard that enforces "exactly one list"
+by reading exactly one file cannot see the copies that make the rule necessary. The guard now
+discovers its inputs — `.env.example`, `docs/setup.md`, and every file in `docs/runbooks/` — so a
+runbook added next week is covered without anyone remembering to add it.
+
 ## 2026-09-03 — A probe that can report "missing" must be allowed to report "broken"
 
 `git rev-parse <ref>:<path>` and `git cat-file -e <ref>:<path>` are silently rewritten by MSYS path

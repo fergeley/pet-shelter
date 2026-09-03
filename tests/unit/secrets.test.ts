@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   DEV_SECRET_DEFAULTS,
@@ -343,6 +343,7 @@ describe(".env.example authentication secrets", () => {
   });
 
   it.each(SECRETS)("refuses to boot production with the documented %s", (name, devDefault, minLength) => {
+    expect(documented[name], `${name} is not documented in .env.example`).toBeDefined();
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv(name, documented[name]);
 
@@ -357,4 +358,122 @@ describe(".env.example authentication secrets", () => {
     expect(documented).toHaveProperty("EMAIL_FROM");
     expect(documented).not.toHaveProperty("SENDER_EMAIL");
   });
+});
+
+/**
+ * `.env.example` is not the only file an operator copies a secret out of.
+ *
+ * The block above pins `.env.example` to `DEV_SECRET_DEFAULTS`. That closed one
+ * of three copies. `docs/runbooks/OPERATIONAL_RUNBOOK.md` published
+ * `SESSION_SECRET` as `"hope-for-strays-dev-secure-session-secret-key-32-chars-min"`
+ * in a column headed "Default / Example", and
+ * `docs/runbooks/RUNBOOK_PRODUCTION_MEDIA_STORAGE.md` published two more inside
+ * an ```env block under "Verify Production Authentication & Security Variables".
+ * All three were set, none was a `DEV_SECRET_DEFAULTS` entry, and all three
+ * cleared their minimum length — so all three booted green in production while
+ * signing session cookies with a value committed to this repository.
+ *
+ * AGENTS.md: "once two copies have diverged, that is the defect, fix both."
+ * A guard that reads one file cannot see that, so this one reads every file an
+ * operator is told to copy from, and asserts the real policy — `resolveSecret`
+ * itself must refuse each published value under `NODE_ENV=production`.
+ */
+describe("no operator-facing file publishes a secret that boots in production", () => {
+  const GUARDED = {
+    SESSION_SECRET: { devDefault: DEV_SECRET_DEFAULTS.SESSION_SECRET, minLength: 32 },
+    ADMIN_SECRET_KEY: { devDefault: DEV_SECRET_DEFAULTS.ADMIN_SECRET_KEY, minLength: 16 },
+    STAFF_INVITE_SECRET: { devDefault: DEV_SECRET_DEFAULTS.STAFF_INVITE_SECRET, minLength: 16 },
+  } as const;
+  type GuardedName = keyof typeof GUARDED;
+  const NAMES = Object.keys(GUARDED) as GuardedName[];
+
+  const REPO_ROOT = resolve(__dirname, "../..");
+  const RUNBOOKS = "docs/runbooks";
+
+  /**
+   * Discovered, not listed: a runbook added next week is copied from just as
+   * readily as one added last month, and a hardcoded list would not cover it.
+   */
+  const OPERATOR_FILES = [
+    ".env.example",
+    "docs/setup.md",
+    ...readdirSync(resolve(REPO_ROOT, RUNBOOKS))
+      .filter((f) => f.endsWith(".md"))
+      .map((f) => `${RUNBOOKS}/${f}`),
+  ];
+
+  /**
+   * A backticked or quoted token that is plainly prose, a path, or another
+   * variable's name — not a value anyone would paste into an environment.
+   * Without this the scan reports `assertSecretsConfigured()` as a 25-character
+   * `ADMIN_SECRET_KEY`, which is noise, and noise is what gets a guard deleted.
+   */
+  function looksLikeCode(value: string): boolean {
+    return (
+      /[\s()]/.test(value) ||
+      /^[A-Z][A-Z0-9_]*$/.test(value) ||
+      value.includes("/") ||
+      /\.(ts|tsx|mjs|js|json|md|env)$/.test(value) ||
+      /^[A-Z][A-Za-z]+Error$/.test(value)
+    );
+  }
+
+  type Published = { file: string; line: number; name: GuardedName; value: string };
+
+  function collect(): Published[] {
+    const out: Published[] = [];
+    for (const file of OPERATOR_FILES) {
+      const raw = readFileSync(resolve(REPO_ROOT, file), "utf8");
+      raw.split(/\r?\n/).forEach((line, index) => {
+        if (line.includes("ENC[")) return; // SOPS ciphertext, not a value
+        const named = NAMES.filter((n) => line.includes(n));
+        if (named.length !== 1) return; // a line listing several names states no value
+        const name = named[0];
+        for (const match of line.matchAll(/[`"']([^`"']{8,})[`"']/g)) {
+          const value = match[1];
+          if (value === name || (NAMES as string[]).includes(value)) continue;
+          if (looksLikeCode(value)) continue;
+          out.push({ file, line: index + 1, name, value });
+        }
+      });
+    }
+    return out;
+  }
+
+  const published = collect();
+
+  beforeEach(() => {
+    resetSecretWarnings();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("finds the published values it is supposed to be checking", () => {
+    // Without this, a scan that silently matches nothing is indistinguishable
+    // from a repository with nothing to find, and every assertion below passes
+    // vacuously. Seven as of 2026-09-04; asserting a floor, not a count, so a
+    // new runbook does not fail this.
+    expect(OPERATOR_FILES.length).toBeGreaterThanOrEqual(3);
+    expect(published.length).toBeGreaterThanOrEqual(7);
+    expect(published.map((p) => p.file)).toContain(".env.example");
+    expect(published.map((p) => p.file)).toContain(`${RUNBOOKS}/OPERATIONAL_RUNBOOK.md`);
+  });
+
+  it.each(published.map((p) => [`${p.file}:${p.line} ${p.name}`, p] as const))(
+    "%s is refused by resolveSecret under NODE_ENV=production",
+    (_label, entry) => {
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv(entry.name, entry.value);
+
+      expect(() =>
+        resolveSecret(entry.name, {
+          devDefault: GUARDED[entry.name].devDefault,
+          minLength: GUARDED[entry.name].minLength,
+        })
+      ).toThrow(SecretConfigurationError);
+    }
+  );
 });
