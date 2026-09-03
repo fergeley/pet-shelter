@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
@@ -76,10 +75,9 @@ export default async function RootLayout({
         playfairDisplayHeading.variable
       )}
     >
-      <body className="m-0 min-h-full bg-frame text-foreground font-sans">
-        <Script
+      <head>
+        <script
           id="theme-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -94,6 +92,8 @@ export default async function RootLayout({
             `,
           }}
         />
+      </head>
+      <body className="m-0 min-h-full bg-frame text-foreground font-sans">
         <LanguageProvider defaultLanguage="en">
           <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
             <DonationQrProvider value={donationQr}>

@@ -26,6 +26,7 @@ import {
   atomicUpdateApplicationStatus,
   deleteServerApplication,
   findServerApplicationById,
+  findServerApplicationByIdAsync,
 } from "@/lib/server/applicationRepository";
 import { findServerPetById } from "@/lib/server/petRepository";
 import {
@@ -122,7 +123,7 @@ export async function updateApplicationStatus(
     assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
 
     const validated = updateApplicationStatusSchema.parse(input);
-    const existingApp = findServerApplicationById(validated.id);
+    const existingApp = (await findServerApplicationByIdAsync(validated.id)) || findServerApplicationById(validated.id);
 
     const result = await atomicUpdateApplicationStatus(
       validated.id,
@@ -174,7 +175,7 @@ export async function scheduleApplicationInterview(
     assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
 
     const validated = scheduleInterviewSchema.parse(input);
-    const app = findServerApplicationById(validated.applicationId);
+    const app = (await findServerApplicationByIdAsync(validated.applicationId)) || findServerApplicationById(validated.applicationId);
 
     if (!app) {
       return { success: false, error: "Application not found" };
@@ -287,7 +288,7 @@ export async function lookupApplicationStatusAction(
     }
 
     // 2. Query application by ID
-    const app = findServerApplicationById(validated.referenceId);
+    const app = (await findServerApplicationByIdAsync(validated.referenceId)) || findServerApplicationById(validated.referenceId);
     if (!app || app.email.trim().toLowerCase() !== validated.email) {
       return {
         success: false,

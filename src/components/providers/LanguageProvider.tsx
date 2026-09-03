@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useSyncExternalStore, useMemo } from "react";
 import { Language, TranslationDictionary, translations } from "@/lib/i18n/translations";
 
 interface LanguageContextValue {
@@ -15,6 +15,30 @@ const STORAGE_KEY = "hope_for_strays_lang";
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener("languagechange", callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener("languagechange", callback);
+  };
+}
+
+function getStoredLanguage(): Language | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
+    if (stored === "en" || stored === "ms") return stored;
+  } catch {
+    // Ignore localStorage access errors in private browsing
+  }
+  return null;
+}
+
+function getServerSnapshot(): Language | null {
+  return null;
+}
+
 export function LanguageProvider({
   children,
   defaultLanguage = "en",
@@ -22,28 +46,29 @@ export function LanguageProvider({
   children: React.ReactNode;
   defaultLanguage?: Language;
 }) {
-  const [language, setLanguageState] = useState<Language>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-        if (stored === "en" || stored === "ms") {
-          return stored;
-        }
-      } catch {
-        // Ignore localStorage access errors in private browsing
-      }
+  const storeLanguage = useSyncExternalStore(
+    subscribe,
+    getStoredLanguage,
+    getServerSnapshot
+  );
+  const [explicitLanguage, setExplicitLanguage] = useState<Language | null>(null);
+  const language = explicitLanguage ?? storeLanguage ?? defaultLanguage;
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = language;
     }
-    return defaultLanguage;
-  });
+  }, [language]);
 
   const setLanguage = useCallback((newLang: Language) => {
-    setLanguageState(newLang);
+    setExplicitLanguage(newLang);
     try {
       localStorage.setItem(STORAGE_KEY, newLang);
       document.cookie = `${STORAGE_KEY}=${newLang}; path=/; max-age=31536000; SameSite=Lax`;
       if (typeof document !== "undefined") {
         document.documentElement.lang = newLang;
       }
+      window.dispatchEvent(new Event("languagechange"));
     } catch {
       // Ignore cookie or storage errors
     }
@@ -99,13 +124,16 @@ export function LanguageProvider({
     [language]
   );
 
-  const value: LanguageContextValue = {
-    language,
-    setLanguage,
-    t,
-    dictionary: translations[language] || translations.en,
-    isMs: language === "ms",
-  };
+  const value: LanguageContextValue = useMemo(
+    () => ({
+      language,
+      setLanguage,
+      t,
+      dictionary: translations[language] || translations.en,
+      isMs: language === "ms",
+    }),
+    [language, setLanguage, t]
+  );
 
   return (
     <LanguageContext.Provider value={value}>

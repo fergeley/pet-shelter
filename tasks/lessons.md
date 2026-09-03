@@ -58,6 +58,64 @@ takes the ref as its own argument.
 **Rule:** any probe whose negative result is itself a finding must let stderr through on at least
 one run before the finding is reported. "Not found" and "the command never ran" are the same string
 once stderr is discarded, and only one of them is evidence.
+## 2026-09-03 — On a busy trunk, a branch is only as merged as its last sync
+
+The QR branch needed four syncs with `origin/master` in one sitting. Between
+them, the RBAC work, the FAQ CMS, sponsor photo notifications and the sponsor
+portal all landed, and three of the four touched the same files. Each sync was
+real work, not a formality: `serverStore.ts` was deleted mid-flight, a parallel
+session shipped `settingsRepository.ts` doing the same job as this branch's
+`domain/shelterSettings.ts`, and `SUPER_ADMIN` / `ANIMAL_MANAGER` — reported as
+non-existent when the feature began — were added by the RBAC branch.
+
+**Rules that came out of it:**
+
+- **A `modify/delete` conflict on a file your branch depends on is the signal to
+  stop merging and start porting.** Rebuild on the current trunk and re-apply
+  each change; merging would have resurrected deleted files and shipped two
+  settings layers.
+- **Resolve in favour of what already landed.** Where a parallel session had
+  fixed the same hole differently — `getAdminPets`, secret redaction — take
+  theirs and delete your version, even when yours is arguably tidier. One
+  approach on trunk beats two competing ones.
+- **When both sides added, resolve as a union, not a side.** Two of the later
+  conflicts were purely additive; picking either side would have silently
+  dropped the other feature.
+- **Read the other sessions' notes before assuming yours is the version to
+  keep.** `tasks/open/` held a note predicting this branch's guard would flag
+  the FAQ reads, and warning that "fixing" them with `assertAuthorized` would
+  break the public category tabs. Following it saved a real regression.
+- **Do not merge a long-lived branch into your local `master` while trunk is
+  moving.** It forked a copy that served no purpose and had to be abandoned;
+  the branch itself was the only thing that mattered. Leave `master` alone and
+  let the PR land it.
+
+## 2026-09-03 — CI tests the merge result, so it sees commits your branch does not
+
+The unit suite passed locally at 1088 tests and failed in CI at 1168. Nothing
+was flaky: GitHub runs the checks against your branch merged with the current
+trunk, so it had a whole `src/actions/sponsors.ts` that the local tree had never
+seen. A repo-wide guard — the kind that scans every file in a directory — will
+find things locally green runs cannot.
+
+**Check the count.** "1168 in CI, 1088 here" is the tell, and it is faster than
+reading the diff. Sync, re-run, and expect the numbers to match before trusting
+a local pass.
+
+**And read the output, not the exit code.** `gh pr checks --watch` exits 0 even
+when checks have failed. Taking the exit code at face value would have reported
+a green build twice.
+
+## 2026-09-03 — Attribute a red check before claiming it is not yours
+
+`Playwright golden paths` failed on the QR PR. Rather than assert it was
+pre-existing, it was checked against master's own latest run: same job, same
+assertion, same line 101, already failing there, with master's previous five
+merges all landed red. That turns "probably not mine" into a fact worth acting
+on, and it takes two commands.
+
+The inverse also held in the same run: the unit failure alongside it *was* ours,
+and the same check proved it — master was green on that job.
 
 ## 2026-09-03 — A fallback that fabricates data is a defect, not resilience
 
