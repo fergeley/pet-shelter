@@ -4,8 +4,34 @@ import { PERMISSIONS } from "@/lib/security/rbac";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { getStorageProvider } from "@/lib/storage";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB default (images)
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+];
+
+// Audited financial statements are routinely larger than a photo, so PDFs get
+// their own ceiling rather than loosening the limit for every upload.
+const MAX_FILE_SIZE_BY_TYPE: Record<string, number> = {
+  "application/pdf": 10 * 1024 * 1024, // 10MB
+};
+
+// The stored extension is derived from the validated MIME type, never from the
+// uploaded filename. Files land in `public/uploads/`, which is served from this
+// site's own origin with a Content-Type chosen by extension — so honouring a
+// client-supplied `.html` on a file whose bytes merely START with a valid
+// signature would publish same-origin HTML. Adding PDF widened that surface,
+// because "%PDF-1.4\n<script>…" is both a passing signature and a valid page.
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/pdf": "pdf",
+};
 
 // Magic numbers for file validation (file signatures)
 const FILE_SIGNATURES: Record<string, Buffer> = {
@@ -13,6 +39,7 @@ const FILE_SIGNATURES: Record<string, Buffer> = {
   "image/png": Buffer.from([0x89, 0x50, 0x4e, 0x47]),
   "image/webp": Buffer.from([0x52, 0x49, 0x46, 0x46]), // RIFF
   "image/gif": Buffer.from([0x47, 0x49, 0x46]), // GIF
+  "application/pdf": Buffer.from([0x25, 0x50, 0x44, 0x46]), // %PDF
 };
 
 /**
@@ -50,15 +77,16 @@ export async function POST(request: NextRequest) {
     // Validate file type
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Invalid file type. Only JPEG, PNG, WebP, and GIF are allowed." },
+        { error: "Invalid file type. Only JPEG, PNG, WebP, GIF, and PDF are allowed." },
         { status: 400 }
       );
     }
 
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
+    // Validate file size against this type's ceiling
+    const maxSize = MAX_FILE_SIZE_BY_TYPE[file.type] ?? MAX_FILE_SIZE;
+    if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "File size exceeds 5MB limit" },
+        { error: `File size exceeds ${Math.round(maxSize / (1024 * 1024))}MB limit` },
         { status: 400 }
       );
     }
@@ -72,11 +100,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate unique, sanitized filename
+    // Generate unique, sanitized filename. The base name keeps no dots, so the
+    // extension below is the only one the stored file can have.
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
-    const originalName = file.name.replace(/[^a-z0-9.-]/gi, "_");
-    const filename = `${timestamp}-${randomStr}-${originalName}`;
+    const extension = EXTENSION_BY_TYPE[file.type];
+    if (!extension) {
+      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+    }
+
+    const baseName =
+      file.name
+        .replace(/\.[^.]*$/, "")
+        .replace(/[^a-z0-9-]/gi, "_")
+        .slice(0, 60) || "upload";
+    const filename = `${timestamp}-${randomStr}-${baseName}.${extension}`;
 
     // Read bytes into Buffer
     const arrayBuffer = await file.arrayBuffer();

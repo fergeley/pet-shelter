@@ -68,9 +68,10 @@ Comprehensive guides are organized in the [`docs/`](docs/) directory and synchro
 - **Donation Portal (`/donate` & `DonationWidget.tsx`)**: Direct DuitNow QR standard (PayNet Malaysia) and Maybank instant bank transfer.
 - **Automated e-Receipt Dossier**: Computes official tax receipts with statutory LHDN exemption numbers and instant printing.
 - **1-Click LHDN & ROS CSV Export Engine**: Automated CSV download for Malaysian tax filing and NGO audits in the Admin Portal.
+- **Public Transparency Ledger (`/transparency`)**: "Where Your Money Goes" — a verified expense ledger with per-category allocation shares *computed from the ledger rather than hand-written*, headline impact counters, a chronological purchase feed carrying clinic/supplier invoice references, and downloadable ROS/AGM audited statements. Editable at `/admin/transparency` by `ADMIN` and `COORDINATOR`.
 
 ### 6. 🔐 Admin Management & Role-Based Access Control (RBAC)
-- **Role Permissions**: `SUPER_ADMIN`, `ADMIN`, and `COORDINATOR` with bcrypt-hashed credentials, brute-force rate limiting, and session protection.
+- **Role Permissions**: `ADMIN`, `COORDINATOR`, `STAFF`, and `VOLUNTEER` (the four values in `prisma/schema.prisma`) with scrypt-hashed credentials, brute-force rate limiting, and signed-session protection.
 - **Admin Management**: Full CRUD for animals, soft-delete archiving, application review status workflows, and audit logging.
 
 ---

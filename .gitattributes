@@ -1,0 +1,12 @@
+# core.autocrlf is on for this repo, which would rewrite LF bytes inside binary
+# files on checkout. PDFs carry byte offsets in their xref table, so a single
+# converted newline makes the file unreadable — mark them binary explicitly.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary
