@@ -1,0 +1,32 @@
+#!/bin/sh
+# Enforces docs/reference/COMMIT_MESSAGES.md — Chris Beams' seven rules over this
+# repo's Conventional Commits grammar.
+#
+# NOT INSTALLED by default. This file is inert where it sits. To install:
+#     npm run commit:hook
+# To remove:  rm "$(git rev-parse --git-path hooks)/commit-msg"
+#
+# Installing affects EVERY session working this repo, including the concurrent one
+# on this branch. That is why it is opt-in — the same reason `pre-commit` is.
+# Bypass a single commit with `git commit --no-verify`.
+#
+# The linter is dependency-free Node, so this hook needs no `npm install`.
+
+set -e
+
+if ! command -v node >/dev/null 2>&1; then
+  printf '\033[33mcommit-msg:\033[0m node not found, skipping the message check\n' >&2
+  exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+linter="$root/scripts/commit-msg.mjs"
+
+# A worktree or a partial checkout may not have the linter. Do not block a commit
+# for a file that is legitimately absent — that would be a hook failing closed on
+# its own installation, not on the message.
+if [ ! -f "$linter" ]; then
+  exit 0
+fi
+
+exec node "$linter" "$1"

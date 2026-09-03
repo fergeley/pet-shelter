@@ -9,6 +9,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 ### 🚀 Getting Started & Setup
 - **[Installation & Local Development Guide](setup.md)**: Prerequisites, environment configuration, database seeding, and development workflow.
 - **[Contributing Guidelines](../.github/CONTRIBUTING.md)**: Coding standards, branch strategy, PR workflow, and architectural rules.
+- **[Commit Messages](reference/COMMIT_MESSAGES.md)**: The commit standard for humans and agents alike — Beams' seven rules over this repo's Conventional Commits grammar, the enforcing linter, and the measured baseline.
 - **[Design System & UI Tokens](design-system.md)**: Design philosophy, typography, colors, component guidelines, and accessibility.
 
 ---
@@ -30,6 +31,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
   - **[Test Task 03: Strict Database & Server Actions](tasks/TEST_TASK_03_DATABASE_AND_ACTIONS_INTEGRATION.md)**: Server actions integration, transactions, RBAC, soft-delete.
   - **[Test Task 04: Playwright E2E & GitHub Actions CI](tasks/TEST_TASK_04_PLAYWRIGHT_E2E_AND_CI.md)**: 5 Golden Path E2E specs, Page Object Models, CI workflow.
   - **[Target: Test Coverage Expansion (Tiers 3, 4 & 5)](tasks/TARGET_TEST_COVERAGE_EXPANSION.md)**: Master dispatch specification and prompt for comprehensive test expansion across DB integration, UI components, and Playwright E2E.
+- **[⚪ Target: Commit Standard Adoption](tasks/TARGET_COMMIT_STANDARD_ADOPTION.md)**: What turns the new commit standard from written to enforced — the merge that arms the hook, the 0-of-203 baseline, the four still-open decisions, and the measurement that says whether adoption held.
 - **[Sprint Plan & Task Division (Backend vs Frontend)](tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md)**: Master task breakdown, domain assignments, acceptance criteria, and DoD.
 - **[Handoff: TNRM & Rehabilitation Sprint](tasks/HANDOFF_TNRM_REHABILITATION_SPRINT.md)**: Current branch state, shipped work, design decisions, and the prioritized open items with their file references.
 - **[🔴 Target: Authentication Secret Hardening](tasks/TARGET_SECRET_HARDENING.md)**: Resolves P1 — committed secret fallbacks, the unconditional invite-code bypass, and the anonymous path to applicant PII. **Do this first.**

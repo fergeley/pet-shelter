@@ -103,27 +103,26 @@ If your feature requires schema changes:
 
 ### Commit Guidelines
 
-Use **atomic commits** with clear, descriptive messages:
+**The standard is [`docs/reference/COMMIT_MESSAGES.md`](../docs/reference/COMMIT_MESSAGES.md)** —
+Chris Beams' seven rules over this repo's Conventional Commits grammar. It is the only copy; this
+page deliberately restates none of it.
 
-```bash
-# Good commit messages
-git commit -m "feat: add image upload component for pet listings"
-git commit -m "fix: resolve race condition in application status update"
-git commit -m "docs: document brand color palette and shape language"
+The shape, so you know what you are looking at:
 
-# Poor commit messages
-git commit -m "updates"
-git commit -m "fix stuff"
-git commit -m "WIP"
+```
+type(scope): Imperative summary, capitalized, no period
+
+Body prose explaining what changed and why, wrapped at 72 columns.
+The diff already says how.
 ```
 
-Follow conventional commit format:
-- `feat:` — new feature
-- `fix:` — bug fix
-- `docs:` — documentation
-- `refactor:` — code restructuring (no behavior change)
-- `test:` — test updates
-- `chore:` — dependency, config, build updates
+Check a message before you commit, and install the hook that checks it for you:
+
+```bash
+npm run commit:check -- "$(git rev-parse --git-path COMMIT_EDITMSG)"   # lint one message
+npm run commit:audit                          # report on existing history
+npm run commit:hook                           # install the commit-msg hook (opt-in)
+```
 
 ---
 
@@ -171,10 +170,12 @@ git push origin feature/your-feature-name --force-with-lease
 
 ### PR Title
 
-Use the same format as commit messages:
-- `feat: add image upload for pet listings`
-- `fix: resolve race condition in applications`
-- `docs: add deployment guide`
+Use the same format as commit messages — see
+[`docs/reference/COMMIT_MESSAGES.md`](../docs/reference/COMMIT_MESSAGES.md):
+
+- `feat(pets): Add image upload for pet listings`
+- `fix(applications): Resolve the race condition in status updates`
+- `docs(setup): Add the deployment guide`
 
 ### PR Description
 
