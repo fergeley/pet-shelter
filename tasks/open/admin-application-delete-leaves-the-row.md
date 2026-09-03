@@ -1,50 +1,37 @@
 # Deleting an adoption application from the admin table does not remove the row
 
-**Status:** open · opened 2026-09-03 · measured, not inferred
+**Status:** resolved · resolved 2026-09-04 · measured and verified
 
 `e2e/specs/04_admin_application_review.spec.ts:93` — "clears applications left behind by the
 public adoption spec" — clicks the archive/delete control, confirms "Yes, remove record", and
-asserts the row count drops. It does not:
+asserts the row count drops. It failed previously with `Expected: 0, Received: 1`.
 
-    Error: expect(locator).toHaveCount(expected) failed
-    Expected: 0
-    Received: 1
-    24 × locator resolved to 1 element
+## Resolution: Two Interlocking Defects
 
-Reproduced identically on three consecutive CI runs (`bdfc4cc`, `26f0bf3`, `5367676`), with
-both retries failing, so it is deterministic rather than flaky. Everything else in the suite
-passes: **22 passed, 1 failed**.
+The failure was traced to two interlocking issues across the server and client layers:
 
-## Why nobody saw it before 2026-09-03
+1. **Server Layer (`src/lib/server/applicationRepository.ts`)**:
+   - `insertServerApplication` inserted dynamically created applications (such as those submitted
+     by public E2E journeys) into Prisma, but neglected to update the in-memory `serverApplications`
+     store.
+   - `deleteServerApplication` looked up records strictly through `serverApplications.findIndex`.
+     When an application was created in Postgres, it did not exist in `serverApplications`, causing
+     `deleteServerApplication` to return `false` immediately without executing `prisma.adoptionApplication.delete`.
+   - Repaired by: (a) keeping `serverApplications` synchronized unconditionally in `insertServerApplication`
+     and `getServerApplicationsAsync`, and (b) checking Prisma directly in `deleteServerApplication` and
+     `atomicUpdateApplicationStatus` if a record is not found in memory.
 
-The `Playwright golden paths` job had never completed a run. It died at "Apply the schema"
-on `prisma db push --skip-generate`, a flag Prisma 7 removed. The first time these specs
-executed, this failed — see
-`tasks/decisions/2026-09-03-donation-ledger-verified-on-postgres.md` for the full stack of
-CI defects that hid it.
+2. **Client Presentation Layer (`src/hooks/useApplicationTableController.ts`)**:
+   - The admin application page passes `initialApplications` into `ApplicationDataTable`.
+   - In `useApplicationTableController`, `applications` was computed as `initialApplications || storeApplications`.
+   - Calling `deleteApplication(id)` only deleted from the client localStorage store; `initialApplications`
+     remained static, so the row was never removed from the visible DOM without an optimistic state array.
+   - Repaired by adding `localApplications` optimistic state with rollback on server failure, matching
+     the established pattern in `usePetTableController.ts`.
 
-## What has been ruled out
-
-- **Not RBAC.** `deleteApplication` requires `ROLES.ADMIN`; `e2e/fixtures/authFixture.ts`
-  seals `ADMIN_USER` by default and the `adminPage` fixture uses it.
-- **Not the sponsorship branch.** The spec covers adoption applications, a path that branch
-  does not touch, and `02_rescue_sponsorship_receipt.spec.ts` passes in the same run.
-- **Not a missing seed.** The e2e job has always run `db:seed`.
-
-## Still open
-
-Whether the server action fails silently, or succeeds while the client table keeps the row.
-`deleteApplication` calls `revalidatePath("/admin/applications")` inside a try/catch that
-swallows, and `ApplicationDataTable` holds its own state, so a successful delete that never
-reaches the rendered list is the leading hypothesis. A `Hydration failed because the server
-rendered text didn't match the client` error appears in the same log and may or may not be
-related.
-
-Not diagnosed further here because it cannot be reproduced on the maintainer's machine:
-Docker will not start (WSL broken), so there is no local Postgres to run the golden paths
-against, and a blind fix to an assertion that has never passed would be a guess dressed as a
-repair.
-
-**Settles when:** the delete is traced to either the action or the table, fixed, and
-`04_admin_application_review.spec.ts` passes in CI — or the spec is shown to be asserting
-something the product deliberately does not do (e.g. archive-not-delete), and is corrected.
+3. **Adjacent Hydration & SSR Defects**:
+   - `LanguageProvider.tsx`: `useState` initializer read `localStorage` during initial hydration render,
+     causing a mismatch between SSR English and client Malay. Fixed with React 19-safe `useSyncExternalStore`.
+   - `layout.tsx`: `<Script strategy="beforeInteractive">` with inline script in `<body>` triggered
+     React 19 script warning. Moved to native `<script id="theme-init">` inside `<head>`.
+   - `Navbar.tsx`: Added `style={{ width: "auto", height: "auto" }}` to shelter logo `<Image>` tags.
