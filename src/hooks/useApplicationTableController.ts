@@ -103,6 +103,7 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
 
   const confirmDelete = async () => {
     if (deleteCandidate) {
+      setStatusError(null);
       const candidateId = deleteCandidate.id;
       const prevApplications = applications;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect, useSyncExternalStore, useMemo } from "react";
 import { Language, TranslationDictionary, translations } from "@/lib/i18n/translations";
 
 interface LanguageContextValue {
@@ -24,19 +24,19 @@ function subscribe(callback: () => void) {
   };
 }
 
-function getStoredLanguage(): Language {
-  if (typeof window === "undefined") return "en";
+function getStoredLanguage(): Language | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
     if (stored === "en" || stored === "ms") return stored;
   } catch {
     // Ignore localStorage access errors in private browsing
   }
-  return "en";
+  return null;
 }
 
-function getServerSnapshot(): Language {
-  return "en";
+function getServerSnapshot(): Language | null {
+  return null;
 }
 
 export function LanguageProvider({
@@ -124,13 +124,16 @@ export function LanguageProvider({
     [language]
   );
 
-  const value: LanguageContextValue = {
-    language,
-    setLanguage,
-    t,
-    dictionary: translations[language] || translations.en,
-    isMs: language === "ms",
-  };
+  const value: LanguageContextValue = useMemo(
+    () => ({
+      language,
+      setLanguage,
+      t,
+      dictionary: translations[language] || translations.en,
+      isMs: language === "ms",
+    }),
+    [language, setLanguage, t]
+  );
 
   return (
     <LanguageContext.Provider value={value}>
