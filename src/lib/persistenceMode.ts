@@ -29,28 +29,39 @@ export function isDatabasePersistent(): boolean {
 /**
  * How loudly a swallowed failure is reported when strict mode is *off*.
  *
- * The two levels mirror the pre-existing behaviour of the call sites, and the
- * difference is deliberate rather than an inconsistency to tidy away:
- *
  * - `"read"` — warn in development only. A read falling back offline is the
  *   documented, expected state of this app; warning on it in production would
  *   be pure noise.
  * - `"write"` — warn always. A write that reached only the in-memory array is
  *   data loss the moment the process restarts, so it stays visible in every
  *   environment.
+ * Both kinds should additionally be forwarded to your telemetry/alerting sink in
+ * production; a console line is a breadcrumb, not a page.
  */
 export type PersistenceFailureKind = "read" | "write";
 
 /**
+ * Prisma's unique-constraint violation. Unlike a connectivity failure, this is a
+ * caller bug (duplicate id) or a genuine conflict — it must surface to the caller
+ * in every mode, because "keep the stale fixture copy instead" is never the right
+ * resolution for it.
+ */
+const PRISMA_UNIQUE_VIOLATION = "P2002";
+
+/**
  * The single decision point every repository catch block delegates to.
  *
- * Strict mode rethrows the original error — preserving its stack and Prisma
- * error code — rather than wrapping it, because the wrapper would hide exactly
- * the detail the test needs. Non-strict mode leaves the caller to fall through
- * to its in-memory result.
+ * Two things escape the swallow, in both modes:
+ *
+ * - Strict mode rethrows *everything* verbatim — preserving the stack and Prisma
+ *   error code — rather than wrapping, because a wrapper would hide exactly the
+ *   detail the test needs.
+ * - Unique-constraint violations rethrow in every mode. They are deterministic
+ *   conflicts, not transient outages; silently serving the fixture copy would
+ *   mask a real data conflict.
  *
  * @param context Human-readable label for the failing operation, used in the warning.
- * @param err     The caught value, rethrown verbatim under strict mode.
+ * @param err     The caught value.
  * @param kind    Reporting level for non-strict mode. See {@link PersistenceFailureKind}.
  */
 export function handlePersistenceError(
@@ -58,7 +69,7 @@ export function handlePersistenceError(
   err: unknown,
   kind: PersistenceFailureKind = "read"
 ): void {
-  if (isStrictPersistence()) {
+  if (isUniqueViolation(err) || isStrictPersistence()) {
     throw err;
   }
   if (kind === "write" || process.env.NODE_ENV === "development") {
@@ -67,4 +78,13 @@ export function handlePersistenceError(
       err instanceof Error ? err.message : err
     );
   }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === PRISMA_UNIQUE_VIOLATION
+  );
 }
