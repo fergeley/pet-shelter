@@ -7,6 +7,7 @@ import {
   insertServerApplication,
   deleteServerApplication,
   findServerApplicationById,
+  findServerApplicationByIdAsync,
 } from "@/lib/server/applicationRepository";
 import { ROLES } from "@/lib/security/rbac";
 import { findUserByEmail, listUsers } from "@/lib/server/userStore";
@@ -95,11 +96,18 @@ describe("Database & Persistence Integration Layer", () => {
     expect(found).not.toBeNull();
     expect(found?.applicantName).toBe("Integration Test Applicant");
 
+    const foundAsync = await findServerApplicationByIdAsync(testApp.id);
+    expect(foundAsync).not.toBeNull();
+    expect(foundAsync?.applicantName).toBe("Integration Test Applicant");
+
     const deleted = await deleteServerApplication(testApp.id, mockAdminActor);
     expect(deleted).toBe(true);
 
     const foundAfterDelete = findServerApplicationById(testApp.id);
     expect(foundAfterDelete).toBeNull();
+
+    const foundAsyncAfterDelete = await findServerApplicationByIdAsync(testApp.id);
+    expect(foundAsyncAfterDelete).toBeNull();
 
     const deleteAgain = await deleteServerApplication(testApp.id, mockAdminActor);
     expect(deleteAgain).toBe(false);
