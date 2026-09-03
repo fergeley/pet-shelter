@@ -96,6 +96,12 @@ model Pet {
   spayedNeutered Boolean @default(true)
   specialNeeds   String?
 
+  /// Dedicated donation QR for this animal, overriding the shelter-wide code
+  /// wherever this animal's sponsorship modal appears. Set when a specific
+  /// rescue is running its own medical fund drive.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  customQrUrl String?
+
   // Rehabilitation / TNRM progress (only populated while status is "In Rehabilitation")
   rehabStage           String?
   rehabStageMs         String?
@@ -318,6 +324,19 @@ model ShelterSettings {
   volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
   volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
 
+  /// Donation QR codes, one per Malaysian payment rail. DuitNow is the default
+  /// and is always offered to donors; the other two surface a tab on the
+  /// donation panel only once an image is uploaded for them.
+  ///
+  /// `paymentPayload` is a DuitNow EMVCo string (or a bank deep link) that we
+  /// render to an SVG QR ourselves when no `duitNowQrUrl` image is set. It is
+  /// specific to the DuitNow rail and is never used for the other two.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  duitNowQrUrl   String?
+  tngQrUrl       String?
+  bankQrUrl      String?
+  paymentPayload String?
+
   updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")
@@ -412,6 +431,29 @@ model Donation {
   @@index([issuedAt])
   @@index([donorEmail])
   @@map("donations")
+}
+
+/// A donor who has claimed a sponsor portal account.
+///
+/// Separate from `User`, which is staff. Sponsors authenticate through their own
+/// cookie namespace — see `src/lib/security/sponsorSession.ts` for why the two are
+/// not unified.
+model Sponsor {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  name          String
+  passwordHash  String
+  /// Consent to appear on the public wall. The sponsor's current answer; each
+  /// donation also records the answer given at the time it was made.
+  displayOnWall Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsorships PetSponsorship[]
+
+  @@index([displayOnWall])
+  @@map("sponsors")
 }
 
 /// Licensed veterinarian participating in shelter clinical operations.
@@ -558,9 +600,18 @@ model PetSponsorship {
   sponsorName  String
   sponsorEmail String
   sponsorPhone String?
-  /// Reserved for a future supporter account. Checkout is guest-only today and
-  /// always leaves this null.
+  /// The supporter account that claims this commitment, once one exists. Checkout is
+  /// still guest-only, so this is null at creation and filled in when the donor claims
+  /// their portal account — see `registerSponsorAction`. Nullable and `SetNull` because a
+  /// commitment outlives an account: deleting the account must not erase the record that
+  /// the money was pledged.
   userId       String?
+  sponsor      Sponsor? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Public Sponsor Wall consent, as given at this checkout. Recorded per commitment
+  /// rather than per account because most supporters have no account when they give; the
+  /// account inherits it when the commitment is claimed.
+  displayOnWall Boolean @default(false)
 
   tierId    String
   /// Tier name as displayed when the commitment was made, snapshotted for the
@@ -599,15 +650,20 @@ model PetSponsorship {
   /// Serves the per-animal supporter count and funding total.
   @@index([petId, status])
   @@index([sponsorEmail])
+  @@index([userId])
   @@map("pet_sponsorships")
 }
 
 /// Per-email-address notification consent.
 ///
-/// Keyed by email rather than by user because supporters are never
-/// authenticated accounts on this platform — `User` is staff-only. The address
-/// is the identity, so a signed token mailed to it is the only credential the
-/// preference page can accept.
+/// Keyed by email rather than by account because a supporter need not have one:
+/// `User` is staff-only, and the `Sponsor` portal account is optional and claimed
+/// after the fact. The address is the identity every supporter has, so a signed
+/// token mailed to it is the only credential the preference page can accept.
+///
+/// Deliberately separate from `PetSponsorship.displayOnWall`, which is consent to be
+/// *listed publicly* rather than consent to be *emailed*. Withdrawing one must not
+/// withdraw the other.
 ///
 /// A missing row means "has never expressed a choice", which reads as opted in.
 /// Rows appear only when someone actually changes something, so this table stays

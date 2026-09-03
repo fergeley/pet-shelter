@@ -1172,3 +1172,57 @@ export async function sendStaffInvitationEmail(invite: {
     entityId: invite.userId,
 });
 }
+
+/**
+ * 6. Delivers a Gold sponsor's question to the sanctuary care team.
+ *
+ * Addressed to the shelter with `replyTo` set to the sponsor, so a caretaker answers by
+ * replying — the same shape as `sendStaffApplicationAlert`, and the reason this perk needs
+ * no inbox UI of its own.
+ */
+export async function sendCaretakerQuestionEmail(question: {
+  sponsorName: string;
+  sponsorEmail: string;
+  tier: string;
+  message: string;
+}): Promise<EmailResult> {
+  const subject = `[${question.tier} Sponsor Q&A] Question from ${question.sponsorName}`;
+
+  const text = `
+Caretaker Question from a Sponsor
+-----------------------------------
+Sponsor: ${question.sponsorName}
+Email: ${question.sponsorEmail}
+Sponsorship standing: ${question.tier}
+
+Message:
+${question.message}
+
+Reply directly to this email to answer the sponsor.
+  `.trim();
+
+  const html = wrapEmailHtml(`
+    <div style="border-bottom: 2px solid ${EMAIL_BRAND.foreground}; padding-bottom: 16px; margin-bottom: 20px;">
+      <span class="badge" style="background:${EMAIL_TONE.warning.surface};color:${EMAIL_TONE.warning.text};">${escapeHtml(question.tier)} Sponsor Privilege</span>
+      <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: ${EMAIL_BRAND.foreground};">Question for the Care Team</h2>
+    </div>
+
+    <p><strong>${escapeHtml(question.sponsorName)}</strong> (${escapeHtml(question.sponsorEmail)}) asked:</p>
+
+    <div class="card" style="background:${EMAIL_BRAND.muted}; border-left: 4px solid ${EMAIL_BRAND.primary}; padding: 18px; margin: 20px 0; white-space: pre-wrap;">${escapeHtml(question.message)}</div>
+
+    <p style="font-size: 13px; color: ${EMAIL_BRAND.mutedForeground};">
+      Reply directly to this email to answer the sponsor. Gold sponsors are told to expect a
+      response within three working days.
+    </p>
+  `);
+
+  return sendRawEmail({
+    to: SHELTER_EMAIL,
+    replyTo: question.sponsorEmail,
+    subject,
+    text,
+    html,
+    template: "CARETAKER_QUESTION",
+  });
+}

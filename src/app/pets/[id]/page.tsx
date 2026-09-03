@@ -3,6 +3,7 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPets, getPetById } from "@/actions/pets";
 import { PetDetailView } from "@/components/features/pets/PetDetailView";
+import { PetExclusiveMediaPanel } from "@/components/features/sponsors";
 
 interface PetPageProps {
   params: Promise<{ id: string }>;
@@ -100,6 +101,15 @@ export default async function PetProfilePage({ params }: PetPageProps) {
       <Suspense fallback={<div className="min-h-screen bg-card" />}>
         <PetDetailView initialPet={pet} />
       </Suspense>
+
+      {/* Sponsor-exclusive media. Fetched client-side from a Route Handler so this
+          page keeps its generateStaticParams prerendering and locked media never
+          enters the response at all. */}
+      <div className="w-full px-6 pb-16 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-6xl">
+          <PetExclusiveMediaPanel petId={pet.id} petName={pet.name} />
+        </div>
+      </div>
     </>
   );
 }

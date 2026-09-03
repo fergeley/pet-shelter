@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { shelterSettingsSchema } from "@/lib/validations/settings";
 import {
-  getShelterSettings,
   updateShelterSettings,
   sendTestEmailAction,
 } from "@/actions/settings";
+// Not the removed server action: server-side reads go through the repository,
+// which is a plain function rather than an HTTP endpoint.
+import { getServerSettingsAsync } from "@/lib/server/settingsRepository";
 import { getAuditLogs } from "@/lib/domain/auditLog";
 
 // Mock session to simulate authenticated admin user
@@ -75,7 +77,7 @@ describe("Shelter Settings & Live Test Email Action", () => {
       expect(result.success).toBe(true);
       expect(result.data?.shelterName).toBe("Hope for Strays Sanctuary");
 
-      const current = await getShelterSettings();
+      const current = await getServerSettingsAsync();
       expect(current.shelterName).toBe("Hope for Strays Sanctuary");
 
       const logs = getAuditLogs(10);

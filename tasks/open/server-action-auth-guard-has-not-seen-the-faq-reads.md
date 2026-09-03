@@ -1,6 +1,18 @@
 # The server-action auth guard has never scanned the FAQ actions
 
-**Status:** open · opened 2026-09-03 · cross-branch collision, flagged before it lands
+**Status:** resolved 2026-09-03 · the guard landed with the entries this note asked for
+
+> **Resolution.** `tests/unit/serverActionAuth.test.ts` arrived on the QR branch
+> and now runs against `src/actions/faqs.ts`. The three reads are allowlisted
+> verbatim as "published rows only, rendered anonymously by /faq and /pets" —
+> no session check was added, so the public category tabs keep working. The five
+> mutations passed only after `requireFaqEditor` was added to the recognised
+> authorization helpers: the guard scans each function body, and they call the
+> named gate rather than `assertAuthorized` directly.
+>
+> This note is why the reads were allowlisted instead of "fixed" with
+> `assertAuthorized`, which is exactly the failure it predicted. Left in place
+> as the record.
 
 `tests/unit/serverActionAuth.test.ts` — every exported Server Action must
 authorize or sit in an explicit allowlist with a reason — is described as

@@ -1,6 +1,17 @@
 # Production Postgres carries objects master does not declare, and `db push` would drop them
 
-**Status:** open · opened 2026-09-03 · measured against the production branch, not inferred
+**Status:** open, reduced 2026-09-03 · measured against the production branch, not inferred
+
+> **Five of the twelve destructive lines are gone.** The QR branch declares the
+> columns it had already applied to production, so `migrate diff` no longer
+> proposes dropping `pets.customQrUrl` or `shelter_settings.duitNowQrUrl`,
+> `tngQrUrl`, `bankQrUrl` and `paymentPayload`. They were the drift this note
+> measured, not a separate problem.
+>
+> Still outstanding: the `ApplicationStatus` / `PetStatus` enum conversions, the
+> `pets.age` / `ageCategory` drops, and `notification_preferences`. `db push`
+> remains unguarded and still destructive — re-measure with `migrate diff`
+> rather than trusting this list.
 
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:

@@ -89,6 +89,24 @@
             solid (filled badge) · on-solid (text on that fill).
      -------------------------------------------------------------------------- */
 
+
+  /* --- Sponsor standings -----------------------------------------------------
+     Brand identity, not semantic status, so these sit outside the seven-tone
+     contract — the same way the `receipt` tokens do. Slot names are deliberately
+     `-line` / `-label` rather than `-border` / `-text`: a `<name>-border` utility
+     would read as a malformed tone to the guard in designSystemGuards.ts.
+     Three colours rather than one accent because telling Bronze, Silver and Gold
+     apart at a glance is the entire point of a standing. */
+  --standing-bronze: oklch(95.8% 0.028 62.5);
+  --standing-bronze-line: oklch(72.4% 0.093 55.8);
+  --standing-bronze-label: oklch(44.5% 0.088 48.6);
+  --standing-silver: oklch(96.4% 0.005 264.5);
+  --standing-silver-line: oklch(74.6% 0.023 261.3);
+  --standing-silver-label: oklch(45.8% 0.024 259.7);
+  --standing-gold: oklch(96.6% 0.043 96.4);
+  --standing-gold-line: oklch(74.9% 0.121 85.9);
+  --standing-gold-label: oklch(45.2% 0.089 82.4);
+
   /* success — emerald */
   --tone-success-surface: oklch(97.9% 0.021 166.113);
   --tone-success-surface-strong: oklch(95% 0.052 163.051);
@@ -170,6 +188,10 @@
 
   /* --- Payment and channel brand colours, fixed by the third party --- */
   --brand-duitnow: #ed008c;
+  --brand-tng: #1a4fa0;
+  /* Bank transfer has no third-party brand; a neutral slate keeps the tab
+     legible without implying a specific institution. */
+  --brand-bank-transfer: #334155;
   --brand-whatsapp: #25d366;
   --brand-whatsapp-hover: #20bd5a;
 }
@@ -271,6 +293,18 @@
   --tone-danger-solid: oklch(25.8% 0.092 26.042);
   --tone-danger-on-solid: oklch(88.5% 0.062 18.334);
 
+
+  /* --- Sponsor standings (dark) --- */
+  --standing-bronze: oklch(31.2% 0.041 55.8 / 0.55);
+  --standing-bronze-line: oklch(48.6% 0.075 52.4);
+  --standing-bronze-label: oklch(82.7% 0.075 66.2);
+  --standing-silver: oklch(31.8% 0.011 261.3 / 0.55);
+  --standing-silver-line: oklch(50.2% 0.021 259.7);
+  --standing-silver-label: oklch(85.1% 0.014 264.5);
+  --standing-gold: oklch(32.4% 0.052 88.6 / 0.55);
+  --standing-gold-line: oklch(51.4% 0.094 85.9);
+  --standing-gold-label: oklch(86.3% 0.098 92.7);
+
   /* highlight — purple */
   --tone-highlight-surface: oklch(29.1% 0.149 302.717 / 0.45);
   --tone-highlight-surface-strong: oklch(29.1% 0.149 302.717 / 0.75);
@@ -329,6 +363,8 @@
   --color-brand-mark: var(--brand-mark);
   --color-brand-mark-ring: var(--brand-mark-ring);
   --color-brand-duitnow: var(--brand-duitnow);
+  --color-brand-tng: var(--brand-tng);
+  --color-brand-bank-transfer: var(--brand-bank-transfer);
   --color-brand-whatsapp: var(--brand-whatsapp);
   --color-brand-whatsapp-hover: var(--brand-whatsapp-hover);
 
@@ -381,6 +417,15 @@
   --color-danger-solid: var(--tone-danger-solid);
   --color-danger-on-solid: var(--tone-danger-on-solid);
 
+  --color-standing-bronze: var(--standing-bronze);
+  --color-standing-bronze-line: var(--standing-bronze-line);
+  --color-standing-bronze-label: var(--standing-bronze-label);
+  --color-standing-silver: var(--standing-silver);
+  --color-standing-silver-line: var(--standing-silver-line);
+  --color-standing-silver-label: var(--standing-silver-label);
+  --color-standing-gold: var(--standing-gold);
+  --color-standing-gold-line: var(--standing-gold-line);
+  --color-standing-gold-label: var(--standing-gold-label);
   --color-highlight-surface: var(--tone-highlight-surface);
   --color-highlight-surface-strong: var(--tone-highlight-surface-strong);
   --color-highlight-border: var(--tone-highlight-border);
@@ -636,11 +681,11 @@
   body * {
     visibility: hidden;
   }
-  #donation-receipt-print,
-  #donation-receipt-print * {
+  [data-print-root],
+  [data-print-root] * {
     visibility: visible;
   }
-  #donation-receipt-print {
+  [data-print-root] {
     position: absolute;
     left: 0;
     top: 0;
