@@ -147,10 +147,29 @@ function stripGitCruft(raw) {
   return (isGitTemplate ? lines.slice(0, cut) : lines).join("\n");
 }
 
-function isTrailer(line) {
+function looksLikeTrailer(line) {
   return TRAILER_TOKENS.some(
     (token) => line === `${token}:` || line.startsWith(`${token}: `),
   );
+}
+
+/**
+ * Indices of the trailing metadata block: the contiguous run of trailer lines at
+ * the very end of the body.
+ *
+ * Matching a trailer token anywhere in the body exempted ordinary prose from the
+ * wrap rule for opening with `Note: ` or `Refs: `, and excluded that prose from
+ * the rule-7 body test — so a real explanation was reported as no body at all.
+ * A trailer is a position, not a prefix.
+ */
+function trailerIndices(body) {
+  const set = new Set();
+  for (let i = body.length - 1; i >= 0; i -= 1) {
+    if (body[i].trim() === "") continue;
+    if (!looksLikeTrailer(body[i])) break;
+    set.add(i);
+  }
+  return set;
 }
 
 /**
@@ -159,10 +178,14 @@ function isTrailer(line) {
  * unbreakable token (a URL or a path) longer than the limit on its own.
  */
 function unwrappable(line, limit) {
-  return line
-    .trim()
-    .split(/\s+/)
-    .some((token) => token.length > limit);
+  const tokens = line.trim().split(/\s+/);
+  const longest = tokens.reduce((a, b) => (b.length > a.length ? b : a), "");
+  if (longest.length <= limit) return false;
+  // The unbreakable token wraps onto a line of its own; whatever else the line
+  // carries still has to fit. Exempting the WHOLE line let 300 columns of
+  // ordinary prose through for ending in a URL, which
+  // docs/reference/COMMIT_MESSAGES.md §5 explicitly refuses.
+  return line.length - longest.length <= limit;
 }
 
 /**
@@ -249,7 +272,10 @@ export function lintCommitMessage(raw) {
         `unknown type "${type}" — allowed: ${TYPES.join(", ")}`,
       );
     }
-    if (scope !== undefined && !/^[a-z0-9][a-z0-9/-]*$/.test(scope)) {
+    // Exactly one scope, kebab-case. `/` used to be accepted, so `fix(pets/donations)`
+    // passed while the comma form of the same defect was rejected; a trailing hyphen
+    // passed too.
+    if (scope !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scope)) {
       add(
         "conventional-scope",
         "error",
@@ -319,8 +345,17 @@ export function lintCommitMessage(raw) {
   }
 
   // ---------------------------------------------------------------- rules 6 and 7
-  const body = lines.slice(2);
-  const prose = body.filter((line) => line.trim() !== "" && !isTrailer(line));
+  // When rule 1 fired, line 2 is the body's first line, not a blank separator.
+  // Slicing past it unconditionally meant that line was never wrap-checked and the
+  // message was reported as having no body while plainly having one — so an author
+  // fixed the blank line, re-ran, and only then met the wrap error.
+  const bodyStart = lines.length > 1 && lines[1].trim() !== "" ? 1 : 2;
+  const body = lines.slice(bodyStart);
+  const firstBodyLineNo = offset + bodyStart + 1;
+  const trailers = trailerIndices(body);
+  const prose = body.filter(
+    (line, index) => line.trim() !== "" && !trailers.has(index),
+  );
 
   if (prose.length === 0) {
     add(
@@ -341,28 +376,33 @@ export function lintCommitMessage(raw) {
     add(
       "unclosed-fence",
       "error",
-      offset + 3,
+      firstBodyLineNo,
       "an unclosed \`\`\` fence would exempt the rest of the body from rule 6 — close it",
     );
   }
 
   let inFence = false;
   body.forEach((line, index) => {
-    const lineNo = offset + 3 + index;
+    const lineNo = firstBodyLineNo + index;
     if (fencesBalanced && /^\s*```/.test(line)) {
       inFence = !inFence;
       return;
     }
     if (inFence) return;
-    if (isTrailer(line)) return;
+    if (trailers.has(index)) return;
     if (/^ {4,}|^\t/.test(line)) return; // indented code block
-    if (line.length <= BODY_WRAP) return;
-    if (unwrappable(line, BODY_WRAP)) return;
+    // Git's cleanup strips trailing whitespace from every line, so the line that
+    // lands is the trimmed one — the same correction rule 2 already makes for the
+    // subject. Measuring it raw rejected a legal 70-column line for carrying
+    // spaces any editor without trim-on-save leaves behind.
+    const stored = line.replace(/[ \t]+$/, "");
+    if (stored.length <= BODY_WRAP) return;
+    if (unwrappable(stored, BODY_WRAP)) return;
     add(
       "body-wrap",
       "error",
       lineNo,
-      `rule 6: wrap the body at ${BODY_WRAP} columns — this line is ${line.length}`,
+      `rule 6: wrap the body at ${BODY_WRAP} columns — this line is ${stored.length}`,
     );
   });
 
@@ -440,6 +480,20 @@ async function main(argv) {
     // is what GitHub Actions gives us — is async. The --verbose detail block runs to
     // tens of KB, so exiting here dropped the diagnosis on exactly the failing run.
     process.exitCode = strict && clean < linted ? 1 : 0;
+    return;
+  }
+
+  // `npm run commit:check` with the path forgotten used to fall through to
+  // readStdin(), which never sees EOF on an interactive terminal: no output, no
+  // usage, no exit — indistinguishable from a hung linter. Piped input still
+  // works without the flag; only the interactive case is refused.
+  if (argv.length === 0 && process.stdin.isTTY) {
+    process.stderr.write(
+      "usage: node scripts/commit-msg.mjs <file>\n" +
+        "       node scripts/commit-msg.mjs --stdin\n" +
+        "       node scripts/commit-msg.mjs --audit [--strict] [--verbose] [<range>]\n",
+    );
+    process.exitCode = 1;
     return;
   }
 

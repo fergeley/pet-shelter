@@ -421,3 +421,109 @@ describe("defects found by review", () => {
     });
   });
 });
+
+/**
+ * A second review round, on the linter as merged.
+ *
+ * Every case below was reproduced against `scripts/commit-msg.mjs` at d21810b
+ * before the fix, and each one is a way the linter disagreed with the message
+ * git actually stores — either passing something the standard forbids, or
+ * refusing something git would have accepted.
+ */
+describe("defects found reviewing the merged linter", () => {
+  describe("rule 6 measures the line git stores, not the line the editor sent", () => {
+    it("accepts a 70-column body line carrying trailing spaces", () => {
+      // Git's cleanup strips trailing whitespace in both `strip` and `whitespace`
+      // mode, so the stored line is 70 columns. The linter measured it raw at 75
+      // and blocked a commit whose message would have been legal — the same
+      // correction rule 2 already made for the subject, missing for the body.
+      const message = `fix(ui): Add the button\n\n${"w".repeat(70)}     `;
+      expect(rules(message)).toEqual([]);
+    });
+
+    it("still catches a body line that is genuinely over the limit", () => {
+      const message = `fix(ui): Add the button\n\n${"word ".repeat(20)}`;
+      expect(errors(message)).toContain("body-wrap");
+    });
+  });
+
+  describe("a trailer is a position, not a prefix", () => {
+    it("wraps mid-body prose that happens to open with a trailer token", () => {
+      // `isTrailer` matched anywhere in the body, so 100 columns of ordinary
+      // prose escaped rule 6 for opening with "Note: ".
+      const message = [
+        "fix(ui): Add the button",
+        "",
+        "A real body line.",
+        `Note: ${"word ".repeat(20)}`,
+        "more body",
+      ].join("\n");
+      expect(errors(message)).toContain("body-wrap");
+    });
+
+    it("still exempts the trailing metadata block", () => {
+      const message = [
+        "fix(ui): Add the button",
+        "",
+        "A real explanation of why.",
+        "",
+        `Refs: ${"x".repeat(90)}`,
+      ].join("\n");
+      expect(rules(message)).toEqual([]);
+    });
+
+    it("counts prose that opens with a trailer token as a body", () => {
+      const message = [
+        "fix(ui): Add the button",
+        "",
+        "Note: the surrounding prose is the explanation.",
+        "and it continues here",
+      ].join("\n");
+      expect(rules(message)).not.toContain("no-body");
+    });
+  });
+
+  describe("rule 6 exempts the unbreakable token, not the line carrying it", () => {
+    it("wraps 300 columns of prose that merely ends in a long URL", () => {
+      const message =
+        `fix(ui): Add the button\n\n${"word ".repeat(40)}https://example.invalid/${"y".repeat(80)}`;
+      expect(errors(message)).toContain("body-wrap");
+    });
+
+    it("still exempts a long URL sitting on a line of its own", () => {
+      const message = [
+        "fix(ui): Add the button",
+        "",
+        "A real body line.",
+        `https://example.invalid/${"y".repeat(80)}`,
+      ].join("\n");
+      expect(rules(message)).toEqual([]);
+    });
+  });
+
+  describe("rule 1 does not hide the body behind it", () => {
+    it("wrap-checks line 2 when the blank separator is missing", () => {
+      // `lines.slice(2)` skipped the body's first line whenever rule 1 fired, so
+      // the author fixed the blank line, re-ran, and only then met a wrap error
+      // the first run never mentioned — and was told the commit had no body.
+      const message = `fix(ui): Add the button\n${"a ".repeat(120)}`;
+      const found = rules(message);
+      expect(found).toContain("blank-line");
+      expect(found).toContain("body-wrap");
+      expect(found).not.toContain("no-body");
+    });
+  });
+
+  describe("rule 3 allows exactly one scope", () => {
+    it.each([
+      ["a slash-joined pair", "fix(pets/donations): Add the carousel"],
+      ["a trailing hyphen", "fix(ui-): Add the carousel"],
+    ])("rejects %s", (_label, subject) => {
+      expect(errors(`${subject}\n\nA real body line.`)).toContain("conventional-scope");
+    });
+
+    it("still accepts a single kebab-case scope", () => {
+      expect(errors("fix(admin-portal): Add the carousel\n\nA real body line.")).toEqual([]);
+    });
+  });
+});
