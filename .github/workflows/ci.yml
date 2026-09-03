@@ -58,6 +58,17 @@ jobs:
       # reports in seconds and cannot be broken by an install failure.
       - name: Lint the commits this pull request adds
         run: node scripts/commit-msg.mjs --audit --strict --verbose origin/${{ github.base_ref }}..HEAD
+      # This repository squash-merges, so the commits linted above are discarded
+      # and the pull request title becomes the only message that reaches master.
+      # It was the one message the standard did not govern: e622249 landed on
+      # master failing both subject-length and capitalize.
+      #
+      # The title is untrusted input, so it goes through the environment rather
+      # than `run:` interpolation, which would let a crafted title inject shell.
+      - name: Lint the pull request title (the squash-merge subject)
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | node scripts/commit-msg.mjs --stdin
 
   unit-and-components:
     name: Unit, integration & component tests

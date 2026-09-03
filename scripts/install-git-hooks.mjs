@@ -27,10 +27,20 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 
-const git = (...args) =>
-  execFileSync("git", args, { encoding: "utf8" }).trim();
+const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+  encoding: "utf8",
+}).trim();
 
-const root = git("rev-parse", "--show-toplevel");
+// Every later query runs from the repo root on purpose. `--git-path` answers
+// RELATIVE TO THE CURRENT DIRECTORY, so resolving it against `root` from any
+// subdirectory pointed outside the repository: from `scripts/` it returns
+// "../.git/hooks", and the installer then wrote a hook to the PARENT of the
+// checkout, chmod'd it, and reported success. Git never read it, so no commit
+// was ever linted — and `--list` and `--uninstall` agreed with each other about
+// a hook that was not there.
+const git = (...args) =>
+  execFileSync("git", args, { encoding: "utf8", cwd: root }).trim();
+
 const hooksDir = resolve(root, git("rev-parse", "--git-path", "hooks"));
 const sourceDir = join(root, ".claude", "hooks");
 
