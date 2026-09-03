@@ -62,32 +62,36 @@ export function getServerApplications(): AdoptionApplicationRecord[] {
   return serverApplications;
 }
 
+function mapDbApplicationToRecord(a: DbApplicationRecord): AdoptionApplicationRecord {
+  return {
+    id: a.id,
+    petId: a.petId || "",
+    petName: a.petName,
+    petBreed: a.petBreed || undefined,
+    applicantName: a.applicantName,
+    email: a.email,
+    phone: a.phone,
+    address: a.address,
+    housingType: a.housingType,
+    hasFencedYard: a.hasFencedYard,
+    currentPets: a.currentPets,
+    currentPetDetails: a.currentPetDetails || undefined,
+    householdExperience: a.householdExperience,
+    applicantNotes: a.applicantNotes || undefined,
+    status: a.status as ApplicationStatus,
+    adminReviewNotes: a.adminReviewNotes || undefined,
+    createdAt: a.createdAt.toString().split("T")[0],
+    updatedAt: a.updatedAt.toString().split("T")[0],
+  };
+}
+
 export async function getServerApplicationsAsync(): Promise<AdoptionApplicationRecord[]> {
   if (isDatabasePersistent()) {
     try {
       const dbApps = await prisma.adoptionApplication.findMany({
         orderBy: { createdAt: "desc" },
       });
-      const mapped = (dbApps as unknown as DbApplicationRecord[]).map((a: DbApplicationRecord) => ({
-        id: a.id,
-        petId: a.petId || "",
-        petName: a.petName,
-        petBreed: a.petBreed || undefined,
-        applicantName: a.applicantName,
-        email: a.email,
-        phone: a.phone,
-        address: a.address,
-        housingType: a.housingType,
-        hasFencedYard: a.hasFencedYard,
-        currentPets: a.currentPets,
-        currentPetDetails: a.currentPetDetails || undefined,
-        householdExperience: a.householdExperience,
-        applicantNotes: a.applicantNotes || undefined,
-        status: a.status as ApplicationStatus,
-        adminReviewNotes: a.adminReviewNotes || undefined,
-        createdAt: a.createdAt.toString().split("T")[0],
-        updatedAt: a.updatedAt.toString().split("T")[0],
-      }));
+      const mapped = (dbApps as unknown as DbApplicationRecord[]).map(mapDbApplicationToRecord);
       serverApplications = mapped;
       return mapped;
     } catch (err) {
@@ -101,6 +105,26 @@ export async function getServerApplicationsAsync(): Promise<AdoptionApplicationR
 export function findServerApplicationById(id: string): AdoptionApplicationRecord | null {
   const norm = id.trim().toLowerCase();
   return serverApplications.find((a) => a.id.toLowerCase() === norm) || null;
+}
+
+export async function findServerApplicationByIdAsync(id: string): Promise<AdoptionApplicationRecord | null> {
+  const cached = findServerApplicationById(id);
+  if (cached) return cached;
+
+  if (isDatabasePersistent()) {
+    try {
+      const dbApp = await prisma.adoptionApplication.findUnique({ where: { id } });
+      if (dbApp) {
+        const mapped = mapDbApplicationToRecord(dbApp as unknown as DbApplicationRecord);
+        serverApplications.push(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      handlePersistenceError("Prisma find application by id", err, "read");
+    }
+  }
+
+  return null;
 }
 
 export async function insertServerApplication(newApp: AdoptionApplicationRecord): Promise<void> {
@@ -156,34 +180,9 @@ export async function atomicUpdateApplicationStatus(
 ): Promise<{ success: boolean; error?: string }> {
   let appIndex = serverApplications.findIndex((a) => a.id === applicationId);
   if (appIndex === -1 && isDatabasePersistent()) {
-    try {
-      const dbApp = await prisma.adoptionApplication.findUnique({ where: { id: applicationId } });
-      if (dbApp) {
-        const mappedApp: AdoptionApplicationRecord = {
-          id: dbApp.id,
-          petId: dbApp.petId || "",
-          petName: dbApp.petName,
-          petBreed: dbApp.petBreed || undefined,
-          applicantName: dbApp.applicantName,
-          email: dbApp.email,
-          phone: dbApp.phone,
-          address: dbApp.address,
-          housingType: dbApp.housingType,
-          hasFencedYard: dbApp.hasFencedYard,
-          currentPets: dbApp.currentPets,
-          currentPetDetails: dbApp.currentPetDetails || undefined,
-          householdExperience: dbApp.householdExperience,
-          applicantNotes: dbApp.applicantNotes || undefined,
-          status: dbApp.status as ApplicationStatus,
-          adminReviewNotes: dbApp.adminReviewNotes || undefined,
-          createdAt: dbApp.createdAt.toString().split("T")[0],
-          updatedAt: dbApp.updatedAt.toString().split("T")[0],
-        };
-        serverApplications.push(mappedApp);
-        appIndex = serverApplications.length - 1;
-      }
-    } catch (err) {
-      handlePersistenceError("Prisma application query", err, "read");
+    const fetched = await findServerApplicationByIdAsync(applicationId);
+    if (fetched) {
+      appIndex = serverApplications.findIndex((a) => a.id === applicationId);
     }
   }
 
@@ -313,29 +312,7 @@ export async function deleteServerApplication(id: string, actor: SessionUser): P
   if (isDatabasePersistent()) {
     try {
       if (!removed) {
-        const dbApp = await prisma.adoptionApplication.findUnique({ where: { id } });
-        if (dbApp) {
-          removed = {
-            id: dbApp.id,
-            petId: dbApp.petId || "",
-            petName: dbApp.petName,
-            petBreed: dbApp.petBreed || undefined,
-            applicantName: dbApp.applicantName,
-            email: dbApp.email,
-            phone: dbApp.phone,
-            address: dbApp.address,
-            housingType: dbApp.housingType,
-            hasFencedYard: dbApp.hasFencedYard,
-            currentPets: dbApp.currentPets,
-            currentPetDetails: dbApp.currentPetDetails || undefined,
-            householdExperience: dbApp.householdExperience,
-            applicantNotes: dbApp.applicantNotes || undefined,
-            status: dbApp.status as ApplicationStatus,
-            adminReviewNotes: dbApp.adminReviewNotes || undefined,
-            createdAt: dbApp.createdAt.toString().split("T")[0],
-            updatedAt: dbApp.updatedAt.toString().split("T")[0],
-          };
-        }
+        removed = (await findServerApplicationByIdAsync(id)) || undefined;
       }
 
       if (!removed) return false;
