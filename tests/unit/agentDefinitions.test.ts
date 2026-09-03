@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { join, relative, resolve } from "path";
 import { fileURLToPath } from "url";
+import { execFileSync } from "child_process";
 
 /**
  * Structural guards for the agent and skill definitions under `.claude/`.
@@ -167,5 +168,50 @@ describe("agent and skill definitions", () => {
     expect(tools).not.toContain("Bash");
     expect(tools).not.toContain("PowerShell");
     expect(auditor!.frontmatter).toContain("agent-guard.mjs");
+  });
+
+  /**
+   * `.gitignore` decides whether these definitions can be *added* at all, and
+   * nothing else in the suite looks at it. On 2026-09-03 PR #25 widened
+   * `.claude/settings.local.json` to `.claude/`, which left all 16 tracked
+   * files here under a blanket ignore: every existing test stayed green,
+   * because the tracked files were still checked out, while `git add` of any
+   * *new* agent, skill, template or hook was silently refused. Git does not
+   * descend into an excluded directory, so no `!` negation can undo it — the
+   * pattern itself has to stay narrow.
+   */
+  describe("the directories holding these definitions stay committable", () => {
+    /** `git check-ignore -q`: 0 = ignored, 1 = not ignored. */
+    function isIgnored(repoPath: string): boolean {
+      try {
+        execFileSync("git", ["check-ignore", "--no-index", "-q", repoPath], {
+          cwd: ROOT,
+          stdio: "ignore",
+        });
+        return true;
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        if (status !== 1) throw err;
+        return false;
+      }
+    }
+
+    it("lets a new definition be added under every .claude config directory", () => {
+      const ignored = [
+        ".claude/agents/__guard__.md",
+        ".claude/skills/__guard__/SKILL.md",
+        ".claude/templates/__guard__.md",
+        ".claude/hooks/__guard__.mjs",
+        ".claude/commands/__guard__.md",
+      ].filter(isIgnored);
+      expect(ignored).toEqual([]);
+    });
+
+    it("keeps ignoring the local settings and worktrees that must never be committed", () => {
+      // The narrowing above must not overshoot: these two are why a `.claude`
+      // rule exists at all.
+      expect(isIgnored(".claude/settings.local.json")).toBe(true);
+      expect(isIgnored(".claude/worktrees/session/src/app.ts")).toBe(true);
+    });
   });
 });
