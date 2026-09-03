@@ -7,6 +7,8 @@ import { Pet, PetStatus } from "@/types/pet";
 import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
 import { normalizePetStatus, getAllowedPetStatusTransitions } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
+import { QrImageUpload } from "@/components/admin/QrImageUpload";
+import { QrPreviewDialog } from "@/components/admin/QrPreviewDialog";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, Loader2, Star, Send } from "lucide-react";
+import { Plus, X, Loader2, Star, Eye, Send } from "lucide-react";
 import type { PhotoNotificationOptions } from "@/actions/pets";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
 
@@ -47,6 +49,7 @@ export function PetFormDialog({
   const [tags, setTags] = useState<string[]>(["Vaccinated", "House-Trained"]);
   const [primaryImage, setPrimaryImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Array<{ url: string; name: string; size: number }>>([]);
+  const [qrPreviewOpen, setQrPreviewOpen] = useState(false);
   const [notifySponsors, setNotifySponsors] = useState(true);
   const [caregiverCaption, setCaregiverCaption] = useState("");
 
@@ -76,6 +79,7 @@ export function PetFormDialog({
       tags: ["Vaccinated", "House-Trained"],
       featured: false,
       intakeDate: new Date().toISOString().split("T")[0],
+      customQrUrl: "",
       vaccinated: true,
       microchipped: true,
       spayedNeutered: true,
@@ -118,6 +122,7 @@ export function PetFormDialog({
         tags: editingPet.tags,
         featured: editingPet.featured || false,
         intakeDate: editingPet.intakeDate,
+        customQrUrl: editingPet.customQrUrl || "",
         rehabStage: editingPet.rehabStage,
         rehabStageMs: editingPet.rehabStageMs,
         rehabProgressPercent: editingPet.rehabProgressPercent,
@@ -160,6 +165,7 @@ export function PetFormDialog({
         tags: ["Vaccinated", "Friendly"],
         featured: false,
         intakeDate: new Date().toISOString().split("T")[0],
+        customQrUrl: "",
         rehabStage: undefined,
         rehabStageMs: undefined,
         rehabProgressPercent: undefined,
@@ -521,6 +527,32 @@ export function PetFormDialog({
                 </div>
               )}
             </div>
+
+            {/* Dedicated Donation QR (optional) */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <QrImageUpload
+                label="Dedicated Donation QR (optional)"
+                description="For a medical fund drive scoped to this animal. Leave empty to use the shelter-wide codes."
+                value={watch("customQrUrl") ?? ""}
+                onChange={(url) =>
+                  setValue("customQrUrl", url, { shouldValidate: true, shouldDirty: true })
+                }
+              />
+              {errors.customQrUrl && (
+                <p className="text-3xs text-destructive font-medium">
+                  {errors.customQrUrl.message}
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQrPreviewOpen(true)}
+                className="text-xs"
+              >
+                <Eye className="size-3.5 mr-1.5" /> Preview donor view
+              </Button>
+            </div>
           </div>
 
           {/* 3. Description & Rescue Story */}
@@ -677,6 +709,17 @@ export function PetFormDialog({
           </div>
         </form>
       </DialogContent>
+
+      {/* Mounted only while open: otherwise it resolves (and can encode) a QR
+          on every keystroke of the pet form. */}
+      {qrPreviewOpen && (
+        <QrPreviewDialog
+          open={qrPreviewOpen}
+          onOpenChange={setQrPreviewOpen}
+          petCustomQrUrl={watch("customQrUrl") ?? ""}
+          petName={watch("name") || editingPet?.name || "This animal"}
+        />
+      )}
     </Dialog>
   );
 }

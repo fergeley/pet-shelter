@@ -69,6 +69,8 @@ export interface Pet {
   image: string;
   galleryImages?: string[];
   status: PetStatus;
+  /** Dedicated donation QR for this animal's medical fund drive. */
+  customQrUrl?: string | null;
   rehabStage?: string;
   rehabStageMs?: string;
   rehabProgressPercent?: number;

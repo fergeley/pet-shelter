@@ -60,6 +60,7 @@ export interface DbPetRecord {
   tags: string[];
   featured: boolean;
   intakeDate: string;
+  customQrUrl?: string | null;
   rehabStage: string | null;
   rehabStageMs: string | null;
   rehabProgressPercent: number | null;
@@ -134,6 +135,7 @@ export interface PetPersistencePayload {
   tags: string[];
   featured: boolean;
   intakeDate: string;
+  customQrUrl?: string | null;
   rehabStage: string | null;
   rehabStageMs: string | null;
   rehabProgressPercent: number | null;
@@ -235,6 +237,7 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
     tags: p.tags,
     featured: p.featured,
     intakeDate: p.intakeDate,
+    customQrUrl: p.customQrUrl ?? null,
     rehabStage: p.rehabStage ?? undefined,
     rehabStageMs: p.rehabStageMs ?? undefined,
     rehabProgressPercent: p.rehabProgressPercent ?? undefined,
@@ -283,6 +286,7 @@ export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
     tags: pet.tags || [],
     featured: pet.featured || false,
     intakeDate: pet.intakeDate,
+    customQrUrl: pet.customQrUrl || null,
     rehabStage: pet.rehabStage ?? null,
     rehabStageMs: pet.rehabStageMs ?? null,
     rehabProgressPercent: pet.rehabProgressPercent ?? null,

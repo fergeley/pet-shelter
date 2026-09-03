@@ -188,6 +188,10 @@
 
   /* --- Payment and channel brand colours, fixed by the third party --- */
   --brand-duitnow: #ed008c;
+  --brand-tng: #1a4fa0;
+  /* Bank transfer has no third-party brand; a neutral slate keeps the tab
+     legible without implying a specific institution. */
+  --brand-bank-transfer: #334155;
   --brand-whatsapp: #25d366;
   --brand-whatsapp-hover: #20bd5a;
 }
@@ -359,6 +363,8 @@
   --color-brand-mark: var(--brand-mark);
   --color-brand-mark-ring: var(--brand-mark-ring);
   --color-brand-duitnow: var(--brand-duitnow);
+  --color-brand-tng: var(--brand-tng);
+  --color-brand-bank-transfer: var(--brand-bank-transfer);
   --color-brand-whatsapp: var(--brand-whatsapp);
   --color-brand-whatsapp-hover: var(--brand-whatsapp-hover);
 
