@@ -96,6 +96,12 @@ model Pet {
   spayedNeutered Boolean @default(true)
   specialNeeds   String?
 
+  /// Dedicated donation QR for this animal, overriding the shelter-wide code
+  /// wherever this animal's sponsorship modal appears. Set when a specific
+  /// rescue is running its own medical fund drive.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  customQrUrl String?
+
   // Rehabilitation / TNRM progress (only populated while status is "In Rehabilitation")
   rehabStage           String?
   rehabStageMs         String?
@@ -317,6 +323,19 @@ model ShelterSettings {
   /// Already applied to production, see prisma/sql/2026-09-02-add-volunteer-form-urls.sql
   volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
   volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
+
+  /// Donation QR codes, one per Malaysian payment rail. DuitNow is the default
+  /// and is always offered to donors; the other two surface a tab on the
+  /// donation panel only once an image is uploaded for them.
+  ///
+  /// `paymentPayload` is a DuitNow EMVCo string (or a bank deep link) that we
+  /// render to an SVG QR ourselves when no `duitNowQrUrl` image is set. It is
+  /// specific to the DuitNow rail and is never used for the other two.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  duitNowQrUrl   String?
+  tngQrUrl       String?
+  bankQrUrl      String?
+  paymentPayload String?
 
   updatedAt DateTime @updatedAt
 
