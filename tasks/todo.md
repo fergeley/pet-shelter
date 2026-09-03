@@ -389,3 +389,111 @@ shape and one systemic gap:
 `98e8a97` — 2 files. This entry and the task-doc close-out are documentation only; no code changed
 while writing them. `src/lib/email.ts` and `tests/unit/email.test.ts` were deliberately left out of
 the doc commit's pathspec — a concurrent stream is editing both.
+
+
+---
+
+# Pet sponsorship checkout on the animal profile
+
+Opened 2026-09-02. Original ask: a prominent "Sponsor Care" CTA on `/pets/[id]`, a tier modal with
+monthly/one-time pricing, a checkout that issues a Section 44(6) receipt, and a `PetSponsorship`
+table. A first attempt was built against `9799dfe`, before `feature/frontend` merged; that branch is
+kept at `backup/pre-rebase-sponsorship` and is **not** what lands.
+
+## Why the first attempt is being rewritten rather than rebased
+
+It was built on a master that did not yet have the donation subsystem, so it grew its own copy of
+almost all of it. Measured against `c95d0b8`, it duplicated:
+
+| First attempt | Already on master |
+|---|---|
+| `src/lib/money.ts` (plain `number` sen) | `src/lib/domain/money.ts` (branded `Sen`, rejects sub-sen) |
+| `generateReceiptNumber()` — random 4 digits | `ReceiptSequence` upsert-in-transaction, gapless |
+| `SHELTER_REG_NO` / `LHDN_TAX_REF` constants | `currentIssuerIdentity()` |
+| its own ledger + receipt DTO | `donationLedger.ts` + the single `toReceiptDTO` |
+
+The random receipt number is strictly worse than the sequence it would have sat beside: two donors
+in the same month can collide, and `decisions/2026-08-31-lhdn-export-reads-the-ledger.md` exists
+precisely because a second source of receipt truth is how the export started lying. Rebasing would
+have merged the duplication in; this rewrite deletes it and builds on the primitives instead.
+
+It also violated three guards that did not exist when it was written: `layerBoundaries` (a
+`"use server"` action importing the `"use client"` tier store; Prisma outside `src/lib/server/`),
+`designSystemGuards` (a `bg-amber-600` CTA, hex colours in an email body), and the i18n key parity
+check.
+
+## Plan
+
+- [x] **1. Stop the client inventing receipt numbers.** `useSponsorshipController.handleCompleteDonation`
+      and `DonationWidget` both fall back to `createDonationReceipt(...)` on *any* action failure,
+      handing the donor a locally minted `HFS-DON-...` that no ledger has ever seen. This directly
+      contradicts the action's own error copy ("no receipt was issued") and `donationLedger`'s
+      declared no-fallback contract. Surface the error instead.
+- [x] **2. Escape the remaining free-text fields in email HTML.** `escapeHtml()` already exists and
+      the follow-up above names the fields left unescaped (`donorName`, `tierName`, `address`,
+      `applicantNotes`, `coordinatorNotes`, `currentPets`). One task across the file.
+- [~] **3. Dual pricing per tier — NOT DONE, see below.** Add `monthlySen`/`oneTimeSen` to the catalog and make the
+      selected amount follow the frequency toggle. `amount` stays exactly as it is — RM 30/50/120/250
+      is pinned by `petDetailTabsAndSponsorship.test.ts`, and repricing public donations is a
+      shelter decision, not a refactor. Tier count stays at four.
+- [x] **4. `PetSponsorship` persistence.** New model, new repository under `src/lib/server/`.
+      A sponsorship is a *commitment* and is mutable; `Donation` stays append-only and untouched.
+- [x] **5. Pledge -> reconciliation -> receipt.** Checkout records `PENDING_PAYMENT` and sends a
+      welcome email that is explicitly not a tax receipt. A coordinator reconciling the bank
+      transfer calls `issueDonationReceipt()` — master's gapless allocator — and the resulting
+      `Donation` is linked to the sponsorship. Nothing in checkout verifies that money moved, so
+      nothing in checkout may issue a statutory document.
+- [x] **6. Social proof and the funding threshold on the profile.** Supporter count from *distinct
+      reconciled* donors only; hidden at zero; "Fully Sponsored — View Others" at goal without
+      hard-blocking giving. Design tokens only, both locales.
+- [x] **7. Verify:** `npm run check`, `npm test`, `npm run test:components`, `npm run arch:check`,
+      `npm run build`. The `/donate?sponsorPetId=` deep link is asserted in three suites — it must
+      keep working.
+
+## Constraints this must not break
+
+- `SPONSORSHIP_TIERS.length === 4` and `kibble.amount === 30`.
+- The `/donate?pet=&sponsorPetId=&tier=` contract (unit, components, and `e2e/specs/02_*`).
+- `Donation` is append-only: no status column, no update path.
+- Statutory reads use `listDonationsOrThrow`, never `listDonations`.
+
+
+## Review
+
+Landed as five commits on `worktree-sponsorship-checkout`.
+
+**A pre-existing red baseline had to be cleared first.** `npm test` failed 4 tests on a clean
+checkout of `c95d0b8`, all from `1137d3e chore(ui): update home page` moving `--background` from
+`#fff8f4` to `#fdf8f4` in passing. That one character broke the email hex mirror, broke
+`oklch.test.ts`, and dropped `--primary` text contrast to **4.49:1 — under WCAG AA**. Reverted,
+plus a `text-[11px]` in `PetGallery` swapped for the `text-2xs` step that is exactly that value.
+
+**Item 3 was deliberately not done.** The plan asks for Bronze RM 30/mo · RM 50 one-time, Silver
+RM 80/mo · RM 150 one-time, Gold RM 200/mo · RM 350 one-time. Three committed tests pin the
+opposite:
+
+- `petDetailTabsAndSponsorship.test.ts` — `findSponsorshipTier("kibble")?.amount === 30`
+- `DonationDeepLink.test.tsx:176` — `tier=kibble&freq=monthly` renders `RM 30.00`
+- `DonationDeepLink.test.tsx:101` — the default tier at `freq=monthly` renders `RM 50.00`
+
+So master's committed behaviour is that monthly costs the same as one-time. Changing that reprices
+the shelter's public donation page, which is a decision for the shelter and not a side effect of a
+sponsorship feature. The frequency toggle already works; only the price differentiation is missing,
+and it is a small change once someone with authority says what the monthly prices are.
+
+**What the reconciliation split buys.** Checkout records `PENDING_PAYMENT` and sends a welcome mail
+that says in both halves that it is not a tax receipt. `reconcilePetSponsorshipAction` is the only
+path that issues one, and it does so through `issueDonationReceipt` — so a sponsorship receipt is
+drawn from the same gapless per-month series as every other receipt and shows up in the LHDN export
+unchanged. The first draft of this work minted its own `HFS-DON-<month>-<random 4 digits>`, which
+would have collided with that series.
+
+**Verified.** `npm run check` (0 errors), unit 689/689, components 58/58, integration 48/48,
+`npm run build` green, and the prerendered `/pets/pet-001` carries the promoted CTA. Two mutation
+checks: making `countsTowardFunding` accept `PENDING_PAYMENT` fails 5 tests; swallowing the donation
+error instead of surfacing it fails the receipt-integrity test.
+
+**Not verified.** No sponsorship has run against a real Postgres — the same gap
+`tasks/open/donation-ledger-unverified-on-postgres.md` has carried since 2026-08-28, and this adds a
+table to it. The migration is additive (`pet_sponsorships`, plus two nullable/defaulted columns) so
+`db push` will not ask for `--accept-data-loss`, but it has not been run.

@@ -1,0 +1,240 @@
+{
+  "pet-001": {
+    "highResGallery": [
+      {
+        "id": "pet-001-hr-1",
+        "url": "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Bella's first week in physiotherapy, print resolution",
+        "captionMs": "Minggu pertama Bella dalam fisioterapi, resolusi cetakan",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-001-hr-2",
+        "url": "https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Weight-bearing progress on the hind leg",
+        "captionMs": "Kemajuan menanggung berat pada kaki belakang",
+        "capturedAt": "2026-07-09"
+      },
+      {
+        "id": "pet-001-hr-3",
+        "url": "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Full gait recovered, sanctuary paddock",
+        "captionMs": "Gaya berjalan pulih sepenuhnya, padang pusat perlindungan",
+        "capturedAt": "2026-08-02"
+      }
+    ],
+    "videoDiary": [
+      {
+        "id": "pet-001-vid-1",
+        "youtubeId": "dQw4w9WgXcQ",
+        "title": "Bella's first unassisted stair climb",
+        "titleMs": "Pendakian tangga pertama Bella tanpa bantuan",
+        "recordedAt": "2026-07-12",
+        "durationLabel": "4:12",
+        "thumbnailUrl": "https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ"
+      }
+    ]
+  },
+  "pet-002": {
+    "highResGallery": [
+      {
+        "id": "pet-002-hr-1",
+        "url": "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Milo on intake day, coat condition record",
+        "captionMs": "Milo pada hari kemasukan, rekod keadaan bulu",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-002-hr-2",
+        "url": "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Six weeks of nutrition, side-by-side reference",
+        "captionMs": "Enam minggu pemakanan, rujukan perbandingan",
+        "capturedAt": "2026-07-09"
+      },
+      {
+        "id": "pet-002-hr-3",
+        "url": "https://images.unsplash.com/photo-1495360010541-f48722b34f7d?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Cleared for adoption, studio portrait",
+        "captionMs": "Diluluskan untuk pengangkatan, potret studio",
+        "capturedAt": "2026-08-02"
+      }
+    ],
+    "videoDiary": [
+      {
+        "id": "pet-002-vid-1",
+        "youtubeId": "aqz-KE-bpKQ",
+        "title": "Milo's socialisation room, week 6",
+        "titleMs": "Bilik sosialisasi Milo, minggu ke-6",
+        "recordedAt": "2026-07-28",
+        "durationLabel": "6:45",
+        "thumbnailUrl": "https://img.youtube.com/vi/aqz-KE-bpKQ/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/aqz-KE-bpKQ"
+      }
+    ]
+  },
+  "pet-003": {
+    "highResGallery": [
+      {
+        "id": "pet-003-hr-1",
+        "url": "https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Luna's hip radiograph review session",
+        "captionMs": "Sesi semakan radiograf pinggul Luna",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-003-hr-2",
+        "url": "https://images.unsplash.com/photo-1568572933382-74d440642117?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Underwater treadmill, third month",
+        "captionMs": "Treadmill dalam air, bulan ketiga",
+        "capturedAt": "2026-07-09"
+      },
+      {
+        "id": "pet-003-hr-3",
+        "url": "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Off-lead recall in the rehabilitation yard",
+        "captionMs": "Panggilan balik tanpa tali di halaman pemulihan",
+        "capturedAt": "2026-08-02"
+      }
+    ],
+    "videoDiary": [
+      {
+        "id": "pet-003-vid-1",
+        "youtubeId": "ScMzIvxBSi4",
+        "title": "Luna's hydrotherapy session",
+        "titleMs": "Sesi hidroterapi Luna",
+        "recordedAt": "2026-08-03",
+        "durationLabel": "8:20",
+        "thumbnailUrl": "https://img.youtube.com/vi/ScMzIvxBSi4/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/ScMzIvxBSi4"
+      },
+      {
+        "id": "pet-003-vid-2",
+        "youtubeId": "ktvTqknDobU",
+        "title": "Luna meets the resident cats",
+        "titleMs": "Luna bertemu kucing penghuni",
+        "recordedAt": "2026-08-19",
+        "durationLabel": "3:55",
+        "thumbnailUrl": "https://img.youtube.com/vi/ktvTqknDobU/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/ktvTqknDobU"
+      }
+    ]
+  },
+  "pet-004": {
+    "highResGallery": [
+      {
+        "id": "pet-004-hr-1",
+        "url": "https://images.unsplash.com/photo-1573865526739-10659fec78a5?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Oliver's dental recovery, day four",
+        "captionMs": "Pemulihan pergigian Oliver, hari keempat",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-004-hr-2",
+        "url": "https://images.unsplash.com/photo-1526336024174-e58f5cdd8e13?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Back on solid food, print resolution",
+        "captionMs": "Kembali kepada makanan pejal, resolusi cetakan",
+        "capturedAt": "2026-07-09"
+      }
+    ],
+    "videoDiary": []
+  },
+  "pet-005": {
+    "highResGallery": [
+      {
+        "id": "pet-005-hr-1",
+        "url": "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Rocky's surgical site, sterile field record",
+        "captionMs": "Kawasan pembedahan Rocky, rekod medan steril",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-005-hr-2",
+        "url": "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Sutures out, cleared for play",
+        "captionMs": "Jahitan dibuka, dibenarkan bermain",
+        "capturedAt": "2026-07-09"
+      }
+    ],
+    "videoDiary": [
+      {
+        "id": "pet-005-vid-1",
+        "youtubeId": "9bZkp7q19f0",
+        "title": "Rocky's post-surgery wound check",
+        "titleMs": "Pemeriksaan luka Rocky selepas pembedahan",
+        "recordedAt": "2026-06-30",
+        "durationLabel": "5:08",
+        "thumbnailUrl": "https://img.youtube.com/vi/9bZkp7q19f0/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/9bZkp7q19f0"
+      }
+    ]
+  },
+  "pet-006": {
+    "highResGallery": [
+      {
+        "id": "pet-006-hr-1",
+        "url": "https://images.unsplash.com/photo-1543852786-1cf6624b9987?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Cleo's calico markings, archival scan",
+        "captionMs": "Corak kaliko Cleo, imbasan arkib",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-006-hr-2",
+        "url": "https://images.unsplash.com/photo-1495360010541-f48722b34f7d?auto=format&fit=crop&w=2400&q=95",
+        "caption": "First supervised outdoor enclosure visit",
+        "captionMs": "Lawatan pertama ke kandang luar dengan pengawasan",
+        "capturedAt": "2026-07-09"
+      }
+    ],
+    "videoDiary": [
+      {
+        "id": "pet-006-vid-1",
+        "youtubeId": "kJQP7kiw5Fk",
+        "title": "Cleo's kitten-room introduction",
+        "titleMs": "Pengenalan Cleo ke bilik anak kucing",
+        "recordedAt": "2026-08-11",
+        "durationLabel": "4:40",
+        "thumbnailUrl": "https://img.youtube.com/vi/kJQP7kiw5Fk/maxresdefault.jpg",
+        "watchUrl": "https://www.youtube.com/embed/kJQP7kiw5Fk"
+      }
+    ]
+  },
+  "pet-007": {
+    "highResGallery": [
+      {
+        "id": "pet-007-hr-1",
+        "url": "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Barnaby's senior wellness panel day",
+        "captionMs": "Hari panel kesihatan warga emas Barnaby",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-007-hr-2",
+        "url": "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Joint supplement regime, month two",
+        "captionMs": "Regim suplemen sendi, bulan kedua",
+        "capturedAt": "2026-07-09"
+      }
+    ],
+    "videoDiary": []
+  },
+  "pet-008": {
+    "highResGallery": [
+      {
+        "id": "pet-008-hr-1",
+        "url": "https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Daisy's intake portrait, archival scan",
+        "captionMs": "Potret kemasukan Daisy, imbasan arkib",
+        "capturedAt": "2026-06-18"
+      },
+      {
+        "id": "pet-008-hr-2",
+        "url": "https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=2400&q=95",
+        "caption": "Coat regrowth after mange treatment",
+        "captionMs": "Bulu tumbuh semula selepas rawatan kudis",
+        "capturedAt": "2026-08-02"
+      }
+    ],
+    "videoDiary": []
+  }
+}

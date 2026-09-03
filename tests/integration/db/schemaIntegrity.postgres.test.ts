@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma, disconnectPrisma } from "@/lib/server/prisma";
 import petsData from "@/data/pets.json";
+import { fromDbPetStatus } from "@/lib/server/petMappers";
 import {
   requireDatabaseUrl,
   assertDatabaseReachable,
@@ -186,7 +187,13 @@ describe("seeded fixtures", () => {
       expect(row?.rehabStage).toBe(rehab.rehabStage);
       expect(row?.rehabStageMs).toBe(rehab.rehabStageMs);
       expect(row?.rehabProgressPercent).toBe(rehab.rehabProgressPercent);
-      expect(row?.status).toBe(fixture.status);
+      // Through the mapper, not against the raw column. `PetStatus` declares
+      // `In_Rehabilitation @map("In Rehabilitation")`, so Postgres holds the
+      // spaced string while the Prisma client hands back the identifier — a
+      // direct comparison against the fixture can never pass for a rehab pet.
+      // Asserting through `fromDbPetStatus` is also the stronger claim: it is
+      // the projection the repository actually reads rows with.
+      expect(fromDbPetStatus(row!.status)).toBe(fixture.status);
     }
   });
 

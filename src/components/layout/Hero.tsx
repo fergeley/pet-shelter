@@ -69,32 +69,21 @@ export function Hero() {
             
             {/* Left Text Content */}
             <div className="space-y-6 lg:col-span-7">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-secondary text-secondary-foreground text-xs font-bold border border-border rounded-full">
-                <ShieldCheck className="size-3.5 text-primary" />
-                <span>{isMs ? "TNRM Kampus UM & Santuari Haiwan Selangor" : "UM Campus TNRM & Selangor Rescue Sanctuary"}</span>
-              </div>
 
               <div className="space-y-2">
                 <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.15]">
-                  {isMs ? (
-                    <>
-                      Kewujudan Bersama melalui <span className="text-primary">TNRM</span> & Pendidikan.
-                    </>
-                  ) : (
-                    <>
-                      Coexistence through <span className="text-primary">TNRM</span> & Education.
-                    </>
-                  )}
+                  Coexistence through TNRM & Education
                 </h1>
-                <p className="font-heading text-lg sm:text-xl font-semibold text-foreground/80">
-                  Hope for Strays UM
-                </p>
               </div>
 
               <p className="max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
                 {isMs
-                  ? "Kami menstabilkan populasi haiwan jalanan di kampus Universiti Malaya dan Petaling Jaya melalui kaedah berkebajikan Tangkap-Mandul-Lepas-Urus (TNRM), rawatan klinikal di Rumah Pemulihan kami, dan adopsi percuma 100%."
-                  : "Stabilizing stray animal populations across Universiti Malaya campus and Petaling Jaya through humane Trap-Neuter-Return-Manage (TNRM), clinical trauma recovery at our Rehabilitation House, and 100% free adoptions."}
+                  ? <>
+                      <span className="font-bold">Hope for Strays</span> ialah organisasi kebajikan haiwan komuniti yang memberi tumpuan kepada keseimbangan hidup bersama manusia dan haiwan. Kami menjalankan TNRM, pendidikan komuniti, dan pemulihan klinikal demi menstabilkan populasi jalanan dan menambah kesedaran awam.
+                    </>
+                  : <>
+                      <span className="font-bold">Hope for Strays</span> is a community-led animal welfare organisation focused on peaceful coexistence between people and animals. We work through TNRM, public education, and clinical rehabilitation to stabilize stray populations and build lasting community understanding.
+                    </>}
               </p>
 
               {/* Action Buttons */}
@@ -111,7 +100,7 @@ export function Hero() {
                   <ArrowRight className="size-4 ml-0.5" />
                 </Link>
 
-                <Link
+                {/* <Link
                   href="/needs"
                   className={buttonVariants({
                     variant: "outline",
@@ -121,9 +110,9 @@ export function Hero() {
                 >
                   <Package className="size-4 text-primary" />
                   {isMs ? "Keperluan Pemulihan" : "Wishlist Needs"}
-                </Link>
+                </Link> */}
 
-                <Button
+                {/* <Button
                   variant="outline"
                   size="lg"
                   onClick={() => setIsSponsorshipOpen(true)}
@@ -131,11 +120,11 @@ export function Hero() {
                 >
                   <HeartHandshake className="size-4 text-care-accent" />
                   {isMs ? "Taja Haiwan (RM30)" : "Sponsor Care"}
-                </Button>
+                </Button> */}
               </div>
 
               {/* Sanctuary Hours & Address Banner */}
-              <div className="border-t border-border pt-4 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-3">
+              {/* <div className="border-t border-border pt-4 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <span className="font-bold text-foreground">{isMs ? "Waktu Santuari PJ:" : "Sanctuary Visiting Hours:"} </span>
                   {isMs ? "Selasa – Ahad, 10:00 PG – 5:00 PTG. Walk-in dialu-alukan." : "Tuesday through Sunday, 10:00 AM – 5:00 PM. Walk-ins welcome."}
@@ -143,7 +132,7 @@ export function Hero() {
                 <div className="font-bold text-foreground">
                   Petaling Jaya & UM Campus, Selangor
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Right Image */}
@@ -165,7 +154,7 @@ export function Hero() {
           <div className="max-w-7xl mx-auto mt-12 sm:mt-16 pt-8 border-t border-border/80">
             <div className="mb-4">
               <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-                {isMs ? "Impak Komuniti & Penyelamatan Setakat Ini" : "Our Impact & Stray Management So Far"}
+                {isMs ? "Impak Kami Setakat Ini" : "Our Impact So Far"}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">

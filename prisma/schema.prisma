@@ -10,10 +10,26 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
-  COORDINATOR
-  STAFF
-  VOLUNTEER
+  // --- Canonical roles ---
+  SUPER_ADMIN // Unrestricted platform access, including staff management
+  ANIMAL_MANAGER // Pet profiles, gallery photos, QR codes
+  CONTENT_EDITOR // FAQs, transparency data, bulletins
+  VOLUNTEER_COORDINATOR // Volunteer applications & settings
+  STAFF // Standard read-only operational access
+
+  // --- Deprecated aliases, retained so existing rows stay readable ---
+  // Postgres cannot drop an enum value while any row references it, and live
+  // session cookies still carry these. Normalised on read by
+  // normalizeRole() in src/lib/security/permissions.ts. Do not assign.
+  ADMIN // -> SUPER_ADMIN
+  COORDINATOR // -> VOLUNTEER_COORDINATOR
+  VOLUNTEER // -> STAFF
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
 }
 
 enum PetStatus {
@@ -31,43 +47,60 @@ enum ApplicationStatus {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String     @id @default(cuid())
+  email        String     @unique
   name         String
   passwordHash String
-  role         Role     @default(STAFF)
+  role         Role       @default(STAFF)
+  status       UserStatus @default(ACTIVE)
   pinHash      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  lastLoginAt  DateTime?
+  invitedBy    String?
 
+  // Invitation redemption. The raw token is emailed once and never stored;
+  // only its scrypt hash is persisted, mirroring passwordHash.
+  inviteTokenHash      String?
+  inviteTokenExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([role])
   @@map("users")
 }
 
 model Pet {
-  id            String   @id @default(cuid())
-  name          String
-  species       String // dog, cat, other
+  id                  String    @id @default(cuid())
+  name                String
+  species             String // dog, cat, other
   breed               String
-  birthDate           String   @default("2024-01-01")
-  birthDateIsEstimate Boolean  @default(true)
+  birthDate           String    @default("2024-01-01")
+  birthDateIsEstimate Boolean   @default(true)
   gender              String // Male, Female
-  size          String // Small, Medium, Large
-  weight        String
-  status        PetStatus @default(Available)
-  adoptionFee   String
-  description   String
-  rescueStory   String
-  image         String
-  galleryImages String[]
-  tags          String[]
-  featured      Boolean  @default(false)
-  intakeDate    String
+  size                String // Small, Medium, Large
+  weight              String
+  status              PetStatus @default(Available)
+  adoptionFee         String
+  description         String
+  rescueStory         String
+  image               String
+  galleryImages       String[]
+  tags                String[]
+  featured            Boolean   @default(false)
+  intakeDate          String
 
   // Medical clearance
   vaccinated     Boolean @default(true)
   microchipped   Boolean @default(true)
   spayedNeutered Boolean @default(true)
   specialNeeds   String?
+
+  /// Dedicated donation QR for this animal, overriding the shelter-wide code
+  /// wherever this animal's sponsorship modal appears. Set when a specific
+  /// rescue is running its own medical fund drive.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  customQrUrl String?
 
   // Rehabilitation / TNRM progress (only populated while status is "In Rehabilitation")
   rehabStage           String?
@@ -87,7 +120,13 @@ model Pet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Cost of this animal's care programme, in integer sen, used as the
+  /// denominator of the sponsorship progress shown on its profile. Null means
+  /// "no animal-specific target", and the shelter-wide default applies.
+  sponsorshipGoalSen Int?
+
   applications       AdoptionApplication[]
+  sponsorships       PetSponsorship[]
   updates            PetUpdate[]
   medicalTimeline    MedicalTimelineEvent[]
   vetAssignments     VetPetAssignment[]
@@ -127,9 +166,9 @@ model Pet {
 /// `Donation` documents the same reasoning for its issuer identity; treat the two
 /// as one pattern.
 model AdoptionApplication {
-  id                    String   @id @default(cuid())
+  id                    String            @id @default(cuid())
   petId                 String?
-  pet                   Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  pet                   Pet?              @relation(fields: [petId], references: [id], onDelete: SetNull)
   /// Snapshot of the pet's name at application time. Deliberately not a join —
   /// see the model comment. Survives `petId` going null.
   petName               String
@@ -141,19 +180,19 @@ model AdoptionApplication {
   address               String
   housingType           String
   livingSituation       String?
-  hasFencedYard         String   @default("yes")
-  currentPets           String   @default("none")
+  hasFencedYard         String            @default("yes")
+  currentPets           String            @default("none")
   currentPetDetails     String?
-  householdExperience   String   @default("experienced")
-  experienceDescription String?  @db.Text
-  applicantNotes        String?  @db.Text
+  householdExperience   String            @default("experienced")
+  experienceDescription String?           @db.Text
+  applicantNotes        String?           @db.Text
   message               String?           @db.Text
   status                ApplicationStatus @default(SUBMITTED)
   adminNotes            String?           @db.Text
-  adminReviewNotes      String?  @db.Text
+  adminReviewNotes      String?           @db.Text
   reviewedBy            String?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   @@index([petId, status])
   @@index([email, petId])
@@ -262,16 +301,43 @@ model AuditLog {
 }
 
 model ShelterSettings {
-  id                 String   @id @default("default-settings")
-  shelterName        String   @default("Hope for Strays")
-  email              String   @default("info@hopeforstrays.org")
-  phone              String   @default("03-7876 5432")
-  address            String   @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
-  operatingHours     String   @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
+  id                 String  @id @default("default-settings")
+  shelterName        String  @default("Hope for Strays")
+  email              String  @default("info@hopeforstrays.org")
+  phone              String  @default("03-7876 5432")
+  address            String  @default("No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia")
+  operatingHours     String  @default("Tuesday – Sunday: 10:00 AM – 5:00 PM")
   announcementBanner String?
-  adoptionFeeDog     String   @default("Free")
-  adoptionFeeCat     String   @default("Free")
-  updatedAt          DateTime @updatedAt
+  adoptionFeeDog     String  @default("Free")
+  adoptionFeeCat     String  @default("Free")
+
+  /// Fallback care-cost target in integer sen (RM 1,500.00) for any animal
+  /// without a `Pet.sponsorshipGoalSen` of its own.
+  defaultSponsorshipGoalSen Int @default(150000)
+
+  /// Volunteer intake runs through an external Google Form rather than an in-app
+  /// pipeline. `volunteerFormUrl` is the public application form linked from the
+  /// volunteer section of /get-involved; `volunteerFormResponsesUrl` is the
+  /// coordinator-only responses sheet linked from the admin header. Deliberately
+  /// two URLs: the form and its responses live at different addresses.
+  /// Already applied to production, see prisma/sql/2026-09-02-add-volunteer-form-urls.sql
+  volunteerFormUrl          String @default("https://docs.google.com/forms/d/e/REPLACE_WITH_YOUR_FORM_ID/viewform")
+  volunteerFormResponsesUrl String @default("https://docs.google.com/spreadsheets/d/REPLACE_WITH_YOUR_SHEET_ID/edit")
+
+  /// Donation QR codes, one per Malaysian payment rail. DuitNow is the default
+  /// and is always offered to donors; the other two surface a tab on the
+  /// donation panel only once an image is uploaded for them.
+  ///
+  /// `paymentPayload` is a DuitNow EMVCo string (or a bank deep link) that we
+  /// render to an SVG QR ourselves when no `duitNowQrUrl` image is set. It is
+  /// specific to the DuitNow rail and is never used for the other two.
+  /// Already applied to production, see prisma/sql/2026-09-02-donation-qr-columns.sql
+  duitNowQrUrl   String?
+  tngQrUrl       String?
+  bankQrUrl      String?
+  paymentPayload String?
+
+  updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")
 }
@@ -367,6 +433,29 @@ model Donation {
   @@map("donations")
 }
 
+/// A donor who has claimed a sponsor portal account.
+///
+/// Separate from `User`, which is staff. Sponsors authenticate through their own
+/// cookie namespace — see `src/lib/security/sponsorSession.ts` for why the two are
+/// not unified.
+model Sponsor {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  name          String
+  passwordHash  String
+  /// Consent to appear on the public wall. The sponsor's current answer; each
+  /// donation also records the answer given at the time it was made.
+  displayOnWall Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sponsorships PetSponsorship[]
+
+  @@index([displayOnWall])
+  @@map("sponsors")
+}
+
 /// Licensed veterinarian participating in shelter clinical operations.
 model Veterinarian {
   id            String   @id @default(cuid())
@@ -387,10 +476,10 @@ model Veterinarian {
 
 /// Catalog of standard veterinary clinical procedures and compliance categories.
 model MedicalProcedureCategory {
-  id          String   @id // intake, diagnostic, treatment, vaccination, surgery, clearance
+  id          String  @id // intake, diagnostic, treatment, vaccination, surgery, clearance
   name        String
   nameMs      String?
-  description String?  @db.Text
+  description String? @db.Text
 
   specializations VetSpecialization[]
 
@@ -402,9 +491,9 @@ model MedicalProcedureCategory {
 model VetSpecialization {
   vetId        String
   categoryId   String
-  certifiedAt  DateTime                  @default(now())
-  veterinarian Veterinarian              @relation(fields: [vetId], references: [id], onDelete: Cascade)
-  category     MedicalProcedureCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  certifiedAt  DateTime                 @default(now())
+  veterinarian Veterinarian             @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  category     MedicalProcedureCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([vetId, categoryId])
   @@map("vet_specializations")
@@ -428,7 +517,7 @@ model VetPetAssignment {
 model PetTag {
   id          String             @id
   name        String             @unique
-  category    String?            // Temperament, Physical, Medical, Lifestyle
+  category    String? // Temperament, Physical, Medical, Lifestyle
   assignments PetTagAssignment[]
 
   @@map("pet_tags")
@@ -462,16 +551,264 @@ model PetGalleryImage {
 /// 5NF Join: Pet Compatibility Matrix (Pet x Housing Type x Cohabitant Type).
 /// Expresses multi-dimensional lifestyle compatibility constraints for the match engine.
 model PetCompatibilityRule {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   petId          String
-  housingType    String   // condo_apartment, landed_no_yard, landed_fenced_yard
-  cohabitantType String   // toddlers, resident_dogs, resident_cats, elderly
-  isAllowed      Boolean  @default(true)
-  notes          String?  @db.Text
-  pet            Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  housingType    String // condo_apartment, landed_no_yard, landed_fenced_yard
+  cohabitantType String // toddlers, resident_dogs, resident_cats, elderly
+  isAllowed      Boolean @default(true)
+  notes          String? @db.Text
+  pet            Pet     @relation(fields: [petId], references: [id], onDelete: Cascade)
 
   @@unique([petId, housingType, cohabitantType])
   @@index([petId])
   @@map("pet_compatibility_rules")
 }
 
+/// A supporter's standing commitment to fund one animal's care.
+///
+/// ## Why this is not a `Donation`
+///
+/// `Donation` is an issued receipt: append-only, immutable, and evidence that
+/// money arrived. A sponsorship is the opposite kind of record — a commitment
+/// that has a lifecycle, can be waiting on a bank transfer, and can be
+/// cancelled. Modelling it as a mutable `Donation` would have meant putting a
+/// status column on a statutory document, which is exactly what that model's
+/// comment forbids.
+///
+/// The two meet at reconciliation: when a coordinator matches the transfer,
+/// `issueDonationReceipt()` writes the `Donation` and its gapless number is
+/// copied onto `receiptNumber` here. Until that happens this row carries no
+/// receipt number, because nothing has verified that any money moved — the
+/// supporter was shown a DuitNow QR and told us they paid.
+///
+/// ## Money
+///
+/// `amountSen` is an integer count of sen, as everywhere else. See
+/// `src/lib/domain/money.ts`.
+model PetSponsorship {
+  id String @id @default(cuid())
+
+  /// Nullable, and paired with a denormalised name. Pets are still served from
+  /// `src/data/pets.json` through an in-memory store when the database is empty,
+  /// so a sponsorship can legitimately name an animal that has no row here. The
+  /// snapshot is also what keeps the record readable after a rename or an
+  /// archive, the same reasoning as `AdoptionApplication.petName`.
+  petId   String?
+  pet     Pet?    @relation(fields: [petId], references: [id], onDelete: SetNull)
+  petName String
+
+  sponsorName  String
+  sponsorEmail String
+  sponsorPhone String?
+  /// The supporter account that claims this commitment, once one exists. Checkout is
+  /// still guest-only, so this is null at creation and filled in when the donor claims
+  /// their portal account — see `registerSponsorAction`. Nullable and `SetNull` because a
+  /// commitment outlives an account: deleting the account must not erase the record that
+  /// the money was pledged.
+  userId       String?
+  sponsor      Sponsor? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  /// Public Sponsor Wall consent, as given at this checkout. Recorded per commitment
+  /// rather than per account because most supporters have no account when they give; the
+  /// account inherits it when the commitment is claimed.
+  displayOnWall Boolean @default(false)
+
+  tierId    String
+  /// Tier name as displayed when the commitment was made, snapshotted for the
+  /// same reason as `Donation.tierName`.
+  tierName  String
+  /// "one_time" or "monthly". A plain String, matching `Donation.frequency`,
+  /// constrained at the Zod boundary rather than by a database enum.
+  frequency String @default("one_time")
+  /// Integer sen. RM 80.00 is stored as 8000.
+  amountSen Int
+
+  paymentMethod String
+  /// PENDING_PAYMENT -> ACTIVE | CANCELLED | EXPIRED. Only ACTIVE counts toward
+  /// the public supporter tally and the funding total.
+  status        String @default("PENDING_PAYMENT")
+
+  /// Handed to the supporter at checkout so they can quote it on their transfer.
+  /// Prefixed HFS-PLG, deliberately unlike a receipt number: a coordinator
+  /// reading a bank statement must be able to tell a claim from a receipt.
+  pledgeRef     String  @unique
+  /// The `Donation.receiptNumber` issued for this commitment, once reconciled.
+  /// Unique, so a second reconciliation cannot attach a second receipt to the
+  /// same money.
+  receiptNumber String? @unique
+
+  reconciledAt DateTime?
+  reconciledBy String?
+  cancelledAt  DateTime?
+
+  taxIdOrIc String?
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Serves the per-animal supporter count and funding total.
+  @@index([petId, status])
+  @@index([sponsorEmail])
+  @@index([userId])
+  @@map("pet_sponsorships")
+}
+
+// ---------------------------------------------------------------------------
+// Financial transparency ("Where Your Money Goes")
+// ---------------------------------------------------------------------------
+
+enum ExpenseCategory {
+  MEDICAL
+  FOOD_NUTRITION
+  SHELTER_MAINTENANCE
+  RESCUE_TNRM
+  STAFF_CARE
+}
+
+/// A single verified shelter expense. Public allocation percentages are DERIVED
+/// from these rows, never stored, so the chart can never drift from the ledger.
+model ExpenseItem {
+  id             String          @id @default(cuid())
+  category       ExpenseCategory
+  title          String
+  /// Amount in sen (1/100 MYR). Integer money: no floating point rounding.
+  amountSen      Int
+  /// ISO-8601 calendar date, "YYYY-MM-DD". Enforced by Zod at every write path
+  /// so lexicographic ordering equals chronological ordering.
+  date           String
+  vendorOrClinic String?
+  petName        String?
+  /// Vendor invoice / clinic receipt reference: what makes an entry "verified".
+  receiptRef     String?
+  isPublished    Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([isPublished, date])
+  @@index([category])
+  @@map("expense_items")
+}
+
+/// Downloadable audit / spending report filed for ROS and AGM compliance.
+model FinancialReport {
+  id          String   @id @default(cuid())
+  year        Int
+  /// 1-12 for a monthly statement; null for an annual report.
+  month       Int?
+  title       String
+  fileUrl     String
+  summary     String?
+  publishedAt DateTime @default(now())
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Backstop for the duplicate check in `createFinancialReport`, which is a
+  /// non-atomic read-then-write and so cannot stop two concurrent submits on its
+  /// own. Postgres treats NULLs as distinct in a unique index, so this covers
+  /// monthly statements; annual reports (month = null) still rely on the code
+  /// check alone.
+  @@unique([year, month, title])
+  @@index([isPublished, year, month])
+  @@map("financial_reports")
+}
+
+/// Headline impact counter shown on the public transparency page.
+model ImpactStat {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  /// Free-form so "180", "42", "100%" and "RM 0" are all expressible.
+  metricValue  String
+  label        String
+  labelMs      String?
+  period       String
+  periodMs     String?
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, displayOrder])
+  @@map("impact_stats")
+}
+
+/// Per-email-address notification consent.
+///
+/// Keyed by email rather than by account because a supporter need not have one:
+/// `User` is staff-only, and the `Sponsor` portal account is optional and claimed
+/// after the fact. The address is the identity every supporter has, so a signed
+/// token mailed to it is the only credential the preference page can accept.
+///
+/// Deliberately separate from `PetSponsorship.displayOnWall`, which is consent to be
+/// *listed publicly* rather than consent to be *emailed*. Withdrawing one must not
+/// withdraw the other.
+///
+/// A missing row means "has never expressed a choice", which reads as opted in.
+/// Rows appear only when someone actually changes something, so this table stays
+/// small and every row in it is a deliberate statement by a donor.
+model NotificationPreference {
+  id    String @id @default(cuid())
+  email String @unique
+
+  /// Photos of animals this address sponsors, sent by their caregivers.
+  photoUpdates Boolean @default(true)
+  /// Shelter news and appeals.
+  newsletter   Boolean @default(true)
+
+  /// Set when every channel is off, so a global unsubscribe is auditable as one
+  /// event rather than inferred from two booleans.
+  unsubscribedAllAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+/// Category vocabulary for the public FAQ.
+///
+/// Deliberately identical to the `FaqCategory` union in src/types/faq.ts and to
+/// the keys of FAQ_CATEGORY_LABELS in src/lib/presentation/categoryTabs.ts,
+/// which remains the single declaration of the labels. The three are held in
+/// step by a compile-time assertion in src/lib/server/faqRepository.ts: adding
+/// a member here without adding it there is a type error, not a category that
+/// silently renders as its own raw value.
+enum FaqCategory {
+  tnrm
+  sponsorship
+  adoption
+  visiting
+  get_involved
+  general
+  medical
+}
+
+/// Staff-editable FAQ knowledge base behind /faq and /admin/faqs.
+///
+/// Replaces the read-only src/data/faqs.json catalog, which is retained as the
+/// offline fallback fixture in the same way pets.json backs the Pet repository.
+model Faq {
+  id       String      @id @default(cuid())
+  category FaqCategory
+  question String
+  answer   String      @db.Text
+
+  /// Bahasa Malaysia copy. Nullable because staff may publish an English entry
+  /// and translate it later; the repository resolves the English text in its
+  /// place when mapping to FaqItem, so no reader ever sees a blank Malay
+  /// question and every consumer keeps a plain `string`. Storing the null
+  /// rather than a copy of the English means a later edit to the English text
+  /// still shows through instead of leaving a stale duplicate behind.
+  questionMs String?
+  answerMs   String? @db.Text
+
+  displayOrder Int      @default(0)
+  isPublished  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isPublished, category, displayOrder])
+  @@index([category, displayOrder])
+  @@map("faqs")
+}

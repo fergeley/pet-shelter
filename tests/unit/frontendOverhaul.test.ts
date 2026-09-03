@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 import { getServerRehabNeeds } from "@/lib/server/rehabNeedsCatalog";
-import { getServerFaqs } from "@/lib/server/faqCatalog";
+import committedFaqs from "@/data/faqs.json";
+import { getServerFaqs } from "@/lib/server/faqRepository";
 import { getRehabNeedsAction } from "@/actions/rehabNeeds";
 import { getFaqsAction } from "@/actions/faqs";
 
@@ -68,23 +69,24 @@ describe("Frontend TNRM Overhaul & UI Contracts", () => {
   });
 
   describe("Interactive FAQ Accordion Data Layer (FE-09 / PetsFaqSection)", () => {
-    it("should retrieve all 8 committed FAQs", () => {
+    it("should retrieve every committed FAQ", () => {
+      // Counted from the fixture rather than restated: the FAQ set grows as
+      // staff questions accumulate, and a hardcoded total turns every content
+      // addition into a failure here.
       const allFaqs = getServerFaqs();
-      expect(allFaqs.length).toBe(8);
+      expect(allFaqs.length).toBe(committedFaqs.length);
     });
 
     it("should support category filtering for TNRM, sponsorship, and visiting via Server Action", async () => {
-      const tnrmFaqs = await getFaqsAction("tnrm");
-      expect(tnrmFaqs.success).toBe(true);
-      expect(tnrmFaqs.data?.length).toBe(3);
+      const countIn = (category: string) =>
+        committedFaqs.filter((f) => f.category === category).length;
 
-      const sponsorFaqs = await getFaqsAction("sponsorship");
-      expect(sponsorFaqs.success).toBe(true);
-      expect(sponsorFaqs.data?.length).toBe(2);
-
-      const visitingFaqs = await getFaqsAction("visiting");
-      expect(visitingFaqs.success).toBe(true);
-      expect(visitingFaqs.data?.length).toBe(1);
+      for (const category of ["tnrm", "sponsorship", "visiting"] as const) {
+        const res = await getFaqsAction(category);
+        expect(res.success).toBe(true);
+        expect(res.data?.length, category).toBe(countIn(category));
+        expect(res.data?.every((f) => f.category === category)).toBe(true);
+      }
     });
   });
 

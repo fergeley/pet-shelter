@@ -8,7 +8,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7.9.1-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A high-performance, accessible, and production-hardened Pet Shelter & Adoption Platform built for **Hope for Strays** (*Persatuan Harapan Haiwan Terbiar Selangor*), an animal welfare non-profit in Petaling Jaya, Selangor.
+HFS website serves as a platform as well as a repository of past news for first-time and returning visitors to interact with. This is able to be abstracted for all kinds of news like videos, blogs, bulletins, pictures etc. This project is meant to be as generic and universal as possible in order to reach the most amount of pets, their owners and volunteers/sponsors.
 
 ---
 
@@ -68,9 +68,10 @@ Comprehensive guides are organized in the [`docs/`](docs/) directory and synchro
 - **Donation Portal (`/donate` & `DonationWidget.tsx`)**: Direct DuitNow QR standard (PayNet Malaysia) and Maybank instant bank transfer.
 - **Automated e-Receipt Dossier**: Computes official tax receipts with statutory LHDN exemption numbers and instant printing.
 - **1-Click LHDN & ROS CSV Export Engine**: Automated CSV download for Malaysian tax filing and NGO audits in the Admin Portal.
+- **Public Transparency Ledger (`/transparency`)**: "Where Your Money Goes" — a verified expense ledger with per-category allocation shares *computed from the ledger rather than hand-written*, headline impact counters, a chronological purchase feed carrying clinic/supplier invoice references, and downloadable ROS/AGM audited statements. Editable at `/admin/transparency` by `ADMIN` and `COORDINATOR`.
 
 ### 6. 🔐 Admin Management & Role-Based Access Control (RBAC)
-- **Role Permissions**: `SUPER_ADMIN`, `ADMIN`, and `COORDINATOR` with bcrypt-hashed credentials, brute-force rate limiting, and session protection.
+- **Role Permissions**: `ADMIN`, `COORDINATOR`, `STAFF`, and `VOLUNTEER` (the four values in `prisma/schema.prisma`) with scrypt-hashed credentials, brute-force rate limiting, and signed-session protection.
 - **Admin Management**: Full CRUD for animals, soft-delete archiving, application review status workflows, and audit logging.
 
 ---

@@ -2,6 +2,428 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-03 — On a busy trunk, a branch is only as merged as its last sync
+
+The QR branch needed four syncs with `origin/master` in one sitting. Between
+them, the RBAC work, the FAQ CMS, sponsor photo notifications and the sponsor
+portal all landed, and three of the four touched the same files. Each sync was
+real work, not a formality: `serverStore.ts` was deleted mid-flight, a parallel
+session shipped `settingsRepository.ts` doing the same job as this branch's
+`domain/shelterSettings.ts`, and `SUPER_ADMIN` / `ANIMAL_MANAGER` — reported as
+non-existent when the feature began — were added by the RBAC branch.
+
+**Rules that came out of it:**
+
+- **A `modify/delete` conflict on a file your branch depends on is the signal to
+  stop merging and start porting.** Rebuild on the current trunk and re-apply
+  each change; merging would have resurrected deleted files and shipped two
+  settings layers.
+- **Resolve in favour of what already landed.** Where a parallel session had
+  fixed the same hole differently — `getAdminPets`, secret redaction — take
+  theirs and delete your version, even when yours is arguably tidier. One
+  approach on trunk beats two competing ones.
+- **When both sides added, resolve as a union, not a side.** Two of the later
+  conflicts were purely additive; picking either side would have silently
+  dropped the other feature.
+- **Read the other sessions' notes before assuming yours is the version to
+  keep.** `tasks/open/` held a note predicting this branch's guard would flag
+  the FAQ reads, and warning that "fixing" them with `assertAuthorized` would
+  break the public category tabs. Following it saved a real regression.
+- **Do not merge a long-lived branch into your local `master` while trunk is
+  moving.** It forked a copy that served no purpose and had to be abandoned;
+  the branch itself was the only thing that mattered. Leave `master` alone and
+  let the PR land it.
+
+## 2026-09-03 — CI tests the merge result, so it sees commits your branch does not
+
+The unit suite passed locally at 1088 tests and failed in CI at 1168. Nothing
+was flaky: GitHub runs the checks against your branch merged with the current
+trunk, so it had a whole `src/actions/sponsors.ts` that the local tree had never
+seen. A repo-wide guard — the kind that scans every file in a directory — will
+find things locally green runs cannot.
+
+**Check the count.** "1168 in CI, 1088 here" is the tell, and it is faster than
+reading the diff. Sync, re-run, and expect the numbers to match before trusting
+a local pass.
+
+**And read the output, not the exit code.** `gh pr checks --watch` exits 0 even
+when checks have failed. Taking the exit code at face value would have reported
+a green build twice.
+
+## 2026-09-03 — Attribute a red check before claiming it is not yours
+
+`Playwright golden paths` failed on the QR PR. Rather than assert it was
+pre-existing, it was checked against master's own latest run: same job, same
+assertion, same line 101, already failing there, with master's previous five
+merges all landed red. That turns "probably not mine" into a fact worth acting
+on, and it takes two commands.
+
+The inverse also held in the same run: the unit failure alongside it *was* ours,
+and the same check proved it — master was green on that job.
+
+## 2026-09-03 — A fallback that fabricates data is a defect, not resilience
+
+Shipped a transparency page whose offline fallback substituted a bundled sample
+ledger whenever the database read failed or returned nothing. The admin editor
+warned about it; the public page did not. A production deploy against an
+unmigrated database would have published 28 invented expenses, complete with
+realistic invoice references, on the one page whose entire claim is that its
+figures are verified — and `next build` had already baked that state into the
+prerender. A later review found a second door onto the identical bug: the seed
+script inserted the same rows as *published*, which made the read succeed and the
+provenance notice suppress itself.
+
+The tell was that the fallback made an assertion. A cache or a retry asserts
+nothing; substitute data asserts "these are the numbers".
+
+**Rule:** before writing a fallback, ask what it *claims* to the reader. On any
+surface that makes a truth claim — financial, legal, medical, audit — the fallback
+is an honest empty state, never invented content. Gate sample datasets to
+non-production and label them wherever they render. And a provenance field is
+worth nothing until *every* surface that renders the data reads it: adding the
+field and wiring it to one consumer made the risk feel handled, which is worse
+than not having it. Related: [[anything-written-twice-diverges]].
+
+## 2026-09-03 — De-duplicating shared data must not cost server rendering
+
+Two pages held their own hard-coded copies of the same expense split. Collapsing
+them onto one derived source was right, but the shared component fetched on mount
+from a client component, so the donate page lost its server-rendered content, its
+first paint and its crawlability. A correctness fix had been traded for a
+performance and SEO regression, and the whole test suite stayed green through it.
+
+**Rule:** when a client component needs server data, move the fetch up to a Server
+Component and pass props down; never let a shared presentational component fetch
+for itself. After any such refactor, `curl` the affected routes and grep the
+server HTML for the content that should be in it. "The tests pass" does not prove
+the content is still server-rendered.
+
+## 2026-09-03 — A safety mock must stay configurable, or it deletes the coverage
+
+`DATABASE_URL` points at a production branch, so the Prisma client was mocked to
+reject on every call. Correct for safety, and it meant 100% of the row-mapping,
+aggregation and write code never executed. The least-tested code was the code most
+likely to break, and it is exactly where a "database reachable but empty" hole hid
+until a review found it.
+
+**Rule:** mock a dangerous dependency per-test, not globally. Use `vi.hoisted`
+mock functions and give them resolved values for the happy path so the real
+mapping runs, then override with rejections for the failure cases.
+## 2026-09-03 — Schema changes ship as additive SQL here, never as `db push`
+
+**What happened:** the sponsor portal was ready to merge with two schema changes (a
+`sponsors` table, a `displayOnWall` column) and no migration. The repo has no migration
+history, and `npm run db:push` resolves its target from `.env.local`, which holds
+`NEON_BRANCH=production`, with no local-only guard — unlike `db:seed`, which has one.
+
+A read-only `prisma migrate diff` against production returned 265 lines, **12 of them
+destructive**: `DROP TABLE faqs`, `DROP COLUMN "status"` on both `pets` and
+`adoption_applications`, and the four `shelter_settings` QR columns. Those belong to other
+branches' drift, not to this feature. `db push` would have taken them all — and a
+`DROP COLUMN status` followed by `ADD COLUMN ... DEFAULT 'Available'` does not migrate
+values, it resets them. Every adopted animal becomes Available.
+
+Had the branch merged without a migration, the outcome is quieter but still bad: production
+has no `sponsors` table, the repository declares the database authoritative rather than
+falling back, and `/sponsors` and `/sponsor/login` return 500s.
+
+**How to apply:** any branch here that touches `prisma/schema.prisma` ships a hand-written
+additive file in `prisma/sql/`, idempotent (`IF NOT EXISTS`, a `pg_constraint` guard for
+foreign keys), applied with `psql -f`. Follow
+`prisma/sql/2026-09-03_pet_sponsorships_additive.sql`. Never run `db push` against anything
+resolved from `.env.local`. Background:
+`tasks/open/production-schema-has-drifted-ahead-of-master.md`.
+
+---
+
+## 2026-09-03 — When a branch is overtaken, shrink it; do not integrate faster
+
+**What happened:** the sponsor portal had its storage layer overtaken by `master` twice in
+one day. First `Donation` + `ReceiptSequence` superseded its `SponsorContribution`. The
+merge resolving that was still being written when `d301e74` landed `PetSponsorship`, which
+superseded the annotation table that merge had just built. Nine commits arrived between one
+`git fetch` and the next.
+
+The instinct both times was to re-integrate — rewrite the storage layer against whatever
+`master` now had. That is a race you lose: a third rewrite would have collided a third time.
+
+**What worked instead:** reduce the branch to the part nobody else is building. Here that
+was the supporter *account* — sessions, tier derivation, gating, the portal UI — and
+`PetSponsorship.userId`, a column whose comment already read *"Reserved for a future
+supporter account."* The other session had left the slot open. The branch went from
+carrying its own ledger to adding one table and one foreign key, and merged.
+
+**How to apply:** when a merge conflict is a whole subsystem rather than a few files, stop
+resolving and ask *which half of this branch is uncontested?* Ship that half. Read the
+other side's model comments before designing against them — they frequently describe the
+seam you are about to build, and occasionally they describe your branch by name.
+
+**Corollary on adopting the other implementation wholesale.** `PENDING_PAYMENT → ACTIVE`
+replaced this branch's `PENDING`/`CONFIRMED`, and is better: it says *why* an unreconciled
+pledge grants nothing. `countsTowardFunding()` replaced a restatement of the same rule.
+Taking their vocabulary rather than mapping onto it removed code and a class of drift.
+
+---
+
+## 2026-09-03 — Self-review is blindest where it is most confident
+
+**What happened:** I self-critiqued the sponsor portal and produced twelve findings,
+including one I graded critical. An external code review then found, as its *first*
+finding, a full account takeover in the account-claim challenge — the single mechanism I
+had written the most defensive prose about, in code comments, a commit message and a
+design guide.
+
+**Why I missed it.** I had reasoned "a receipt number is delivered only in the donor's own
+e-Receipt, so possession proves identity", written that down three times, and never
+re-derived it. Reviewing my own work, I checked the parts I was unsure about and skimmed
+the part I had already argued for. The care I put into justifying it is exactly what
+stopped me re-examining it.
+
+**How to apply:** when self-reviewing, treat your own confident explanations as the *first*
+place to look, not the last. Specifically: for every security property you have written
+prose about, re-derive it from the attacker's side once, ignoring what you wrote. And do
+not let a self-critique substitute for an independent one — mine was thorough and still
+missed the worst bug on the branch.
+
+**Related:** [[stress-test-all-the-way]].
+
+---
+
+## 2026-09-03 — A public endpoint that returns an identifier destroys it as a credential
+
+**What happened:** the sponsor account-claim challenge required a donation receipt number
+matching the claimed email. But `/donate` is a public, unauthenticated form that mints a
+receipt for *whatever email the caller types* and returns the number in its own response.
+So an attacker could pledge RM 5 as `victim@example.com`, read the receipt out of the
+response, and claim the victim's entire giving history, standing and gated content.
+
+The credential and its issuer were the same anonymous endpoint. My mental model was "the
+donor receives this by email", which is true and irrelevant — the question is who *else*
+can cause the value to exist and observe it.
+
+**How to apply:** before treating any value as proof of possession, answer two questions.
+*Who can cause this value to come into existence?* and *does the act of creating it reveal
+it to the creator?* If the answer to the first is "anyone", it is not a credential no
+matter how it is normally delivered.
+
+The fix generalises too: the value only became safe once it required a state transition
+the claimant could not perform (a staff member confirming the payment).
+
+---
+
+## 2026-09-03 — Recording an intention is not recording a fact
+
+**What happened:** the donation ledger stored pledges submitted through a public form with
+no payment gateway behind it. That was harmless while a pledge only produced a receipt and
+an email. It became an authorization bug the moment I derived *privileges* from it: anyone
+could assert an RM 1,200 pledge, or an RM 100 monthly one annualised on the spot, and hold
+Gold on the next request.
+
+Nothing about the donation flow changed. What changed is that I attached security weight to
+data that had never carried any.
+
+**How to apply:** this is the same shape as the `@unique` lesson below, and it has now bitten
+twice on one branch — so treat it as the recurring one. **When you make existing data
+load-bearing, its requirements change retroactively.** Before deriving authorization,
+uniqueness or money from a field, go and read what actually writes it, and ask what the
+value asserts rather than what you wish it asserted. "Someone typed this into a form" and
+"the money arrived" are different facts that look identical in a database column.
+
+---
+
+## 2026-09-03 — A test that is green because infrastructure is absent is not green
+
+**What happened:** four sponsor suites exercised the in-memory fallback path and passed.
+They reached that path by accident: `src/lib/prisma.ts` defaults `DATABASE_URL` to
+localhost, nothing was listening, so every call threw. On a machine where `DATABASE_URL`
+*is* exported — and this repo's `.env.local` points it at a Neon **production** branch —
+the registration cases would have run `prisma.sponsor.create` and
+`prisma.sponsorContribution.updateMany` against it.
+
+Separately, `isActive: false` was asserted in tests that constructed the record directly,
+while no code path in `src/` ever wrote it. The tests proved the derivation worked; they
+could not show the state was reachable, so a documented behaviour ("cancelling drops the
+standing") had no implementation for weeks.
+
+**How to apply:** two habits.
+- If a suite's green depends on the *absence* of something, mock the boundary explicitly.
+  Ask "what would this test do on a machine that has a database?" before trusting it.
+- Before documenting behaviour that depends on a field's value, grep for what *writes*
+  that value. Constructing a state in a fixture is not evidence that anything can produce
+  it.
+
+---
+
+## 2026-09-03 — Fold a deprecated role onto its nearest identity and you transfer its authority
+
+`normalizeRole` mapped the retired VOLUNTEER onto STAFF, which is the closest
+canonical *identity*. But STAFF can read adoption applications and a volunteer
+never could — that is applicant PII under PDPA 2010. Because the session was
+normalised on *read*, the rewrite happened before any permission check saw it,
+so every volunteer account would have gained the grant on deploy.
+
+Two separate ideas were being conflated. Identity ("what should we call this
+role now?") is a display concern. Authority ("what may it do?") is not, and must
+fail closed. The fix: `permissionsForRole` grants nothing to an unrecognised or
+retired role, and sessions are normalised where they are *minted*, never where
+they are read.
+
+**Rule:** an alias table is a migration tool, not an authorization one. Before
+mapping A onto B, diff their permission sets — if B has anything A lacked, the
+mapping is a grant.
+
+## 2026-09-03 — Run every test project locally, not the one you remember
+
+Three careful review passes ran `vitest --project unit` and reported green. CI
+runs `unit`, `integration` and `components`, and the integration project is
+where the VOLUNTEER escalation above surfaced. The local suite had no opinion
+about it at all.
+
+Related: `gh pr checks --watch` exits 0 when it finishes watching, not when the
+checks pass. Reading the exit code produced a confident "CI is green" while two
+jobs were red. Read the job states.
+
+## 2026-09-03 — A backfill is a deploy-ordered step, not a migration detail
+
+The RBAC migration split cleanly into additive DDL (safe against the running
+release, which never reads the new columns) and a role backfill (not safe at
+all). Rewriting an administrator's row to SUPER_ADMIN while the previous release
+is serving still lets them sign in — the login action does not gate on role —
+and then denies every admin route, because that code compares
+`session.role === ROLES.ADMIN` literally.
+
+**Rule:** for any enum widening, ask which half can run before the deploy and
+which cannot, and put the answer in the SQL file rather than in the head of
+whoever is running it. Additive schema first, deploy, backfill last.
+
+## 2026-09-03 — `injected env (0)` is the tell for a worktree database command
+
+`prisma.config.ts` resolves `.env.local` against the current directory, and
+`.env.local` is gitignored so it exists only in the main checkout. Run a Prisma
+command from a worktree and `resolveDatabaseUrl()` silently falls back to
+`localhost:5432`, producing `P1001 Can't reach database server` — which names
+the wrong problem entirely. The database is fine; Prisma never learned its
+address. The `injected env (0)` line above the error is the actual diagnosis.
+
+Fix without moving anything: run from the main checkout and point `--file` at
+the worktree path.
+
+## 2026-09-03 — Collapsing role lists into permissions silently widens access
+
+Rewriting `assertAuthorized(session, [ROLES.X])` into
+`assertHasPermission(session, PERMISSIONS.Y)` looks like a refactor and is not one. Two settings
+guards sat at *different* levels — `updateShelterSettings` was `[ADMIN]`, `sendTestEmailAction` was
+`[ADMIN, COORDINATOR]` — and mapping both onto one permission handed the coordinator the shelter's
+Resend and storage credentials. Before replacing a role list with a permission, diff the old
+allow-list against the new permission's holder set, per call site. `git show <base>:<file>` is the
+source of truth for what the guard used to be, not memory.
+
+## 2026-09-03 — A client `useState` copy of server data is a duplicated source of truth
+
+The members table seeded `useState` from an `initialMembers` prop, so the server and the client each
+believed they owned the roster. Every symptom — an extra round-trip, reconciliation code, a
+staleness window — came from that one decision. `revalidatePath` in a Server Action already
+re-renders the route and ships new props in the same response, but client state is *preserved*
+across that re-render, so the copy silently shadowed them. Deleting the copy deleted all of it.
+Server owns data, client owns view state.
+
+## 2026-09-03 — A client-side layout gate says nothing about what the payload contains
+
+`/admin/pets` is a Server Component calling an unguarded `getAdminPets()`. The admin layout renders
+a spinner until its session effect resolves, so the table never appeared — but server-component
+output is serialised into the RSC flight payload regardless, and an anonymous request received the
+whole inventory: 75,453 bytes with `applicationCount`, `rescueStory` and pet names. When adding
+authorization anywhere, enumerate every sibling entry point. "The UI does not render it" is not a
+boundary.
+
+## 2026-09-03 — Mutation-test the fix, not just the feature
+
+Removing a raw-error leak felt obviously right, so it shipped without a test. Reintroducing the
+defect proved it: the suite stayed green. Any security fix that a reintroduced defect does not break
+is undefended. Six defects were re-injected on this branch; five failed loudly, one did not, and
+that one was the bug in the test suite.
+
+## 2026-09-03 — Read the bundled Next docs before proposing a framework fix
+
+Three conclusions from a careful self-review were wrong, and `node_modules/next/dist/docs/`
+overturned all three: the post-mutation refetch fix was backwards; branching on the `RSC` header in
+`proxy` is impossible because Next strips those headers on purpose; and
+`NextResponse.rewrite(url, { status })` silently drops the status. This is a modified Next.js —
+general knowledge of Next is not evidence about it.
+## 2026-09-03 — A server action is a public POST endpoint, and reads leak too
+
+Three actions in the donation QR work shipped reachable without a session.
+`loadShelterSettings` and `getShelterSettings` each returned the whole settings
+object — `resendApiKey` included — in a module that already redacted that same
+key before it reached `audit_logs`. `getAdminPets` returned archived animals and
+per-pet application counts. All three were framed as read helpers, which is why
+the authorization reflex never fired: it fires on mutations.
+
+Fixing one and missing its identical twin beside it is the argument for a guard
+rather than a patch. `tests/unit/serverActionAuth.test.ts` now requires every
+exported action to authorize or sit in an allowlist with a stated reason.
+
+**Gating is not always the fix.** Two of the three were better deleted than
+gated: one had no production caller, and `getAdminPets` only needed to stop
+being an action — its caller is a prerendered server component, so an
+authorization throw would have broken the build. Check who calls it first.
+
+## 2026-09-03 — "It rendered" is not correctness when the artifact looks valid
+
+`qrcode-generator`'s default byte mode is `charCodeAt(i) & 0xff`. An em dash
+encodes as byte `0x14`. It does not throw — it emits a perfectly scannable QR
+carrying a corrupted payment string, so a donor scans a valid code and the money
+goes nowhere.
+
+Test encoders with non-ASCII input specifically, and cap payload length in
+encoded bytes rather than UTF-16 units: QR capacity is a byte budget.
+
+## 2026-09-03 — Making a field persist can turn a harmless bug destructive
+
+The admin settings form seeds from a `localStorage`-backed store. That was
+survivable while `updateShelterSettings` wrote to a module-level variable —
+nothing persisted, so nothing could be lost. The moment the QR fields reached
+real columns, a second admin on a browser that had never uploaded them would
+open the page with empty inputs and blank the saved codes on save.
+
+When you make a field persist, audit every path that *seeds* the form. A
+previously write-only field has no loading path, and the absence is invisible
+until it deletes something.
+
+## 2026-09-03 — Persisted-but-unrendered data is a promise you have not kept
+
+`tngQrUrl` and `bankQrUrl` shipped with a column, a validator, provider context
+and a working upload control, and nothing that displayed them. The admin field
+said "not yet shown to donors", but the upload succeeded and the image landed in
+Postgres, so the interface still said "this works".
+
+A field the user can fill in is a claim that filling it does something. Either
+wire it end to end or do not ship the input; a caveat in help text does not
+cancel a working button.
+
+## 2026-09-03 — Tailwind cannot build a class name from a variable
+
+The QR panel needed a per-channel accent colour. `` border-[${accent}] `` compiles,
+renders, and produces no style at all — the JIT only sees class names that appear
+literally in the source. Use an inline `style` for a colour that varies at
+runtime, and point it at a CSS custom property so `globals.css` stays the single
+source of truth rather than growing a second copy of the hex.
+
+## 2026-09-03 — A long-lived branch stops being a merge and becomes a port
+
+The QR branch was cut before `src/lib` was reorganised into `client/`, `server/`
+and `presentation/`. By the time it was ready, `serverStore.ts` had been deleted
+and split into repositories, and a second session had built
+`server/settingsRepository.ts` doing the same job as its `domain/shelterSettings.ts`.
+Merging would have resurrected deleted files and shipped two settings layers.
+
+Rebuilding the feature on top of `origin/master` and re-applying each change was
+the cheaper and safer path. The signal to stop merging and start porting is a
+`modify/delete` conflict on a file the branch depends on. Read the other
+session's notes before assuming your version is the one to keep — the guidance
+here had already moved on from "keep master's".
+
+
 ## 2026-08-30 — Check the platform before hand-rolling a mechanism that sounds generic
 
 Spent a long session building a multi-session coordination protocol for the Midwife agent: claim
@@ -319,6 +741,30 @@ inference from two measured facts is still an inference, and it inherits the evi
 weakest link, not the strongest. If a rejected option would make the work unnecessary, the cost of
 testing it is the cheapest thing on the table.
 
+---
+
+## Read the branch you are merging into before you build on the one you left
+
+**2026-09-03.** A sponsorship feature was built against `9799dfe`. By the time it was ready,
+`feature/frontend` had merged: 343 files, +40,606 lines. The branch had independently grown its own
+`money.ts`, its own receipt-number generator, its own donation ledger and its own copy of the LHDN
+constants — all four of which already existed on master, better. Its receipt numbers were random
+4-digit draws against master's gapless `ReceiptSequence`, so merging would have put two allocators
+on one series.
+
+A `git rebase` would have merged the duplication in and reported success. What caught it was
+reading master's `tasks/decisions/` and its schema *before* resolving a single conflict.
+
+**Rule:** when a branch has been open long enough that master moved, the first step is not `rebase`,
+it is `git log --stat base..origin/master` and reading the decision records. Rebase resolves text;
+it has no opinion about whether your module is now the second copy of something. Ask "what exists on
+master now that I would not write today?" and delete rather than merge it.
+
+**Corollary — check the baseline is green before you claim a regression is yours or isn't.**
+`npm test` on that clean master failed 4 tests, from a `chore(ui):` commit that moved one colour
+token and pushed text contrast under WCAG AA. Without that measurement, any failure after the rebase
+would have been attributed to the feature.
+
 ## 2026-09-01 — A named external standard outranks the repo's habit, and the corpus is not the spec
 
 Asked for commit guidelines from Chris Beams' seven rules, the first move was to measure this
@@ -556,3 +1002,4 @@ The wrong conclusion was about to send a correct fix to the wrong branch.
 ask the tree — `git ls-tree -r --name-only <ref> | grep -x '<path>'` — never the ignore machinery
 and never `git status`. When a peer reports a repository fact, re-derive it before acting: this one
 was three commands, and two of the three claims did not survive.
+

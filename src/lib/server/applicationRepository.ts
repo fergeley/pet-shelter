@@ -62,32 +62,38 @@ export function getServerApplications(): AdoptionApplicationRecord[] {
   return serverApplications;
 }
 
+function mapDbApplicationToRecord(a: DbApplicationRecord): AdoptionApplicationRecord {
+  return {
+    id: a.id,
+    petId: a.petId || "",
+    petName: a.petName,
+    petBreed: a.petBreed || undefined,
+    applicantName: a.applicantName,
+    email: a.email,
+    phone: a.phone,
+    address: a.address,
+    housingType: a.housingType,
+    hasFencedYard: a.hasFencedYard,
+    currentPets: a.currentPets,
+    currentPetDetails: a.currentPetDetails || undefined,
+    householdExperience: a.householdExperience,
+    applicantNotes: a.applicantNotes || undefined,
+    status: a.status as ApplicationStatus,
+    adminReviewNotes: a.adminReviewNotes || undefined,
+    createdAt: a.createdAt.toString().split("T")[0],
+    updatedAt: a.updatedAt.toString().split("T")[0],
+  };
+}
+
 export async function getServerApplicationsAsync(): Promise<AdoptionApplicationRecord[]> {
   if (isDatabasePersistent()) {
     try {
       const dbApps = await prisma.adoptionApplication.findMany({
         orderBy: { createdAt: "desc" },
       });
-      return (dbApps as unknown as DbApplicationRecord[]).map((a: DbApplicationRecord) => ({
-        id: a.id,
-        petId: a.petId || "",
-        petName: a.petName,
-        petBreed: a.petBreed || undefined,
-        applicantName: a.applicantName,
-        email: a.email,
-        phone: a.phone,
-        address: a.address,
-        housingType: a.housingType,
-        hasFencedYard: a.hasFencedYard,
-        currentPets: a.currentPets,
-        currentPetDetails: a.currentPetDetails || undefined,
-        householdExperience: a.householdExperience,
-        applicantNotes: a.applicantNotes || undefined,
-        status: a.status as ApplicationStatus,
-        adminReviewNotes: a.adminReviewNotes || undefined,
-        createdAt: a.createdAt.toString().split("T")[0],
-        updatedAt: a.updatedAt.toString().split("T")[0],
-      }));
+      const mapped = (dbApps as unknown as DbApplicationRecord[]).map(mapDbApplicationToRecord);
+      serverApplications = mapped;
+      return mapped;
     } catch (err) {
       handlePersistenceError("Prisma applications query", err, "read");
       return serverApplications;
@@ -101,7 +107,29 @@ export function findServerApplicationById(id: string): AdoptionApplicationRecord
   return serverApplications.find((a) => a.id.toLowerCase() === norm) || null;
 }
 
+export async function findServerApplicationByIdAsync(id: string): Promise<AdoptionApplicationRecord | null> {
+  const cached = findServerApplicationById(id);
+  if (cached) return cached;
+
+  if (isDatabasePersistent()) {
+    try {
+      const dbApp = await prisma.adoptionApplication.findUnique({ where: { id } });
+      if (dbApp) {
+        const mapped = mapDbApplicationToRecord(dbApp as unknown as DbApplicationRecord);
+        serverApplications.push(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      handlePersistenceError("Prisma find application by id", err, "read");
+    }
+  }
+
+  return null;
+}
+
 export async function insertServerApplication(newApp: AdoptionApplicationRecord): Promise<void> {
+  serverApplications = [newApp, ...serverApplications.filter((a) => a.id !== newApp.id)];
+
   if (isDatabasePersistent()) {
     try {
       await prisma.adoptionApplication.create({
@@ -126,10 +154,7 @@ export async function insertServerApplication(newApp: AdoptionApplicationRecord)
       });
     } catch (err) {
       handlePersistenceError("Prisma application creation", err, "write");
-      serverApplications = [newApp, ...serverApplications];
     }
-  } else {
-    serverApplications = [newApp, ...serverApplications];
   }
 
   recordAuditLog({
@@ -153,7 +178,14 @@ export async function atomicUpdateApplicationStatus(
   notes: string | undefined,
   actor: SessionUser
 ): Promise<{ success: boolean; error?: string }> {
-  const appIndex = serverApplications.findIndex((a) => a.id === applicationId);
+  let appIndex = serverApplications.findIndex((a) => a.id === applicationId);
+  if (appIndex === -1 && isDatabasePersistent()) {
+    const fetched = await findServerApplicationByIdAsync(applicationId);
+    if (fetched) {
+      appIndex = serverApplications.findIndex((a) => a.id === applicationId);
+    }
+  }
+
   if (appIndex === -1) {
     return { success: false, error: "Application not found" };
   }
@@ -275,19 +307,28 @@ export async function atomicUpdateApplicationStatus(
 }
 
 export async function deleteServerApplication(id: string, actor: SessionUser): Promise<boolean> {
-  const index = serverApplications.findIndex((a) => a.id === id);
-  if (index === -1) return false;
+  let removed = serverApplications.find((a) => a.id === id);
 
-  const removed = serverApplications[index];
-  serverApplications = serverApplications.filter((a) => a.id !== id);
+  if (isDatabasePersistent()) {
+    try {
+      if (!removed) {
+        removed = (await findServerApplicationByIdAsync(id)) || undefined;
+      }
 
-  try {
-    await prisma.adoptionApplication.delete({
-      where: { id },
-    });
-  } catch (err) {
-    handlePersistenceError("Prisma application delete", err, "write");
+      if (!removed) return false;
+
+      await prisma.adoptionApplication.delete({
+        where: { id },
+      });
+    } catch (err) {
+      handlePersistenceError("Prisma application delete", err, "write");
+      if (!removed) return false;
+    }
+  } else {
+    if (!removed) return false;
   }
+
+  serverApplications = serverApplications.filter((a) => a.id !== id);
 
   recordAuditLog({
     actorId: actor.id,

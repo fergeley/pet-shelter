@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   HeartHandshake,
   CheckCircle2,
+  Users,
   Star,
   MapPin,
   CalendarDays,
@@ -34,6 +35,7 @@ import {
 import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
 import { PetStatusIcon } from "./PetStatusIcon";
 import { usePetDetailViewController, PetDetailTab } from "@/hooks/usePetDetailViewController";
+import { formatMYR } from "@/lib/domain/money";
 
 interface PetDetailViewProps {
   initialPet: Pet;
@@ -53,8 +55,17 @@ export function PetDetailView(props: PetDetailViewProps) {
   isSponsorshipOpen,
   copiedLink,
   waUrl,
+  sponsorshipSummary,
+  showSocialProof,
+  isFullySponsored,
   } = state;
-  const { setActiveTab, setIsAdoptionOpen, setIsSponsorshipOpen, handleShare } = handlers;
+  const {
+    setActiveTab,
+    setIsAdoptionOpen,
+    setIsSponsorshipOpen,
+    handleShare,
+    refreshSponsorship,
+  } = handlers;
 
   const isInRehabilitation = statusPresentation.isInRehabilitation;
   const rehabStage = isInRehabilitation ? getRehabStageLabel(pet, isMs) : undefined;
@@ -236,15 +247,91 @@ export function PetDetailView(props: PetDetailViewProps) {
                 {t("petDetail.whatsAppUs", "WhatsApp Us")}
               </a>
 
-              <Button
-              variant="outline"
-              onClick={() => setIsSponsorshipOpen(true)}
-              className="w-full text-xs font-bold gap-1.5 py-3 cursor-pointer rounded-xl"
-              >
-                <HeartHandshake className="size-4" />
-                {t("petDetail.sponsorCare", "Sponsor Care")}
-              </Button>
+              {/* Once the care programme is funded the primary action points
+                  visitors at animals who still need one. Giving is never blocked
+                  outright, only de-emphasised — see "sponsor anyway" below. */}
+              {isFullySponsored ? (
+                <Link
+                  href="/pets"
+                  className={buttonVariants({
+                    variant: "outline",
+                    className:
+                      "w-full text-xs font-bold uppercase tracking-wider gap-1.5 py-3 rounded-xl",
+                  })}
+                >
+                  <CheckCircle2 className="size-4" />
+                  {t("petDetail.fullySponsored", "Fully Sponsored — View Others")}
+                </Link>
+              ) : (
+                <Button
+                  onClick={() => setIsSponsorshipOpen(true)}
+                  className="w-full text-xs sm:text-sm font-bold uppercase tracking-wider gap-1.5 py-3 cursor-pointer rounded-xl bg-care-solid text-care-on-solid hover:bg-care-accent"
+                >
+                  <HeartHandshake className="size-4" />
+                  {t("petDetail.sponsorCare", "Sponsor Care")}
+                </Button>
+              )}
             </div>
+
+            {/* Social proof. Shown only once a payment has been reconciled:
+                "sponsored by 0 supporters" is worse than silence, and an
+                unreconciled pledge is a stranger's claim on a public form. */}
+            {sponsorshipSummary && (showSocialProof || isFullySponsored) && (
+              <div className="space-y-2 pb-1">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+                  {showSocialProof && (
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                      <Users className="size-3.5 text-care-accent" />
+                      {sponsorshipSummary.supporterCount === 1
+                        ? t(
+                            "petDetail.sponsoredByOneSupporter",
+                            "Currently sponsored by 1 supporter"
+                          )
+                        : t(
+                            "petDetail.sponsoredBySupporters",
+                            "Currently sponsored by {count} supporters",
+                            { count: sponsorshipSummary.supporterCount }
+                          )}
+                    </span>
+                  )}
+
+                  <span className="text-muted-foreground">
+                    {t("petDetail.fundingProgress", "{funded} of {goal} raised for care", {
+                      funded: formatMYR(sponsorshipSummary.fundedSen),
+                      goal: formatMYR(sponsorshipSummary.goalSen),
+                    })}
+                  </span>
+
+                  {isFullySponsored && (
+                    <button
+                      type="button"
+                      onClick={() => setIsSponsorshipOpen(true)}
+                      className="underline underline-offset-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      {t("petDetail.sponsorAnyway", "Sponsor anyway")}
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className="h-1.5 w-full bg-muted rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={sponsorshipSummary.progressPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={t(
+                    "petDetail.fundingProgressLabel",
+                    "{percent}% of care costs funded",
+                    { percent: sponsorshipSummary.progressPercent }
+                  )}
+                >
+                  <div
+                    className={`h-full rounded-full ${isFullySponsored ? "bg-success-accent" : "bg-care-accent"}`}
+                    style={{ width: `${sponsorshipSummary.progressPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* 4-Part Tabbed Navigation Bar (FE-05) */}
             <div className="border-b border-border">
@@ -650,7 +737,13 @@ export function PetDetailView(props: PetDetailViewProps) {
       {/* Sponsorship Modal */}
       <SponsorshipModal
         open={isSponsorshipOpen}
-        onOpenChange={setIsSponsorshipOpen}
+        onOpenChange={(open) => {
+          setIsSponsorshipOpen(open);
+          // A commitment made in this session is still pending, so the counter
+          // will not move for it — but another coordinator may have reconciled
+          // one meanwhile, and this is the only refresh point short of a reload.
+          if (!open) refreshSponsorship();
+        }}
         targetPet={pet}
       />
     </div>

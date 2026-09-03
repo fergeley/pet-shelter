@@ -1,4 +1,29 @@
 import * as z from "zod";
+import {
+  optionalQrImageUrl,
+  optionalUploadedImageUrl,
+  uploadedImageUrl,
+} from "@/lib/validations/qrImage";
+
+/**
+ * Notification options passed alongside a pet update.
+ *
+ * Server Action arguments are untrusted input. `data` goes through
+ * `petFormSchema`; this parameter must not skip validation, because an
+ * arbitrarily long caption would be embedded in every supporter email and
+ * serialised into the audit metadata column. The 280 limit matches the
+ * textarea's `maxLength`.
+ */
+export const photoNotificationSchema = z.object({
+  notifySponsors: z.boolean().optional(),
+  caption: z
+    .string()
+    .trim()
+    .max(280, "Caregiver note must be under 280 characters")
+    .optional(),
+});
+
+export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
 
 import { MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
@@ -87,7 +112,7 @@ export const petUpdateSchema = z.object({
   titleMs: z.string().min(1, "Update title (BM) cannot be blank").optional(),
   content: z.string().min(1, "Update content is required"),
   contentMs: z.string().min(1, "Update content (BM) cannot be blank").optional(),
-  image: z.string().url("Please provide a valid image URL").optional(),
+  image: optionalUploadedImageUrl,
   category: z.enum(PET_UPDATE_CATEGORY_VALUES).optional(),
 });
 
@@ -141,11 +166,14 @@ export const petBaseFormSchema = z.object({
   adoptionFee: z.string().min(1, "Adoption fee is required (e.g. 'Free')"),
   description: z.string().min(10, "Please provide at least a brief description (10+ characters)"),
   rescueStory: z.string().min(10, "Please provide the rescue background story"),
-  image: z.string().url("Please provide a valid image URL"),
-  galleryImages: z.array(z.string().url()).optional().default([]),
+  image: uploadedImageUrl,
+  galleryImages: z.array(uploadedImageUrl).optional().default([]),
   tags: z.array(z.string()).min(1, "Please provide at least 1 characteristic tag"),
   featured: z.boolean().default(false),
   intakeDate: z.string().min(4, "Intake date is required"),
+
+  /// Dedicated donation QR for this animal's medical fund drive.
+  customQrUrl: optionalQrImageUrl,
   birthDate: z.string().optional(),
   birthDateIsEstimate: z.boolean().optional().default(true),
   

@@ -16,8 +16,8 @@ import {
   PublicInterviewDetails,
 } from "@/lib/validations/applicationTracking";
 import { AdoptionApplicationRecord } from "@/types/application";
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { getVerifiedSession } from "@/lib/security/dal";
+import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { withIdempotency } from "@/lib/security/idempotency";
 import {
@@ -26,6 +26,7 @@ import {
   atomicUpdateApplicationStatus,
   deleteServerApplication,
   findServerApplicationById,
+  findServerApplicationByIdAsync,
 } from "@/lib/server/applicationRepository";
 import { findServerPetById } from "@/lib/server/petRepository";
 import {
@@ -37,8 +38,8 @@ import {
 import { recordAuditLog } from "@/lib/domain/auditLog";
 
 export async function getApplications(): Promise<AdoptionApplicationRecord[]> {
-  const session = await getCurrentSession();
-  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR, ROLES.STAFF]);
+  const session = await getVerifiedSession();
+  assertHasPermission(session, PERMISSIONS.VIEW_APPLICATIONS);
 
   return getServerApplicationsAsync();
 }
@@ -118,11 +119,11 @@ export async function updateApplicationStatus(
   input: UpdateApplicationStatusInput
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
 
     const validated = updateApplicationStatusSchema.parse(input);
-    const existingApp = findServerApplicationById(validated.id);
+    const existingApp = (await findServerApplicationByIdAsync(validated.id)) || findServerApplicationById(validated.id);
 
     const result = await atomicUpdateApplicationStatus(
       validated.id,
@@ -170,11 +171,11 @@ export async function scheduleApplicationInterview(
   input: ScheduleInterviewInput
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.REVIEW_APPLICATIONS);
 
     const validated = scheduleInterviewSchema.parse(input);
-    const app = findServerApplicationById(validated.applicationId);
+    const app = (await findServerApplicationByIdAsync(validated.applicationId)) || findServerApplicationById(validated.applicationId);
 
     if (!app) {
       return { success: false, error: "Application not found" };
@@ -248,8 +249,8 @@ export async function scheduleApplicationInterview(
 
 export async function deleteApplication(id: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const session = await getCurrentSession();
-    assertAuthorized(session, [ROLES.ADMIN]);
+    const session = await getVerifiedSession();
+    assertHasPermission(session, PERMISSIONS.DELETE_APPLICATIONS);
 
     const ok = await deleteServerApplication(id, session);
     if (!ok) {
@@ -287,7 +288,7 @@ export async function lookupApplicationStatusAction(
     }
 
     // 2. Query application by ID
-    const app = findServerApplicationById(validated.referenceId);
+    const app = (await findServerApplicationByIdAsync(validated.referenceId)) || findServerApplicationById(validated.referenceId);
     if (!app || app.email.trim().toLowerCase() !== validated.email) {
       return {
         success: false,

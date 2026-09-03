@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { LanguageProvider } from "@/components/providers/LanguageProvider";
+import { DonationQrProvider } from "@/components/providers/DonationQrProvider";
+import { getDonationQrConfig } from "@/lib/domain/donationQrConfig";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Analytics } from "@vercel/analytics/next";
@@ -52,11 +53,16 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Read once here so the client donation surfaces — two of which (Navbar,
+  // and the /donate page) live inside this layout — all see the same
+  // server-side QR configuration.
+  const donationQr = await getDonationQrConfig();
+
   return (
     <html
       lang="en"
@@ -69,10 +75,9 @@ export default function RootLayout({
         playfairDisplayHeading.variable
       )}
     >
-      <body className="min-h-full bg-frame text-foreground font-sans p-2.5 sm:p-5 md:p-8 lg:p-10">
-        <Script
+      <head>
+        <script
           id="theme-init"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
@@ -87,16 +92,20 @@ export default function RootLayout({
             `,
           }}
         />
+      </head>
+      <body className="m-0 min-h-full bg-frame text-foreground font-sans">
         <LanguageProvider defaultLanguage="en">
           <ThemeProvider defaultTheme="system" storageKey="hope_for_strays_theme">
-            {/* Centered Application Frame with Softer Gray Tones */}
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl border border-frame-border bg-frame-panel shadow-xs flex flex-col min-h-[calc(100vh-1.25rem)] sm:min-h-[calc(100vh-2.5rem)] md:min-h-[calc(100vh-4rem)]">
-              <Navbar />
-              <main className="flex-1 w-full">{children}</main>
-              <Footer />
-            </div>
-            <Analytics />
-            <SpeedInsights />
+            <DonationQrProvider value={donationQr}>
+              {/* Centered Application Frame with Softer Gray Tones */}
+              <div className="w-full border border-frame-border bg-frame-panel shadow-xs flex flex-col min-h-screen">
+                <Navbar />
+                <main className="flex-1 w-full">{children}</main>
+                <Footer />
+              </div>
+              <Analytics />
+              <SpeedInsights />
+            </DonationQrProvider>
           </ThemeProvider>
         </LanguageProvider>
       </body>

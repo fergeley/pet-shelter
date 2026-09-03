@@ -126,9 +126,9 @@ export function PetGallery({
             {t("common.sponsor", "Sponsor")}
           </Button>
 
-          <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
+          {/* <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
             {filteredPets.length} / {pets.length} {isMs ? "haiwan" : "animals"}
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -216,7 +216,7 @@ export function PetGallery({
           </div>
 
           {/* Secondary Dropdown Selects */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-3 border-t border-border/60">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3.5 pt-3 border-t border-border/60">
             <div>
               <label htmlFor="filter-age" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
                 {t("pets.ageFilter", "Age Group")}
@@ -270,7 +270,7 @@ export function PetGallery({
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end">
+            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end min-w-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -278,7 +278,7 @@ export function PetGallery({
                   setActivePetForAdoption(filteredPets[0] || pets[0]);
                   setIsAdoptionOpen(true);
                 }}
-                className="w-full text-sm font-semibold py-2 focus-visible:ring-2 cursor-pointer"
+                className="w-full min-w-0 whitespace-nowrap text-2xs sm:text-xs font-semibold px-3 py-2 focus-visible:ring-2 cursor-pointer"
               >
                 {t("common.apply", "Adoption Form")}
               </Button>
@@ -289,8 +289,14 @@ export function PetGallery({
 
       {/* Grid */}
       {filteredPets.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-stretch">
-          {filteredPets.map((pet) => (
+        <div
+          className={
+            featuredOnly
+              ? "grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 items-stretch"
+              : "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 items-stretch"
+          }
+        >
+          {(featuredOnly ? filteredPets.slice(0, 4) : filteredPets).map((pet) => (
             <PetCard
               key={pet.id}
               pet={pet}

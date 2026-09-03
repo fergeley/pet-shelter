@@ -18,7 +18,8 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
     resetToDefaultApplications,
   } = useApplicationStore();
 
-  const applications = initialApplications || storeApplications;
+  const [localApplications, setLocalApplications] = useState<AdoptionApplicationRecord[] | null>(null);
+  const applications = localApplications || initialApplications || storeApplications;
 
   const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -46,13 +47,26 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
 
   const handleQuickStatus = (id: string, nextStatus: ApplicationStatus) => {
     setStatusError(null);
+    const prevApplications = applications;
     const res = updateApplicationStatus(id, nextStatus);
     if (res && !res.success) {
       setStatusError(res.error || "Failed to update application status.");
     } else {
-      serverUpdateStatus({ id, status: nextStatus }).catch((err) =>
-        console.warn("Background server action sync:", err)
+      setLocalApplications((prev) =>
+        (prev || applications).map((app) => (app.id === id ? { ...app, status: nextStatus } : app))
       );
+      serverUpdateStatus({ id, status: nextStatus })
+        .then((serverRes) => {
+          if (serverRes && !serverRes.success) {
+            setLocalApplications(prevApplications);
+            setStatusError(serverRes.error || "Failed to update application status.");
+          }
+        })
+        .catch((err) => {
+          console.warn("Background server action sync:", err);
+          setLocalApplications(prevApplications);
+          setStatusError(err instanceof Error ? err.message : "Failed to update application status.");
+        });
     }
   };
 
@@ -62,27 +76,61 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
     notes: string,
     notifyApplicant = true
   ) => {
+    setStatusError(null);
+    const prevApplications = applications;
     const res = updateApplicationStatus(id, status, notes);
     if (res && res.success) {
-      serverUpdateStatus({ id, status, adminReviewNotes: notes, notifyApplicant }).catch((err) =>
-        console.warn("Background server update sync:", err)
+      setLocalApplications((prev) =>
+        (prev || applications).map((app) =>
+          app.id === id ? { ...app, status, adminReviewNotes: notes } : app
+        )
       );
+      serverUpdateStatus({ id, status, adminReviewNotes: notes, notifyApplicant })
+        .then((serverRes) => {
+          if (serverRes && !serverRes.success) {
+            setLocalApplications(prevApplications);
+            setStatusError(serverRes.error || "Failed to update application status.");
+          }
+        })
+        .catch((err) => {
+          console.warn("Background server update sync:", err);
+          setLocalApplications(prevApplications);
+          setStatusError(err instanceof Error ? err.message : "Failed to update application status.");
+        });
     }
     return res;
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteCandidate) {
-      deleteApplication(deleteCandidate.id);
-      serverDeleteApplication(deleteCandidate.id).catch((err) =>
-        console.warn("Background server delete sync:", err)
-      );
+      setStatusError(null);
+      const candidateId = deleteCandidate.id;
+      const prevApplications = applications;
+
+      deleteApplication(candidateId);
+      setLocalApplications((prev) => (prev || applications).filter((app) => app.id !== candidateId));
       setDeleteCandidate(null);
+
+      try {
+        const res = await serverDeleteApplication(candidateId);
+        if (res && !res.success) {
+          setLocalApplications(prevApplications);
+          setStatusError(res.error || "Failed to delete application.");
+        }
+      } catch (err) {
+        setLocalApplications(prevApplications);
+        setStatusError(err instanceof Error ? err.message : "Failed to delete application.");
+      }
     }
   };
 
   const handleExportCsv = () => {
     exportApplicationsToCsv(filteredData);
+  };
+
+  const handleReset = () => {
+    resetToDefaultApplications();
+    setLocalApplications(null);
   };
 
   return {
@@ -109,7 +157,7 @@ export function useApplicationTableController(initialApplications?: AdoptionAppl
       handleUpdateStatusWithNotes,
       confirmDelete,
       handleExportCsv,
-      resetToDefaultApplications,
+      resetToDefaultApplications: handleReset,
     },
   };
 }

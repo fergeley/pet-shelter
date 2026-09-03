@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/client/petStore";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
+import { usePetSponsorshipSummary } from "@/hooks/usePetSponsorshipSummary";
+import { shouldShowSocialProof } from "@/lib/domain/petSponsorship";
 
 export type PetDetailTab = "about" | "status" | "updates" | "support";
 
@@ -59,6 +61,14 @@ export function usePetDetailViewController({ initialPet, initialTab = "about" }:
     }
   };
 
+  // Loaded after mount: this profile is prerendered, so a figure read during
+  // render would be frozen at build time.
+  const { summary: sponsorshipSummary, refresh: refreshSponsorship } =
+    usePetSponsorshipSummary(pet.id);
+
+  const showSocialProof = sponsorshipSummary ? shouldShowSocialProof(sponsorshipSummary) : false;
+  const isFullySponsored = sponsorshipSummary?.isFullyFunded ?? false;
+
   return {
     state: {
       pet,
@@ -70,12 +80,16 @@ export function usePetDetailViewController({ initialPet, initialTab = "about" }:
       isSponsorshipOpen,
       copiedLink,
       waUrl,
+      sponsorshipSummary,
+      showSocialProof,
+      isFullySponsored,
     },
     handlers: {
       setActiveTab,
       setIsAdoptionOpen,
       setIsSponsorshipOpen,
       handleShare,
+      refreshSponsorship,
     },
   };
 }

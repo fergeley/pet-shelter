@@ -1,4 +1,8 @@
 import { PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
+// Read through the repository, not @/actions/settings: importing a "use server"
+// export here would register it as a POST-reachable endpoint on this public route.
+import { getServerSettingsAsync } from "@/lib/server/settingsRepository";
+import { isUsableFormUrl } from "@/lib/volunteerFormUrl";
 import { Metadata } from "next";
 import {
   Users,
@@ -11,6 +15,7 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -20,7 +25,20 @@ export const metadata: Metadata = {
     "Join the mission to stabilize and protect community animals across UM and Petaling Jaya. Volunteer for TNRM shifts, foster recovering rescues, arrange corporate CSR days, or partner as a veterinary clinic.",
 };
 
-export default function GetInvolvedPage() {
+/**
+ * Rendered per request so a volunteer form URL saved in /admin/settings is reflected
+ * on the CTA immediately, without waiting for a rebuild.
+ */
+export const dynamic = "force-dynamic";
+
+export default async function GetInvolvedPage() {
+  const settings = await getServerSettingsAsync();
+  // "" when unset, still the shipped placeholder, or not an http(s) URL. Keeping an
+  // unusable value out of the render means visitors get the WhatsApp fallback rather
+  // than a dead primary button, and the placeholder never reaches the RSC payload.
+  const rawFormUrl = settings.volunteerFormUrl ?? "";
+  const volunteerFormUrl = isUsableFormUrl(rawFormUrl) ? rawFormUrl : "";
+
   return (
     <main className="min-h-screen bg-background pb-24">
       {/* Hero Banner */}
@@ -101,18 +119,53 @@ export default function GetInvolvedPage() {
             </div>
           </div>
 
-          <div className="pt-2">
-            <a
-              href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20would%20like%20to%20register%20as%20a%20volunteer%20for%20weekend%20shifts!"
-              target="_blank"
-              rel="noopener noreferrer"
-              className={buttonVariants({
-                className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-success-solid text-white hover:bg-success-solid",
-              })}
-            >
-              <MessageCircle className="size-4" />
-              WhatsApp Volunteer Coordinator
-            </a>
+          <div className="pt-2 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              {volunteerFormUrl ? (
+                <a
+                  href={volunteerFormUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="volunteer-apply-cta"
+                  className={buttonVariants({
+                    className: "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl",
+                  })}
+                >
+                  <ExternalLink className="size-4" />
+                  Apply to Volunteer (Google Form)
+                </a>
+              ) : (
+                <p
+                  data-testid="volunteer-form-unconfigured"
+                  className="text-xs sm:text-sm text-muted-foreground border border-dashed border-border rounded-xl px-4 py-3"
+                >
+                  Our online application form is being set up. In the meantime, message
+                  our coordinator on WhatsApp.
+                </p>
+              )}
+
+              <a
+                href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20would%20like%20to%20register%20as%20a%20volunteer%20for%20weekend%20shifts!"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="volunteer-whatsapp-cta"
+                className={buttonVariants({
+                  variant: volunteerFormUrl ? "outline" : "default",
+                  className: volunteerFormUrl
+                    ? "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl"
+                    : "gap-2 text-xs font-bold uppercase tracking-wider rounded-xl bg-success-solid text-white hover:bg-success-solid",
+                })}
+              >
+                <MessageCircle className="size-4" />
+                WhatsApp Volunteer Coordinator
+              </a>
+            </div>
+
+            {volunteerFormUrl && (
+              <p className="text-xs text-muted-foreground">
+                Minimum age 18. The form opens in a new tab and is hosted on Google Forms.
+              </p>
+            )}
           </div>
         </section>
 

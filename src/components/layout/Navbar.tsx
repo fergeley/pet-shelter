@@ -16,6 +16,7 @@ import {
   HandHeart,
   Stethoscope,
   Sparkles,
+  Award,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/providers/ThemeToggle";
@@ -64,6 +65,14 @@ export function Navbar() {
 
   const getInvolvedLinks = [
     {
+      href: "/sponsors",
+      label: isMs ? "Dinding Penaja Awam" : "Public Sponsor Wall",
+      desc: isMs
+        ? "Penyokong Gangsa, Perak & Emas kami"
+        : "Our Bronze, Silver & Gold supporters",
+      icon: Award,
+    },
+    {
       href: "/get-involved#volunteer",
       label: isMs ? "Sukarelawan Santuari & TNRM" : "Volunteer & Field Shifts",
       desc: isMs ? "Tugas berjalan, sanitasi sangkar & operasi lapangan" : "Dog walking, shelter care & field trapping",
@@ -96,7 +105,7 @@ export function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 focus-visible:ring-2">
             <div className="flex size-9 items-center justify-center overflow-hidden rounded-mark bg-brand-mark text-primary-foreground shadow-brand-sm ring-1 ring-brand-mark-ring">
-              <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" priority />
+              <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={36} height={36} className="h-full w-full object-cover" style={{ width: "auto", height: "auto" }} priority />
             </div>
             <div className="flex flex-col">
               <span className="font-heading text-base sm:text-lg font-bold tracking-tight text-foreground leading-tight">
@@ -120,14 +129,6 @@ export function Navbar() {
               }`}
             >
               {isMs ? "Haiwan Kami" : "Meet Our Animals"}
-            </Link>
-
-            {/* Top Level: Our Work */}
-            <Link
-              href="/#our-work"
-              className="text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {isMs ? "Misi TNRM" : "Our Work"}
             </Link>
 
             {/* Dropdown: Adoption */}
@@ -220,19 +221,7 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Top Level: Rehab Needs */}
-            <Link
-              href="/needs"
-              className={`text-sm font-semibold transition-colors hover:text-foreground focus-visible:ring-2 ${
-                pathname === "/needs"
-                  ? "text-foreground border-b-2 border-foreground pb-0.5"
-                  : "text-muted-foreground"
-              }`}
-            >
-              {isMs ? "Keperluan Pemulihan" : "Rehab Needs"}
-            </Link>
-
-            {/* Top Level: Donate */}
+            {/* Top Level: Donate & Sponsor */}
             <Link
               href="/donate"
               className={`text-sm font-semibold transition-colors hover:text-foreground focus-visible:ring-2 ${
@@ -242,6 +231,18 @@ export function Navbar() {
               }`}
             >
               {isMs ? "Taja & Sumbang" : "Donate & Sponsor"}
+            </Link>
+
+            {/* Top Level: FAQ */}
+            <Link
+              href="/faq"
+              className={`text-sm font-semibold transition-colors hover:text-foreground focus-visible:ring-2 ${
+                pathname === "/faq"
+                  ? "text-foreground border-b-2 border-foreground pb-0.5"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {isMs ? "Soalan Lazim" : "FAQ"}
             </Link>
           </nav>
 
@@ -257,7 +258,7 @@ export function Navbar() {
               {isMs ? "Kuiz Keserasian" : "Match Quiz"}
             </Button>
 
-            <Button
+            {/* <Button
               variant="outline"
               size="sm"
               onClick={() => setIsSponsorshipOpen(true)}
@@ -265,7 +266,7 @@ export function Navbar() {
             >
               <HeartHandshake className="size-3.5" />
               {isMs ? "Taja Haiwan" : "Sponsor Care"}
-            </Button>
+            </Button> */}
 
             <LanguageToggle />
             <ThemeToggle />
@@ -297,7 +298,7 @@ export function Navbar() {
                 <SheetHeader>
                   <div className="flex items-center gap-2 mb-2">
                     <div className="flex size-7 items-center justify-center overflow-hidden rounded-md bg-primary/10 ring-1 ring-border">
-                      <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={28} height={28} className="h-full w-full object-cover" />
+                      <Image src="/android-icon-192x192.png" alt="Hope for Strays" width={28} height={28} className="h-full w-full object-cover" style={{ width: "auto", height: "auto" }} />
                     </div>
                     <SheetTitle className="font-heading text-base font-bold">Hope for Strays UM</SheetTitle>
                   </div>
@@ -342,22 +343,6 @@ export function Navbar() {
                     </Link>
 
                     <Link
-                      href="/#our-work"
-                      onClick={() => setIsMobileOpen(false)}
-                      className="block text-sm font-bold py-2 hover:text-primary transition-colors"
-                    >
-                      🛡️ {isMs ? "Misi & 3 Teras TNRM" : "Our Work & TNRM"}
-                    </Link>
-
-                    <Link
-                      href="/needs"
-                      onClick={() => setIsMobileOpen(false)}
-                      className="block text-sm font-bold py-2 hover:text-primary transition-colors"
-                    >
-                      📦 {isMs ? "Keperluan Rumah Pemulihan" : "Rehab House Wishlist"}
-                    </Link>
-
-                    <Link
                       href="/donate"
                       onClick={() => setIsMobileOpen(false)}
                       className="block text-sm font-bold py-2 hover:text-primary transition-colors"
@@ -374,9 +359,17 @@ export function Navbar() {
                     </Link>
 
                     <Link
-                      href="/applications/track"
+                      href="/faq"
                       onClick={() => setIsMobileOpen(false)}
                       className="block text-sm font-bold py-2 hover:text-primary transition-colors"
+                    >
+                      ❓ {isMs ? "Soalan Lazim" : "FAQ"}
+                    </Link>
+
+                    <Link
+                      href="/applications/track"
+                      onClick={() => setIsMobileOpen(false)}
+                      className="block text-sm font-bold py-2 hover:text-primary transition-colors border-t border-border/40 pt-3 mt-3"
                     >
                       🔍 {isMs ? "Semak Status Permohonan" : "Track Application"}
                     </Link>

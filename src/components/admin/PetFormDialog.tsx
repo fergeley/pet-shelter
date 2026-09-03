@@ -7,6 +7,8 @@ import { Pet, PetStatus } from "@/types/pet";
 import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
 import { normalizePetStatus, getAllowedPetStatusTransitions } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
+import { QrImageUpload } from "@/components/admin/QrImageUpload";
+import { QrPreviewDialog } from "@/components/admin/QrPreviewDialog";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, X, Loader2, Star } from "lucide-react";
+import { Plus, X, Loader2, Star, Eye, Send } from "lucide-react";
+import type { PhotoNotificationOptions } from "@/actions/pets";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
 
 /** Admin UI is English-only; the year range beside each name comes from the domain (PS-114). */
@@ -33,7 +36,7 @@ interface PetFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editingPet?: Pet | null;
-  onSave: (data: PetFormInput) => void;
+  onSave: (data: PetFormInput, notification?: PhotoNotificationOptions) => void;
 }
 
 export function PetFormDialog({
@@ -46,6 +49,9 @@ export function PetFormDialog({
   const [tags, setTags] = useState<string[]>(["Vaccinated", "House-Trained"]);
   const [primaryImage, setPrimaryImage] = useState<string | null>(null);
   const [galleryImages, setGalleryImages] = useState<Array<{ url: string; name: string; size: number }>>([]);
+  const [qrPreviewOpen, setQrPreviewOpen] = useState(false);
+  const [notifySponsors, setNotifySponsors] = useState(true);
+  const [caregiverCaption, setCaregiverCaption] = useState("");
 
   const {
     register,
@@ -73,6 +79,7 @@ export function PetFormDialog({
       tags: ["Vaccinated", "House-Trained"],
       featured: false,
       intakeDate: new Date().toISOString().split("T")[0],
+      customQrUrl: "",
       vaccinated: true,
       microchipped: true,
       spayedNeutered: true,
@@ -89,6 +96,11 @@ export function PetFormDialog({
 
   if (currentKey !== prevKey) {
     setPrevKey(currentKey);
+    // Reset alongside every other per-pet field. Without this, a caregiver note
+    // typed for one animal survives closing the dialog and would be emailed to a
+    // different animal's supporters.
+    setNotifySponsors(true);
+    setCaregiverCaption("");
     if (editingPet) {
       reset({
         name: editingPet.name,
@@ -110,6 +122,7 @@ export function PetFormDialog({
         tags: editingPet.tags,
         featured: editingPet.featured || false,
         intakeDate: editingPet.intakeDate,
+        customQrUrl: editingPet.customQrUrl || "",
         rehabStage: editingPet.rehabStage,
         rehabStageMs: editingPet.rehabStageMs,
         rehabProgressPercent: editingPet.rehabProgressPercent,
@@ -152,6 +165,7 @@ export function PetFormDialog({
         tags: ["Vaccinated", "Friendly"],
         featured: false,
         intakeDate: new Date().toISOString().split("T")[0],
+        customQrUrl: "",
         rehabStage: undefined,
         rehabStageMs: undefined,
         rehabProgressPercent: undefined,
@@ -209,6 +223,15 @@ export function PetFormDialog({
     }
   };
 
+  // Photos present in the form that are not already on the saved record. This is
+  // what decides whether supporters hear about this save at all — editing a
+  // description or reordering an existing gallery notifies nobody.
+  const existingGallery = editingPet?.galleryImages || [];
+  const newlyAddedPhotos = galleryImages
+    .map((img) => img.url)
+    .filter((url) => url && !existingGallery.includes(url));
+  const canNotifySponsors = Boolean(editingPet) && newlyAddedPhotos.length > 0;
+
   const onSubmit = async (data: PetFormInput) => {
     // Update with current image selections
     const finalData = {
@@ -217,7 +240,12 @@ export function PetFormDialog({
       galleryImages: galleryImages.map((img) => img.url),
     };
     await new Promise((r) => setTimeout(r, 400));
-    onSave(finalData as PetFormInput);
+    onSave(
+      finalData as PetFormInput,
+      canNotifySponsors
+        ? { notifySponsors, caption: caregiverCaption.trim() || undefined }
+        : undefined
+    );
     onOpenChange(false);
   };
 
@@ -449,6 +477,81 @@ export function PetFormDialog({
                   description="Add 3 more photos to showcase the pet from different angles"
                 />
               </div>
+
+              {canNotifySponsors && (
+                <div className="border border-border bg-muted/40 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <input
+                      id="notify-sponsors"
+                      type="checkbox"
+                      checked={notifySponsors}
+                      onChange={(e) => setNotifySponsors(e.target.checked)}
+                      className="mt-0.5 size-4 shrink-0 accent-primary cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label
+                        htmlFor="notify-sponsors"
+                        className="flex items-center gap-1.5 text-sm font-semibold text-foreground cursor-pointer"
+                      >
+                        <Send className="size-3.5" aria-hidden="true" />
+                        Notify active sponsors about this photo update
+                      </label>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                        {newlyAddedPhotos.length} new photo
+                        {newlyAddedPhotos.length === 1 ? "" : "s"} detected. Emails go only to
+                        this animal&apos;s reconciled sponsors on a qualifying tier who have
+                        not opted out of photo updates.
+                      </p>
+                    </div>
+                  </div>
+
+                  {notifySponsors && (
+                    <div className="space-y-1.5 pl-7">
+                      <Label htmlFor="caregiver-caption" className="text-xs font-semibold">
+                        Caregiver note (optional)
+                      </Label>
+                      <Textarea
+                        id="caregiver-caption"
+                        value={caregiverCaption}
+                        onChange={(e) => setCaregiverCaption(e.target.value)}
+                        maxLength={280}
+                        rows={2}
+                        placeholder="e.g. Barnaby finally mastered the stairs this morning!"
+                        className="text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {caregiverCaption.length}/280 characters. Included in the email.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Dedicated Donation QR (optional) */}
+            <div className="space-y-3 pt-2 border-t border-border">
+              <QrImageUpload
+                label="Dedicated Donation QR (optional)"
+                description="For a medical fund drive scoped to this animal. Leave empty to use the shelter-wide codes."
+                value={watch("customQrUrl") ?? ""}
+                onChange={(url) =>
+                  setValue("customQrUrl", url, { shouldValidate: true, shouldDirty: true })
+                }
+              />
+              {errors.customQrUrl && (
+                <p className="text-3xs text-destructive font-medium">
+                  {errors.customQrUrl.message}
+                </p>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setQrPreviewOpen(true)}
+                className="text-xs"
+              >
+                <Eye className="size-3.5 mr-1.5" /> Preview donor view
+              </Button>
             </div>
           </div>
 
@@ -606,6 +709,17 @@ export function PetFormDialog({
           </div>
         </form>
       </DialogContent>
+
+      {/* Mounted only while open: otherwise it resolves (and can encode) a QR
+          on every keystroke of the pet form. */}
+      {qrPreviewOpen && (
+        <QrPreviewDialog
+          open={qrPreviewOpen}
+          onOpenChange={setQrPreviewOpen}
+          petCustomQrUrl={watch("customQrUrl") ?? ""}
+          petName={watch("name") || editingPet?.name || "This animal"}
+        />
+      )}
     </Dialog>
   );
 }
