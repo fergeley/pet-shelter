@@ -201,6 +201,7 @@ export async function atomicUpdateApplicationStatus(
   if (appIndex === -1 && isDatabasePersistent()) {
     const fetched = await findServerApplicationByIdAsync(applicationId);
     if (fetched) {
+      serverApplications = [fetched, ...serverApplications.filter((a) => a.id !== fetched.id)];
       appIndex = serverApplications.findIndex((a) => a.id === applicationId);
     }
   }
@@ -220,6 +221,7 @@ export async function atomicUpdateApplicationStatus(
   }
 
   const today = toDayString(new Date());
+  let currentDbApp: DbApplicationRecord | null = null;
 
   if (isDatabasePersistent()) {
     try {
@@ -228,6 +230,8 @@ export async function atomicUpdateApplicationStatus(
           where: { id: applicationId },
         });
         if (!current) throw new Error("Application not found");
+
+        currentDbApp = current as unknown as DbApplicationRecord;
 
         const oldStatus = current.status as ApplicationStatus;
         validateApplicationTransition(oldStatus, targetStatus);
@@ -270,12 +274,18 @@ export async function atomicUpdateApplicationStatus(
         return { success: false, error: err.message };
       }
       handlePersistenceError("Prisma application status transaction", err, "write");
+      return { success: false, error: err instanceof Error ? err.message : "Persistence failed" };
     }
   }
 
-  if (appIndex === -1) {
+  // Synchronize the in-memory mirror cache after the transaction commits.
+  // If appIndex was -1 (record existed in DB but wasn't in cache), reconstruct it from the DB read.
+  if (appIndex === -1 && currentDbApp) {
+    const freshRecord = mapDbApplicationToRecord(currentDbApp);
+    serverApplications = [freshRecord, ...serverApplications.filter((a) => a.id !== applicationId)];
     appIndex = serverApplications.findIndex((a) => a.id === applicationId);
   }
+
   if (appIndex === -1) {
     return { success: false, error: "Application not found" };
   }

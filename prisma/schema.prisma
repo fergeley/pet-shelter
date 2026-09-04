@@ -337,6 +337,17 @@ model ShelterSettings {
   bankQrUrl      String?
   paymentPayload String?
 
+  // Email Configuration (Optional overrides)
+  resendApiKey String?
+  emailFrom    String? @default("Hope for Strays <onboarding@resend.dev>")
+
+  // Storage Configuration (Optional overrides)
+  storageProvider     String? @default("local")
+  s3Bucket            String?
+  s3Region            String? @default("ap-southeast-1")
+  s3Endpoint          String?
+  cloudinaryCloudName String?
+
   updatedAt DateTime @updatedAt
 
   @@map("shelter_settings")

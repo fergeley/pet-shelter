@@ -178,15 +178,13 @@ describe("soft-delete filtering under strict persistence", () => {
       await expect(getPublicPets()).rejects.toMatchObject({ code: "P2022" });
     });
 
-    it("still falls back to fixtures when the database is merely empty", async () => {
+    it("returns an empty array without falling back to fixtures when the database is merely empty", async () => {
       prismaDouble.pet.findMany.mockResolvedValue([]);
       const { getPublicPets } = await import("@/actions/pets");
 
-      // An empty table is not a failure, and strict mode does not make it one —
-      // this is what keeps the app usable with no database at all.
+      // An empty table is an answer, not an outage — returns [] without falling back.
       const pets = await getPublicPets();
-      expect(pets.length).toBeGreaterThan(0);
-      expect(pets.every((p) => !p.isArchived)).toBe(true);
+      expect(pets).toEqual([]);
     });
   });
 });
