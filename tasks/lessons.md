@@ -2,6 +2,24 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-04 — Hybrid Promises returned from synchronous signatures break caller truthiness
+
+In an attempt to bridge asynchronous database queries (`PrismaClient`) into functions called synchronously across the action layer (`findServerPetById`), returning a hybrid Thenable object (`Pet & Promise<Pet | null>`) introduces severe runtime regressions. In JavaScript, all `Promise` objects are truthy (`Boolean(new Promise(...)) === true`). When a record exists neither in memory nor in the database, a returned unsettled Promise causes synchronous guards (`if (!pet) return { error: "Pet not found" }`) to evaluate to false. Callers treat non-existent entities as valid, and subsequent synchronous field access (`pet.name`, `pet.status`) evaluates to `undefined`, silently corrupting downstream payloads.
+
+**Rule:** Never return a Promise (or Thenable object) from a function whose public contract is synchronous (`T | null`). Keep synchronous mirror access (`findServerPetById`) and asynchronous database queries (`findServerPetByIdAsync`) as distinct, strictly typed methods.
+
+## 2026-09-04 — Transactional status mutations must capture the committed row before updating the mirror
+
+In dual-layer stores where PostgreSQL is authoritative and an in-memory array acts as a cache mirror, atomic mutations (`atomicUpdateApplicationStatus`) must never assume the target entity was cached in memory prior to the transaction. If an entity was seeded directly into the database or created by a concurrent process, the in-memory array index was `-1`. Executing the Prisma transaction committed the update to PostgreSQL, but checking `appIndex === -1` post-transaction falsely aborted with `"Application not found"`, leaving the caller with an error and the mirror out of sync.
+
+**Rule:** Capture the authoritative entity from inside `prisma.$transaction`. Post-commit, if the entity was absent from the in-memory mirror (`appIndex === -1`), map the committed database row via the domain mapper and prepend it to the mirror array so the in-memory state reflects the committed transaction.
+
+## 2026-09-04 — Child collection models with fixture IDs must not carry @default(cuid())
+
+Prompt specifications often recommend adding `@default(cuid())` to child relations (`PetUpdate`, `MedicalTimelineEvent`) to make IDs optional. However, existing test suites (`tests/unit/petHistory.test.ts`) may explicitly forbid `@default(cuid())` via regex assertions to guarantee that deterministic, fixture-supplied IDs (`up-009-1`, `tl-001-1`) round-trip cleanly through `db:seed` without surrogate key collisions.
+
+**Rule:** Check existing schema contract tests before applying ID generator defaults to Prisma models. If a unit test explicitly asserts `expect(body).not.toMatch(/@default\(cuid\(\)\)/)`, do not add the default.
+
 ## 2026-09-04 — A dual-layer fallback must never let a swallowed database error fail the mutation
 
 The repository layer (`src/lib/server/`) follows a dual-layer store pattern (docs/architecture/LAYERS.md, L-B2):
