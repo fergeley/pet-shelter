@@ -101,21 +101,16 @@ export async function getStoredGalleryImages(id: string): Promise<string[] | nul
   }
 }
 
-export function findServerPetById(id: string): Pet | null {
-  const norm = id.trim().toLowerCase();
-  return serverPets.find((p) => p.id.toLowerCase() === norm) || null;
-}
-
 /**
  * Reads a pet from PostgreSQL first with full relations, syncing to the
- * in-memory mirror cache upon retrieval. Falls back to findServerPetById.
+ * in-memory mirror cache upon retrieval. Falls back to in-memory store.
  */
 export async function findServerPetByIdAsync(id: string): Promise<Pet | null> {
   const norm = id.trim().toLowerCase();
   if (isDatabasePersistent()) {
     try {
       const row = await prisma.pet.findUnique({
-        where: { id },
+        where: { id: id.trim() },
         include: PET_INCLUDE,
       });
       if (row) {
@@ -129,6 +124,11 @@ export async function findServerPetByIdAsync(id: string): Promise<Pet | null> {
     }
   }
   return findServerPetById(id);
+}
+
+export function findServerPetById(id: string): Pet | null {
+  const norm = id.trim().toLowerCase();
+  return serverPets.find((p) => p.id.toLowerCase() === norm) || null;
 }
 
 /**
