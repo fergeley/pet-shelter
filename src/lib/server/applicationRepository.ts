@@ -201,6 +201,7 @@ export async function atomicUpdateApplicationStatus(
   if (appIndex === -1 && isDatabasePersistent()) {
     const fetched = await findServerApplicationByIdAsync(applicationId);
     if (fetched) {
+      serverApplications = [fetched, ...serverApplications.filter((a) => a.id !== fetched.id)];
       appIndex = serverApplications.findIndex((a) => a.id === applicationId);
     }
   }
@@ -270,6 +271,7 @@ export async function atomicUpdateApplicationStatus(
         return { success: false, error: err.message };
       }
       handlePersistenceError("Prisma application status transaction", err, "write");
+      return { success: false, error: err instanceof Error ? err.message : "Persistence failed" };
     }
   }
 

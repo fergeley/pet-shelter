@@ -4,7 +4,7 @@ import { validatePetTransition } from "@/lib/domain/stateMachine";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { SessionUser } from "@/lib/security/session";
 import { prisma } from "@/lib/server/prisma";
-import { handlePersistenceError } from "@/lib/persistenceMode";
+import { handlePersistenceError, isDatabasePersistent } from "@/lib/persistenceMode";
 import { withDerivedAge } from "@/lib/domain/petAge";
 import {
   DbPetRecord,
@@ -66,7 +66,9 @@ export async function getServerPetsAsync(): Promise<Pet[]> {
       orderBy: { createdAt: "desc" },
       include: PET_INCLUDE,
     });
-    return dbPets.map((row) => mapDbPetToPet(row as unknown as DbPetRecord));
+    const pets = dbPets.map((row) => mapDbPetToPet(row as unknown as DbPetRecord));
+    serverPets = pets;
+    return pets;
   } catch (err) {
     handlePersistenceError("Prisma pet query", err, "read");
     return serverPets;
@@ -102,6 +104,31 @@ export async function getStoredGalleryImages(id: string): Promise<string[] | nul
 export function findServerPetById(id: string): Pet | null {
   const norm = id.trim().toLowerCase();
   return serverPets.find((p) => p.id.toLowerCase() === norm) || null;
+}
+
+/**
+ * Reads a pet from PostgreSQL first with full relations, syncing to the
+ * in-memory mirror cache upon retrieval. Falls back to findServerPetById.
+ */
+export async function findServerPetByIdAsync(id: string): Promise<Pet | null> {
+  const norm = id.trim().toLowerCase();
+  if (isDatabasePersistent()) {
+    try {
+      const row = await prisma.pet.findUnique({
+        where: { id },
+        include: PET_INCLUDE,
+      });
+      if (row) {
+        const pet = mapDbPetToPet(row as unknown as DbPetRecord);
+        serverPets = [pet, ...serverPets.filter((p) => p.id.toLowerCase() !== norm)];
+        return pet;
+      }
+    } catch (err) {
+      handlePersistenceError("Prisma pet find by id", err, "read");
+      return findServerPetById(id);
+    }
+  }
+  return findServerPetById(id);
 }
 
 /**
@@ -145,7 +172,11 @@ export async function insertServerPet(newPet: Pet, actor: SessionUser): Promise<
 }
 
 export async function updateServerPet(id: string, updated: Pet, actor: SessionUser): Promise<boolean> {
-  const previous = serverPets.find((p) => p.id === id);
+  let previous = serverPets.find((p) => p.id === id);
+  if (!previous && isDatabasePersistent()) {
+    const fromDb = await findServerPetByIdAsync(id);
+    if (fromDb) previous = fromDb;
+  }
   if (!previous) return false;
 
   if (previous.status !== updated.status) {
@@ -181,7 +212,11 @@ export async function updateServerPet(id: string, updated: Pet, actor: SessionUs
 }
 
 export async function archiveServerPet(id: string, archive: boolean, actor: SessionUser): Promise<boolean> {
-  const pet = serverPets.find((p) => p.id === id);
+  let pet = serverPets.find((p) => p.id === id);
+  if (!pet && isDatabasePersistent()) {
+    const fromDb = await findServerPetByIdAsync(id);
+    if (fromDb) pet = fromDb;
+  }
   if (!pet) return false;
 
   // One timestamp for all three representations (column, mirror, audit log) —
