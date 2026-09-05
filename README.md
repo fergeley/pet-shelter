@@ -18,7 +18,7 @@ HFS website serves as a platform as well as a repository of past news for first-
 - **Language**: TypeScript 5 (Strict Mode, 0 `any` escapes).
 - **Database & ORM**: PostgreSQL with [Prisma 7.9.1](https://www.prisma.io/) (`@prisma/adapter-pg`, connection pooling) & dual-layer in-memory fallback for offline/development resilience.
 - **Styling & UI**: Tailwind CSS v4, Lucide React, and `@base-ui/react` primitives adhering to [`docs/design-system.md`](docs/design-system.md).
-- **Testing**: Vitest (`24` test suites, `183` tests, 100% passing).
+- **Testing**: Vitest across four projects (`unit`, `components`, `integration`, `integration-db`) plus Playwright end-to-end specs. Note that `npm test` runs the unit project alone; see [`package.json`](package.json) for the others.
 - **Documentation**: Centralized runbooks, architecture blueprints, and tutorials located in [`docs/`](docs/).
 - **Legal & Compliance**:
   - **Malaysian LHDN Tax Deductible**: Approved non-profit under Subsection 44(6) of the Income Tax Act 1967 (Ref: `LHDN.01/35/42/51/179-6.4912`).
@@ -91,7 +91,7 @@ pet-shelter/
 │   ├── hooks/                    # Controller and logic React hooks
 │   ├── lib/                      # Core business logic, db client, security, stores, services
 │   └── types/                    # TypeScript interfaces & types
-├── tests/unit/                   # Vitest unit and integration test suites (24 files, 183 tests)
+├── tests/                        # Vitest projects: unit, components, integration, integration-db
 ├── .github/                      # GitHub workflows and CONTRIBUTING.md
 ├── AGENTS.md                     # Next.js agent rules & configuration
 ├── next.config.ts                # Next.js configuration
