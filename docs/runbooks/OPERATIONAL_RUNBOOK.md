@@ -107,18 +107,33 @@ npx prisma studio
 ## 4. Authentication & Staff Access (RBAC)
 
 ### Role Hierarchy
-1. **ADMIN**: Full access to all modules, settings, staff creation, and deletion.
-2. **COORDINATOR**: Manage pet inventory, review and approve adoption questionnaires, edit notices.
-3. **STAFF**: Update pet daily statuses, view inventory, manage meet-and-greets.
-4. **VOLUNTEER**: Read-only inventory and public-facing adoption coordination.
+
+Five canonical roles, declared in `prisma/schema.prisma` and mapped to permissions by
+`ROLE_PERMISSIONS` in `src/lib/security/permissions.ts`:
+
+1. **SUPER_ADMIN**: Unrestricted access, including staff management and shelter settings.
+2. **ANIMAL_MANAGER**: Pet profiles, gallery photos, QR codes.
+3. **CONTENT_EDITOR**: FAQs, transparency data, bulletins.
+4. **VOLUNTEER_COORDINATOR**: Volunteer applications and settings.
+5. **STAFF**: Standard read-only operational access.
+
+`ADMIN`, `COORDINATOR` and `VOLUNTEER` are **deprecated aliases**, kept only so existing rows and
+live session cookies stay readable. `normalizeRole()` folds them onto `SUPER_ADMIN`,
+`VOLUNTEER_COORDINATOR` and `STAFF` — so granting `ADMIN` grants Super Admin, and granting
+`COORDINATOR` grants settings access. Never assign one.
 
 ### Pre-Seeded Staff Accounts
-| Email | Role | Default Password | Default Quick PIN |
-|---|---|---|---|
-| `admin@hopeforstrays.org` | `ADMIN` | `admin123` | `1234` |
-| `coordinator@hopeforstrays.org` | `COORDINATOR` | `coord123` | `1234` |
-| `staff@hopeforstrays.org` | `STAFF` | `staff123` | `1234` |
-| `volunteer@hopeforstrays.org` | `VOLUNTEER` | `vol123` | `1234` |
+
+`prisma/seed.ts` creates one account per canonical role: `admin@`, `coordinator@`, `animals@`,
+`content@` and `staff@hopeforstrays.org`.
+
+**Credentials are deliberately not reproduced here.** Read them from `prisma/seed.ts`, which is the
+only copy — a table in this file is a second copy, and the last one drifted until it named accounts
+that do not exist.
+
+There is no quick PIN. The universal `1234` fallback was removed outright rather than gated
+(`src/actions/auth.ts`), and `tests/unit/auth.test.ts` fails if it ever returns. Any document still
+offering one is describing a door that is not there.
 
 ---
 
