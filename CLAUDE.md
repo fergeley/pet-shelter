@@ -45,9 +45,16 @@ Minimal Impact: Changes should only touch what's necessary. Avoid introducing bu
 
 ## Context & Session Hygiene
 
-- **Delegation thresholds**:
-  - Standard (200K window): Hand off at **100K–120K tokens** (before ~165K auto-compaction).
-  - Extended (1M window): Hand off at **400K–500K tokens** (retrieval degrades past 400K; becomes unreliable past 600K).
-- **Milestone handoff**: When completing a phase, or after 15–20 tool operations, write open state to `tasks/` — memory lives in files, not in the chat — and advise starting a fresh session.
-- **Subagent offload**: Always delegate broad research or grep sweeps to subagents (`.claude/agents/`); return structured excerpts only, never a prose summary of a result you did not observe, keeping coordinator context clean.
+The rule lives in `AGENTS.md` and is not restated here. Reset on **task milestones**, never on a
+token estimate: a model cannot reliably count its own tokens, and the counting spends the attention
+it is trying to protect. This file used to carry numeric thresholds that asked for exactly the
+self-metering `AGENTS.md` forbids — three copies of one rule, three different answers.
+
+**At session close, read the drift log before writing the ledger.** It records every file write in
+the session, including the `cat >` and `sed -i` writes no tool-name matcher can see, so a "while I'm
+here" edit is visible at review time rather than at merge time:
+
+```bash
+cat "$TEMP/claude-agent-drift.log"      # Windows; $TMPDIR elsewhere
+```
 

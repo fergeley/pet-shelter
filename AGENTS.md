@@ -8,6 +8,31 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+## Invariants
+
+These state the **default** in every task and every lane. The `midwife` skill may narrow one only
+where it says so explicitly and names the rule; an unmarked narrowing is a bug in that file, not a
+licence.
+
+1. **Triage first**, in order: RISK VETO → mechanical trivial → fast-path → routine/grave.
+2. **Where verification exists, iterate.** Where it doesn't, experiment. Where experimentation is
+   impossible, reason — and mark it as belief, not knowledge.
+3. **Deliberation is the expensive resource.** Spend experiments freely.
+4. **Never assume a result you didn't observe.** Structured returns with raw excerpts outrank
+   prose summaries — including your own.
+5. **Kill conditions are immutable** once registered.
+6. **Three *distinct* failed hypotheses kill the design**, not the fourth hypothesis.
+7. **Halting is for one-way doors only.** Everything else has an autonomous default.
+8. **Tests are part of the system**, not part of the game.
+9. **Memory lives in files, not in the chat.** Read `tasks/open/*.md` at session start (it also
+   shows what concurrent sessions hold); write the ledger the lane requires before close.
+   Contract: `tasks/README.md`.
+
+They live here rather than in `CLAUDE.md` because every agent reads this file. **Cite them by
+name, not by number** — `npm run docs:check` fails a numbered citation. Nine numbered rules in one
+file and sixteen citations across eight others is precisely how they went missing on 2026-09-05,
+with nothing erroring, including two citations inside the text that replaced them.
+
 ## Obsidian Vault Integration
 
 The workspace is connected to an active Obsidian vault via the Local REST API and MCP server:

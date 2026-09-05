@@ -48,10 +48,17 @@ describe("doc invariant guard", () => {
     expect(refs).toBeGreaterThanOrEqual(5);
   });
 
-  it("treats archived records as reportable but never fatal", () => {
-    // tasks/decisions/ cite the invariants of their day and are correct to.
-    expect(stdout).toMatch(/\(\d+ in archived records\)/);
+  it("reports live and archived unresolved counts separately, and only fails on live", () => {
+    // tasks/decisions/ cite the invariants of their day and are correct to, so an
+    // unresolved archived citation must never set the exit code.
+    expect(stdout).toMatch(/unresolved: \d+ live \+ \d+ archived/);
+    const live = Number(stdout.match(/unresolved: (\d+) live/)?.[1]);
+    expect(live).toBe(0);
     expect(code).toBe(0);
+  });
+
+  it("resolves the citations now that AGENTS.md defines the nine again", () => {
+    expect(stdout).toMatch(/invariants defined: 1, 2, 3, 4, 5, 6, 7, 8, 9/);
   });
 
   it("reads a multi-number citation as more than one reference", () => {

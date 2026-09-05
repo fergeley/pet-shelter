@@ -168,7 +168,12 @@ function main() {
   const defined = [...a.definitions.keys()].sort((x, y) => x - y);
   console.log(`scanned ${a.files.length} tracked files`);
   console.log(`invariants defined: ${defined.length ? defined.join(", ") : "(none)"}`);
-  console.log(`invariant references: ${a.references.length} (${a.danglingArchive.length} in archived records)`);
+  // Say which number this is. It counts UNRESOLVED archive citations, and reading it as
+  // "how many citations are archival" inverts the meaning when the count is 0.
+  console.log(
+    `invariant references: ${a.references.length}, ` +
+      `unresolved: ${a.danglingLive.length} live + ${a.danglingArchive.length} archived`,
+  );
 
   for (const [n, sites] of a.duplicateDefinitions) {
     problems.push(`invariant ${n} is defined in ${sites.length} places: ${sites.map((s) => s.file).join(", ")}`);
