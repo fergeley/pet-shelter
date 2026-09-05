@@ -58,6 +58,159 @@ errors in `src/`.
 (e.g. `.claude/**`, `.worktrees/**`) to `globalIgnores` in the root linter config, not just `.gitignore`.
 Linters inspect the working tree directly and do not always inherit gitignore rules.
 
+## 2026-09-04 — A pull request can say "Merged" and ship nothing
+
+PR #2 merged `feat/tnrm-rehabilitation` into master on 2026-09-01 00:59. PRs #3 and #7
+then merged **into that same branch** a day later, after it had already landed and
+would never merge again. Both show green in the UI. Neither merge commit is an
+ancestor of master, and none of `scripts/commit-msg.mjs`,
+`docs/reference/COMMIT_MESSAGES.md` or `tests/unit/commitMessage.test.ts` existed on
+master. A whole commit standard was silently unshipped for three days.
+
+Nothing looked wrong. The badge is green, the base branch still exists, the feature
+"merged". It surfaced only while pruning branches, when three separate branches turned
+out to carry the *same* unmerged commits — which is the shape of work that never
+reached the trunk.
+
+**Rule:** with this many parallel branches, a PR's *base* is as important as its state.
+`gh pr list --state all --json number,headRefName,baseRefName` — anything based on a
+feature branch rather than `master` either has to be re-targeted or needs its base to
+merge again afterwards. The authoritative test is ancestry, never the badge:
+`git merge-base --is-ancestor <merge-sha> origin/master`.
+
+## 2026-09-04 — `git branch --merged` cannot see a squash-merge
+
+A squash commit is not a descendant of the branch it squashed, so `--merged` omits
+branches whose work is entirely on master, and `--no-merged` lists them as if they
+held unshipped work. Of 21 branches here, that test found 3 finished; the real number
+was 7. `worktree-sponsorship-checkout` alone had 9 commits, every one already upstream.
+
+`git cherry origin/master <branch>` is the test that works: it marks each commit `-`
+when its patch is already upstream and `+` when it is not. Zero `+` lines means the
+branch adds nothing, however the ancestry looks.
+
+The tempting shortcut is worse than useless. Comparing a branch to master across
+`src/ prisma/ tests/` called two branches identical while they carried 181 and **3,644**
+unmerged insertions in `.gitignore`, `skills-lock.json` and `tasks/lessons.md`. A
+path-scoped diff is not a merge test, and it fails in the direction that deletes work.
+
+**Rule:** to decide whether a branch is done, ask `git cherry`. To decide whether a
+file is present, ask `git ls-tree`. Never a diff you scoped by hand.
+
+## 2026-09-04 — Consent has to fail closed, and a docstring is not a guarantee
+
+`partitionByConsent` decided who receives a mailing. Its module docstring said the
+design "keeps a database outage from silently turning into email everyone anyway". The
+code did exactly that: the query was wrapped in `try/catch`, and on failure every
+address fell through to the permissive default and was mailed — including donors who
+had explicitly unsubscribed.
+
+Two things went wrong together. Reading and sending answer different questions —
+rendering a preference page may assume consent, deciding to send may never — and they
+had been collapsed into one function. And the comment describing the safety property
+was written at the same time as the code that violated it, so it read as verification
+when it was only intention.
+
+The fix separates the two and reports a third outcome: `allowed`, `blocked`, and
+`unresolved` for addresses whose consent could not be established. Unresolved is never
+mailed. An unsent notification costs nothing; one sent to somebody who opted out is the
+failure the feature exists to prevent.
+
+**Rule:** when a comment claims a safety property, go and check the branch that
+implements it. And where a default has asymmetric costs, name the third state rather
+than folding "we could not tell" into "yes".
+
+## 2026-09-04 — A stored string that something compares against is an interface
+
+An audit row for the donation-receipt email was filed under entity
+`"AdoptionApplication"`, which looked like a mislabel. Refiling it as
+`"DonationReceipt"` looked like pure tidying, and the justification seemed solid: the
+audit viewer already branches on that exact value.
+
+That branch was the problem. `exportCsv.ts` and `useAuditLogController.ts` both classify
+an audit row as a donation when `entity === "DonationReceipt"`, and the email row
+carries no `receiptNumber` — so the change injected a phantom RM 0.00 line into the
+LHDN Section 44(6) receipts export, one per donation, with the real receipt number and
+donor "Anonymous Donor". The reasoning was backwards: that branch existed *because*
+only real donation records carried the value.
+
+The same trap fired again two commits later, filing sponsor mail under entity `"Pet"` —
+which is how the audit viewer's Adoptions tab is built, so it would have buried the
+adoption trail under up to 250 bulk-mail rows per upload.
+
+**Rule:** before changing a stored string, grep for it. If anything compares against
+the literal, it is an interface and not a label. Related: the entries below on making
+existing data load-bearing — same shape, different direction.
+
+## 2026-09-04 — Green tests do not prove the feature is reachable
+
+A notification feature shipped with a schema, a validator, a server action, an email
+template, a dispatcher and 251 passing tests. Nothing anywhere set `targetPetId`, so
+the audience query always returned empty and not one email could ever have been sent
+to a real donor. Every test seeded the sponsor directory directly and so never
+exercised the one path that fills it in production.
+
+Worse, the fix was applied to one of the two entry points. The per-pet modal was
+corrected; the general donate widget was missed and kept sending no ID at all. The
+lesson was written down between those two commits and did not prevent the second.
+
+**Rule:** for a new feature, trace the data from the real UI entry point to the consumer
+at least once. The question is "what writes this row in production?", not "does my test
+write it?". Then enumerate *every* entry point — a fix applied to one caller of two is
+not a fix.
+
+## 2026-09-04 — Overtaken by 160 commits is a rebuild, not a merge
+
+A feature branch built against a 7-day-old base met a master that had grown its own
+`PetSponsorship` model on the same table, its own `src/actions/sponsorships.ts`, and a
+repository layer replacing the `serverStore.ts` the branch still imported. Ten files
+conflicted. Resolving them would have resurrected a deleted module, clobbered the
+sponsorship ledger and reverted schema work.
+
+Rebuilding on current master took less time than the merge would have, and produced a
+better result: master's two-mode persistence contract replaced a `try/catch` fallback,
+an existing `flushAuditLogWrites()` replaced a duplicate that was about to be written,
+and a coordinator-reconciled `ACTIVE` status made a whole double-opt-in subsystem
+unnecessary — it is a stronger guarantee than an email click, because a human confirmed
+the money arrived.
+
+**Rule:** when a branch is far enough behind that the trunk has independently solved the
+same problem, the conflict list is the wrong thing to read. Ask what master would make
+unnecessary, and delete rather than merge it. Related: "When a branch is overtaken,
+shrink it" below — this is the same rule one order of magnitude further along.
+
+## 2026-09-04 — A fan-out without a bound manufactures its own failures
+
+Mailing a list with `Promise.allSettled` over the whole audience starts every request
+at once. Against a rate-limited provider that earns 429s, which arrive as delivery
+failures indistinguishable from bad addresses — so the code invents errors and then
+reports them as the provider's. A bounded worker pool fixes it; the sends are off the
+request path and have no reason to be simultaneous.
+
+The deadline is real, though, and is the reason not to simply lower the bound: `after()`
+work runs inside the route's `maxDuration`, so a full recipient list at low concurrency
+can be killed mid-send. The audit row is written *before* the fan-out for that reason —
+otherwise a killed invocation leaves no evidence the mailing happened at all.
+
+**Rule:** any loop that talks to a rate-limited service needs a concurrency bound and a
+deadline that has been multiplied out, not assumed.
+
+## 2026-09-04 — "It responds" is not "it is in use"
+
+Eight abandoned `next start` servers were pinning worktree directories on Windows,
+holding `next-swc.win32-x64-msvc.node` open so the directories would not delete. The
+obvious liveness test — does the port answer HTTP — said all eight were alive. Seven
+were returning 500.
+
+Measuring instead of probing settled it: zero CPU consumed across a 25-second sampling
+interval, and zero established TCP connections. All eight were idle and safe to kill,
+which the HTTP check could never have shown.
+
+**Rule:** an HTTP *error* still proves something is listening, so a response is evidence
+of a process, not of a user. When the question is "is anyone using this", measure
+activity over an interval — CPU delta, open connections — and scope any kill to
+command lines you have actually read.
+
 ## 2026-09-03 — A green deploy proves one variable was set, and nothing else
 
 A Vercel production build failed with `SecretConfigurationError` collecting page data for
