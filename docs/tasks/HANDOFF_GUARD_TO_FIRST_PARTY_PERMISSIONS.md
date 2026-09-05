@@ -225,3 +225,27 @@ in `tests/unit/agentGuard.test.ts` and both were artefacts of this work:
 Gates after the fix, nothing else running: `npm run typecheck` **0** · `npm run arch:check`
 **0** · `npm test` **1,314 / 76 files, 46.5s** · `npm run test:all` (unit + integration +
 components) **1,424 / 87 files** · `npm run lint` **0 errors, 17 warnings** (baseline).
+
+### 6e. A third test was red — but only *after* the commit
+
+The two fixes in §6d made the suite green while the working tree was still dirty.
+Committing it turned a third test red:
+
+    × records files written through Bash, which no tool-name matcher can see
+      AssertionError: expected 0 to be greater than 0
+
+`driftAfter()` drove the PostToolUse event with `cwd: ROOT`, and the drift log reads
+`git status --porcelain`. Asserting it recorded something was really asserting **this
+tree is dirty** — a property of whoever committed last, not of the guard. Its own comment
+said so plainly: *"This suite runs in a tree with uncommitted work, which is the point."*
+
+So `tests/unit/agentGuard.test.ts` carried the same live-tree coupling in **both**
+directions at once: one test needed `docs/` clean, another needed the repo dirty. No
+single tree state satisfied both, which is why the suite could never have been green
+before and after a commit. `driftAfter()` now takes a `cwd`, and both drift tests build
+their own scratch repo with one modified and one untracked file.
+
+**The general lesson, worth more than the fix:** a guard that reads the working tree
+cannot be tested against the working tree it runs in. Every such assertion needs a repo
+the test owns. Gates after this fix, on a clean tree: typecheck **0** · arch:check **0** ·
+`npm test` **1,314 / 76 files**.

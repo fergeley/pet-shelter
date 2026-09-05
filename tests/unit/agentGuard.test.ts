@@ -90,15 +90,22 @@ function denyReason(command: string): string {
   return JSON.parse(out).hookSpecificOutput?.permissionDecisionReason ?? "";
 }
 
-/** Drive a PostToolUse event with isolated drift log + state, and return the log lines. */
-function driftAfter(tool: string, seedState: string | null): string[] {
+/**
+ * Drive a PostToolUse event with isolated drift log + state, and return the log lines.
+ *
+ * `cwd` defaults to this repo but is a parameter because the drift log reads
+ * `git status --porcelain`: a test that asserts it recorded something is really
+ * asserting that this tree is dirty, which is a property of whoever committed
+ * last, not of the guard. The callers that need a delta pass a scratch repo.
+ */
+function driftAfter(tool: string, seedState: string | null, cwd: string = ROOT): string[] {
   const log = join(tmpdir(), `drift-${randomUUID()}.log`);
   const state = join(tmpdir(), `drift-${randomUUID()}.state`);
   if (seedState !== null) writeFileSync(state, seedState);
   execFileSync("node", [GUARD], {
     input: JSON.stringify({
       hook_event_name: "PostToolUse",
-      cwd: ROOT,
+      cwd,
       tool_name: tool,
       tool_input: { command: "irrelevant" },
     }),
@@ -439,18 +446,44 @@ describe("agent guard", () => {
     // \`sed -i\`. That is the identical blind spot that got the step-level path rule
     // deleted on 2026-08-31. A matcher on tool names cannot see a heredoc; git status can.
 
+    // Both assertions below need a tree with uncommitted work, so they make one rather
+    // than borrowing this one. Reading ROOT, they passed only until the working tree was
+    // committed — the same live-tree coupling the checkout tests were moved out of, in
+    // the opposite direction. A test whose verdict flips on `git commit` is not a test.
+    let dirty: string;
+
+    beforeAll(() => {
+      dirty = mkdtempSync(join(tmpdir(), "guard-drift-"));
+      const git = (...args: string[]) =>
+        execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...args], {
+          cwd: dirty,
+          stdio: "ignore",
+        });
+      git("init", "-q");
+      writeFileSync(join(dirty, "tracked.txt"), "committed\n");
+      git("add", "-A");
+      git("commit", "-qm", "base");
+      // One modification and one untracked file: the two shapes `git status --porcelain`
+      // reports and a tool-name matcher would miss if they arrived via `cat >`.
+      writeFileSync(join(dirty, "tracked.txt"), "written through a heredoc\n");
+      writeFileSync(join(dirty, "untracked.txt"), "written through a heredoc\n");
+    });
+
     it("records files written through Bash, which no tool-name matcher can see", () => {
-      // Seeded with an empty baseline, so every currently-dirty path reads as a delta.
-      // This suite runs in a tree with uncommitted work, which is the point.
-      const lines = driftAfter("Bash", "");
+      // Seeded with an empty baseline, so every dirty path reads as a delta.
+      const lines = driftAfter("Bash", "", dirty);
       expect(lines.length).toBeGreaterThan(0);
       expect(lines.every((l) => l.includes(" main Bash "))).toBe(true);
+      expect(lines.some((l) => l.endsWith("tracked.txt"))).toBe(true);
+      expect(lines.some((l) => l.endsWith("untracked.txt"))).toBe(true);
     });
 
     it("attributes nothing on its first call, because the tree was already dirty", () => {
       // No state file: establish the baseline and credit this tool with nothing. Logging
       // a pre-existing diff would attribute another session's work to this tool call.
-      expect(driftAfter("Bash", null)).toEqual([]);
+      // Run against the dirty scratch repo, so there is something it could have wrongly
+      // attributed — against a clean tree this assertion would hold vacuously.
+      expect(driftAfter("Bash", null, dirty)).toEqual([]);
     });
 
     it("never denies, whatever it sees", () => {
