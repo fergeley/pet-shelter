@@ -159,9 +159,24 @@ violation must fail, and the corrected form must pass.
 
 | # | Item | Why it is open |
 |---|---|---|
-| 4.1 | `permissions.ask` liveness | No safe decisive probe exists (§1.1). Needs a destructive leading token, which cannot be aimed at a scratch repo. |
-| 4.2 | The fence still binds two sub-agents | §1.5. A deliberate decision has never been recorded either way. |
-| 4.3 | Nothing reads the drift log | `PostToolUse` fills `$TEMP/claude-agent-drift.log` and no step consumes it. Handoff §4.5. |
+| 4.1 | `permissions.ask` liveness | No safe decisive probe exists (§1.1). Needs a destructive leading token, which cannot be aimed at a scratch repo and cannot be aimed here. |
 | 4.4 | `tasks/open/triage-rules-section-2-is-stale.md` | §2 is a RISK VETO entry whose own verification command now returns the opposite of what it claims. Filed, not fixed. |
-| 4.5 | The three context-hygiene copies still disagree | `AGENTS.md` says do not self-meter tokens; `CLAUDE.md` gives token thresholds; `GEMINI.md` gives different ones. The invariant guard does not cover prose contradictions. |
-| 4.6 | Nine invariants are gone | Citations no longer dangle, but the rules themselves are stated only where they are cited. Restoring them is a live option; nothing depends on it now. |
+
+### Closed since this document was written (same day, on the human's call)
+
+- **4.2 — the fence binding two sub-agents.** Deleted. 520 lines out of `agent-guard.mjs`,
+  790 → 266, along with the 35 tests that exercised it. The two agent rules and the drift log
+  stay; they are allowlists, not shell parsing. §1.5 above is superseded: there is now no fence
+  anywhere, for any actor. Probed rather than reasoned — a main-conversation `git reset --hard`
+  returns ALLOW, `schema-auditor` running `ls` is still denied, `atomic-commit` running `git add`
+  is still denied.
+- **4.3 — nothing read the drift log.** `CLAUDE.md`'s session close now reads it before the
+  ledger write.
+- **4.5 — three context-hygiene copies.** `AGENTS.md` won on the merits: reset on task
+  milestones, never on a token estimate. `CLAUDE.md` and `GEMINI.md` now point at it and state
+  nothing themselves, so there is one copy rather than three that agree today.
+- **4.6 — the nine invariants.** Restored, to `AGENTS.md` rather than `CLAUDE.md`, because every
+  agent reads that file and `CLAUDE.md` is the one that lost them. Invariant 7 keeps "halting is
+  for one-way doors only" and drops its plan-mode parenthetical, so it no longer contradicts the
+  workflow section `CLAUDE.md` carries. Citations stay by name; `npm run docs:check` fails a
+  numbered one and now reports all nine defined.
