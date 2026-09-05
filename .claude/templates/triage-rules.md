@@ -17,17 +17,25 @@ branch. There is no local-by-default. **A mutating Server Action executed on `lo
 production write.** Running the dev server is not itself the risk; exercising a mutation in the
 browser is.
 
-- Verify: `grep '^NEON_BRANCH' .env.local` → expect `production` *(verified 2026-08-30)*
+- Verify: `grep '^NEON_BRANCH' .env.local` → expect `production` *(verified 2026-09-05)*
 - Local escape hatches that exist: `npm run db:push:local`, `npm run db:seed:local`,
   `npm run test:db` — all three pin `DATABASE_URL` to `localhost:5432` via `cross-env`.
 
 ## 2. `db:push` and `db:seed` have no undo
 
-There is **no `prisma/migrations/` directory** — this repo uses `prisma db push`, which applies
-schema drift directly with no migration history and no down path. Against the production branch,
-a column rename is a column drop.
+There is **no Prisma-managed migration history** — this repo uses `prisma db push`, which applies
+schema drift directly with no down path. Against the production branch, a column rename is a
+column drop.
 
-- Verify: `ls prisma/migrations` → expect "No such file" *(verified 2026-08-30)*
+`prisma/migrations/` **does exist**, and contains only `manual/`: hand-written SQL that a human
+applies and that `prisma migrate` knows nothing about. It cannot roll anything back, so it does not
+soften this veto — but the directory being there means the old check ("expect No such file")
+returned the opposite of what it claimed, which trains the reader to skip the re-verification this
+file demands. Corrected 2026-09-05.
+
+- Verify: `ls prisma/migrations` → expect **`manual/` and nothing else** *(verified 2026-09-05)*
+- Verify: `ls prisma/migrations/manual/` → hand-written SQL only; **3** directories at last check,
+  a count that is expected to grow *(verified 2026-09-05)*
 - `npm run db:push` / `npm run db:seed` inherit `.env.local` → **production**.
   The `:local` variants do not. The four characters are the whole safety margin.
 
@@ -37,8 +45,10 @@ a column rename is a column drop.
 `SHELTER_NOTIFICATION_EMAIL` from `.env.local`. Mail that leaves is not recallable, and the
 recipient may be a real shelter address.
 
-- Verify: `grep -rln RESEND_API_KEY src` → `src/lib/email.ts`, `src/actions/settings.ts`
-  *(verified 2026-08-30)*
+- Verify: `grep -rln RESEND_API_KEY src` → **4** files: `src/actions/settings.ts`,
+  `src/app/admin/settings/page.tsx`, `src/lib/appUrl.ts`, `src/lib/email.ts`. The entry named two
+  of them until 2026-09-05; the other two had appeared since, so the reach of the key was wider
+  than the veto said *(verified 2026-09-05)*
 
 ## 4. Secrets in the working tree
 

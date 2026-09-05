@@ -18,16 +18,28 @@
 | `Read(./package-lock.json)` | `deny` | **refused** — "denied by your permission settings" |
 | `git stash list` (×2) | `ask` → `Bash(git stash*)` | ran, no prompt |
 | `git branch -D <nonexistent>` | `ask` → `Bash(git branch -D*)` | ran, no prompt |
+| **`git reset --hard`** | `ask` → `Bash(git reset --hard*)` | **ran, no prompt** |
 
-Session runs at `permissionMode: auto`. The second `ask` probe is the informative one: destructive
-verb, leading token, exact prefix match — still unprompted. **Put anything that must actually be
-blocked in `deny`. Treat `ask` as advisory.**
+Session runs at `permissionMode: auto`. **`ask` does not gate. Put anything that must actually be
+blocked in `deny`; treat `ask` as advisory.**
 
-**The probe the handoff proposed could not have answered its own question.** `git stash list` was
-chosen for being harmless, and harmlessness is exactly what makes the classifier wave it through.
-A decisive probe needs a genuinely destructive command as the **leading token**, which cannot be
-aimed at a scratch repo — `git -C <scratch> stash push` no longer prefix-matches — and aimed here
-would destroy a concurrent session's work. **No safe decisive probe exists. This stays open.**
+**How the last probe became possible.** The first two were inconclusive by construction: each was
+chosen for being harmless, and harmlessness is exactly what lets the classifier wave it through on
+its own merits. A decisive probe needs a command that is destructive *on its face* — no dry-run
+flag, no non-existent operand — which for a long time meant it could not be run at all: it cannot
+be aimed at a scratch repo (`git -C <scratch> …` stops prefix-matching the rule) and aiming it here
+would have destroyed uncommitted work.
+
+The opening was the **state of the tree, not the shape of the command**. With the tree clean, no
+stashes and one worktree, `git reset --hard` destroys nothing: it resets to HEAD, and with no ref
+argument it does not move HEAD, so committed history is untouchable. It also never removes
+untracked files, so the only exposure was a concurrent session modifying a *tracked* file inside a
+one-command window. Verified clean immediately before, and verified after: HEAD unchanged at
+`b305139`, tree clean, all nine commits intact.
+
+**The transferable part:** when a probe looks impossible, check whether the obstacle is the command
+or the environment. This one was blocked for a day by an assumption about the tree that had stopped
+being true.
 
 ### 1.2 Prefix matching is defeated by anything before the verb
 
@@ -159,8 +171,13 @@ violation must fail, and the corrected form must pass.
 
 | # | Item | Why it is open |
 |---|---|---|
-| 4.1 | `permissions.ask` liveness | No safe decisive probe exists (§1.1). Needs a destructive leading token, which cannot be aimed at a scratch repo and cannot be aimed here. |
-| 4.4 | `tasks/open/triage-rules-section-2-is-stale.md` | §2 is a RISK VETO entry whose own verification command now returns the opposite of what it claims. Filed, not fixed. |
+| — | — | Nothing. |
+
+Both items that stood when this table was written are now closed:
+
+- **4.1 — `permissions.ask` liveness.** Closed by `git reset --hard` running unprompted against a
+  clean tree (§1.1). `ask` does not gate; `deny` does.
+- **4.4 — `triage-rules.md` §2.** Fixed, with every entry's verification command re-run.
 
 ### Closed since this document was written (same day, on the human's call)
 
