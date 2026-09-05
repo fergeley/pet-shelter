@@ -1384,3 +1384,50 @@ goes in the response body, in full, even when it is long or ugly. A file is for 
 would open in another program anyway (a built artifact, a screenshot, a dataset), never for the
 answer itself. If a thing is worth attaching, still put its actionable content inline and treat the
 attachment as the copy, not the original.
+
+## 2026-09-05 — A guard cannot be tested against the thing it observes
+
+Three assertions in `tests/unit/agentGuard.test.ts` were coupled to this working tree, and they were
+found one at a time, each fix removing only the case in front of me. `git checkout docs` needed
+`docs/` clean and went red when a handoff document landed there. The drift test needed the repo
+dirty and went red the moment that was committed. `git checkout package.json` needed package.json
+clean and went red when one npm script was added.
+
+The middle two are the tell: **no single tree state satisfied both**, so the suite could not be green
+before and after a commit. That is not flakiness, it is a contradiction that had been sitting there.
+
+**Rule:** an assertion about a tool that reads `git status` must run against a repo the test creates.
+And when a defect has a shape rather than a location, grep for the shape before declaring it fixed —
+[[anything-written-twice-diverges]] applies to test coupling, not only to prose.
+
+## 2026-09-05 — Two ways a guard passes while doing nothing
+
+Building `scripts/check-doc-invariants.mjs` produced both failure modes in one sitting.
+
+**Its test reimplemented the regex it was checking**, so it would have stayed green while the shipped
+parser broke. Fixed by exporting `citedNumbers` and asserting on that. A test that contains its own
+copy of the logic is testing the copy.
+
+**It flagged its own source and its own test**, because a tool that names the pattern it hunts
+necessarily contains that pattern. The exclusion is correct, and it is also exactly how a real
+finding would get silenced later, so it is pinned to two paths and that length is asserted.
+
+Neither was visible by reading. Both appeared on the first run.
+
+**Rule:** run the guard, then mutate in **both** directions — inject the violation and confirm it
+fails naming file and line, then correct it and confirm it passes. A guard verified only in the
+failing direction cannot tell you it will ever go green.
+
+## 2026-09-05 — `deny` is for the impossible, not for taste
+
+`Read(./node_modules/**)` was added to keep dependency source out of context. It also forbade
+`node_modules/next/dist/docs/`, which `AGENTS.md` **mandates** reading before writing Next.js code,
+and it blocked `find . -path ./node_modules -prune` — the idiom whose whole purpose is to *not* read
+that directory. The path resolved against the project root regardless of the shell's cwd.
+
+A context-hygiene preference was enforced as a hard security fence, and it contradicted a standing
+instruction in the same repo.
+
+**Rule:** `permissions.deny` carries what must be impossible. Context hygiene is a judgment call and
+belongs in judgment. Before adding a path rule, check whether any instruction in the repo requires
+reading that path — and remember the rule matches shell commands that merely name it.
