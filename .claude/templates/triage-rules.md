@@ -1,8 +1,8 @@
 # RISK VETO — the one-way doors in this repo
 
 Triage test 0 (`.claude/skills/midwife/SKILL.md` §1). If a task touches anything on this list, it is
-**GRAVE regardless of diff size**, and the door itself is the one place halting is correct
-(invariant 7).
+**GRAVE regardless of diff size**, and the door itself is the one place halting is correct —
+halting is for one-way doors only, everything else has an autonomous default.
 
 This is data, not doctrine. It is specific to this codebase and goes stale — every entry carries
 the date it was last verified and the command that verifies it. **Re-verify an entry before

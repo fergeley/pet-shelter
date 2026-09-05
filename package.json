@@ -9,7 +9,7 @@
     "lint": "eslint",
     "format": "eslint --fix",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint",
+    "check": "npm run typecheck && npm run lint && npm run docs:check",
     "arch:check": "node docs/architecture/layer-graph.mjs",
     "docs:check": "node scripts/check-doc-invariants.mjs",
     "commit:check": "node scripts/commit-msg.mjs",

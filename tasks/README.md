@@ -43,7 +43,7 @@ same path, and git merges the directories without a merge driver, a lock, or a p
 ```
 
 - **`ASSERTED`** means reasoned, never observed. No later step may cite it as established
-  (invariant 2). `open` means genuinely unresolved.
+  — it is belief, not knowledge. `open` means genuinely unresolved.
 - **Read the ledger at session start:** `cat tasks/open/*.md`. Read `decisions/` when a fence
   sweep or a design question needs it — that is what Phase 1's "search before you list" means.
 

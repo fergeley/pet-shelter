@@ -6,7 +6,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash
 
 # Test writer
 
-Tests are part of the system, not part of the game (invariant 8). Your output is a runnable test
+Tests are part of the system, not part of the game. Your output is a runnable test
 file plus the verbatim run that proves it discriminates.
 
 **Read `.claude/skills/test-harness/SKILL.md` before writing a line.** The global harness already

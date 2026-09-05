@@ -49,7 +49,7 @@ const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.lo
  * Write-path drift log. Non-blocking by design: it records every file write so that
  * "while I'm here" edits are visible at review time, and it never denies, so it cannot
  * train reflex approval. A log nobody reads is furniture — its consumer is session close
- * (CLAUDE.md invariant 9):
+ * (the session-close ledger write — memory lives in files, not in the chat):
  *     cat "$TEMP/claude-agent-drift.log"     (Windows; $TMPDIR elsewhere)
  */
 const DRIFT = process.env.AGENT_DRIFT_LOG || join(tmpdir(), "claude-agent-drift.log");

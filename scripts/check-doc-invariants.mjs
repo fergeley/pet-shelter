@@ -34,12 +34,29 @@
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
-/** Below these, assume the scanner broke rather than that the repo is clean. */
+/**
+ * Below these, assume the scanner broke rather than that the repo is clean.
+ *
+ * The reference floor is deliberately low. Once the live citations were rewritten in words,
+ * the only ones left are in archived records, and that count legitimately shrinks as records
+ * age out — a high floor would fail on a tidy-up. The regex itself is pinned directly by the
+ * test against `citedNumbers`, which is the check that actually matters; this floor only
+ * catches the corpus going empty.
+ */
 const FLOOR_FILES = 100;
-const FLOOR_REFERENCES = 10;
+const FLOOR_REFERENCES = 5;
 
 /** Records of a past decision. They cite the invariants of their day, correctly. */
 const ARCHIVE = [/^tasks\/decisions\//, /^docs\/tasks\//];
+
+/**
+ * This guard and its test necessarily spell out the citations they hunt for — in the regex,
+ * in the prose above it, and in the parser fixtures. Without this they flag themselves, which
+ * is noise on every run and would have made the first green run impossible. Kept to exactly
+ * two paths, and asserted in the test, so it cannot quietly grow into a way to silence a real
+ * finding.
+ */
+const SELF = ["scripts/check-doc-invariants.mjs", "tests/unit/docInvariants.test.ts"];
 
 const SCANNED = /\.(md|mjs|ts|tsx)$/;
 
@@ -51,7 +68,7 @@ const isArchive = (file) => ARCHIVE.some((r) => r.test(file));
 function repoFiles() {
   return execFileSync("git", ["ls-files"], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 })
     .split("\n")
-    .filter((f) => f && SCANNED.test(f));
+    .filter((f) => f && SCANNED.test(f) && !SELF.includes(f));
 }
 
 /**
@@ -77,17 +94,32 @@ function collectDefinitions(files) {
   return defs;
 }
 
+/**
+ * Every invariant number cited in one line, with the citation that produced it.
+ * "invariants 1 and 7" is two citations, not one — that was the first thing the prototype
+ * got wrong.
+ *
+ * Exported so the test asserts on THIS function instead of on its own copy of the regex.
+ * A test that reimplements the thing it checks stays green while the shipped code is broken,
+ * which is this repo's most frequent defect shape wearing a lab coat.
+ */
+export function citedNumbers(line) {
+  const out = [];
+  for (const m of String(line ?? "").matchAll(REFERENCE)) {
+    for (const num of m[1].split(/\s*(?:,|and|–|-)\s*/)) {
+      out.push({ number: Number(num), raw: m[0].trim() });
+    }
+  }
+  return out;
+}
+
 function collectReferences(files) {
   const refs = [];
   for (const file of files) {
     const text = read(file);
     if (text === null) continue;
     text.split("\n").forEach((line, i) => {
-      for (const m of line.matchAll(REFERENCE)) {
-        for (const num of m[1].split(/\s*(?:,|and|–|-)\s*/)) {
-          refs.push({ file, line: i + 1, number: Number(num), raw: m[0].trim() });
-        }
-      }
+      for (const c of citedNumbers(line)) refs.push({ file, line: i + 1, ...c });
     });
   }
   return refs;

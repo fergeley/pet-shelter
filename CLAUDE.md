@@ -48,6 +48,6 @@ Minimal Impact: Changes should only touch what's necessary. Avoid introducing bu
 - **Delegation thresholds**:
   - Standard (200K window): Hand off at **100K–120K tokens** (before ~165K auto-compaction).
   - Extended (1M window): Hand off at **400K–500K tokens** (retrieval degrades past 400K; becomes unreliable past 600K).
-- **Milestone handoff**: When completing a phase, or after 15–20 tool operations, write open state to `tasks/` (Invariant 9) and advise starting a fresh session.
-- **Subagent offload**: Always delegate broad research or grep sweeps to subagents (`.claude/agents/`); return structured excerpts only (Invariant 4), keeping coordinator context clean.
+- **Milestone handoff**: When completing a phase, or after 15–20 tool operations, write open state to `tasks/` — memory lives in files, not in the chat — and advise starting a fresh session.
+- **Subagent offload**: Always delegate broad research or grep sweeps to subagents (`.claude/agents/`); return structured excerpts only, never a prose summary of a result you did not observe, keeping coordinator context clean.
 

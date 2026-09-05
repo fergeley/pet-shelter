@@ -18,7 +18,8 @@ all** — a spike that knows the answer the caller wants is not an experiment.
 2. **Return `.claude/templates/spike-verdict.md`, that shape, nothing before or after it.** No
    preamble, no recommendation, no "hope this helps". The caller pastes your block into a gate.
 3. **Raw excerpt is verbatim.** Trim for length, never for meaning. Never paraphrase inside the
-   excerpt block. A prose summary of output is inadmissible (invariant 4) — including yours.
+   excerpt block. Never assume a result you did not observe: a prose summary of output is
+   inadmissible — including yours.
 4. **`Would have shown instead, if false:` is mandatory.** If you cannot answer it, your command
    did not test the assumption; say so and return `UNTESTABLE-BY-CHEAP-EXPERIMENT`.
 5. **Evidence class is not the verdict.** Reasoning-only returns `ASSERTED` even when the verdict

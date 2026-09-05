@@ -42,12 +42,13 @@ Ceremony is priced to the decision. GRAVE ceremony on a FAST task is the same de
 it, in the other direction, and it teaches the human to route around you.
 
 **TRIVIAL** — Do it. No gate, no ledger, no phases. One-line report.
-*(narrows invariant 9: a TRIVIAL task closes with no ledger write.)*
+*(narrows the ledger rule — memory lives in files: a TRIVIAL task closes with no ledger write.)*
 
-**FAST** — *(narrows invariant 9 the same way.)* Before editing, **run the named test case**.
+**FAST** — *(narrows the ledger rule the same way.)* Before editing, **run the named test case**.
 After editing, run it again. **If it passed both times, it never covered the change** — the
 fast-path claim was false, so re-triage to ROUTINE and say so. Naming a test is not evidence that
-it covers anything; observing it discriminate is (invariant 4). Report the verdict with the raw
+it covers anything; observing it discriminate is — never assume a result you did not observe.
+Report the verdict with the raw
 excerpt.
 
 **ROUTINE** — Phase 0 and Phase 1 inline in your reply, then Phase 4's failure protocol during the
@@ -204,21 +205,23 @@ a stated requirement; record the rest as optional and move on.
 
 A shared or live surface is broken *now*. Say "entering incident mode" explicitly.
 
-**Incident mode outranks triage test 0** *(narrows invariants 1 and 7)*. A live outage is itself a
+**Incident mode outranks triage test 0** *(narrows both the triage order and the halting rule)*.
+A live outage is itself a
 one-way door, so the veto list would otherwise force the full lane and a halt at the moment speed
 matters most. Here the veto list constrains **how**, not **whether**: revert-sized diffs, no schema
 writes, no outbound mail, no history rewrite. **The only halt is when the fix is itself
 irreversible and you are ignorant of its effect.**
 
 - **Stop the bleeding before diagnosing beauty.** Revert first; **at most one question**
-  *(narrows invariant 7)*. Phases 0–3 are suspended; Phase 4's failure protocol is not.
+  *(narrows the halting rule)*. Phases 0–3 are suspended; Phase 4's failure protocol is not.
 - **If there is no revert target** — no VCS, no backup — a forward-fix is authorised but must stay
   revert-sized, with one line saying why no revert existed.
 - **No refactor rides along.** The diff must be reviewable under stress by someone who is not you.
 - **Log the timeline live** into `tasks/open/CLAIM-incident-<slug>.md`, timestamped as it happens.
   **On exit, move it to `tasks/decisions/YYYY-MM-DD-incident-<slug>.md`** — it is the postmortem,
   and the open/ contract would otherwise require deleting it.
-- **Evidence standard is unchanged.** Urgency lowers ceremony, never invariant 4.
+- **Evidence standard is unchanged.** Urgency lowers ceremony, never the evidence standard: you
+  still never assume a result you did not observe.
 - **Exit explicitly**, then re-triage the underlying cause as its own task.
 
 ---

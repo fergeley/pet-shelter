@@ -2,7 +2,8 @@
 
 The return shape for every Phase 2 experiment, and for any sub-run dispatched to investigate
 anything. Structured returns with raw excerpts outrank prose summaries — from a sub-agent **or
-from your own reasoning** (invariant 4). A prose summary is inadmissible as evidence.
+from your own reasoning**. Never assume a result you did not observe; a prose summary is
+inadmissible as evidence.
 
 The rules governing verdicts — immutability, DIED, the three-hypothesis and three-inconclusive
 counts — are in `.claude/skills/midwife/SKILL.md` §3 and are not restated here.
