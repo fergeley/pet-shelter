@@ -66,3 +66,31 @@ Context rot is ~2% recall/instruction adherence degradation per 100K tokens. Lon
 - **Offload noisy exploration**: Deep codebase search, multi-file inspection, and verbose build/test logs belong in dedicated subagents. Keep raw exploration output out of the coordinator conversation.
 - **State persists in files, not chat**: When reaching a session reset threshold, write current progress and live state to disk (task ledger or plan artifact) before closing. Start the next session with a single pointer to that file.
 
+
+## Reaching for the smallest thing that works
+
+The value ("Simplicity First") is in `CLAUDE.md`. This is the procedure, which that file does not
+give. Adapted from Ponytail (github.com/DietrichGebert/ponytail, MIT, Copyright (c) 2026
+DietrichGebert); its plugin is deliberately NOT installed, because its `SubagentStart` hook injects
+unconditionally and would land inside the narrow-contract agents in `.claude/agents/`.
+
+**The ladder — stop at the first rung that holds.** It runs *after* you understand the problem, not
+instead of it; the ladder shortens the solution, never the reading.
+
+1. Does this need to exist at all? Speculative need — skip it, say so in one line.
+2. Already in this codebase? Reuse it. Re-implementing what lives a few files over is the most
+   common slop, and here it is also the repo's top defect shape — see "Boundaries and duplication".
+3. Standard library does it? Use it.
+4. A native platform feature covers it? Subject to the design-system guards: a raw element that
+   dodges the tone tokens is not the lazy option, it is a guard violation.
+5. An already-installed dependency solves it? Use it. Never add one for what a few lines can do.
+6. Can it be one line? One line.
+7. Only then: the minimum code that works.
+
+**Mark a deliberate corner-cut with its ceiling.** Where you knowingly ship something with a known
+limit (a global lock, an O(n²) scan, a naive heuristic), leave a `ceiling:` comment naming the limit
+and the upgrade path — `// ceiling: O(n²) scan, index it if the list outgrows ~500`. An unmarked
+shortcut is indistinguishable from a bug, and this repo's reviews keep rediscovering the difference.
+
+Two of Ponytail's rules are deliberately NOT adopted: "leave one runnable check behind afterwards"
+inverts the test-first gate, and its output-brevity rule is about prose style, not code.

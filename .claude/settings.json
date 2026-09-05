@@ -18,7 +18,10 @@
     "deny": [
       "Read(./package-lock.json)",
       "Read(./.next/**)",
-      "Read(./node_modules/**)",
+      "Read(./node_modules/**/*.js)",
+      "Read(./node_modules/**/*.mjs)",
+      "Read(./node_modules/**/*.cjs)",
+      "Read(./node_modules/**/*.map)",
       "Read(./.deepsec/node_modules/**)",
       "Bash(git push --force*)",
       "Bash(git push -f *)",

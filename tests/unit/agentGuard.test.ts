@@ -240,11 +240,10 @@ describe("agent guard", () => {
 
     it("refuses the git operations that cannot be undone", () => {
       expect(ask(null, "Bash", { command: "git reset --hard HEAD~1" })).toBe("DENY");
-      // Effect, not shape: this path is unmodified, so the command restores it to
-      // itself and destroys nothing. The DENY direction is pinned against a scratch
-      // repo below, because an assertion that only holds while this tree happens to
-      // be dirty is not a test. 12 of 151 corpus denials were clean-path checkouts.
-      expect(ask(null, "Bash", { command: "git checkout -- src/lib/email.ts" })).toBe("ALLOW");
+      // `git restore` is unconditional — it discards whatever is there, so it denies on
+      // shape and needs no tree. The `git checkout <path>` counterpart is judged on
+      // effect and therefore on tree state, so it lives in the scratch-repo block below
+      // rather than here. 12 of 151 corpus denials were clean-path checkouts.
       expect(ask(null, "Bash", { command: "git restore src/lib/email.ts" })).toBe("DENY");
       expect(ask(null, "Bash", { command: "git clean -fd" })).toBe("DENY");
       expect(ask(null, "Bash", { command: "git stash" })).toBe("DENY");
@@ -273,11 +272,13 @@ describe("agent guard", () => {
     it("tells a branch switch from a working-tree discard by asking the filesystem", () => {
       // `git checkout <branch>` and `git checkout <path>` are syntactically
       // identical. The discriminator is whether the argument names a real file.
-      // Effect, not shape: this path is unmodified, so the command restores it to
-      // itself and destroys nothing. The DENY direction is pinned against a scratch
-      // repo below, because an assertion that only holds while this tree happens to
-      // be dirty is not a test. 12 of 151 corpus denials were clean-path checkouts.
-      expect(ask(null, "Bash", { command: "git checkout package.json" })).toBe("ALLOW");
+      //
+      // Only the branch-name direction is asserted here, because a branch name is not
+      // a path in any tree state. The path direction — clean allows, dirty denies —
+      // lives in the scratch-repo block below. It used to read `git checkout
+      // package.json` against this tree, which passed only while nobody had edited
+      // package.json; adding one npm script turned it red. Third instance of the same
+      // coupling in this file, so the class is now gone rather than the instance.
       expect(ask(null, "Bash", { command: "git checkout master" })).toBe("ALLOW");
       expect(ask(null, "Bash", { command: "git checkout -b feature/x" })).toBe("ALLOW");
     });
