@@ -57,3 +57,12 @@ drifts. What the descriptions cannot say:
 - Never open a docs-only pull request. Attach docs to the branch carrying the code.
 
 Working-tree and staging rules are in `.claude/templates/triage-rules.md` §5, not restated here.
+
+## Context Management & Session Lifespan
+
+Context rot is ~2% recall/instruction adherence degradation per 100K tokens. Long tool loops compound attention dilution.
+
+- **Do not self-meter tokens each turn**: Models cannot reliably count their own tokens and waste attention estimating them. Trigger session resets on **task milestones** (planning settled, subsystem verified, or 15–20+ tool calls executed), not guessed numbers.
+- **Offload noisy exploration**: Deep codebase search, multi-file inspection, and verbose build/test logs belong in dedicated subagents. Keep raw exploration output out of the coordinator conversation.
+- **State persists in files, not chat**: When reaching a session reset threshold, write current progress and live state to disk (task ledger or plan artifact) before closing. Start the next session with a single pointer to that file.
+

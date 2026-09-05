@@ -13,5 +13,46 @@
   },
   "worktree": {
     "baseRef": "head"
+  },
+  "permissions": {
+    "deny": [
+      "Read(./package-lock.json)",
+      "Read(./.next/**)",
+      "Read(./node_modules/**)",
+      "Read(./.deepsec/node_modules/**)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(npm run db:push)",
+      "Bash(npm run db:push:unsafe*)",
+      "Bash(npm run db:seed)",
+      "Bash(npm run db:migrate:faqs*)",
+      "Bash(npx prisma db push*)",
+      "Bash(npx prisma db execute*)",
+      "Bash(npx prisma migrate*)"
+    ],
+    "ask": [
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "Bash(git clean -f*)",
+      "Bash(git stash*)",
+      "Bash(git commit --amend*)",
+      "Bash(git rebase *)",
+      "Bash(git branch -D*)",
+      "Bash(rm -rf *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit|Bash|PowerShell|BashOutput|KillShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent-guard.mjs\""
+          }
+        ]
+      }
+    ]
   }
 }

@@ -51,3 +51,24 @@ be dropped, both duplications collapse, and cost 2 above disappears.
 
 Until then: **do not remove the matcher to tidy the duplication.** The duplication is the cheaper
 defect.
+
+---
+
+## 2026-09-05 — `settings.json` wiring measured; this entry is NOT settled by it
+
+A `PreToolUse` hook wired in `.claude/settings.json` with `matcher:
+"Bash|PowerShell|BashOutput|KillShell"` **fired**, and a `PostToolUse` hook with `matcher:
+"Edit|Write|NotebookEdit"` fired too:
+
+    2026-09-05T02:34:28.197Z main Bash
+    2026-09-05T02:43:24.888Z main Write
+
+**And `settings.json` hooks hot-reload mid-session** — the wiring was added one tool call before
+the first line appeared. Frontmatter hooks do not
+(`tasks/decisions/2026-08-31-agent-definitions-are-session-start-snapshots.md`). **The two wiring
+surfaces have different liveness rules**, which was not previously recorded anywhere; this entry's
+session-start caveat applies to frontmatter only.
+
+**Why this does not settle the entry:** the measurement is of `settings.json`, while the open
+question is *frontmatter* wiring for `schema-auditor` and `atomic-commit`, which have still never
+produced a line. It also does not test a matcherless entry. Both settle conditions stand unchanged.

@@ -1277,3 +1277,94 @@ ask the tree — `git ls-tree -r --name-only <ref> | grep -x '<path>'` — never
 and never `git status`. When a peer reports a repository fact, re-derive it before acting: this one
 was three commands, and two of the three claims did not survive.
 
+
+## 2026-09-05 — To claim a config key is absent, print the file's keys
+
+I hand-rolled a `PreToolUse` shell parser to fence irreversible commands, hardened it through five
+review rounds, then discovered Claude Code ships `permissions.allow/deny/ask`. Reporting that, I
+wrote *"the platform's mechanisms were entirely unused"* — having printed `settings.permissions`,
+seen only `defaultMode`, and generalised. `~/.claude/settings.json` carries a top-level `autoMode`
+profile with 23 environment entries and 3 `soft_deny` rules, two of which already blocked
+`prisma db push` and seeds against a production `DATABASE_URL`. It is one line away from the key I
+did print. An auto-memory note had recorded it since 2026-08-31.
+
+**Rule:** "feature X is not configured here" is a claim about a file, and the only evidence for it
+is that file's key list — `Object.keys(JSON.parse(...))`, printed, whole. Reading one sub-object and
+generalising to the file is the same error as reading one test and generalising to the suite. Do
+this *before* building the thing, because the search that finds the feature is the same search that
+finds the config.
+
+## 2026-09-05 — A blocklist over shell text has an unbounded defect surface
+
+The parser's defect count per independent review pass: **8, then 12, then 14.** The rate never fell.
+Each fix opened a new seam, and one fix for a false positive introduced a *fail-open* bypass
+(stripping heredoc bodies to stop denying documentation meant `bash <<EOF … git reset --hard … EOF`
+was skipped entirely). `gitWrites()` in the same file had already written the reason down: *"a
+blocklist is only as good as its author's imagination."*
+
+**Rule:** when a check must classify free-form shell text, the defect count per pass is the metric,
+not the defect count. A rate that does not converge is a statement about the design, and no further
+round fixes it. Either invert to an allowlist over a bounded vocabulary, or move the check to a
+layer where the input is structured — a tool name, a file path, a first-party matcher.
+
+## 2026-09-05 — Measure a guard's false-positive rate against real history before arming it
+
+`~/.claude/projects/<sanitized-cwd>/**/*.jsonl` holds every session transcript. Extracting each
+`tool_use` block for `Bash`/`PowerShell` gave **4,917 distinct commands, 5,028 invocations** from 71
+files — every shell command this project has ever run. Replaying them through the guard denied
+**151 (3.02%)**, and the *composition* was the finding: 46 were the file *path* `prisma/seed.ts`
+appearing in `git diff --`, `git add` and `sed -n`; 21 were `git -C .claude/worktrees/<name>`, the
+isolation mechanism this repo recommends. Roughly 85 of 151 were legitimate work. After four fix
+rounds: 79 (1.57%), mostly true positives.
+
+57 unit tests and three review rounds had all passed, and none of them found this — because they
+tested the cases their author had imagined, and the corpus tested what people actually run.
+
+**Rule:** for any gate that will fire on real commands, replay the transcript corpus before arming
+it, and read the denials rather than the rate. A guard's survival is decided by its false-positive
+rate, because a rate high enough to annoy gets the override set permanently and then the guard
+uninstalled — which is what happened to this repo's `test-writer` path rule and its `pre-commit`
+hook. Extends [[prototype-scanners-before-asserting]] from the extractor to the whole guard.
+
+## 2026-09-05 — A guard that can block its own removal will
+
+Twice in one session. First: disarming the hand-rolled fence was chained into one Bash call with a
+`git checkout` used to verify the disarm — the fence denied the whole call, including the disarm.
+One denied segment kills the entire tool call, which multiplies the annoyance cost far beyond the
+measured 3%. Second, and better: an `autoMode.soft_deny` entry I had just written read *"Editing
+.claude/settings.json … should not be changed casually by the party it constrains"* — and it then
+refused my edit removing that very block.
+
+**Rule:** the disarm path must not pass through the guard. Put the removal in its own tool call with
+nothing else in it, and before writing a rule that covers configuration, work out who removes it and
+whether they can. The second instance is not a bug — it is the principle working, and it is the same
+principle that says an override belongs in the environment rather than in a repo file. It still
+means the only actor who can undo it is the human.
+
+## 2026-09-05 — Settings arrays are replaced by the highest-precedence source, not merged
+
+Adding `autoMode.environment` to `.claude/settings.json` appears to have discarded all 23 entries of
+the `~/.claude/settings.json` profile for this project — including a warning that this repo is
+**public** and a PDPA data-location entry. The tell is in the schema: `$defaults` exists to
+re-inherit the *built-in* rules at a chosen position, and there is no `$user` equivalent. If arrays
+merged across sources, neither sentinel would be needed.
+
+Marked **ASSERTED** — inferred from the sentinel design, not measured, and I could not measure it
+because the classifier refuses edits to either settings file.
+
+**Rule:** before adding an array-valued key at project level, read the same key at user level. If it
+has entries, either extend it in place or accept that yours replace it — and say which, in the
+entry. `permissions.allow/deny/ask` may behave differently (deny rules are documented as
+cumulative); do not assume one answer covers both keys.
+
+## 2026-09-05 — Your own background jobs are a load source
+
+A full suite run reported **23 failures over 84 minutes** while two transcript-corpus replays ran in
+the background, each spawning a node process per command across ~5,000 commands. Re-run with nothing
+else going: **1,314 passed, 76 files, 58 seconds.** Only 2 of the 23 were real, and those were an
+assertion about a config key I had just removed.
+
+**Rule:** [[flaky-baseline-under-session-load]] applies to load you created yourself, not only to
+the other sessions. Before reading a red suite as a regression, check what you left running —
+`/tasks`, or the background IDs in your own transcript. A duration far above the known baseline
+(~50s for this unit project) is the tell, and it is more reliable than the failure list.
