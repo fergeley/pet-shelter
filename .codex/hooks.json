@@ -1,0 +1,19 @@
+{
+  "description": "Record working-tree drift after Codex shell commands and patches.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/drift-log.mjs\"",
+            "commandWindows": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/drift-log.mjs\"",
+            "timeout": 15,
+            "statusMessage": "Recording working-tree drift"
+          }
+        ]
+      }
+    ]
+  }
+}
