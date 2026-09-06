@@ -16,7 +16,7 @@ export default async function HomePage() {
   const initialPets = await getPublicPets();
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col bg-background">
       {/* 1. Hero Section with 5 Impact Stats */}
       <Hero />
 
@@ -26,18 +26,18 @@ export default async function HomePage() {
       <HomeQuickActionsSection />
 
       {/* 3. Latest news and updates */}
-      <section className="border-t border-border bg-background py-10 sm:py-14">
+      <section className="bg-work-ground py-16 sm:py-20">
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
           <BulletinFeed
             targetPage="home"
-            title="Latest news and updates"
+            title="From the shelter"
             maxItems={2}
           />
         </div>
       </section>
 
       {/* 4. Adoptable & Recovering Pets Gallery Showcase */}
-      <section id="adopt" className="border-t border-border bg-card py-14 sm:py-18">
+      <section id="adopt" className="bg-work-ground py-16 sm:py-20">
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
           <Suspense
             fallback={

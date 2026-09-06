@@ -1,27 +1,21 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
   Heart,
   ArrowRight,
-  HeartHandshake,
   ShieldCheck,
-  Package,
   Award,
   Users2,
   Stethoscope,
 } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { PetMatchQuiz } from "@/components/features/pets/PetMatchQuiz";
-import { SponsorshipModal } from "@/components/features/pets/SponsorshipModal";
+import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
 export function Hero() {
   const { isMs } = useLanguage();
-  const [isQuizOpen, setIsQuizOpen] = useState(false);
-  const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
 
   const impactStats = [
     {
@@ -29,41 +23,36 @@ export function Hero() {
       labelEn: "Neutered via TNRM",
       labelMs: "Dimandulkan (TNRM)",
       icon: ShieldCheck,
-      color: "text-success-accent ",
     },
     {
       metric: "380+",
       labelEn: "Animals Rehabilitated",
       labelMs: "Haiwan Dipulihkan",
       icon: Stethoscope,
-      color: "text-care-accent ",
     },
     {
       metric: "290+",
       labelEn: "Adopted into Homes",
       labelMs: "Berjaya Diadopsi",
       icon: Heart,
-      color: "text-danger-accent ",
     },
     {
       metric: "150+",
       labelEn: "Active Volunteers",
       labelMs: "Sukarelawan Aktif",
       icon: Users2,
-      color: "text-warning-accent ",
     },
     {
       metric: "25+",
       labelEn: "Partnerships & Vets",
       labelMs: "Rakan Kolaborasi & Vet",
       icon: Award,
-      color: "text-info-accent ",
     },
   ];
 
   return (
     <>
-      <section className="border-b border-border bg-muted/20">
+      <section className="flex min-h-[calc(100dvh-4rem)] items-center bg-work-ground">
         <div className="w-full px-6 py-12 sm:px-8 sm:py-16 lg:px-12 lg:py-20">
           <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12 max-w-7xl mx-auto">
             
@@ -151,20 +140,20 @@ export function Hero() {
           </div>
 
           {/* Impact Showcase Strip (FE-02) */}
-          <div className="max-w-7xl mx-auto mt-12 sm:mt-16 pt-8 border-t border-border/80">
+          {/* <div className="max-w-7xl mx-auto mt-20 sm:mt-24">
             <div className="mb-4">
               <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-                {isMs ? "Impak Kami Setakat Ini" : "Our Impact So Far"}
+                {isMs ? "Kerja yang sedang berjalan" : "Work already underway"}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {impactStats.map((stat, idx) => (
                 <div
                   key={idx}
-                  className="border border-border bg-card p-4 rounded-2xl space-y-1.5 shadow-xs"
+                  className="border border-border bg-work-panel p-4 rounded-2xl space-y-1.5 shadow-xs"
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight ${stat.color}`}>
+                    <span className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-primary">
                       {stat.metric}
                     </span>
                     <stat.icon className="size-4 text-muted-foreground opacity-60" />
@@ -175,20 +164,10 @@ export function Hero() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
         </div>
       </section>
 
-      {/* Modals */}
-      <PetMatchQuiz
-        open={isQuizOpen}
-        onOpenChange={setIsQuizOpen}
-      />
-
-      <SponsorshipModal
-        open={isSponsorshipOpen}
-        onOpenChange={setIsSponsorshipOpen}
-      />
     </>
   );
 }
