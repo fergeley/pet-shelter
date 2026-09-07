@@ -270,6 +270,63 @@ export function JoinC() {
   );
 }
 
+/**
+ * D — C's asymmetric grid, A's card style throughout.
+ *
+ * Same emphasis as C — Adopt and Donate take the two wide cells, Volunteer and Sponsor stack
+ * in the third — but nothing is a photo-overlay. Every card is A's shape: image on top,
+ * copy below on the white panel. Text sits on a solid ground rather than on a photograph, so
+ * it needs no scrim, and the images stay unobscured.
+ *
+ * Volunteer and Sponsor carry no image at all. Their column is one third the width, so a
+ * photograph there arrives too small to read as one and costs the copy the room it needs;
+ * dropping it also lets the emphasis stay where C put it, on the two wide cells.
+ */
+export function JoinD() {
+  const { isMs } = useLanguage();
+  const actions = getQuickActions(isMs);
+  const [lead, second, third, fourth] = actions;
+  const big = [lead, third].filter(Boolean);
+  const small = [second, fourth].filter(Boolean);
+
+  const card = "group flex flex-col overflow-hidden rounded-3xl border border-border bg-work-panel shadow-xs transition-colors hover:border-primary/40";
+  const body = (a: (typeof actions)[number], titleSize: string) => (
+    <div className="flex flex-1 flex-col gap-3 p-6 sm:p-7">
+      <h3 className={`font-heading ${titleSize} font-bold text-foreground`}>{a.title}</h3>
+      <p className="text-sm leading-relaxed text-muted-foreground">{a.description}</p>
+      <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-xs font-bold uppercase tracking-wider text-primary">
+        {a.cta}
+        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </div>
+  );
+
+  return (
+    <section className={SHELL}>
+      <div className={`${WRAP} space-y-12`}>
+        <Header title={JOIN_TITLE(isMs)} body={JOIN_BODY(isMs)} />
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {big.map((a) => (
+            <Link key={a.href} href={a.href} className={card}>
+              <div className="relative aspect-4/3 w-full bg-work-ground">
+                <Image src={a.image} alt={a.alt} fill className="object-cover" sizes="(max-width:1024px) 100vw, 33vw" />
+              </div>
+              {body(a, "text-2xl")}
+            </Link>
+          ))}
+          <div className="flex flex-col gap-6">
+            {small.map((a) => (
+              <Link key={a.href} href={a.href} className={`${card} flex-1`}>
+                {body(a, "text-xl")}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ==================================================== Standards =================== */
 
 const STD_TITLE = (isMs: boolean) =>

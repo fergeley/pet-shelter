@@ -3,7 +3,7 @@ import { getPublicPets } from "@/actions/pets";
 import { HeroFullBleed, HeroScatter, HeroPetStrip } from "@/components/layout/HeroVariants";
 import {
   WorkA, WorkB, WorkC,
-  JoinA, JoinB, JoinC,
+  JoinA, JoinB, JoinC, JoinD,
   StandardsA, StandardsB, StandardsC,
 } from "@/components/layout/SectionVariants";
 
@@ -14,17 +14,18 @@ import {
  * Delete this directory, `HeroVariants.tsx` and `SectionVariants.tsx` once decided.
  */
 
-type Key = "a" | "b" | "c";
+type Key = "a" | "b" | "c" | "d";
 
 const GROUPS = [
   { param: "hero", label: "Hero", options: { a: "Full-bleed photo", b: "Scattered images", c: "Live pet strip" } },
   { param: "work", label: "Our Work", options: { a: "Image cards", b: "Editorial rows", c: "Typographic index" } },
-  { param: "join", label: "Join us", options: { a: "Image cards", b: "Quiet list", c: "Asymmetric" } },
+  { param: "join", label: "Join us", options: { a: "Image cards", b: "Quiet list", c: "Asymmetric overlay", d: "Asymmetric cards" } },
   { param: "std", label: "Standards", options: { a: "Split column", b: "Centred + 4-up", c: "Definition list" } },
 ] as const;
 
-function pick(value: string | undefined): Key {
-  return value === "b" || value === "c" ? value : "a";
+function pick(param: string, value: string | undefined): Key {
+  const group = GROUPS.find((g) => g.param === param);
+  return group && value && value in group.options ? (value as Key) : "a";
 }
 
 export default async function PreviewPage({
@@ -34,7 +35,10 @@ export default async function PreviewPage({
 }) {
   const sp = await searchParams;
   const sel: Record<string, Key> = {
-    hero: pick(sp.hero), work: pick(sp.work), join: pick(sp.join), std: pick(sp.std),
+    hero: pick("hero", sp.hero),
+    work: pick("work", sp.work),
+    join: pick("join", sp.join),
+    std: pick("std", sp.std),
   };
   const pets = await getPublicPets();
   const href = (param: string, key: Key) =>
@@ -47,11 +51,11 @@ export default async function PreviewPage({
           {GROUPS.map((g) => (
             <div key={g.param} className="flex items-center gap-2">
               <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">{g.label}</span>
-              {(Object.keys(g.options) as Key[]).map((k) => (
+              {(Object.entries(g.options) as [Key, string][]).map(([k, label]) => (
                 <Link
                   key={k}
                   href={href(g.param, k)}
-                  title={g.options[k]}
+                  title={label}
                   className={`rounded-lg border px-2.5 py-1 text-xs font-bold uppercase transition-colors ${
                     sel[g.param] === k
                       ? "border-primary bg-primary text-primary-foreground"
@@ -77,6 +81,7 @@ export default async function PreviewPage({
       {sel.join === "a" && <JoinA />}
       {sel.join === "b" && <JoinB />}
       {sel.join === "c" && <JoinC />}
+      {sel.join === "d" && <JoinD />}
 
       {sel.std === "a" && <StandardsA />}
       {sel.std === "b" && <StandardsB />}
