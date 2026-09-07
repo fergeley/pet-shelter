@@ -21,12 +21,6 @@ const SHELL_HEIGHT = "min-h-[calc(100dvh-4rem)]";
 /** Placeholder. Every one of these wants a real Hope for Strays photograph before it ships. */
 const STOCK = {
   wide: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=2000&q=80",
-  scatter: [
-    "https://images.unsplash.com/photo-1425082661705-1834bfd09dca?auto=format&fit=crop&w=600&q=80",
-    "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=600&q=80",
-    "https://images.unsplash.com/photo-1511044568932-338cba0ad803?auto=format&fit=crop&w=600&q=80",
-    "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=600&q=80",
-  ],
 };
 
 function useCopy() {
@@ -94,28 +88,42 @@ export function HeroFullBleed() {
 /* ------------------------------------------------------------------ B */
 
 /**
- * Centred text with four photographs placed around it.
+ * Centred text ringed by cut-out animals.
  *
- * The images are absolutely positioned only from `lg` up. Below that they collapse to a
- * plain row under the copy, because a scattered composition at 375px is just a stack with
- * extra steps.
+ * The images are transparent PNGs in square boxes with `object-contain`, so each animal
+ * keeps its own silhouette against the ground rather than sitting in a photo frame. That is
+ * the whole point of the treatment: a framed photograph reads as a picture of an animal, a
+ * cut-out reads as the animal. No borders, no radius, no card — a rounded frame here would
+ * undo the effect it is meant to create.
+ *
+ * Eight of them, at three sizes, so the ring has depth instead of reading as a flat border.
+ * Below `lg` the scatter is meaningless — absolute placement at 375px is a stack with extra
+ * steps — so the same cut-outs become an honest row under the copy.
  */
+const CUTOUTS = [
+  { src: "/cutouts/cat-png-17.png", at: "lg:left-[2%] lg:top-[12%] lg:size-52 lg:-rotate-6" },
+  { src: "/cutouts/dog-png-2.png", at: "lg:left-[13%] lg:bottom-[10%] lg:size-60 lg:rotate-3" },
+  { src: "/cutouts/cat-png-9.png", at: "lg:left-[24%] lg:top-[4%] lg:size-36 lg:rotate-6" },
+  { src: "/cutouts/dog-png-14.png", at: "lg:left-[1%] lg:top-[46%] lg:size-40 lg:rotate-2" },
+  { src: "/cutouts/dog-png-30.png", at: "lg:right-[2%] lg:top-[10%] lg:size-56 lg:rotate-6" },
+  { src: "/cutouts/cat-png-20.png", at: "lg:right-[12%] lg:bottom-[8%] lg:size-60 lg:-rotate-3" },
+  { src: "/cutouts/dog-png-18.png", at: "lg:right-[24%] lg:top-[3%] lg:size-36 lg:-rotate-6" },
+  { src: "/cutouts/cat-png-28.png", at: "lg:right-[1%] lg:top-[48%] lg:size-40 lg:-rotate-2" },
+];
+
 export function HeroScatter() {
   const { heading, body, cta } = useCopy();
-  const spots = [
-    "lg:left-[3%] lg:top-[14%] lg:h-44 lg:w-36 lg:-rotate-6",
-    "lg:right-[5%] lg:top-[10%] lg:h-40 lg:w-32 lg:rotate-3",
-    "lg:left-[8%] lg:bottom-[12%] lg:h-36 lg:w-44 lg:rotate-2",
-    "lg:right-[3%] lg:bottom-[16%] lg:h-48 lg:w-36 lg:-rotate-3",
-  ];
   return (
     <section className={`relative flex ${SHELL_HEIGHT} items-center overflow-hidden bg-work-ground`}>
-      {STOCK.scatter.map((src, i) => (
-        <div
-          key={src}
-          className={`hidden lg:absolute lg:block overflow-hidden rounded-2xl border border-border shadow-brand-lg ${spots[i]}`}
-        >
-          <Image src={src} alt="" fill className="object-cover" sizes="200px" />
+      {CUTOUTS.map((c) => (
+        <div key={c.src} className={`pointer-events-none hidden lg:absolute lg:block ${c.at}`}>
+          <Image
+            src={c.src}
+            alt=""
+            width={320}
+            height={320}
+            className="size-full object-contain drop-shadow-xl"
+          />
         </div>
       ))}
 
@@ -139,12 +147,16 @@ export function HeroScatter() {
             </Link>
           </div>
 
-          {/* Below lg the scatter is meaningless, so the same photos become an honest row. */}
-          <div className="grid grid-cols-4 gap-3 pt-6 lg:hidden">
-            {STOCK.scatter.map((src) => (
-              <div key={src} className="relative aspect-square overflow-hidden rounded-xl border border-border">
-                <Image src={src} alt="" fill className="object-cover" sizes="25vw" />
-              </div>
+          <div className="grid grid-cols-4 gap-3 pt-8 lg:hidden">
+            {CUTOUTS.slice(0, 4).map((c) => (
+              <Image
+                key={c.src}
+                src={c.src}
+                alt=""
+                width={160}
+                height={160}
+                className="aspect-square w-full object-contain"
+              />
             ))}
           </div>
         </div>
