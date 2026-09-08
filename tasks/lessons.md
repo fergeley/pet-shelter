@@ -1462,3 +1462,104 @@ checked against a command string.
 This is [[the shell-parser finding]] arriving from the other side: a rule stated as prose about
 *purpose* has an unbounded surface, and one stated as a list of *shapes* can be verified. Verify an
 allow rule by asserting what it must NOT match, not only what it should.
+
+## 2026-09-09 — A one-way door can be closed, not only avoided
+
+The most expensive wrong conclusion of the donations/LHDN work. I reported twice, in writing, that
+the Playwright suite could not be run here: `.env.local` points `DATABASE_URL` at the Neon
+production branch, `02_rescue_sponsorship_receipt` submits a donation, and `Donation` is
+append-only — so a run would write an irreversible row to production. All of that was true. The
+conclusion drawn from it was not.
+
+The app has a **declared offline mode**. `isLedgerPersistent()` is `Boolean(process.env.DATABASE_URL)`,
+and `email.ts` takes a simulation branch when `RESEND_API_KEY` is missing. So
+
+```bash
+DATABASE_URL="" RESEND_API_KEY="" npx playwright test
+```
+
+removes both hazards outright: no database to write to, no mail that can leave. 23/23 specs then
+passed. The blocker was never the environment, it was that I priced the door and never asked
+whether the thing behind it could be switched off.
+
+**Rule:** before recording something as unverifiable because it touches a one-way door, enumerate
+the ways the door itself can be shut — a declared offline mode, a simulation branch, a fixture, a
+scratch target. `triage-rules.md` lists the doors; it does not claim they are always open. "I must
+not do X against production" and "X cannot be done" are different sentences, and only the first one
+was true.
+
+**Corollary — prove the escape before you use it.** The trick depends entirely on `.env.local` not
+reinstating the production URL, so both precedence assumptions were checked *first*: `dotenv` keeps
+a pre-set `""`, and so does `next dev` — the latter shown by fetching `/donate` and grepping for
+"Development sample data", which renders only on the offline path. A **GET-only probe**, because the
+cost of being wrong about precedence was the exact write I was avoiding. Never assume a result you
+did not observe applies hardest when the assumption is what makes an unsafe action safe.
+
+## 2026-09-09 — `z.infer` is the output type, so `.default()` breaks every caller
+
+Added `wantsTaxReceipt: z.boolean().default(false)` to `donationPledgeSchema` and broke eleven call
+sites, including `useSponsorshipController`, which has no opinion about the field. `DonationPledgeInput`
+is `z.infer<typeof schema>` — the schema's **output** type — and in the output a defaulted field is
+*required*, because by then the default has been applied. `.optional()` was both simpler and more
+honest at an action boundary.
+
+Only `tsc` caught it. Vitest was green throughout, because a test that passes an object literal to a
+Server Action never typechecks it at runtime.
+
+**Rule:** at a Server Action boundary typed with `z.infer`, prefer `.optional()` to `.default()`
+unless every caller is being updated in the same change. And run `npm run typecheck` before believing
+a green Vitest run — the two check disjoint things, and the suite cannot see a contract break.
+
+## 2026-09-09 — Gating an input is half the job; the assertions are the other half
+
+`/code-review high` found the defect I had congratulated myself on closing. I made the tax identifier
+conditional and left every surface that *asserts* deductibility unconditional — so unticking the box
+still produced a receipt headed "TAX DEDUCTION DOSSIER", still printing the LHDN reference, still
+emailing "valid for tax filing under Section 44(6)" with no NRIC on it. Worse: because I had just
+made unticked the **default**, I turned an edge case into the ordinary path.
+
+The decision document I wrote in the same change states the goal as stopping "a receipt that
+announces itself as tax-deductible while carrying nothing to deduct against". I wrote the sentence
+and then did not check the four places that say it.
+
+**Rule:** when a field becomes optional or conditional, grep for every surface that makes a claim
+*about* that field, not only the ones that read it. Input validation and output assertions are two
+lists, and shrinking the first without shrinking the second is how a document starts lying. Here the
+fix was one predicate — `isTaxClaimable` — asked at all four sites, which is also the answer to
+keeping them from drifting.
+
+## 2026-09-09 — A failing old test may be judging your default, not going stale
+
+Three `DonationReceiptIntegrity` tests failed the moment the new checkbox defaulted to ticked. The
+reflex is "the form changed, update the tests". The tests were right.
+
+The form *displayed* the tax identifier as required and *accepted* its absence. Those two readings
+disagree, and only one survives a change. Honouring the marker blocks every donor who until now gave
+with a name and an email — a cosmetic defect promoted to a funding one. Honouring the behaviour
+blocks nobody. The failing tests encoded the second reading as a fact about the product, and were a
+better guide to the default than my reasoning about what the asterisk "meant".
+
+**Rule:** before editing a test that a change broke, state what the test asserts about the *product*.
+If that statement is one you would defend, the default is wrong, not the test. `midwife` §Phase 4
+already forbids modifying a test to make it pass without citing a spec line; this is why.
+
+## 2026-09-09 — Three small ones worth not rediscovering
+
+**Checking the spec is not checking the page object.** I grepped `02_rescue_sponsorship_receipt.spec.ts`
+for tax-ID use, found it only in a data literal, and concluded e2e was unaffected. The break was in
+`e2e/pages/DonatePage.ts`, one call deeper. And it would not have failed — Playwright's `fill()`
+waits for an *enabled* element, so a newly `disabled` input makes the run **hang to timeout**, which
+reads like slowness rather than breakage. Disabling an input is a change to every page object that
+fills it.
+
+**Prepend + stable sort + equal timestamps = reversed.** `listPendingSponsorships` returned the queue
+backwards in memory mode. `recordSponsorshipPledge` prepends, so the array is newest-first; pledges
+recorded in the same millisecond compare equal; `Array.sort` is stable and therefore preserved the
+newest-first order it was handed. Real traffic would rarely hit it and a test loop hits it every
+time. Reverse before sorting when the source order is meaningful and the key can tie.
+
+**A fresh git worktree has no `node_modules`.** Vitest, `tsc` and ESLint all worked here because
+`npx` walks up the directory tree to the parent checkout's install. Turbopack refuses to
+("files outside of the workspace root are not compiled"), so `next dev` failed with "Could not find
+the Next.js package" until `npm install` ran inside the worktree. Passing unit tests are not
+evidence that the app can boot there.
