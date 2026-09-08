@@ -1,10 +1,25 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ImpactStatRecord } from "@/lib/domain/transparency";
+import baseline from "@/data/transparency.json";
 import {
+  formatFigureFrame,
   HOME_METRIC_BASELINE,
+  HOME_METRIC_KEYS,
+  isHomeMetricKey,
   metricLabel,
   selectHomeMetrics,
+  splitFigure,
 } from "@/lib/domain/metrics";
+
+/**
+ * `DATABASE_URL` points at a Neon PRODUCTION branch, so Prisma is mocked before
+ * the repository is imported — no test here may reach a real database.
+ */
+const prismaMock = vi.hoisted(() => ({
+  impactStat: { findMany: vi.fn() },
+  expenseItem: { groupBy: vi.fn() },
+}));
+vi.mock("@/lib/server/prisma", () => ({ prisma: prismaMock }));
 
 /**
  * Tier 1: the home page's metric selection, which is pure and therefore belongs
@@ -130,6 +145,90 @@ describe("selectHomeMetrics — rows that must be ignored", () => {
   });
 });
 
+describe("splitFigure", () => {
+  it("splits a trailing marker off the digits", () => {
+    expect(splitFigure("520+")).toEqual({
+      lead: "",
+      num: 520,
+      trail: "+",
+      grouped: false,
+    });
+    expect(splitFigure("100%")).toEqual({
+      lead: "",
+      num: 100,
+      trail: "%",
+      grouped: false,
+    });
+  });
+
+  it("keeps a leading currency marker out of the number", () => {
+    expect(splitFigure("RM 1200")).toEqual({
+      lead: "RM ",
+      num: 1200,
+      trail: "",
+      grouped: false,
+    });
+  });
+
+  it("treats a thousands separator as part of the number, not the suffix", () => {
+    // The first version left the comma in `trail`, so "1,250" parsed as 1 and
+    // the counter climbed 0..1 with a stray ",250" pinned beside it.
+    expect(splitFigure("1,250")).toEqual({
+      lead: "",
+      num: 1250,
+      trail: "",
+      grouped: true,
+    });
+    expect(splitFigure("1,250,000+")).toEqual({
+      lead: "",
+      num: 1250000,
+      trail: "+",
+      grouped: true,
+    });
+  });
+
+  it("returns null for a figure with no digits to count", () => {
+    expect(splitFigure("Ongoing")).toBeNull();
+    expect(splitFigure("")).toBeNull();
+    expect(splitFigure("—")).toBeNull();
+  });
+
+  it("parses every figure in the shipped baseline", () => {
+    for (const metric of HOME_METRIC_BASELINE) {
+      const parsed = splitFigure(metric.value);
+      expect(parsed, `${metric.key} → ${metric.value}`).not.toBeNull();
+      // The settled frame must reproduce the original exactly, or the counter
+      // would land on a number that differs from the published figure.
+      expect(formatFigureFrame(parsed!, parsed!.num)).toBe(metric.value);
+    }
+  });
+});
+
+describe("formatFigureFrame", () => {
+  it("reproduces the original figure at the final frame", () => {
+    for (const value of ["520+", "100%", "RM 1200", "1,250", "1,250,000+"]) {
+      const parsed = splitFigure(value)!;
+      expect(formatFigureFrame(parsed, parsed.num)).toBe(value);
+    }
+  });
+
+  it("groups intermediate frames only when the original was grouped", () => {
+    const grouped = splitFigure("1,250")!;
+    const plain = splitFigure("1250")!;
+
+    expect(formatFigureFrame(grouped, 999)).toBe("999");
+    expect(formatFigureFrame(grouped, 1100)).toBe("1,100");
+    expect(formatFigureFrame(plain, 1100)).toBe("1100");
+  });
+
+  it("never emits a bare separator fragment mid-climb", () => {
+    const parsed = splitFigure("1,250")!;
+    for (let current = 0; current <= 1250; current += 7) {
+      expect(formatFigureFrame(parsed, current)).not.toMatch(/^,|,$/);
+    }
+  });
+});
+
 describe("metricLabel", () => {
   it("selects the language-appropriate label", () => {
     const [first] = selectHomeMetrics([]);
@@ -158,5 +257,81 @@ describe("HOME_METRIC_BASELINE", () => {
 
     expect(HOME_METRIC_BASELINE[0].value).toBe("520+");
     expect(selectHomeMetrics([])[0].value).toBe("520+");
+  });
+});
+
+describe("the home namespace inside the shared ImpactStat table", () => {
+  beforeEach(() => {
+    prismaMock.impactStat.findMany.mockReset();
+    prismaMock.expenseItem.groupBy.mockReset();
+  });
+
+  it("owns exactly the five baseline keys", () => {
+    expect([...HOME_METRIC_KEYS].sort()).toEqual(
+      HOME_METRIC_BASELINE.map((m) => m.key).sort()
+    );
+    expect(isHomeMetricKey("home_animals_neutered")).toBe(true);
+    expect(isHomeMetricKey("surgeries_sponsored")).toBe(false);
+  });
+
+  it("does not collide with any seeded donation-ledger key", () => {
+    // If a ledger key ever equalled a home key the two surfaces would fight
+    // over one row, and the subtraction below would blank a ledger figure.
+    const ledgerKeys = (
+      baseline as { impactStats: { key: string }[] }
+    ).impactStats.map((s) => s.key);
+
+    expect(ledgerKeys.length).toBeGreaterThan(0);
+    for (const key of ledgerKeys) {
+      expect(isHomeMetricKey(key), `ledger key ${key} collides`).toBe(false);
+    }
+  });
+
+  it("reads only home keys, and runs no expense aggregate to do it", async () => {
+    prismaMock.impactStat.findMany.mockResolvedValue([]);
+    const { readHomeImpactStats } = await import(
+      "@/lib/server/transparencyRepository"
+    );
+
+    await readHomeImpactStats();
+
+    const where = prismaMock.impactStat.findMany.mock.calls[0][0].where;
+    expect(where.isPublished).toBe(true);
+    expect([...where.key.in].sort()).toEqual([...HOME_METRIC_KEYS].sort());
+    // The first version went through readAllocationSummary, which also
+    // aggregated the whole published expense ledger and discarded the result.
+    expect(prismaMock.expenseItem.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("excludes home keys from the ledger's own read", async () => {
+    // The regression this guards: TransparencyEditor creates a counter at
+    // displayOrder 0 while the seeded ledger rows are 1/2/3, so an unfiltered
+    // ledger query sorts a home counter first and /donate's slice(0, 3) drops
+    // a real donation figure.
+    prismaMock.impactStat.findMany.mockResolvedValue([]);
+    prismaMock.expenseItem.groupBy.mockResolvedValue([]);
+    const { readAllocationSummary } = await import(
+      "@/lib/server/transparencyRepository"
+    );
+
+    await readAllocationSummary();
+
+    const where = prismaMock.impactStat.findMany.mock.calls[0][0].where;
+    expect([...where.key.notIn].sort()).toEqual([...HOME_METRIC_KEYS].sort());
+  });
+
+  it("degrades to no override rather than throwing when the read fails", async () => {
+    prismaMock.impactStat.findMany.mockRejectedValue(
+      Object.assign(new Error("unreachable"), { code: "P1001" })
+    );
+    const { readHomeImpactStats } = await import(
+      "@/lib/server/transparencyRepository"
+    );
+
+    const stats = await readHomeImpactStats();
+
+    // Whatever comes back, all five curated figures still render.
+    expect(selectHomeMetrics(stats)).toHaveLength(5);
+    expect(selectHomeMetrics(stats)[0].value).toBe("520+");
   });
 });

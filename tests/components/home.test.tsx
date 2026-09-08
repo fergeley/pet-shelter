@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 
 import { Hero } from "@/components/layout/Hero";
 import { selectHomeMetrics } from "@/lib/domain/metrics";
@@ -11,14 +11,9 @@ import { renderWithLanguage } from "./support/render";
  * The selection logic itself is covered in the node tier
  * (`tests/unit/components/home.test.tsx`); this file exists for the half that
  * only jsdom can catch — a dropped prop, a missing card, an English label on
- * the Malay site.
+ * the Malay site, a figure no screen reader is given.
  */
 
-/**
- * Reads the settled figure from the card's `aria-label`, not its text. The
- * visible digits count up after hydration, so the label is the only value that
- * is stable — and it is what a screen reader is actually given.
- */
 /** One published override, so a test states only the figure it is about. */
 function liveMetrics(key: string, metricValue: string) {
   return selectHomeMetrics([
@@ -36,46 +31,51 @@ function liveMetrics(key: string, metricValue: string) {
   ]);
 }
 
+function card(key: string): HTMLElement {
+  return screen.getByTestId(`impact-stat-${key}`);
+}
+
+/**
+ * The figure as an assistive technology receives it.
+ *
+ * Read from the sr-only node rather than the visible digits, which climb after
+ * hydration. Asserting on the visible text would make every expectation a race.
+ */
 function statValue(key: string): string {
-  const labelled = within(screen.getByTestId(`impact-stat-${key}`)).getByLabelText(
-    /.+/
-  );
-  return labelled.getAttribute("aria-label")!;
+  const settled = card(key).querySelector<HTMLElement>("span.sr-only");
+  if (!settled) throw new Error(`no screen-reader figure rendered for ${key}`);
+  return settled.textContent!.trim();
+}
+
+/** What a sighted reader sees right now, mid-climb or settled. */
+function visibleValue(key: string): string {
+  const shown = card(key).querySelector<HTMLElement>("span[aria-hidden='true']");
+  if (!shown) throw new Error(`no visible figure rendered for ${key}`);
+  return shown.textContent!.trim();
 }
 
 describe("Hero impact metrics", () => {
   it("renders all five counters with the curated figures when given no metrics", () => {
     renderWithLanguage(<Hero />);
 
-    expect(screen.getByText("520+")).toBeInTheDocument();
-    expect(screen.getByText("380+")).toBeInTheDocument();
-    expect(screen.getByText("290+")).toBeInTheDocument();
-    expect(screen.getByText("150+")).toBeInTheDocument();
-    expect(screen.getByText("25+")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^impact-stat-/)).toHaveLength(5);
+    expect(statValue("home_animals_neutered")).toBe("520+");
+    expect(statValue("home_animals_rehabilitated")).toBe("380+");
+    expect(statValue("home_animals_adopted")).toBe("290+");
+    expect(statValue("home_active_volunteers")).toBe("150+");
+    expect(statValue("home_collaborations")).toBe("25+");
     expect(screen.getByText("Neutered via TNRM")).toBeInTheDocument();
   });
 
   it("renders the live figure when the server supplies one", () => {
-    const metrics = selectHomeMetrics([
-      {
-        id: "s1",
-        key: "home_animals_neutered",
-        metricValue: "640+",
-        label: "Neutered via TNRM",
-        labelMs: "Dimandulkan (TNRM)",
-        period: "To date",
-        periodMs: "Sehingga kini",
-        displayOrder: 10,
-        isPublished: true,
-      },
-    ]);
-
-    renderWithLanguage(<Hero metrics={metrics} />);
+    renderWithLanguage(
+      <Hero metrics={liveMetrics("home_animals_neutered", "640+")} />
+    );
 
     expect(statValue("home_animals_neutered")).toBe("640+");
     // Unoverridden slots still show their curated figure rather than disappearing.
     expect(statValue("home_animals_rehabilitated")).toBe("380+");
-    expect(screen.queryByText("520+")).not.toBeInTheDocument();
+    expect(statValue("home_animals_neutered")).not.toBe("520+");
   });
 
   it("falls back to the curated grid when handed an empty array", () => {
@@ -90,18 +90,31 @@ describe("Hero impact metrics", () => {
     // without digits alone instead of rendering an empty or NaN counter.
     renderWithLanguage(<Hero metrics={liveMetrics("home_collaborations", "Ongoing")} />);
 
-    const card = screen.getByTestId("impact-stat-home_collaborations");
     expect(statValue("home_collaborations")).toBe("Ongoing");
-    await waitFor(() => expect(card.textContent).toContain("Ongoing"));
+    await waitFor(() => expect(visibleValue("home_collaborations")).toBe("Ongoing"));
   });
 
   it("preserves a percentage suffix while the digits climb", async () => {
     renderWithLanguage(<Hero metrics={liveMetrics("home_animals_adopted", "100%")} />);
 
-    const card = screen.getByTestId("impact-stat-home_animals_adopted");
     expect(statValue("home_animals_adopted")).toBe("100%");
-    // Whatever frame it lands on, the suffix survives and the digits settle.
-    await waitFor(() => expect(card.textContent).toContain("100%"), { timeout: 3000 });
+    await waitFor(() => expect(visibleValue("home_animals_adopted")).toBe("100%"), {
+      timeout: 3000,
+    });
+  });
+
+  it("settles a grouped figure back on the published string", async () => {
+    // Which intermediate frames are legal is settled deterministically in the
+    // node tier against `splitFigure`/`formatFigureFrame`; sampling frames here
+    // could only ever catch one of them and call it proof. What this tier owns
+    // is that the climb ends on the real figure rather than near it.
+    renderWithLanguage(<Hero metrics={liveMetrics("home_animals_neutered", "1,250")} />);
+
+    expect(statValue("home_animals_neutered")).toBe("1,250");
+    await waitFor(
+      () => expect(visibleValue("home_animals_neutered")).toBe("1,250"),
+      { timeout: 3000 }
+    );
   });
 
   it("renders Malay labels on the Malay site", () => {
@@ -110,6 +123,29 @@ describe("Hero impact metrics", () => {
     expect(screen.getByText("Dimandulkan (TNRM)")).toBeInTheDocument();
     expect(screen.getByText("Sukarelawan Aktif")).toBeInTheDocument();
     expect(screen.queryByText("Neutered via TNRM")).not.toBeInTheDocument();
+  });
+});
+
+describe("Hero impact metrics — accessibility", () => {
+  it("gives assistive tech the settled figure and hides the climbing digits", () => {
+    // Regression: the figure previously carried an `aria-label` on a bare span.
+    // A span maps to role=generic, which prohibits naming, so the label was
+    // dropped and the only other copy was aria-hidden — announcing no number.
+    renderWithLanguage(<Hero />);
+
+    for (const key of [
+      "home_animals_neutered",
+      "home_animals_rehabilitated",
+      "home_animals_adopted",
+      "home_active_volunteers",
+      "home_collaborations",
+    ]) {
+      const settled = card(key).querySelector("span.sr-only");
+      expect(settled).not.toBeNull();
+      expect(settled!.textContent!.trim().length).toBeGreaterThan(0);
+      expect(settled!.getAttribute("aria-hidden")).toBeNull();
+      expect(card(key).querySelector("span[aria-hidden='true']")).not.toBeNull();
+    }
   });
 });
 

@@ -17,8 +17,10 @@ import { PetMatchQuiz } from "@/components/features/pets/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/features/pets/SponsorshipModal";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import {
+  formatFigureFrame,
   HOME_METRIC_BASELINE,
   metricLabel,
+  splitFigure,
   type HomeMetric,
   type HomeMetricIcon,
 } from "@/lib/domain/metrics";
@@ -39,19 +41,6 @@ const METRIC_PRESENTATION: Record<
   collaborations: { icon: Award, color: "text-info-accent" },
 };
 
-/**
- * Splits "520+" into "", 520, "+" so the digits can count up while the suffix
- * stays put. `ImpactStat.metricValue` is free-form — "100%" and "RM 0" are both
- * legal — so anything without digits ("Ongoing") returns null and never animates.
- */
-function splitFigure(
-  value: string
-): { lead: string; num: number; trail: string } | null {
-  const match = /^(\D*?)(\d+)(.*)$/.exec(value);
-  if (!match) return null;
-  return { lead: match[1], num: Number(match[2]), trail: match[3] };
-}
-
 const COUNT_UP_MS = 1100;
 
 /**
@@ -63,11 +52,11 @@ const COUNT_UP_MS = 1100;
  * effect runs, and `prefers-reduced-motion` skips it entirely.
  */
 function useCountUp(value: string): string {
-  // `null` means "not mid-climb", so the settled figure is always `value` itself
-  // and never a rounded reconstruction of it. State is written only from inside
-  // the animation frame — assigning it in the effect body would be a cascading
-  // render, which the React Compiler lint rejects.
-  const [climbing, setClimbing] = useState<string | null>(null);
+  // The frame is tagged with the figure it belongs to, so a climb left over
+  // from a previous `value` is ignored rather than frozen on screen. Clearing
+  // it in the effect body or its cleanup instead would be a cascading render,
+  // which the React Compiler lint rejects — hence tagging over resetting.
+  const [climb, setClimb] = useState<{ of: string; text: string } | null>(null);
 
   useEffect(() => {
     const parsed = splitFigure(value);
@@ -80,11 +69,14 @@ function useCountUp(value: string): string {
     const tick = (now: number) => {
       const progress = Math.min(1, (now - start) / COUNT_UP_MS);
       if (progress >= 1) {
-        setClimbing(null);
+        setClimb(null);
         return;
       }
       const eased = 1 - Math.pow(1 - progress, 3);
-      setClimbing(`${parsed.lead}${Math.round(parsed.num * eased)}${parsed.trail}`);
+      setClimb({
+        of: value,
+        text: formatFigureFrame(parsed, Math.round(parsed.num * eased)),
+      });
       frame = requestAnimationFrame(tick);
     };
 
@@ -92,7 +84,7 @@ function useCountUp(value: string): string {
     return () => cancelAnimationFrame(frame);
   }, [value]);
 
-  return climbing ?? value;
+  return climb?.of === value ? climb.text : value;
 }
 
 /** One card, so the count-up hook has a component of its own to live in. */
@@ -108,11 +100,16 @@ function ImpactStatCard({ metric, isMs }: { metric: HomeMetric; isMs: boolean })
       <div className="flex items-center justify-between">
         <span
           className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight tabular-nums ${color}`}
-          // The climbing digits are decoration; assistive tech should be read the
-          // settled figure once, not every intermediate frame.
-          aria-label={metric.value}
         >
+          {/*
+            The climbing digits are decoration, so they are hidden and the
+            settled figure is exposed as real text alongside them. An
+            `aria-label` here would have been dropped on the floor: a bare
+            `span` maps to role=generic, which prohibits naming, so the
+            hidden-digits-plus-label version announced no number at all.
+          */}
           <span aria-hidden="true">{display}</span>
+          <span className="sr-only">{metric.value}</span>
         </span>
         <Icon className="size-4 text-muted-foreground opacity-60" />
       </div>

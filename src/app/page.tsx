@@ -11,24 +11,29 @@ import {
   HomeQuickActionsSection,
 } from "@/components/layout/HomeSections";
 import { getPublicPets } from "@/actions/pets";
-import { readAllocationSummary } from "@/lib/server/transparencyRepository";
+import { readHomeImpactStats } from "@/lib/server/transparencyRepository";
 import { selectHomeMetrics } from "@/lib/domain/metrics";
 
-/** Matches /donate and /transparency, which read the same ledger on the same cadence. */
+/**
+ * Matches /donate and /transparency, which read the same table on the same
+ * cadence. Note that `revalidateLedger()` does not invalidate "/" — see
+ * tasks/open/home-page-is-not-revalidated-by-impact-stat-writes.md — so this
+ * window is what bounds how long a corrected figure takes to appear here.
+ */
 export const revalidate = 300;
 
 export default async function HomePage() {
   // Read in parallel: neither depends on the other, and the impact read already
-  // degrades to a fallback of its own rather than throwing, so one slow or
-  // unreachable query cannot take the whole page down.
-  const [initialPets, summary] = await Promise.all([
+  // degrades to an empty list rather than throwing, so one slow or unreachable
+  // query cannot take the whole page down.
+  const [initialPets, impactStats] = await Promise.all([
     getPublicPets(),
-    readAllocationSummary(),
+    readHomeImpactStats(),
   ]);
 
   // Staff-curated figures overlaid on the FE-02 baseline. See src/lib/domain/metrics.ts
   // for why these are not counted from the pet table.
-  const metrics = selectHomeMetrics(summary.impactStats);
+  const metrics = selectHomeMetrics(impactStats);
 
   return (
     <div className="flex flex-col">

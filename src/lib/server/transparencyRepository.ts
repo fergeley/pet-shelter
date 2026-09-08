@@ -18,6 +18,22 @@ import {
   sortImpactStats,
   sortReportsNewestFirst,
 } from "../domain/transparency";
+import { HOME_METRIC_KEYS, isHomeMetricKey } from "../domain/metrics";
+
+/**
+ * The home page keeps its five counters in this same table, under keys it owns
+ * (`src/lib/domain/metrics.ts`). The ledger surfaces must subtract them: a new
+ * counter is created with `displayOrder: 0`, the seeded ledger rows are 1/2/3,
+ * and /donate renders `sortImpactStats(...).slice(0, 3)` — so without this the
+ * first home figure staff publish silently evicts a donation figure, and
+ * /transparency, which does not slice at all, shows all five among the ledger's.
+ */
+const HOME_METRIC_KEY_LIST = [...HOME_METRIC_KEYS];
+
+/** Drops the home page's counters from a ledger surface's rows. */
+function ledgerStatsOnly(stats: ImpactStatRecord[]): ImpactStatRecord[] {
+  return stats.filter((stat) => !isHomeMetricKey(stat.key));
+}
 
 /**
  * Persistence layer for the transparency ledger.
@@ -230,7 +246,7 @@ export async function readTransparencySnapshot(
         take: REPORT_LIMIT,
       }),
       prisma.impactStat.findMany({
-        where: publishedOnly,
+        where: { ...publishedOnly, key: { notIn: HOME_METRIC_KEY_LIST } },
         orderBy: { displayOrder: "asc" },
       }),
       // Aggregate over the ENTIRE published ledger, independent of `take`.
@@ -317,10 +333,14 @@ function project(
     state.expenses.filter(isCountableExpense)
   ).slice(0, rowLimit);
 
+  // The in-memory mirror holds every row the database would, home counters
+  // included, so it needs the same subtraction the queries above apply.
+  const ledgerStats = ledgerStatsOnly(state.impactStats);
+
   const snapshot = buildSnapshot({
     expenses: published,
     reports: state.reports,
-    impactStats: state.impactStats,
+    impactStats: ledgerStats,
     source,
     totals: resolvedTotals,
   });
@@ -335,7 +355,7 @@ function project(
     ...snapshot,
     expenses: allExpenses,
     reports: sortReportsNewestFirst(state.reports),
-    impactStats: sortImpactStats(state.impactStats),
+    impactStats: sortImpactStats(ledgerStats),
     // `expenseCount` counts published rows only, so it cannot answer "are there
     // more drafts?". A full window is the only signal available without a
     // second count query.
@@ -369,7 +389,7 @@ export async function readAllocationSummary(): Promise<AllocationSummaryData> {
         _count: { _all: true },
       }),
       prisma.impactStat.findMany({
-        where: { isPublished: true },
+        where: { isPublished: true, key: { notIn: HOME_METRIC_KEY_LIST } },
         orderBy: { displayOrder: "asc" },
       }),
     ]);
@@ -415,9 +435,51 @@ export async function readAllocationSummary(): Promise<AllocationSummaryData> {
     return {
       allocation,
       totalSen,
-      impactStats: sortImpactStats(state.impactStats.filter((s) => s.isPublished)),
+      impactStats: sortImpactStats(
+        ledgerStatsOnly(state.impactStats).filter((s) => s.isPublished)
+      ),
       source: "sample",
     };
+  }
+}
+
+/**
+ * The five home-page counters, and nothing else.
+ *
+ * Deliberately not `readAllocationSummary`: that also runs a `groupBy` over the
+ * whole published expense ledger, and the home page discards every figure it
+ * derives. This is the narrow read — five rows by key, no aggregate.
+ *
+ * Returns `[]` rather than throwing on any failure. The caller overlays these
+ * onto curated baseline figures, so an unreachable database costs the *override*
+ * and never the counter itself.
+ */
+export async function readHomeImpactStats(): Promise<ImpactStatRecord[]> {
+  try {
+    const rows = await prisma.impactStat.findMany({
+      where: { isPublished: true, key: { in: HOME_METRIC_KEY_LIST } },
+      orderBy: { displayOrder: "asc" },
+    });
+
+    return rows.map((s) => ({
+      id: s.id,
+      key: s.key,
+      metricValue: s.metricValue,
+      label: s.label,
+      labelMs: s.labelMs,
+      period: s.period,
+      periodMs: s.periodMs,
+      displayOrder: s.displayOrder,
+      isPublished: s.isPublished,
+    }));
+  } catch (err) {
+    if (isProduction()) {
+      console.error("[transparency] home impact stats read failed", err);
+      return [];
+    }
+    return memory().impactStats.filter(
+      (s) => s.isPublished && isHomeMetricKey(s.key)
+    );
   }
 }
 

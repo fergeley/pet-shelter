@@ -52,9 +52,11 @@ export interface HomeMetric {
  * The FE-02 figures, and the answer whenever the database has nothing to say.
  *
  * Keys are prefixed `home_` so a home figure is never confused with a
- * donation-ledger one. /donate and /transparency render `impactStats.slice(0, 3)`
- * ordered by `displayOrder`, so a home row must also sort after the ledger's
- * three — see `tasks/open/home-metrics-share-the-impact-stat-table.md`.
+ * donation-ledger one in the table both share. The prefix is not a sort
+ * convention: the ledger reads subtract these keys outright
+ * (`src/lib/server/transparencyRepository.ts`), so a home row's `displayOrder`
+ * is free to be anything — including the 0 the admin editor defaults to.
+ * Rationale: `tasks/decisions/2026-09-08-home-metrics-reuse-the-impact-stat-table.md`.
  */
 export const HOME_METRIC_BASELINE: readonly HomeMetric[] = [
   {
@@ -98,6 +100,24 @@ export const HOME_METRIC_BASELINE: readonly HomeMetric[] = [
     isLive: false,
   },
 ] as const;
+
+/**
+ * The keys this module owns inside the shared `ImpactStat` table.
+ *
+ * The ledger surfaces (/donate, /transparency) must subtract these from what
+ * they render, or the first home counter staff create takes over a ledger slot:
+ * `TransparencyEditor` defaults a new counter to `displayOrder: 0`, the seeded
+ * ledger rows are 1/2/3, and `AllocationSummary` shows `slice(0, 3)`. Owning
+ * the namespace in one exported set is what keeps that subtraction honest.
+ */
+export const HOME_METRIC_KEYS: ReadonlySet<string> = new Set(
+  HOME_METRIC_BASELINE.map((metric) => metric.key)
+);
+
+/** True for a row that belongs to the home page rather than the donation ledger. */
+export function isHomeMetricKey(key: string): boolean {
+  return HOME_METRIC_KEYS.has(key);
+}
 
 /** A blank or whitespace-only override is a staff typo, not an instruction to publish nothing. */
 function usable(value: string | null | undefined): string | null {
@@ -143,4 +163,51 @@ export function selectHomeMetrics(
 /** Reads the label for the active language, so callers stop repeating the ternary. */
 export function metricLabel(metric: HomeMetric, isMs: boolean): string {
   return isMs ? metric.labelMs : metric.labelEn;
+}
+
+/** A figure split into the parts a counter animation needs. */
+export interface SplitFigure {
+  /** Anything before the digits — "RM " in "RM 1,200". */
+  lead: string;
+  num: number;
+  /** Anything after the digits — "+" in "520+", "%" in "100%". */
+  trail: string;
+  /** True when the original grouped its thousands, so the climb should too. */
+  grouped: boolean;
+}
+
+/**
+ * Splits "520+" into `{ lead: "", num: 520, trail: "+" }`.
+ *
+ * Lives here rather than in the Hero so it can be tested as a function instead
+ * of as an animation frame — the timing-dependent version of this test could
+ * only ever sample one frame and call it proof.
+ *
+ * `metricValue` is free-form, so this must survive everything staff can type.
+ * Returns null when there are no digits to count ("Ongoing"), which the caller
+ * reads as "render verbatim, do not animate".
+ */
+export function splitFigure(value: string): SplitFigure | null {
+  // `[\d,]*\d` keeps a thousands separator inside the number rather than
+  // leaving it in the trailing text, which is what made "1,250" climb 0..1
+  // with a stray ",250" pinned beside it.
+  const match = /^(\D*?)([\d,]*\d)(.*)$/.exec(value);
+  if (!match) return null;
+
+  const digits = match[2].replace(/,/g, "");
+  const num = Number(digits);
+  if (!Number.isFinite(num)) return null;
+
+  return {
+    lead: match[1],
+    num,
+    trail: match[3],
+    grouped: match[2].includes(","),
+  };
+}
+
+/** Renders an intermediate frame of the climb in the original's format. */
+export function formatFigureFrame(parsed: SplitFigure, current: number): string {
+  const shown = parsed.grouped ? current.toLocaleString("en-US") : String(current);
+  return `${parsed.lead}${shown}${parsed.trail}`;
 }
