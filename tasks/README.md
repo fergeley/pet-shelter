@@ -13,9 +13,14 @@ it knows without opening its config.
 
 There is no third category. A third category is where the first two go to diverge.
 
-`lessons.md` and `todo.md` are **repo files, not ledger** — a pattern is appended to `lessons.md`
+`lessons/` and `todo.md` are **repo files, not ledger** — a lesson file is added to `lessons/`
 after a human correction, and a work stream may live in `todo.md`, but neither is read as state and
 neither may hold a decision or an open question.
+
+`lessons/` was a single `lessons.md` until 2026-09-09, when it was split one-file-per-lesson for
+exactly the reason given below: it was written by every session at the same append point, and a
+conflict there costs a pull request its entire CI run, not just a manual resolve. Its contract is
+`tasks/lessons/README.md`. **`todo.md` still has the defect** — see the note in that file.
 
 ## Why one file per entry
 
