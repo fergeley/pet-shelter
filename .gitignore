@@ -82,3 +82,7 @@ obsidian-api.http
 
 # Claude Code worktrees (per-session isolated checkouts)
 .claude/worktrees/
+/.agents
+/.claude
+/.github
+.deepsec/
