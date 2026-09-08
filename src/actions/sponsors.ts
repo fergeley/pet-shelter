@@ -8,6 +8,7 @@ import {
   SponsorLoginInput,
 } from "@/lib/validations/sponsor";
 import { checkRateLimit } from "@/lib/security/rateLimit";
+import { checkAddressRateLimit } from "@/lib/security/clientAddress";
 import { hashPassword, verifyPassword } from "@/lib/security/crypto";
 import {
   setSponsorSessionCookie,
@@ -65,6 +66,18 @@ export async function registerSponsorAction(
     return {
       success: false,
       error: err instanceof Error ? err.message : "Invalid registration details.",
+    };
+  }
+
+  // The email is the caller's to choose, so it bounds nothing on its own: a
+  // script varying the address draws a fresh five-per-five-minutes budget on
+  // every request. Same window here, keyed on something the caller does not
+  // pick.
+  const addressLimit = await checkAddressRateLimit("sponsor-register", 10, 300000);
+  if (addressLimit.limited) {
+    return {
+      success: false,
+      error: `Too many registration attempts. Please wait ${addressLimit.retryAfterSeconds}s before trying again.`,
     };
   }
 
@@ -166,6 +179,18 @@ export async function sponsorLoginAction(
     parsed = sponsorLoginSchema.parse(input);
   } catch {
     return { success: false, error: "Please enter your email address and password." };
+  }
+
+  // Per address as well as per account. The email key bounds how hard one
+  // sponsor can be attacked and cannot see the attack that works against a
+  // directory: one common password tried once against every address in turn,
+  // which never spends a second attempt on any single key.
+  const addressLimit = await checkAddressRateLimit("sponsor-login", 20, 60000);
+  if (addressLimit.limited) {
+    return {
+      success: false,
+      error: `Too many sign-in attempts. Please wait ${addressLimit.retryAfterSeconds}s before trying again.`,
+    };
   }
 
   const rateLimit = checkRateLimit(`sponsor-login:${parsed.email}`, 5, 60000);

@@ -91,7 +91,12 @@ const repoFile = (p: string) => join(ROOT, p);
  * asserting that this tree is dirty, which is a property of whoever committed
  * last, not of the guard. The callers that need a delta pass a scratch repo.
  */
-function driftAfter(tool: string, seedState: string | null, cwd: string = ROOT): string[] {
+function driftAfter(
+  tool: string,
+  seedState: string | null,
+  cwd: string = ROOT,
+  sessionId?: string,
+): string[] {
   const log = join(tmpdir(), `drift-${randomUUID()}.log`);
   const state = join(tmpdir(), `drift-${randomUUID()}.state`);
   if (seedState !== null) writeFileSync(state, seedState);
@@ -101,6 +106,7 @@ function driftAfter(tool: string, seedState: string | null, cwd: string = ROOT):
       cwd,
       tool_name: tool,
       tool_input: { command: "irrelevant" },
+      ...(sessionId === undefined ? {} : { session_id: sessionId }),
     }),
     encoding: "utf8",
     env: {
@@ -268,6 +274,37 @@ describe("agent guard", () => {
       // Run against the dirty scratch repo, so there is something it could have wrongly
       // attributed — against a clean tree this assertion would hold vacuously.
       expect(driftAfter("Bash", null, dirty)).toEqual([]);
+    });
+
+    // The log is ONE shared append-only file: across sessions, across days, and across
+    // checkouts on the same machine. Measured 2026-09-08 at 602 lines spanning three days
+    // and two different checkouts of this repo, with no field to tell them apart, which made
+    // "read the drift log before the close write" unbounded in practice.
+    // tasks/open/drift-log-cannot-be-attributed-to-a-session.md
+    it("stamps each line with the session, so a reader can isolate their own writes", () => {
+      const mine = "0569a56d-27bc-4da0-b772-4523fd31162c";
+      const lines = driftAfter("Bash", "", dirty, mine);
+      expect(lines.length).toBeGreaterThan(0);
+      expect(lines.every((l) => l.includes(` ${mine} main Bash `))).toBe(true);
+      // The discriminating half: a different session's lines must NOT match that grep.
+      const theirs = driftAfter("Bash", "", dirty, "6d9de0a7-bab8-4943-8913-ac909e83b65a");
+      expect(theirs.length).toBeGreaterThan(0);
+      expect(theirs.some((l) => l.includes(mine))).toBe(false);
+    });
+
+    it("falls back to a placeholder rather than an empty field when there is no session", () => {
+      // An absent id must not shift every later field left and silently corrupt the format.
+      const lines = driftAfter("Bash", "", dirty);
+      expect(lines.every((l) => l.includes(" nosession main Bash "))).toBe(true);
+    });
+
+    it("sanitises the session id, which also names a file under tmpdir", () => {
+      // The id is interpolated into the state filename. A separator would escape tmpdir,
+      // and a space would break the log's field alignment.
+      const lines = driftAfter("Bash", "", dirty, "../../etc/pass wd");
+      expect(lines.length).toBeGreaterThan(0);
+      expect(lines.every((l) => l.includes(" .._.._etc_pass_wd main Bash "))).toBe(true);
+      expect(lines.some((l) => l.includes("/") && l.includes("etc/pass"))).toBe(false);
     });
 
     it("never denies, whatever it sees", () => {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/security/rbac";
 import { hashPassword } from "@/lib/security/crypto";
 import { checkRateLimit } from "@/lib/security/rateLimit";
+import { checkAddressRateLimit } from "@/lib/security/clientAddress";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { sendStaffInvitationEmail } from "@/lib/email";
 import { setSessionCookie } from "@/lib/security/session";
@@ -479,6 +480,20 @@ export async function acceptInvitation(input: {
         success: false,
         error: parsed.error.issues[0]?.message ?? "Invalid invitation details.",
         status: 400,
+      };
+    }
+
+    // The emailed token is the credential here, and the email beside it is
+    // supplied by whoever is calling — so the per-email budget below is reset
+    // by varying the address, and the token is enumerable at five guesses per
+    // minute per address tried. This budget is the one that actually bounds
+    // redemption attempts, because its key is not the caller's to choose.
+    const addressLimit = await checkAddressRateLimit("accept-invite", 15, 60_000);
+    if (addressLimit.limited) {
+      return {
+        success: false,
+        error: `Too many attempts. Please wait ${addressLimit.retryAfterSeconds} seconds.`,
+        status: 429,
       };
     }
 

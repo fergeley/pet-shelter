@@ -25,12 +25,38 @@ commit-message gate worked.
 The open entry listed three. The human picked the first on 2026-09-09.
 
 1. **Split it the way the ledger was split.** Removes the conflict by construction, no protocol
-   needed. It is the fix already proven on `open/` and `decisions/`, and this was its second
-   occurrence — which is the threshold `AGENTS.md` sets for abstracting rather than tolerating a
-   duplicate.
+   needed. It is the fix already proven on `open/` and `decisions/`, and by the time it was
+   applied there were **three** occurrences — which clears the "wait for a third occurrence" bar
+   `AGENTS.md` sets for abstracting rather than tolerating a duplicate.
 2. `tasks/lessons.md merge=union` in `.gitattributes`. One line, but union merge is unordered and
    interleaves silently, which is wrong for dated prose and hides the thing it fixes.
 3. Leave it and resolve by hand. Known to cost a full CI outage per conflicting PR.
+
+## The three occurrences
+
+1. **2026-09-01/02.** `git merge-tree --write-tree` reported the conflict; PR #3 then got no
+   Actions run at all, which is what escalated the entry.
+2. **2026-09-08.** Recorded on the entry as the second, and the reason option 1 stopped being
+   merely recommended.
+3. **2026-09-09 — recorded by the session that hit it, on `feature/agent-2-security`.** PR #35 was
+   verified conflict-free against `origin/master` three times while it was prepared. PR #34 landed,
+   and the branch went from clean to `CONFLICT (content): Merge conflict in tasks/lessons.md` with
+   **nothing else in the tree disagreeing** — 4 ahead, 4 behind, one conflicting file. Both sides
+   had prepended a dated H2 under the file's own "newest first" rule and both entries were wanted;
+   the resolution was deleting three marker lines. Their note is the sharpest statement of the
+   danger: the resolve is *so* mechanical that a hurried `--ours` silently discards a lesson
+   nobody will notice is missing.
+
+**And then a fourth, against this very branch.** Merging `origin/master` into the split produced
+exactly two conflicts, both `modify/delete`: master had appended a lesson to `lessons.md` while
+this branch deleted it, and had appended the third-occurrence note above to the open entry this
+branch closes. Neither side was wrong. Resolved by porting rather than choosing — master's new
+lesson became
+`tasks/lessons/2026-09-08-a-security-fix-needs-an-adversarial-pass-of-its-own-and-its-tests-ar.md`,
+and its evidence became this section. The check was mechanical rather than visual: master's
+`lessons.md` was re-split into a scratch directory and the filenames diffed against `tasks/lessons/`
+— **one file missing, zero shared files differing**, which also proved master's two whitespace-only
+edits were absorbed by body normalisation rather than lost.
 
 ## How the split was done
 

@@ -32,12 +32,12 @@ try {
     stdio: ["ignore", "pipe", "ignore"],
     timeout: 10000,
   }).trim();
+  // The session a drift line belongs to. DRIFT is one shared append-only file across sessions,
+  // days and checkouts, so without this field a reader cannot tell their own writes from a
+  // concurrent session's. See tasks/open/drift-log-cannot-be-attributed-to-a-session.md.
+  const session = String(input.session_id || "nosession").replace(/[^a-zA-Z0-9_.-]/g, "_");
   const state =
-    process.env.AGENT_DRIFT_STATE ||
-    join(
-      tmpdir(),
-      `codex-agent-drift.${String(input.session_id || "nosession").replace(/[^a-zA-Z0-9_.-]/g, "_")}.state`,
-    );
+    process.env.AGENT_DRIFT_STATE || join(tmpdir(), `codex-agent-drift.${session}.state`);
   const porcelain = execFileSync(
     "git",
     ["status", "--porcelain=v1", "-z", "-uall", "--no-renames"],
@@ -103,7 +103,7 @@ try {
         changed
           .map((record) => {
             const disposition = record.gone ? " gone" : "";
-            return `${new Date().toISOString()} ${agent} ${tool} ${record.status.trim()} ${JSON.stringify(record.path)}${disposition}`;
+            return `${new Date().toISOString()} ${session} ${agent} ${tool} ${record.status.trim()} ${JSON.stringify(record.path)}${disposition}`;
           })
           .join("\n") + "\n",
       );
