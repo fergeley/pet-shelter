@@ -5,7 +5,7 @@ description: Use when AUTHORING a change that touches production data, secrets, 
 
 # The Midwife — mechanics
 
-`CLAUDE.md` holds the invariants and the four triage tests; both are loaded already.
+`AGENTS.md` holds the invariants and the four triage tests; both are loaded already.
 
 **Precedence.** An invariant states the default. This file may **narrow** one, but only where it
 says so explicitly and names it — every such narrowing below is marked `narrows invariant N`. An
@@ -22,7 +22,7 @@ Repo-specific inputs this file deliberately does not contain:
 
 ## §1 Triage
 
-The four tests are in `CLAUDE.md` and run before this file loads. Two refinements:
+The four tests are in `AGENTS.md` and run before this file loads. Two refinements:
 
 - **Diff size is not gravity.** One character in a permission check is GRAVE; a 400-line fixture
   is TRIVIAL.
