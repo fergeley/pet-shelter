@@ -36,5 +36,14 @@ expense aggregate that `readAllocationSummary` runs. Covered in
 `tests/unit/components/home.test.tsx`, including a guard that no seeded ledger key collides with a
 home key.
 
-What remains open is only the revalidation gap —
-`tasks/open/home-page-is-not-revalidated-by-impact-stat-writes.md`.
+**Two consequences of sharing, both now closed in the same branch.** `LEDGER_PATHS` in
+`src/actions/transparency.ts` gained `"/"`, so saving a counter purges the home page on demand
+instead of leaving a corrected figure stale for the length of its `revalidate` window while the
+other two surfaces updated immediately. And because the home page reads its five keys by exact
+match, a mistyped key was silent — the counter kept its built-in figure and nothing reported a
+problem — so the admin editor's key field now offers the five as a `datalist`. A datalist rather
+than a select: ledger keys remain free-form, so the control must suggest without constraining.
+
+Nothing about this reuse is left open. The remaining ceiling is stated rather than tracked: a
+table of its own would be cleaner, and becomes the better answer the moment this repo gains a
+migration path.
