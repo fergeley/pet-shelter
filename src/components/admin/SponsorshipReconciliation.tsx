@@ -50,9 +50,16 @@ async function fetchPending(): Promise<QueueOutcome> {
     if (result.success && result.data) return { rows: result.data };
     return { error: result.error ?? "Could not load the pending commitments." };
   } catch {
+    // Deliberately does not name a cause. `listPendingSponsorshipsAction` asserts the
+    // permission *outside* its try, so an unauthorised caller throws out of the Server
+    // Action and a production build masks it into an opaque digest — indistinguishable
+    // here from a network failure. Claiming "could not reach the shelter" would tell a
+    // STAFF account who typed the URL that the shelter is down, when the truth is that
+    // they may not see this. The nav hides the tab, but that is presentation, not
+    // enforcement, so this path is reachable.
     return {
       error:
-        "Could not reach the shelter to load pending commitments. This is a read failure, not an empty queue.",
+        "The pending commitments could not be loaded — either this account may not reconcile payments, or the shelter could not be reached. This is a read failure, not an empty queue.",
     };
   }
 }
@@ -77,10 +84,17 @@ export function SponsorshipReconciliation() {
 
   const apply = useCallback((outcome: QueueOutcome) => {
     if (outcome.rows) {
+      // `[]` is a successful empty queue, not a failure — the check is on the field
+      // being present, never on its length.
       setRows(outcome.rows);
       setLoadError(null);
     } else {
       setLoadError(outcome.error ?? "Could not load the pending commitments.");
+      // Drop the stale queue with it. Leaving the previous rows on screen puts live
+      // Confirm buttons directly beneath a banner saying the read failed — the screen
+      // would be asserting pending work at the one moment it has just said not to
+      // trust it, and another coordinator may have settled those rows already.
+      setRows([]);
     }
   }, []);
 
