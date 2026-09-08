@@ -100,3 +100,64 @@ prerendering. Run `npm run build` from the main checkout after merge.
 That gap is also why `/pets` now declares `export const dynamic = "force-dynamic"`: dropping the
 `searchParams` prop would otherwise have flipped it to static prerendering silently, in a place
 where a build that cannot reach the database bakes the `pets.json` fixtures into the page.
+
+## Code review round (`/code-review xhigh`, 2026-09-09)
+
+Fifteen findings. **One of them said the headline claim above was wrong, and it was right.**
+
+`getPetById` called `findServerPetById` — a synchronous lookup over the in-memory mirror, which a
+cold process initialises from `src/data/pets.json`. So the archive guard was reading `isArchived`
+off a fixture: an archive performed in another instance stayed invisible, and the profile page
+kept serving the animal. The converse too — a pet that exists only in the database 404'd on any
+instance that had not already loaded the catalogue. The action now reads `findServerPetByIdAsync`,
+which is what `getServerPetsAsync` has always done for the catalogue beside it.
+
+The unit test could not have caught it: it arranges and reads the same mirror. Four DB-backed
+tests went into `tests/integration/softDeleteFiltering.test.ts`, and `prismaDouble` gained
+`pet.findUnique`. **Each was confirmed to discriminate** by reverting the fix and watching them
+go red — which exposed a second problem the review had not: the first archived-animal test used
+an `itest-` id absent from the fixture mirror, so it passed against the *broken* reader for the
+wrong reason. It now uses `pet-001`, a real fixture row, which is the production scenario.
+
+Also fixed from the review: a status `<select>` that could hold a value with no matching option
+(blank control, empty grid, invisible filter — now `buildVisibleStatusFilterOptions` keeps the
+selection visible at zero); a track strip that vanished while a track was still selected;
+`matchesTrackFilter` failing closed on a malformed `?track=`; a stale `sm:col-span-3`; a fourth
+hand-written copy of Male/Female (now `GENDER_VALUES`); `signInAsAdmin()` in the public-read tests,
+which would have masked an authorization gate on the very reads they cover; and a `PetCard`
+comment that claimed there was no dead "Pending" button while the code renders one deliberately.
+
+Two findings were declined, with reasons: the server-side `gender` filter has no production
+caller, but neither do `species`/`size`/`ageCategory`/`status`/`search` since this branch removed
+the only caller passing filters — deleting one field would leave the contract asymmetric. And the
+auth guard's body-slicing defect stays whitelisted rather than patched, because changing a
+security guard's extractor is its own change; it is written up in `tasks/open/`.
+
+### The controller finding
+
+The review's sharpest quality point: the 314-line rewrite had no test at any tier. It now has 41,
+in `tests/components/usePetGalleryController.test.ts`. They were validated by mutation — 15
+deliberate regressions to the hook made 20 of them fail, including the dropped-change
+(`track=alumni&status=Pending`) that `updateFilters`' own comment predicts if it ever regresses to
+per-key setters.
+
+Writing them turned up two more real defects, both fixed:
+
+- **Reset discarded foreign query parameters.** `router.replace(pathname)` threw away
+  `utm_source` and anything else riding along, so the one control meaning "show me everything"
+  detached the visit from the campaign that brought it — while every other filter interaction
+  preserved them. `handleResetFilters` is now `updateFilters({ ...FILTER_DEFAULTS })`, which
+  deletes exactly the keys the gallery owns. That is also shorter than what it replaced, and it
+  removed the `syncUrl` branch this file's earlier review fix had just added.
+- **`?search=%20%20` reported an active filter that narrowed nothing.** `hasActiveFilters` now
+  compares the same trimmed value the matcher uses.
+
+**Still not covered:** nothing exercises a re-render *after* a URL write — `router.replace` is a
+spy that never feeds its href back to `useSearchParams`, so back/forward navigation and the
+stale-snapshot hazard `updateFilters` guards against would need an E2E test.
+
+### Verification, second round
+
+`typecheck` clean · `test` 79 files / **1310** pass · `test:components` 6 files / **100** pass ·
+`test:integration` 6 files / **56** pass · `lint` 0 errors (17 pre-existing warnings, none in
+touched files) · `docs:check` OK. `npm run build` still cannot run here — unchanged, same reason.

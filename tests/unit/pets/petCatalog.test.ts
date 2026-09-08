@@ -1,18 +1,20 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import {
   PET_TRACK_SEQUENCE,
   buildPetStatusFilterOptions,
   buildPetTrackOptions,
   buildPopulatedStatusFilterOptions,
+  buildVisibleStatusFilterOptions,
   getPetTrack,
+  isPetTrack,
   matchesTrackFilter,
   type PetTrack,
 } from "@/lib/presentation/petStatusPresentation";
 import { PET_STATUS_VALUES } from "@/lib/validations/pet";
 import { insertServerPet } from "@/lib/server/petRepository";
 import { getPublicPets, getPetById } from "@/actions/pets";
-import { signInAsAdmin, TEST_ADMIN_ACTOR } from "../../setup/authSession";
+import { TEST_ADMIN_ACTOR } from "../../setup/authSession";
 import { Pet, PetStatus } from "@/types/pet";
 
 /**
@@ -165,6 +167,22 @@ describe("matchesTrackFilter", () => {
     expect(matchesTrackFilter("Rehabilitation", "rehabilitation")).toBe(true);
   });
 
+  it("treats an unrecognised track value as no filter", () => {
+    // `?track=Adoptable` with the wrong case, or a stale link to a track that no longer exists.
+    // Failing closed would empty the grid with no tab marked active — a filter that hides
+    // everything and does not admit to being on.
+    for (const bogus of ["Adoptable", "rehab", "xyz", ""]) {
+      expect(matchesTrackFilter("Available", bogus)).toBe(true);
+      expect(matchesTrackFilter("Adopted", bogus)).toBe(true);
+    }
+  });
+
+  it("recognises exactly the declared tracks", () => {
+    expect(PET_TRACK_SEQUENCE.every((track) => isPetTrack(track))).toBe(true);
+    expect(isPetTrack("all")).toBe(false);
+    expect(isPetTrack("Adoptable")).toBe(false);
+  });
+
   it("excludes an adopted animal from both support tracks", () => {
     expect(matchesTrackFilter("Adopted", "adoptable")).toBe(false);
     expect(matchesTrackFilter("Adopted", "rehabilitation")).toBe(false);
@@ -195,12 +213,44 @@ describe("buildPopulatedStatusFilterOptions", () => {
   });
 });
 
-describe("public catalogue reads", () => {
-  beforeEach(async () => {
-    // insertServerPet records an actor; the catalogue reads below are themselves public.
-    await signInAsAdmin();
+describe("buildVisibleStatusFilterOptions", () => {
+  it("keeps the selected status visible at zero once another filter empties it", () => {
+    // Narrowing species while filtered to Pending can leave the status select holding a value
+    // no option carries; the browser then renders it blank and the grid empties with nothing on
+    // screen admitting why.
+    const options = buildVisibleStatusFilterOptions(population("Available"), "Pending");
+
+    const pending = options.find((option) => option.value === "Pending");
+    expect(pending).toBeDefined();
+    expect(pending?.count).toBe(0);
   });
 
+  it("still drops empty buckets the visitor is not standing in", () => {
+    const options = buildVisibleStatusFilterOptions(population("Available"), "all");
+
+    expect(options.map((option) => option.value)).toEqual(["Available"]);
+  });
+
+  it("does not duplicate a selected status that is populated", () => {
+    const options = buildVisibleStatusFilterOptions(population("Available"), "Available");
+
+    expect(options.filter((option) => option.value === "Available")).toHaveLength(1);
+  });
+
+  it("keeps the selected rehabilitation spelling without adding its alias", () => {
+    const options = buildVisibleStatusFilterOptions(population("Available"), "Rehabilitation");
+
+    // The canonical option is what the select offers; the alias must not appear beside it.
+    expect(options.map((option) => option.value)).toEqual(["Available", "In Rehabilitation"]);
+  });
+});
+
+// No `signInAsAdmin()` in these two describes, deliberately. `insertServerPet` is handed
+// `TEST_ADMIN_ACTOR` directly, so arranging a fixture needs no session — and both reads under
+// test are classified INTENTIONALLY_PUBLIC in `tests/unit/serverActionAuth.test.ts`. With an
+// admin session in the jar these would keep passing if either read grew an authorization gate,
+// which is the one thing they exist to notice. They run as a stranger.
+describe("public catalogue reads", () => {
   it("filters by gender", async () => {
     await insertServerPet(
       makeCatalogPet({ id: "pet-catalog-gender-f", name: "Comel", gender: "Female" }),
@@ -232,9 +282,9 @@ describe("public catalogue reads", () => {
   });
 
   it("does not let the gender filter resurrect an archived animal", async () => {
-    // The archive check has to precede every other predicate. The sibling assertion for
-    // species/status/search lives in tests/integration/softDeleteFiltering.ts; gender is the
-    // new predicate, so it gets the same treatment.
+    // The archive check has to precede every other predicate. The sibling assertions for
+    // species/status/search live in tests/integration/softDeleteFiltering.test.ts, against a
+    // persisted row; gender is the new predicate, so it gets the same treatment here.
     await insertServerPet(
       makeCatalogPet({ id: "pet-catalog-archived-f", gender: "Female", isArchived: true }),
       TEST_ADMIN_ACTOR
@@ -247,10 +297,6 @@ describe("public catalogue reads", () => {
 });
 
 describe("getPetById", () => {
-  beforeEach(async () => {
-    await signInAsAdmin();
-  });
-
   it("returns an active animal", async () => {
     await insertServerPet(makeCatalogPet({ id: "pet-catalog-active" }), TEST_ADMIN_ACTOR);
 
@@ -258,9 +304,10 @@ describe("getPetById", () => {
   });
 
   it("returns null for an archived animal", async () => {
-    // The leak this closes: getPublicPets has filtered archived rows since it was written, but
-    // the reader behind /pets/[id] did not — so archiving took an animal out of the grid while
-    // leaving its public profile reachable by direct link.
+    // Tier 2: the predicate only. This arranges and reads the same in-memory mirror, so it
+    // cannot see whether the action reaches the database at all — the half of the leak that
+    // actually shipped. `tests/integration/softDeleteFiltering.test.ts` covers that against a
+    // persisted row, and fails if the action goes back to the synchronous reader.
     await insertServerPet(
       makeCatalogPet({ id: "pet-catalog-archived", isArchived: true }),
       TEST_ADMIN_ACTOR

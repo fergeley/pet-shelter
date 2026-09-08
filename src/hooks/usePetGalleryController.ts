@@ -6,7 +6,7 @@ import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/client/petStore";
 import {
   buildPetTrackOptions,
-  buildPopulatedStatusFilterOptions,
+  buildVisibleStatusFilterOptions,
   matchesStatusFilter,
   matchesTrackFilter,
 } from "@/lib/presentation/petStatusPresentation";
@@ -90,11 +90,11 @@ export function usePetGalleryController({
   );
 
   // Used only when `syncUrl` is false — the home page mounts this gallery without wanting the
-  // address bar to change under the visitor.
-  const [localFilters, setLocalFilters] = useState<FilterValues>(() => ({
-    ...FILTER_DEFAULTS,
-    ...Object.fromEntries(FILTER_KEYS.map((key) => [key, searchParams?.get(key) || FILTER_DEFAULTS[key]])),
-  }));
+  // address bar to change under the visitor. Seeded from the URL all the same, so a filtered
+  // link still lands filtered.
+  const [localFilters, setLocalFilters] = useState<FilterValues>(
+    () => Object.fromEntries(FILTER_KEYS.map((key) => [key, readFromUrl(key)])) as FilterValues
+  );
 
   const filters: FilterValues = useMemo(() => {
     if (!syncUrl) return localFilters;
@@ -193,8 +193,8 @@ export function usePetGalleryController({
   );
 
   const statusOptions = useMemo(
-    () => buildPopulatedStatusFilterOptions(trackScopedPets),
-    [trackScopedPets]
+    () => buildVisibleStatusFilterOptions(trackScopedPets, filters.status),
+    [trackScopedPets, filters.status]
   );
 
   const filteredPets = useMemo(
@@ -204,14 +204,28 @@ export function usePetGalleryController({
     [trackScopedPets, filters.status]
   );
 
-  const hasActiveFilters = FILTER_KEYS.some((key) => filters[key] !== FILTER_DEFAULTS[key]);
+  // Compared against the same trimmed value `BASE_MATCHERS.search` filters on, or an inbound
+  // `?search=%20%20` reports an active filter while matching every animal — a Reset button
+  // offering to clear nothing. The setter trims on write, so only a hand-made or stale link
+  // reaches this.
+  const hasActiveFilters = FILTER_KEYS.some(
+    (key) => (key === "search" ? filters[key].trim() : filters[key]) !== FILTER_DEFAULTS[key]
+  );
 
-  const handleResetFilters = useCallback(() => {
-    setLocalFilters({ ...FILTER_DEFAULTS });
-    if (syncUrl && router && pathname) {
-      router.replace(pathname, { scroll: false });
-    }
-  }, [syncUrl, router, pathname]);
+  /**
+   * Reset is just "every filter back to its neutral value", which `updateFilters` already
+   * knows how to express: a value equal to its default is deleted from the query string.
+   *
+   * Writing it that way rather than `router.replace(pathname)` keeps query parameters the
+   * gallery does not own. A bare pathname dropped `utm_source` and anything else riding along,
+   * so clicking Reset silently detached the visit from whatever campaign brought it — while
+   * every other filter interaction preserved them. It also settles the URL/local split in one
+   * place instead of branching on `syncUrl` again.
+   */
+  const handleResetFilters = useCallback(
+    () => updateFilters({ ...FILTER_DEFAULTS }),
+    [updateFilters]
+  );
 
   const handleOpenDetail = (pet: Pet) => {
     setActivePetForDetail(pet);

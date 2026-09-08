@@ -196,6 +196,34 @@ export function buildPopulatedStatusFilterOptions(
   return buildPetStatusFilterOptions(pets).filter((option) => option.count > 0);
 }
 
+/**
+ * The populated options, plus whichever status is currently selected even when nothing matches
+ * it any more.
+ *
+ * Dropping empty buckets is right until the visitor is standing in one. Narrowing a *different*
+ * filter — picking Dogs while filtered to Pending, say — can empty the selected status's bucket,
+ * and a `<select>` whose value matches no `<option>` renders blank: the grid empties with the
+ * responsible control showing nothing. Keeping the selected option visible at `(0)` says what
+ * happened and leaves somewhere to click.
+ */
+export function buildVisibleStatusFilterOptions(
+  pets: readonly Pick<Pet, "status">[],
+  selectedStatus: string
+): PetStatusFilterOption[] {
+  const populated = buildPopulatedStatusFilterOptions(pets);
+  if (selectedStatus === "all") return populated;
+  if (populated.some((option) => matchesStatusFilter(option.value, selectedStatus))) {
+    return populated;
+  }
+
+  // An all-zero set to lift the selected status's label and tone from, so this does not
+  // reconstruct an option shape that `buildPetStatusFilterOptions` already knows how to build.
+  const orphan = buildPetStatusFilterOptions([]).find((option) =>
+    matchesStatusFilter(option.value, selectedStatus)
+  );
+  return orphan ? [...populated, orphan] : populated;
+}
+
 /** The tracks in the order the catalogue offers them: adoption first, alumni last. */
 export const PET_TRACK_SEQUENCE: PetTrack[] = ["adoptable", "rehabilitation", "alumni"];
 
@@ -257,8 +285,17 @@ export function buildPetTrackOptions(pets: readonly Pick<Pet, "status">[]): PetT
  * regression nobody could see the cause of.
  */
 export function matchesTrackFilter(status: PetStatus, selectedTrack: string): boolean {
-  if (selectedTrack === "all") return true;
+  // An unrecognised value means "all", not "nothing". `?track=Adoptable` with the wrong case,
+  // or a stale link to a track that no longer exists, would otherwise match no animal and empty
+  // the grid with no tab marked active — a filter with nothing on screen admitting to it.
+  // `getPetStatusPresentation` already falls back rather than failing closed for the same reason.
+  if (!isPetTrack(selectedTrack)) return true;
   return getPetTrack(status) === selectedTrack;
+}
+
+/** Whether a raw string — from the URL, always — names a track this build knows. */
+export function isPetTrack(value: string): value is PetTrack {
+  return (PET_TRACK_SEQUENCE as string[]).includes(value);
 }
 
 type RehabStageFields = Pick<Pet, "rehabStage" | "rehabStageMs">;

@@ -161,9 +161,15 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
           {t("common.details", "Details")}
         </Button>
 
-        {/* An animal in rehabilitation cannot be adopted out directly, so sponsorship —
-            not a dead "Pending" button — is the action offered to supporters. An alumnus gets
-            no second button at all, for the same reason. */}
+        {/* Three cases, and they are not the same case:
+            - In rehabilitation: cannot be adopted out directly, so sponsorship is a real action
+              offered in place of an adopt button that would do nothing.
+            - Alumni: no action exists at all — neither adoption nor sponsorship applies to an
+              animal who has gone home — so there is no second button.
+            - Pending: an application is already in review. The button stays, disabled, showing
+              the status. That *is* a dead button, deliberately: it reports where the animal is
+              in the queue, and removing it would make Pending indistinguishable from Available
+              at a glance. Change it here if that call is ever revisited. */}
         {isAlumni ? null : status.isInRehabilitation ? (
           <Button
             size="sm"

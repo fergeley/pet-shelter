@@ -42,6 +42,21 @@ export const PET_STATUS_VALUES = [
 
 export const PET_STATUS_FILTER_VALUES = ["all", ...PET_STATUS_VALUES] as const;
 
+/**
+ * The recorded sexes, in the order surfaces should offer them. Shared for the same reason the
+ * statuses above are: the form schema, the filter schema and the gallery's `<select>` were
+ * about to hold a fourth hand-written copy of this two-item list between them.
+ */
+export const GENDER_VALUES = ["Male", "Female"] as const satisfies readonly Gender[];
+
+export const GENDER_FILTER_VALUES = ["all", ...GENDER_VALUES] as const;
+
+/** Dictionary keys for the sexes, so a caller never re-derives `common.male` from the value. */
+export const GENDER_LABEL_KEYS: Record<Gender, string> = {
+  Male: "common.male",
+  Female: "common.female",
+};
+
 /** Statuses that denote an animal still under clinical or behavioural care. */
 export const REHABILITATION_STATUSES: readonly PetStatus[] = ["In Rehabilitation", "Rehabilitation"];
 
@@ -159,7 +174,7 @@ export const petBaseFormSchema = z.object({
   breed: z.string().min(1, "Breed is required"),
   age: z.string().min(1, "Age description is required (e.g. '2 years')"),
   ageCategory: z.enum(["puppy_kitten", "young", "adult", "senior"]),
-  gender: z.enum(["Male", "Female"]),
+  gender: z.enum(GENDER_VALUES),
   size: z.enum(["Small", "Medium", "Large"]),
   weight: z.string().min(1, "Weight is required (e.g. '18 kg')"),
   status: z.enum(PET_STATUS_VALUES),
@@ -244,7 +259,7 @@ export type PetFormOutput = z.output<typeof petBaseFormSchema>;
 
 export const petFilterSchema = z.object({
   species: z.enum(["all", "dog", "cat", "other"]).optional().default("all"),
-  gender: z.enum(["all", "Male", "Female"]).optional().default("all"),
+  gender: z.enum(GENDER_FILTER_VALUES).optional().default("all"),
   status: z.enum(PET_STATUS_FILTER_VALUES).optional().default("all"),
   ageCategory: z.enum(["all", "puppy_kitten", "young", "adult", "senior"]).optional().default("all"),
   size: z.enum(["all", "Small", "Medium", "Large"]).optional().default("all"),

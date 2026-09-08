@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+import { GENDER_VALUES, GENDER_LABEL_KEYS } from "@/lib/validations/pet";
 
 /**
  * i18n keys for the lifecycle band names. The year range printed beside each name is derived
@@ -142,7 +143,7 @@ export function PetGallery({
           animal shows no "Adopted" tab, and a track that empties under the active filters stops
           being offered rather than leading to a blank grid. "All" is always present because it
           is the way back out of a track. */}
-      {showFilters && trackOptions.length > 1 && (
+      {showFilters && (trackOptions.length > 1 || selectedTrack !== "all") && (
         <div
           className="mb-5 flex flex-wrap gap-2 border-b border-border pb-3"
           role="group"
@@ -285,8 +286,11 @@ export function PetGallery({
                 className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
                 <option value="all">{isMs ? "Semua Jantina" : "All Genders"}</option>
-                <option value="Male">{t("common.male", "Male")}</option>
-                <option value="Female">{t("common.female", "Female")}</option>
+                {GENDER_VALUES.map((gender) => (
+                  <option key={gender} value={gender}>
+                    {t(GENDER_LABEL_KEYS[gender], gender)}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -350,7 +354,9 @@ export function PetGallery({
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end min-w-0">
+            {/* Spans the full row beneath the selects; `sm` is four columns wide now that gender
+                joined age, size and status, so this follows rather than leaving a dangling cell. */}
+            <div className="col-span-2 sm:col-span-4 md:col-span-1 flex items-end min-w-0">
               <Button
                 variant="outline"
                 size="sm"

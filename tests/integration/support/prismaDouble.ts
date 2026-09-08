@@ -17,6 +17,8 @@ import type { DbPetRecord } from "@/lib/server/petMappers";
 export interface PrismaDouble {
   pet: {
     findMany: ReturnType<typeof vi.fn>;
+    /** `findServerPetByIdAsync`, the reader behind a single public profile. */
+    findUnique: ReturnType<typeof vi.fn>;
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     updateMany: ReturnType<typeof vi.fn>;
@@ -67,6 +69,7 @@ export function createPrismaDouble(): PrismaDouble {
   return {
     pet: {
       findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({}),
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),

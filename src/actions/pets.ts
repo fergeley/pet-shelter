@@ -15,6 +15,7 @@ import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/secur
 import {
   getServerPetsAsync,
   findServerPetById,
+  findServerPetByIdAsync,
   insertServerPet,
   updateServerPet,
   archiveServerPet,
@@ -119,7 +120,13 @@ export async function getAdminPets(): Promise<(Pet & { applicationCount: number 
  * mutations read with, and they must see the row they are about to write.
  */
 export async function getPetById(id: string): Promise<Pet | null> {
-  const pet = findServerPetById(id);
+  // `findServerPetByIdAsync`, not `findServerPetById`. The synchronous reader only searches the
+  // in-memory mirror, which a cold process initialises from `src/data/pets.json` — so an archive
+  // performed in another instance was invisible here, and the guard below read `isArchived` off
+  // a fixture. The same read also 404'd any animal that exists only in the database. The
+  // catalogue beside it has always gone through the async path (`getServerPetsAsync`); this is
+  // the single-animal read catching up with it.
+  const pet = await findServerPetByIdAsync(id);
   if (!pet || pet.isArchived) return null;
   return pet;
 }
