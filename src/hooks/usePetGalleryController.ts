@@ -4,7 +4,67 @@ import { useState, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Pet } from "@/types/pet";
 import { usePetStore } from "@/lib/client/petStore";
-import { matchesStatusFilter } from "@/lib/presentation/petStatusPresentation";
+import {
+  buildPetTrackOptions,
+  buildPopulatedStatusFilterOptions,
+  matchesStatusFilter,
+  matchesTrackFilter,
+} from "@/lib/presentation/petStatusPresentation";
+
+/**
+ * Every filter the gallery offers, keyed by the URL parameter it round-trips through, with the
+ * value that means "not filtering".
+ *
+ * This used to be five parallel copies of the same four-part pattern — a `useState`, a
+ * `searchParams.get` fallback, a branch inside `updateUrlParams`, and a `useCallback` setter —
+ * one set per filter. Adding gender and track by that method would have made seven, and the
+ * fifth copy is already four past the point where AGENTS.md says to abstract. Now a filter is
+ * one line here plus, if it is not a plain equality, one line in `BASE_MATCHERS`.
+ */
+const FILTER_DEFAULTS = {
+  search: "",
+  species: "all",
+  gender: "all",
+  ageCategory: "all",
+  size: "all",
+  status: "all",
+  track: "all",
+} as const;
+
+export type PetFilterKey = keyof typeof FILTER_DEFAULTS;
+
+type FilterValues = Record<PetFilterKey, string>;
+
+const FILTER_KEYS = Object.keys(FILTER_DEFAULTS) as PetFilterKey[];
+
+/**
+ * The filters that narrow the population independently of one another.
+ *
+ * `track` and `status` are deliberately absent: they are staged rather than parallel — status is
+ * scoped *within* the selected track — so they are applied below in that order instead of being
+ * folded in here.
+ */
+const BASE_MATCHERS: Record<
+  "search" | "species" | "gender" | "ageCategory" | "size",
+  (pet: Pet, value: string) => boolean
+> = {
+  search: (pet, value) => {
+    const query = value.trim().toLowerCase();
+    if (query === "") return true;
+    return (
+      pet.name.toLowerCase().includes(query) ||
+      pet.breed.toLowerCase().includes(query) ||
+      pet.description.toLowerCase().includes(query) ||
+      pet.tags.some((tag) => tag.toLowerCase().includes(query))
+    );
+  },
+  species: (pet, value) => pet.species === value,
+  gender: (pet, value) => pet.gender === value,
+  ageCategory: (pet, value) => pet.ageCategory === value,
+  size: (pet, value) => pet.size === value,
+};
+
+const BASE_MATCHER_KEYS = Object.keys(BASE_MATCHERS) as (keyof typeof BASE_MATCHERS)[];
 
 export interface UsePetGalleryControllerProps {
   initialPets?: Pet[];
@@ -24,116 +84,74 @@ export function usePetGalleryController({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Read initial filter values from URL if available
-  const initialSearch = searchParams?.get("search") || "";
-  const initialSpecies = searchParams?.get("species") || "all";
-  const initialAge = searchParams?.get("ageCategory") || "all";
-  const initialSize = searchParams?.get("size") || "all";
-  const initialStatus = searchParams?.get("status") || "all";
+  const readFromUrl = useCallback(
+    (key: PetFilterKey) => searchParams?.get(key) || FILTER_DEFAULTS[key],
+    [searchParams]
+  );
 
-  // Filter States (used when syncUrl is false)
-  const [localSearch, setLocalSearch] = useState(initialSearch);
-  const [localSpecies, setLocalSpecies] = useState<string>(initialSpecies);
-  const [localAge, setLocalAge] = useState<string>(initialAge);
-  const [localSize, setLocalSize] = useState<string>(initialSize);
-  const [localStatus, setLocalStatus] = useState<string>(initialStatus);
+  // Used only when `syncUrl` is false — the home page mounts this gallery without wanting the
+  // address bar to change under the visitor.
+  const [localFilters, setLocalFilters] = useState<FilterValues>(() => ({
+    ...FILTER_DEFAULTS,
+    ...Object.fromEntries(FILTER_KEYS.map((key) => [key, searchParams?.get(key) || FILTER_DEFAULTS[key]])),
+  }));
 
-  // Derived active values
-  const searchQuery = syncUrl ? (searchParams?.get("search") || "") : localSearch;
-  const selectedSpecies = syncUrl ? (searchParams?.get("species") || "all") : localSpecies;
-  const selectedAge = syncUrl ? (searchParams?.get("ageCategory") || "all") : localAge;
-  const selectedSize = syncUrl ? (searchParams?.get("size") || "all") : localSize;
-  const selectedStatus = syncUrl ? (searchParams?.get("status") || "all") : localStatus;
+  const filters: FilterValues = useMemo(() => {
+    if (!syncUrl) return localFilters;
+    return Object.fromEntries(FILTER_KEYS.map((key) => [key, readFromUrl(key)])) as FilterValues;
+  }, [syncUrl, localFilters, readFromUrl]);
 
-  // Helper to push updated params to URL
-  const updateUrlParams = useCallback(
-    (updates: { search?: string; species?: string; ageCategory?: string; size?: string; status?: string }) => {
-      if (!syncUrl || !router || !pathname) return;
+  /**
+   * Apply any number of filter changes at once.
+   *
+   * Taking a partial record rather than one key is what lets "switching track also clears the
+   * status" be a single history entry. With a setter per filter it would have been two
+   * `router.replace` calls in the same tick, the second built from a `searchParams` snapshot
+   * that predates the first — so one of the two changes would be dropped.
+   */
+  const updateFilters = useCallback(
+    (updates: Partial<FilterValues>) => {
+      if (!syncUrl) {
+        setLocalFilters((current) => ({ ...current, ...updates }));
+        return;
+      }
+      if (!router || !pathname) return;
 
       const params = new URLSearchParams(searchParams ? searchParams.toString() : "");
-
-      if (updates.search !== undefined) {
-        if (updates.search.trim()) params.set("search", updates.search.trim());
-        else params.delete("search");
-      }
-      if (updates.species !== undefined) {
-        if (updates.species !== "all") params.set("species", updates.species);
-        else params.delete("species");
-      }
-      if (updates.ageCategory !== undefined) {
-        if (updates.ageCategory !== "all") params.set("ageCategory", updates.ageCategory);
-        else params.delete("ageCategory");
-      }
-      if (updates.size !== undefined) {
-        if (updates.size !== "all") params.set("size", updates.size);
-        else params.delete("size");
-      }
-      if (updates.status !== undefined) {
-        if (updates.status !== "all") params.set("status", updates.status);
-        else params.delete("status");
+      for (const [key, rawValue] of Object.entries(updates) as [PetFilterKey, string][]) {
+        const value = key === "search" ? rawValue.trim() : rawValue;
+        if (value === FILTER_DEFAULTS[key]) params.delete(key);
+        else params.set(key, value);
       }
 
       const queryString = params.toString();
-      const targetUrl = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(targetUrl, { scroll: false });
+      router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
     },
     [syncUrl, router, pathname, searchParams]
   );
 
-  // State setters
-  const setSearchQuery = useCallback(
-    (value: string) => {
-      if (syncUrl) {
-        updateUrlParams({ search: value });
-      } else {
-        setLocalSearch(value);
-      }
-    },
-    [syncUrl, updateUrlParams]
+  const setFilter = useCallback(
+    (key: PetFilterKey, value: string) => updateFilters({ [key]: value }),
+    [updateFilters]
   );
 
-  const setSelectedSpecies = useCallback(
-    (value: string) => {
-      if (syncUrl) {
-        updateUrlParams({ species: value });
-      } else {
-        setLocalSpecies(value);
-      }
-    },
-    [syncUrl, updateUrlParams]
-  );
+  // Named setters kept so the component reads as prose. They are aliases over `setFilter`, not
+  // seven more copies of it.
+  const setSearchQuery = useCallback((value: string) => setFilter("search", value), [setFilter]);
+  const setSelectedSpecies = useCallback((value: string) => setFilter("species", value), [setFilter]);
+  const setSelectedGender = useCallback((value: string) => setFilter("gender", value), [setFilter]);
+  const setSelectedAge = useCallback((value: string) => setFilter("ageCategory", value), [setFilter]);
+  const setSelectedSize = useCallback((value: string) => setFilter("size", value), [setFilter]);
+  const setSelectedStatus = useCallback((value: string) => setFilter("status", value), [setFilter]);
 
-  const setSelectedAge = useCallback(
-    (value: string) => {
-      if (syncUrl) {
-        updateUrlParams({ ageCategory: value });
-      } else {
-        setLocalAge(value);
-      }
-    },
-    [syncUrl, updateUrlParams]
-  );
-
-  const setSelectedSize = useCallback(
-    (value: string) => {
-      if (syncUrl) {
-        updateUrlParams({ size: value });
-      } else {
-        setLocalSize(value);
-      }
-    },
-    [syncUrl, updateUrlParams]
-  );
-
-  const setSelectedStatus = useCallback(
-    (value: string) => {
-      if (syncUrl) {
-        updateUrlParams({ status: value });
-      } else {
-        setLocalStatus(value);
-      }
-    },
-    [syncUrl, updateUrlParams]
+  /**
+   * Changing track resets the status filter, because status options are scoped to the track:
+   * "Pending" exists under Adoptable and nowhere else, so carrying it across would land the
+   * visitor on an empty grid with no visible cause.
+   */
+  const setSelectedTrack = useCallback(
+    (value: string) => updateFilters({ track: value, status: FILTER_DEFAULTS.status }),
+    [updateFilters]
   );
 
   // Modal Dialog States
@@ -147,64 +165,49 @@ export function usePetGalleryController({
   const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
   const [activePetForSponsorship, setActivePetForSponsorship] = useState<Pet | null>(null);
 
-  // Filter Logic
-  const filteredPets = useMemo(() => {
+  /**
+   * Everything the independent filters accept. Track and status are applied after this, so the
+   * tab strip built from it counts animals under the *other* active filters — searching "Luna"
+   * shows which tracks Luna is in, rather than which tracks the shelter has.
+   */
+  const baseFilteredPets = useMemo(() => {
     return pets.filter((pet) => {
-      // Exclude archived pets in public views
+      // Archived animals are staff-only. The server actions filter them too; this is the client
+      // store's copy of that rule, not a substitute for it.
       if (pet.isArchived) return false;
       if (featuredOnly && !pet.featured) return false;
 
-      // Search Query
-      if (searchQuery.trim() !== "") {
-        const query = searchQuery.toLowerCase();
-        const matchesName = pet.name.toLowerCase().includes(query);
-        const matchesBreed = pet.breed.toLowerCase().includes(query);
-        const matchesTags = pet.tags.some((t) => t.toLowerCase().includes(query));
-        const matchesDesc = pet.description.toLowerCase().includes(query);
-        if (!matchesName && !matchesBreed && !matchesTags && !matchesDesc) {
-          return false;
-        }
-      }
-
-      // Species Filter
-      if (selectedSpecies !== "all" && pet.species !== selectedSpecies) {
-        return false;
-      }
-
-      // Age Category Filter
-      if (selectedAge !== "all" && pet.ageCategory !== selectedAge) {
-        return false;
-      }
-
-      // Size Filter
-      if (selectedSize !== "all" && pet.size !== selectedSize) {
-        return false;
-      }
-
-      // Status Filter — canonical comparison, or filtering for one spelling of
-      // "In Rehabilitation" silently drops animals filed under the legacy alias.
-      if (!matchesStatusFilter(pet.status, selectedStatus)) {
-        return false;
-      }
-
-      return true;
+      return BASE_MATCHER_KEYS.every((key) => {
+        const value = filters[key];
+        if (value === FILTER_DEFAULTS[key]) return true;
+        return BASE_MATCHERS[key](pet, value);
+      });
     });
-  }, [pets, featuredOnly, searchQuery, selectedSpecies, selectedAge, selectedSize, selectedStatus]);
+  }, [pets, featuredOnly, filters]);
 
-  const hasActiveFilters =
-    searchQuery !== "" ||
-    selectedSpecies !== "all" ||
-    selectedAge !== "all" ||
-    selectedSize !== "all" ||
-    selectedStatus !== "all";
+  const trackOptions = useMemo(() => buildPetTrackOptions(baseFilteredPets), [baseFilteredPets]);
+
+  const trackScopedPets = useMemo(
+    () => baseFilteredPets.filter((pet) => matchesTrackFilter(pet.status, filters.track)),
+    [baseFilteredPets, filters.track]
+  );
+
+  const statusOptions = useMemo(
+    () => buildPopulatedStatusFilterOptions(trackScopedPets),
+    [trackScopedPets]
+  );
+
+  const filteredPets = useMemo(
+    // Canonical comparison, or filtering for one spelling of "In Rehabilitation" silently drops
+    // animals filed under the legacy alias.
+    () => trackScopedPets.filter((pet) => matchesStatusFilter(pet.status, filters.status)),
+    [trackScopedPets, filters.status]
+  );
+
+  const hasActiveFilters = FILTER_KEYS.some((key) => filters[key] !== FILTER_DEFAULTS[key]);
 
   const handleResetFilters = useCallback(() => {
-    setLocalSearch("");
-    setLocalSpecies("all");
-    setLocalAge("all");
-    setLocalSize("all");
-    setLocalStatus("all");
-
+    setLocalFilters({ ...FILTER_DEFAULTS });
     if (syncUrl && router && pathname) {
       router.replace(pathname, { scroll: false });
     }
@@ -230,11 +233,16 @@ export function usePetGalleryController({
       pets,
       filteredPets,
       hasActiveFilters,
-      searchQuery,
-      selectedSpecies,
-      selectedAge,
-      selectedSize,
-      selectedStatus,
+      /** Track tabs and status options, both derived from the population actually on screen. */
+      trackOptions,
+      statusOptions,
+      searchQuery: filters.search,
+      selectedSpecies: filters.species,
+      selectedGender: filters.gender,
+      selectedAge: filters.ageCategory,
+      selectedSize: filters.size,
+      selectedStatus: filters.status,
+      selectedTrack: filters.track,
       activePetForDetail,
       isDetailOpen,
       activePetForAdoption,
@@ -246,9 +254,11 @@ export function usePetGalleryController({
     handlers: {
       setSearchQuery,
       setSelectedSpecies,
+      setSelectedGender,
       setSelectedAge,
       setSelectedSize,
       setSelectedStatus,
+      setSelectedTrack,
       handleResetFilters,
       handleOpenDetail,
       handleOpenAdoption,

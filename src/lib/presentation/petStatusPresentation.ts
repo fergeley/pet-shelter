@@ -3,6 +3,17 @@ import { normalizePetStatus } from "@/lib/domain/stateMachine";
 
 export type PetStatusTone = "available" | "rehabilitation" | "pending" | "adopted";
 
+/**
+ * Which catalogue track a status belongs to — the public split between animals you can apply
+ * for, animals you can fund, and animals who have already gone home.
+ *
+ * A track is coarser than a status on purpose: `Available` and `Pending` are two stages of one
+ * journey, and a supporter browsing for a dog does not think of them as different sections.
+ * `alumni` is not a third thing to support; it is the absence of a support action, which is why
+ * the card offers no CTA there.
+ */
+export type PetTrack = "adoptable" | "rehabilitation" | "alumni";
+
 export interface PetStatusPresentation {
   tone: PetStatusTone;
   /** Dictionary key for the badge label. */
@@ -24,6 +35,14 @@ export interface PetStatusPresentation {
   isAdoptable: boolean;
   /** Under veterinary or behavioural care: sponsorship is the supported action, not adoption. */
   isInRehabilitation: boolean;
+  /**
+   * The catalogue section this status files under. Declared here, beside the tone it sits with,
+   * so a new status joins a track by gaining one field — not by being remembered in a tab list
+   * in some component. That is the failure this file's own `buildPetStatusFilterOptions` comment
+   * describes, and the public gallery was committing it: three statuses hand-listed, `Adopted`
+   * forgotten.
+   */
+  track: PetTrack;
 }
 
 /**
@@ -49,6 +68,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     chipClass: `tone-chip ${TONE_CLASS.available}`,
     isAdoptable: true,
     isInRehabilitation: false,
+    track: "adoptable",
   },
   rehabilitation: {
     tone: "rehabilitation",
@@ -59,6 +79,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     chipClass: `tone-chip ${TONE_CLASS.rehabilitation}`,
     isAdoptable: false,
     isInRehabilitation: true,
+    track: "rehabilitation",
   },
   pending: {
     tone: "pending",
@@ -69,6 +90,10 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     chipClass: `tone-chip ${TONE_CLASS.pending}`,
     isAdoptable: false,
     isInRehabilitation: false,
+    // An application is under review, which is a stage of the adoption journey rather than a
+    // section of its own. Filing it here is what makes the catalogue agree with the detail
+    // page, whose adopt button already reads "Adoption Pending" instead of disappearing.
+    track: "adoptable",
   },
   adopted: {
     tone: "adopted",
@@ -79,6 +104,7 @@ const PRESENTATIONS: Record<PetStatusTone, PetStatusPresentation> = {
     chipClass: `tone-chip ${TONE_CLASS.adopted}`,
     isAdoptable: false,
     isInRehabilitation: false,
+    track: "alumni",
   },
 };
 
@@ -153,6 +179,86 @@ export function buildPetStatusFilterOptions(
 export function matchesStatusFilter(status: PetStatus, selectedStatus: string): boolean {
   if (selectedStatus === "all") return true;
   return normalizePetStatus(status) === normalizePetStatus(selectedStatus as PetStatus);
+}
+
+/**
+ * Public-catalogue policy: never offer a filter that matches nothing.
+ *
+ * The admin table wants the opposite, and `buildPetStatusFilterOptions` serves that — it lists
+ * every canonical status even at zero so staff can see a bucket is empty rather than wonder
+ * where it went, which `tests/unit/petStatusPresentation.test.ts` pins. A supporter browsing
+ * `/pets` has no such need. The two policies differ, so they are two named functions over one
+ * count rather than a `.filter()` remembered at one of the call sites.
+ */
+export function buildPopulatedStatusFilterOptions(
+  pets: readonly Pick<Pet, "status">[]
+): PetStatusFilterOption[] {
+  return buildPetStatusFilterOptions(pets).filter((option) => option.count > 0);
+}
+
+/** The tracks in the order the catalogue offers them: adoption first, alumni last. */
+export const PET_TRACK_SEQUENCE: PetTrack[] = ["adoptable", "rehabilitation", "alumni"];
+
+/**
+ * Track labels are their own vocabulary, not the status labels reused. "Adoptable" covers both
+ * `Available` and `Pending`, so it cannot borrow either one's key — and if a second status ever
+ * joins the rehabilitation track, that tab's label must not start following whichever status
+ * happens to be listed first.
+ */
+const TRACK_LABELS: Record<PetTrack, { labelKey: string; labelFallback: string }> = {
+  adoptable: { labelKey: "pets.trackAdoptable", labelFallback: "Adoptable" },
+  rehabilitation: { labelKey: "pets.trackRehabilitation", labelFallback: "In Rehabilitation" },
+  alumni: { labelKey: "pets.trackAlumni", labelFallback: "Adopted" },
+};
+
+export interface PetTrackOption {
+  /** Canonical track, used as the tab value and fed back to `matchesTrackFilter`. */
+  value: PetTrack;
+  labelKey: string;
+  labelFallback: string;
+  /** How many of the supplied animals file under this track. */
+  count: number;
+}
+
+/**
+ * The track a status files under. Resolved through the presentation record, so the legacy
+ * `Rehabilitation` alias lands on the same track as `In Rehabilitation` without this function
+ * knowing the alias exists.
+ */
+export function getPetTrack(status: PetStatus): PetTrack {
+  return getPetStatusPresentation(status).track;
+}
+
+/**
+ * Build the track tab strip over a supplied population, omitting tracks nobody is in — so the
+ * catalogue cannot show an "Adopted" tab at a shelter that has not rehomed anyone yet.
+ *
+ * Counts sum to `pets.length` by construction, for the same reason the status counts do: every
+ * status resolves to exactly one presentation, and every presentation names exactly one track.
+ */
+export function buildPetTrackOptions(pets: readonly Pick<Pet, "status">[]): PetTrackOption[] {
+  const counts = new Map<PetTrack, number>();
+  for (const pet of pets) {
+    const track = getPetTrack(pet.status);
+    counts.set(track, (counts.get(track) ?? 0) + 1);
+  }
+
+  return PET_TRACK_SEQUENCE.filter((track) => (counts.get(track) ?? 0) > 0).map((value) => ({
+    value,
+    ...TRACK_LABELS[value],
+    count: counts.get(value) ?? 0,
+  }));
+}
+
+/**
+ * Compare a pet's status against a track filter value, which arrives as a raw string from the
+ * URL. `"all"` is the default rather than `"adoptable"`: `PetGallery` also mounts on the home
+ * page without filter controls, and a default that hid every animal under care there would be a
+ * regression nobody could see the cause of.
+ */
+export function matchesTrackFilter(status: PetStatus, selectedTrack: string): boolean {
+  if (selectedTrack === "all") return true;
+  return getPetTrack(status) === selectedTrack;
 }
 
 type RehabStageFields = Pick<Pet, "rehabStage" | "rehabStageMs">;

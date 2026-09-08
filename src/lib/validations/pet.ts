@@ -25,7 +25,7 @@ export const photoNotificationSchema = z.object({
 
 export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
 
-import { MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
+import { Gender, MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
 
 /**
@@ -244,6 +244,7 @@ export type PetFormOutput = z.output<typeof petBaseFormSchema>;
 
 export const petFilterSchema = z.object({
   species: z.enum(["all", "dog", "cat", "other"]).optional().default("all"),
+  gender: z.enum(["all", "Male", "Female"]).optional().default("all"),
   status: z.enum(PET_STATUS_FILTER_VALUES).optional().default("all"),
   ageCategory: z.enum(["all", "puppy_kitten", "young", "adult", "senior"]).optional().default("all"),
   size: z.enum(["all", "Small", "Medium", "Large"]).optional().default("all"),
@@ -253,6 +254,7 @@ export const petFilterSchema = z.object({
 
 export type PetFilterInput = {
   species?: "all" | "dog" | "cat" | "other";
+  gender?: "all" | Gender;
   status?: PetStatus | "all";
   ageCategory?: "all" | "puppy_kitten" | "young" | "adult" | "senior";
   size?: "all" | "Small" | "Medium" | "Large";

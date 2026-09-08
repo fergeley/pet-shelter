@@ -28,6 +28,10 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
   const [imgSrc, setImgSrc] = useState(pet.image || FALLBACK_PET_IMAGE);
   const status = getPetStatusPresentation(pet.status);
   const isAvailable = status.isAdoptable;
+  // An animal who has gone home is not a support target: neither adoption nor sponsorship
+  // applies. The card used to render a disabled button reading "Adopted" here — the dead
+  // button the comment below says this footer was shaped to avoid.
+  const isAlumni = status.track === "alumni";
   const rehabStage = status.isInRehabilitation ? getRehabStageLabel(pet, isMs) : undefined;
   const rehabProgress = status.isInRehabilitation ? getRehabProgressPercent(pet) : undefined;
 
@@ -142,7 +146,11 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
       </div>
 
       {/* Footer Actions */}
-      <CardFooter className="p-5 pt-0 border-t border-border/60 mt-3 grid grid-cols-2 gap-2.5">
+      <CardFooter
+        className={`p-5 pt-0 border-t border-border/60 mt-3 grid gap-2.5 ${
+          isAlumni ? "grid-cols-1" : "grid-cols-2"
+        }`}
+      >
         <Button
           variant="outline"
           size="sm"
@@ -154,8 +162,9 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
         </Button>
 
         {/* An animal in rehabilitation cannot be adopted out directly, so sponsorship —
-            not a dead "Pending" button — is the action offered to supporters. */}
-        {status.isInRehabilitation ? (
+            not a dead "Pending" button — is the action offered to supporters. An alumnus gets
+            no second button at all, for the same reason. */}
+        {isAlumni ? null : status.isInRehabilitation ? (
           <Button
             size="sm"
             onClick={() => (onSponsorPet ? onSponsorPet(pet) : onSelectPet(pet))}

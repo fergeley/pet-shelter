@@ -56,9 +56,15 @@ const INTENTIONALLY_PUBLIC: Record<string, string> = {
     "applicants check their own status; rate-limited and keyed on their reference",
   submitDonationPledgeAction: "donations come from the public",
 
-  // The public catalog. Both filter to non-archived pets.
+  // The public catalog. All three filter to non-archived pets.
   getPublicPets: "public adoption catalog",
   getPets: "alias of getPublicPets",
+  // Listed explicitly as of this change. It was passing the guard by accident:
+  // `collectServerActions` slices a body from one exported function to the next,
+  // and the private `getAdminActorOrThrow` helper that follows this one was being
+  // swallowed into its body, carrying an AUTH_TOKEN with it. The classification
+  // is now stated rather than inferred from where a helper happens to sit.
+  getPetById: "single public profile; returns null for an archived animal",
 
   // Public content, served on pages any visitor can open. Pre-existing on
   // master and not touched by this change: listed so the guard passes on

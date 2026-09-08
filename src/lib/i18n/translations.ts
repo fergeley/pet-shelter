@@ -112,9 +112,14 @@ export interface TranslationDictionary {
     title: string;
     subtitle: string;
     speciesFilter: string;
+    genderFilter: string;
     ageFilter: string;
     sizeFilter: string;
     statusFilter: string;
+    trackFilter: string;
+    trackAdoptable: string;
+    trackRehabilitation: string;
+    trackAlumni: string;
     noResultsTitle: string;
     noResultsDesc: string;
     showingResults: string;
@@ -471,9 +476,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       title: "Adoptable Animals in Selangor",
       subtitle: "Browse rescued dogs, cats, puppies, and kittens awaiting their forever homes in Petaling Jaya.",
       speciesFilter: "Species",
+      genderFilter: "Gender",
       ageFilter: "Age Group",
       sizeFilter: "Size",
       statusFilter: "Status",
+      trackFilter: "Filter by care track",
+      trackAdoptable: "Adoptable",
+      trackRehabilitation: "In Rehabilitation",
+      trackAlumni: "Adopted",
       noResultsTitle: "No animals match your search filters",
       noResultsDesc: "Try adjusting your filter criteria or clear all filters to see all adoptable rescues.",
       showingResults: "Showing adoptable pets",
@@ -829,9 +839,14 @@ export const translations: Record<Language, TranslationDictionary> = {
       title: "Haiwan Sedia Diangkat Anak di Selangor",
       subtitle: "Semak senarai anjing, kucing, dan anak haiwan yang menanti keluarga penyayang di Petaling Jaya.",
       speciesFilter: "Spesis",
+      genderFilter: "Jantina",
       ageFilter: "Kumpulan Umur",
       sizeFilter: "Saiz",
       statusFilter: "Status",
+      trackFilter: "Tapis mengikut trek penjagaan",
+      trackAdoptable: "Sedia Diadopsi",
+      trackRehabilitation: "Dalam Pemulihan",
+      trackAlumni: "Telah Diadopsi",
       noResultsTitle: "Tiada haiwan sepadan dengan tapisan carian anda",
       noResultsDesc: "Cuba laraskan kriteria tapisan anda atau set semula tapisan untuk melihat semua haiwan.",
       showingResults: "Memaparkan haiwan sedia diadopsi",
