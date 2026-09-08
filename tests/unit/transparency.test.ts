@@ -1175,9 +1175,33 @@ describe("Transparency server actions", () => {
     });
 
     const paths = vi.mocked(revalidatePath).mock.calls.map(([p]) => p);
-    // Both pages server-render allocation figures, so both must be purged.
+    // All three server-render figures derived from this ledger, so all three
+    // must be purged. `/` reads the same `ImpactStat` table for the home page's
+    // impact counters; omitting it left a corrected figure stale there for up
+    // to five minutes while the other two updated at once.
     expect(paths).toContain("/transparency");
     expect(paths).toContain("/donate");
+    expect(paths).toContain("/");
+  });
+
+  it("revalidates the home page when an impact counter is edited", async () => {
+    sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
+    const { revalidatePath } = await import("next/cache");
+    const { saveImpactStatAction } = await import("@/actions/transparency");
+
+    await saveImpactStatAction({
+      key: "home_animals_neutered",
+      metricValue: "640+",
+      label: "Neutered via TNRM",
+      labelMs: "Dimandulkan (TNRM)",
+      period: "To date",
+      periodMs: "Sehingga kini",
+      displayOrder: 10,
+      isPublished: true,
+    });
+
+    const paths = vi.mocked(revalidatePath).mock.calls.map(([p]) => p);
+    expect(paths).toContain("/");
   });
 
   it("moves the published allocation when an admin adds an expense", async () => {
