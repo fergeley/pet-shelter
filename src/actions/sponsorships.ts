@@ -19,6 +19,7 @@ import {
 import {
   SponsorshipWriteError,
   findSponsorshipByPledgeRef,
+  listPendingSponsorships,
   recordSponsorshipPledge,
   reconcileSponsorship,
   summarizeSponsorshipsForPet,
@@ -26,7 +27,12 @@ import {
 import { ReceiptIssuanceError, issueDonationReceipt } from "@/lib/server/donationLedger";
 import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/email";
 import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import {
+  PERMISSIONS,
+  assertAuthorized,
+  assertHasPermission,
+  ROLES,
+} from "@/lib/security/rbac";
 
 /** What the supporter sees the moment checkout completes. */
 export interface SponsorshipPledgeDTO {
@@ -174,6 +180,77 @@ export async function createPetSponsorshipAction(
   );
 
   return { success: true, data: dto };
+}
+
+/** One row of the coordinator's reconciliation queue. */
+export interface PendingSponsorshipDTO {
+  pledgeRef: string;
+  petName: string;
+  sponsorName: string;
+  sponsorEmail: string;
+  tierName: string;
+  /** Preformatted in MYR here so the client never re-derives money from sen. */
+  amountDisplay: string;
+  frequency: "one_time" | "monthly";
+  paymentMethod: "duitnow_qr" | "online_banking" | "card";
+  /** ISO-8601 UTC, as stored. Rendered in Asia/Kuala_Lumpur at the edge. */
+  createdAt: string;
+}
+
+export interface PendingSponsorshipsResult {
+  success: boolean;
+  data?: PendingSponsorshipDTO[];
+  error?: string;
+}
+
+/**
+ * Server Action: the commitments awaiting a coordinator's confirmation.
+ *
+ * The read half of reconciliation. `reconcilePetSponsorshipAction` has existed and
+ * been guarded since PR #6 but nothing called it, so every commitment stayed
+ * `PENDING_PAYMENT`, no `receiptNumber` was ever assigned, and the portal's
+ * account-claim challenge — which requires one — could never be satisfied by
+ * anybody. See `tasks/open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md`.
+ *
+ * Guarded with `RECONCILE_SPONSORSHIPS` rather than a role list because a capability
+ * question survives a role being renamed. The permission is granted to exactly the
+ * roles `reconcilePetSponsorshipAction`'s own `[ADMIN, COORDINATOR]` guard admits, so
+ * this page never shows a button that the mutation behind it would reject.
+ *
+ * `taxIdOrIc` is deliberately absent from the DTO: a coordinator confirming that a
+ * bank transfer landed does not need the supporter's tax identifier to do it, and
+ * projecting it here would put a statutory identifier on a screen for no purpose.
+ */
+export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshipsResult> {
+  const session = await getCurrentSession();
+  assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
+
+  try {
+    const rows = await listPendingSponsorships();
+    return {
+      success: true,
+      data: rows.map((row) => ({
+        pledgeRef: row.pledgeRef,
+        petName: row.petName,
+        sponsorName: row.sponsorName,
+        sponsorEmail: row.sponsorEmail,
+        tierName: row.tierName,
+        amountDisplay: formatMYR(row.amountSen),
+        frequency: row.frequency,
+        paymentMethod: row.paymentMethod,
+        createdAt: row.createdAt,
+      })),
+    };
+  } catch (err) {
+    // Surfaced, never swallowed into an empty list: an empty queue reads as "every
+    // supporter has been settled", and a coordinator who believes that stops looking.
+    console.error("[Sponsorship Reconciliation] Pending queue read failed:", err);
+    return {
+      success: false,
+      error:
+        "We could not load the pending commitments. This is a read failure, not an empty queue — do not treat it as nothing to do.",
+    };
+  }
 }
 
 export interface ReconcileSponsorshipResult {
