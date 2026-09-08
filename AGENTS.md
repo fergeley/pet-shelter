@@ -105,6 +105,7 @@ Context rot is ~2% recall/instruction adherence degradation per 100K tokens. Lon
 - **Do not self-meter tokens each turn**: Models cannot reliably count their own tokens and waste attention estimating them. Trigger session resets on **task milestones** (planning settled, subsystem verified, or 15–20+ tool calls executed), not guessed numbers.
 - **Offload noisy exploration**: Deep codebase search, multi-file inspection, and verbose build/test logs belong in dedicated subagents. Keep raw exploration output out of the coordinator conversation.
 - **State persists in files, not chat**: When reaching a session reset threshold, write current progress and live state to disk (task ledger or plan artifact) before closing. Start the next session with a single pointer to that file.
+- **Read the drift log before the close write**: `.claude/hooks/agent-guard.mjs` records every file write in the session, including the `cat >` and `sed -i` writes no tool-name matcher can see, so a "while I am here" edit is visible at review time rather than at merge time. A log nobody reads is furniture — read it with `cat "$TEMP/claude-agent-drift.log"` (Windows; `$TMPDIR` elsewhere). Moved here from `CLAUDE.md` on 2026-09-08: it binds every agent, not one tool.
 
 
 ## Reaching for the smallest thing that works

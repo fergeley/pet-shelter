@@ -42,19 +42,3 @@ Core Principles
 Simplicity First: Make every change as simple as possible. Impact minimal code.
 No Laziness: Find root causes. No temporary fixes. Senior developer standards.
 Minimal Impact: Changes should only touch what's necessary. Avoid introducing bugs.
-
-## Context & Session Hygiene
-
-The rule lives in `AGENTS.md` and is not restated here. Reset on **task milestones**, never on a
-token estimate: a model cannot reliably count its own tokens, and the counting spends the attention
-it is trying to protect. This file used to carry numeric thresholds that asked for exactly the
-self-metering `AGENTS.md` forbids — three copies of one rule, three different answers.
-
-**At session close, read the drift log before writing the ledger.** It records every file write in
-the session, including the `cat >` and `sed -i` writes no tool-name matcher can see, so a "while I'm
-here" edit is visible at review time rather than at merge time:
-
-```bash
-cat "$TEMP/claude-agent-drift.log"      # Windows; $TMPDIR elsewhere
-```
-
