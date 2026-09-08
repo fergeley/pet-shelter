@@ -19,6 +19,23 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const sessionMock = vi.hoisted(() => ({ getCurrentSession: vi.fn() }));
 vi.mock("@/lib/security/session", () => sessionMock);
 
+/**
+ * The member row behind the cookie.
+ *
+ * Both actions resolve their session through `getVerifiedSession`, which reads
+ * this row and returns `null` when the account is no longer ACTIVE — that is
+ * what makes a suspension take effect on the next request instead of whenever
+ * the 24-hour cookie happens to expire.
+ *
+ * Mocked here because without it that re-read is invisible to this suite:
+ * `prisma` is unmocked in the unit lane and `DATABASE_URL` is unset, so the
+ * query rejects and `dal.ts` falls back to the cookie's own claims. Every test
+ * would then pass against `getCurrentSession` just as happily, and the guard
+ * would be asserted by nothing.
+ */
+const memberStoreMock = vi.hoisted(() => ({ findMemberAuthStateById: vi.fn() }));
+vi.mock("@/lib/server/memberStore", () => memberStoreMock);
+
 import { senFromRinggit } from "@/lib/domain/money";
 import { generatePledgeRef } from "@/lib/domain/petSponsorship";
 import {
@@ -88,6 +105,10 @@ function receiptSerial(receiptNumber: string): number {
 beforeEach(() => {
   serial = 0;
   sessionMock.getCurrentSession.mockResolvedValue(COORDINATOR);
+  // No row: `dal.ts` falls through to the cookie's claims, which is the
+  // in-memory/demo path the rest of these tests want. Cases that care about the
+  // re-read override it.
+  memberStoreMock.findMemberAuthStateById.mockResolvedValue(null);
 });
 
 /**
@@ -172,6 +193,16 @@ describe("the coordinator queue", () => {
     expect(row.amountSen).toBe(8000);
     expect(row.amountDisplay).toBe("RM 80.00");
   });
+
+  it("preformats the payment rail, so no coordinator reads a raw enum", async () => {
+    await givenPendingPledge({ paymentMethod: "online_banking" });
+
+    const [row] = await getPendingSponsorshipsAction();
+
+    expect(row.paymentMethodLabel).toBe("Bank transfer");
+    // The raw value is still carried, for callers that need to branch on it.
+    expect(row.paymentMethod).toBe("online_banking");
+  });
 });
 
 describe("authorisation: only ADMIN and COORDINATOR may see or settle the queue", () => {
@@ -203,6 +234,41 @@ describe("authorisation: only ADMIN and COORDINATOR may see or settle the queue"
     await expect(reconcilePetSponsorshipAction(pledge.pledgeRef)).rejects.toThrow(
       /not authorized/i
     );
+  });
+
+  it("denies a coordinator whose member row was suspended, despite a live cookie", async () => {
+    const pledge = await givenPendingPledge();
+    sessionMock.getCurrentSession.mockResolvedValue(COORDINATOR);
+    memberStoreMock.findMemberAuthStateById.mockResolvedValue({
+      role: "VOLUNTEER_COORDINATOR",
+      status: "SUSPENDED",
+      name: "Suspended Coordinator",
+      email: COORDINATOR.email,
+    });
+
+    // The cookie is intact and still claims COORDINATOR — this is the whole
+    // point. A Server Action is a POST endpoint whose id the client already
+    // holds, so a guard that only unseals the cookie would keep admitting a
+    // suspended account for the rest of the cookie's 24-hour life.
+    await expect(getPendingSponsorshipsAction()).rejects.toThrow(/Authentication required/i);
+    await expect(reconcilePetSponsorshipAction(pledge.pledgeRef)).rejects.toThrow(
+      /Authentication required/i
+    );
+    expect(await listDonations()).toHaveLength(0);
+  });
+
+  it("denies a coordinator demoted in the member row, despite the cookie's stale role", async () => {
+    sessionMock.getCurrentSession.mockResolvedValue(COORDINATOR);
+    memberStoreMock.findMemberAuthStateById.mockResolvedValue({
+      role: "CONTENT_EDITOR",
+      status: "ACTIVE",
+      name: "Demoted Coordinator",
+      email: COORDINATOR.email,
+    });
+
+    // Still ACTIVE, so the session survives — but with the role the database
+    // holds, not the one the cookie was sealed with.
+    await expect(getPendingSponsorshipsAction()).rejects.toThrow(/not authorized/i);
   });
 
   it("burns no receipt number on a refused reconciliation", async () => {

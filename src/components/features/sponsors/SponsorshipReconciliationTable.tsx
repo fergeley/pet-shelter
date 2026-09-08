@@ -19,6 +19,45 @@ import {
 } from "@/actions/sponsorships";
 
 /**
+ * Extracts the Kuala Lumpur calendar date from a UTC instant.
+ *
+ * Two separate bugs are being avoided, and only one of them is hydration.
+ *
+ * `toLocaleDateString` with no `timeZone` renders in the *runtime's* zone — UTC
+ * on the server, UTC+8 in a Malaysian browser — so the two passes disagree.
+ * Formatting in UTC instead fixes that mismatch and keeps the second bug: a
+ * pledge made at 01:00 MYT is 17:00 UTC the previous day, so every pledge
+ * between midnight and 08:00 MYT would be shown a day early. On a screen whose
+ * entire purpose is matching rows against a Malaysian bank statement, that is
+ * the coordinator skipping a real transfer.
+ *
+ * `receiptScopeFor` in the donation ledger pins this same zone for the same
+ * reason, and says so: "which month a receipt falls in is a local-calendar
+ * question with tax consequences".
+ *
+ * Composed through `formatTimestampDate` rather than through a localized
+ * pattern so the month name comes from the repo's own table. `Intl` month
+ * abbreviations can differ across ICU versions, and Node's and the browser's
+ * need not match — which would put the hydration mismatch straight back.
+ */
+const KUALA_LUMPUR_PARTS = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kuala_Lumpur",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function pledgedOn(isoTimestamp: string): string {
+  const when = new Date(isoTimestamp);
+  if (Number.isNaN(when.getTime())) return isoTimestamp;
+
+  const parts = KUALA_LUMPUR_PARTS.formatToParts(when);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+
+  return formatTimestampDate(`${part("year")}-${part("month")}-${part("day")}`);
+}
+
+/**
  * The coordinator's reconciliation queue.
  *
  * ## Why there is no client copy of the rows
@@ -85,9 +124,18 @@ export function SponsorshipReconciliationTable({
         // would keep its spinner forever and the banner above would never
         // render, because there is no `error.tsx` anywhere under `src/app` to
         // pick the rejection up.
+        //
+        // The wording deliberately does NOT claim no receipt was issued. The
+        // action mints the receipt and THEN attaches it, so a connection blip
+        // between those two steps rejects with a permanent receipt already in
+        // the ledger. A coordinator told "nothing happened" clicks again, and
+        // the pre-check still sees PENDING_PAYMENT — a second number from a
+        // gapless statutory series for one payment. Unknown is the honest
+        // answer from here, and the reloaded queue is how it gets resolved.
         setError(
-          "The reconciliation could not be completed, and no receipt was issued. Your sign-in may have expired — reload this page and sign in again before retrying."
+          "The reconciliation did not complete, and it is not clear from here whether a receipt was issued. Reload this page and check whether this pledge is still listed before trying again — retrying blindly can issue a second receipt for the same payment."
         );
+        router.refresh();
       } finally {
         setBusyRef(null);
       }
@@ -136,12 +184,27 @@ export function SponsorshipReconciliationTable({
           <table className="w-full">
             <thead className="border-b border-border bg-muted/40 text-xs font-bold uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="p-3.5 text-left sm:p-4">Pledge reference</th>
-                <th className="p-3.5 text-left sm:p-4">Supporter</th>
-                <th className="p-3.5 text-left sm:p-4">Animal</th>
-                <th className="p-3.5 text-right sm:p-4">Amount</th>
-                <th className="p-3.5 text-left sm:p-4">Pledged</th>
-                <th className="p-3.5 text-right sm:p-4">Action</th>
+                <th scope="col" className="p-3.5 text-left sm:p-4">
+                  Pledge reference
+                </th>
+                <th scope="col" className="p-3.5 text-left sm:p-4">
+                  Supporter
+                </th>
+                <th scope="col" className="p-3.5 text-left sm:p-4">
+                  Animal
+                </th>
+                <th scope="col" className="p-3.5 text-right sm:p-4">
+                  Amount
+                </th>
+                {/* Names the payment method too. The cell carries both, and a
+                    screen reader announcing an unlabelled "DuitNow QR" after a
+                    date is the column header's omission, not the cell's. */}
+                <th scope="col" className="p-3.5 text-left sm:p-4">
+                  Pledged / method
+                </th>
+                <th scope="col" className="p-3.5 text-right sm:p-4">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -199,18 +262,18 @@ export function SponsorshipReconciliationTable({
                   </td>
 
                   <td className="p-3.5 sm:p-4">
-                    {/* The shared UTC formatter, not `toLocaleDateString`: this
-                        component is server-rendered and then hydrated, and a
-                        runtime-zone format makes a UTC server and a UTC+8
-                        browser disagree about the day for any pledge made after
-                        16:00 UTC — a wrong date and a hydration mismatch. */}
                     <p className="font-mono text-xs text-muted-foreground">
-                      {formatTimestampDate(row.createdAt)}
+                      {pledgedOn(row.createdAt)}
                     </p>
-                    <p className="text-xs text-muted-foreground">{row.paymentMethod}</p>
+                    <p className="text-xs text-muted-foreground">{row.paymentMethodLabel}</p>
                   </td>
 
                   <td className="p-3.5 text-right sm:p-4">
+                    {/* Every row is disabled while any one is settling, not
+                        just the busy row. That is deliberate: each click issues
+                        an irreversible statutory receipt, and serialising them
+                        is worth more than letting a coordinator start a second
+                        one before the first has reported. */}
                     <Button
                       size="xs"
                       onClick={() => setCandidate(row)}
@@ -230,8 +293,12 @@ export function SponsorshipReconciliationTable({
         </div>
       </div>
 
+      {/* Kept alongside the button spinner and the dimmed table rather than
+          removed as a third indicator: those two are purely visual, and this is
+          the only one a screen reader announces. `role="status"` is what makes
+          it carry that weight instead of just repeating them. */}
       {isPending && (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 className="size-3.5 animate-spin" aria-hidden />
           Issuing receipt…
         </p>

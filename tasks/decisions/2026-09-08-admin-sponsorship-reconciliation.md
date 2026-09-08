@@ -214,3 +214,98 @@ One caveat on that run: an earlier full-suite pass showed `secrets.test.ts` and
 files this change does not touch, while transform time had nearly doubled under concurrent
 session load. Both pass in isolation (63 tests, 8.9s) and the next full run was green. This is
 the Windows-under-load flake the vitest config already documents, not a regression.
+
+---
+
+## Second review round — `/code-review xhigh`, 2026-09-09
+
+Fifteen findings against the merged branch. Eleven acted on, two declined with reasons, two
+already-recorded scope items corroborated.
+
+**The one that mattered most reversed a fix from the first round.** That review said the
+pledge date's hydration mismatch should be fixed with the repo's UTC `formatTimestampDate`.
+It was right about the mismatch and wrong about the fix: this screen exists to match rows
+against a *Malaysian* bank statement, and UTC shows every pledge made between 00:00 and 08:00
+MYT a day early. `donationLedger.receiptScopeFor` already pins Asia/Kuala_Lumpur and its
+comment says why — "which month a receipt falls in is a local-calendar question with tax
+consequences… `toISOString()` gets it wrong for eight hours of every day". The date is now
+composed from `Intl` parts in that zone and rendered through the repo's own month names, which
+fixes the wrong day *and* the mismatch, and avoids depending on ICU month abbreviations
+agreeing between Node and the browser.
+
+**Fixed:**
+
+1. The KL date, above.
+2. The catch-all banner claimed "no receipt was issued" for *every* rejection — including one
+   thrown after `issueDonationReceipt` had already minted a permanent number — and told the
+   coordinator to retry. That is the instruction that produces a second statutory receipt for
+   one payment. It now says the outcome is unknown from the client and to reload before
+   retrying, and refreshes so the reloaded queue answers the question.
+3. The post-mint `not_found` return used the same "No sponsorship found" wording as the
+   pre-flight check, which reads as "nothing happened" when an orphaned receipt exists. It now
+   names the receipt number and says explicitly not to retry.
+4. **The headline security fix was asserted by nothing.** The suite mocks
+   `@/lib/security/session`, so `getVerifiedSession` fell through its own catch to the cookie's
+   claims and every authorisation test exercised the path the fix replaced — reverting the
+   import would have left all 18 green. `@/lib/server/memberStore` is now mocked, and two tests
+   drive a SUSPENDED row and a demoted row. Confirmed discriminating: reverting to
+   `getCurrentSession` fails exactly those two and nothing else.
+5. `listPendingSponsorships` selected every column, pulling each supporter's NRIC into server
+   memory for the DTO to discard one layer later — enforcing the privacy boundary at the
+   serialization edge instead of at the query. Now an explicit `select` that omits it.
+6. `paymentMethod` reached the coordinator as the raw enum (`duitnow_qr`). Now preformatted
+   server-side alongside `amountDisplay`, and the DTO carries the union rather than `string`.
+7. The `createdAt` docstring said "Formatted in the client, in the reader's locale" — the exact
+   opposite of what the client does and of why. It would have invited a maintainer to
+   reintroduce the bug.
+8. The catch path was the only one not calling `router.refresh()`, in the case where the
+   server's state is least knowable.
+9. Memory-mode ordering used `localeCompare`, resting a stated invariant on ICU collation.
+10. Missing `scope="col"`, and a "Pledged" header that silently also carried the payment
+    method. Now `scope="col"` throughout and "Pledged / method".
+11. The `UnauthorizedError`/`ForbiddenError` branches added in round one were **dead code**:
+    `getVerifiedSession` is `cache()`-memoized per request, so the action receives the identical
+    session the page just cleared against the identical role list, and the comment justifying
+    them described a race the memoization prevents. Removed, with the reason recorded in place.
+
+**Declined, with reasons:**
+
+- *Every row is disabled while one settles.* Reported as a UX cost; kept deliberately. Each
+  click issues an irreversible statutory receipt, and serialising them is worth more than
+  letting a coordinator start a second before the first has reported. Now says so in a comment.
+- *Three loading affordances.* The footer line is kept rather than removed — the button spinner
+  and the dimmed table are purely visual, and it is the only one a screen reader announces. It
+  now carries `role="status"` so it earns the place.
+
+**Corroborated, still out of scope by the standing decision on this task:** the missing
+`navLinks` entry, and gating on an inline role list rather than a `RECONCILE_SPONSORSHIPS`
+permission. The reviewer independently identified the second as the *cause* of the first —
+`layout.tsx`'s nav filter takes only permissions, so no tab can be added until the permission
+exists. That strengthens the follow-up but does not change its scope; both remain recorded in
+[`../open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md`](../open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md).
+
+### A5 is no longer ASSERTED
+
+The Build Gate above lists `A5 [ASSERTED] The screen behaves in a browser` with no evidence,
+on the grounds that rendering it for real would issue a receipt and email a donor. That was
+true of the browser and false of the ladder: `tests/components/` runs jsdom, the tier already
+covers comparable widgets, and it was simply not used. The review was right to call it.
+
+`tests/components/SponsorshipReconciliationTable.test.tsx` now covers nine behaviours,
+each one shown to fail against a targeted mutation of the component rather than merely passing:
+the confirm dialog standing between a click and a permanent document, `already_reconciled`
+rendering as settled instead of as an error, the soft-failure alert, the try/catch that stops a
+rejected action leaving a row spinning forever, the refresh on success, the preformatted rail
+label rather than the raw enum, and the catch wording *not* claiming that no receipt was issued.
+
+The ninth was added after the suite came back, because the first eight left the round-two date
+fix unasserted — the same failure this document had already recorded once: the highest-value
+correction in the change, protected by nothing. The fixture's instant is 17:00 UTC, which is
+01:00 the next day in Kuala Lumpur; reverting `pledgedOn` to the UTC formatter fails that test
+and only that test.
+
+**A5 is now MEASURED for the component.** What remains unobserved is narrower and unchanged:
+A4, the Prisma branch of `listPendingSponsorships`, which still has no database to run against.
+
+**Final verification:** unit 1303 pass (79 files), components 67 pass (6 files),
+`npm run check` clean at the pre-existing 17-warning baseline with none in the changed files.

@@ -337,14 +337,46 @@ export async function findSponsorshipByPledgeRef(
  */
 export async function listPendingSponsorships(): Promise<SponsorshipRecord[]> {
   if (!isLedgerPersistent()) {
-    return memorySponsorships
-      .filter((row) => row.status === "PENDING_PAYMENT")
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    return (
+      memorySponsorships
+        .filter((row) => row.status === "PENDING_PAYMENT")
+        // Plain comparison, not `localeCompare`: these are fixed-width ISO-8601
+        // UTC strings, so byte order is chronological order by construction.
+        // Collation would give the same answer here only as a property of the
+        // collator, and oldest-first is an invariant of this queue.
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0))
+    );
   }
 
+  // Explicit projection, and the one read in this module that needs it: the
+  // coordinator queue is the only caller handling every pending supporter at
+  // once, and `taxIdOrIc` is an NRIC that nothing downstream of here wants.
+  // `getPendingSponsorshipsAction` drops it from its DTO, but dropping it at
+  // the serialization edge still pulls it out of Postgres and into server
+  // memory, where a query log or an error dump can carry it.
   const rows = await prisma.petSponsorship.findMany({
     where: { status: "PENDING_PAYMENT" },
     orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      petId: true,
+      petName: true,
+      sponsorName: true,
+      sponsorEmail: true,
+      sponsorPhone: true,
+      userId: true,
+      displayOnWall: true,
+      tierId: true,
+      tierName: true,
+      frequency: true,
+      amountSen: true,
+      paymentMethod: true,
+      status: true,
+      pledgeRef: true,
+      receiptNumber: true,
+      notes: true,
+      createdAt: true,
+    },
   });
   return rows.map(toRecord);
 }
@@ -477,7 +509,12 @@ interface SponsorshipRow {
   status: string;
   pledgeRef: string;
   receiptNumber: string | null;
-  taxIdOrIc: string | null;
+  /**
+   * Optional so a caller may omit it from its `select`. The coordinator queue
+   * does exactly that — see `listPendingSponsorships`. Every other read needs
+   * it, because reconciliation copies it onto the statutory receipt.
+   */
+  taxIdOrIc?: string | null;
   notes: string | null;
   createdAt: Date;
 }

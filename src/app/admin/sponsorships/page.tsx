@@ -1,7 +1,7 @@
 import { forbidden, unauthorized } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { getVerifiedSession } from "@/lib/security/dal";
-import { ForbiddenError, UnauthorizedError, hasRole, ROLES } from "@/lib/security/rbac";
+import { hasRole, ROLES } from "@/lib/security/rbac";
 import {
   getPendingSponsorshipsAction,
   type PendingSponsorshipDTO,
@@ -53,19 +53,14 @@ export default async function AdminSponsorshipsPage() {
   try {
     pending = await getPendingSponsorshipsAction();
   } catch (err) {
-    // An authorization failure is not a database failure, and must not be
-    // reported as one. The action resolves the session through the DAL, which
-    // re-reads the member row, so it can legitimately refuse a request this
-    // page admitted — a suspension landing between the two reads does exactly
-    // that. Sending that coordinator to go and check a migration would be a
-    // wrong answer to a question they did not ask.
-    if (err instanceof UnauthorizedError) {
-      unauthorized();
-    }
-    if (err instanceof ForbiddenError) {
-      forbidden();
-    }
-
+    // Only a read failure reaches here, so the panel below can name one cause
+    // without hedging. The action's own guard cannot fire at this point:
+    // `getVerifiedSession` is `cache()`-memoized per request, so it hands the
+    // action the identical session object this page just cleared, against the
+    // identical role list. An earlier revision caught `UnauthorizedError` and
+    // `ForbiddenError` here; those branches were unreachable, and the comment
+    // justifying them described a suspension landing "between the two reads"
+    // when the memoization means there is only one read.
     readFailed = true;
     console.error("[Sponsorship Reconciliation] Could not read the pending queue:", err);
   }

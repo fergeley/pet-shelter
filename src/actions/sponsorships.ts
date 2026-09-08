@@ -18,6 +18,7 @@ import {
 } from "@/lib/domain/petSponsorship";
 import {
   SponsorshipWriteError,
+  type SponsorshipRecord,
   findSponsorshipByPledgeRef,
   listPendingSponsorships,
   recordSponsorshipPledge,
@@ -263,7 +264,18 @@ export async function reconcilePetSponsorshipAction(
     console.error(
       `[Sponsorship Reconciliation] ${pledgeRef} vanished after receipt ${donation.receiptNumber} was issued.`
     );
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
+    // Deliberately NOT the same wording as the pre-flight "no sponsorship
+    // found" above. A receipt exists at this point. Telling a coordinator that
+    // nothing was found reads as "nothing happened", and the natural response
+    // — click it again — mints a second number from a gapless statutory series
+    // for one payment. The number is named so the treasurer's offsetting entry
+    // has something to reference.
+    return {
+      success: false,
+      error:
+        `Receipt ${donation.receiptNumber} was issued, but the sponsorship ${pledgeRef} could no longer be found to attach it to. ` +
+        `Do not retry — that would issue a second receipt. Send this receipt number to the treasurer for an offsetting correction.`,
+    };
   }
 
   recordAuditLog({
@@ -334,11 +346,50 @@ export interface PendingSponsorshipDTO {
   amountSen: number;
   /** Preformatted "RM 80.00", so the table cannot drift from the ledger's rounding. */
   amountDisplay: string;
-  paymentMethod: string;
+  /** The union, not `string`: a fourth rail must fail the exhaustive map below. */
+  paymentMethod: SponsorshipRecord["paymentMethod"];
+  /** Preformatted for the same reason as `amountDisplay` — see `PAYMENT_RAIL_LABELS`. */
+  paymentMethodLabel: string;
   /** What the supporter typed at checkout — the closest thing to a payment note. */
   notes?: string;
-  /** ISO-8601 UTC. Formatted in the client, in the reader's locale. */
+  /**
+   * ISO-8601 UTC instant. Rendered in **Asia/Kuala_Lumpur**, never in the
+   * reader's locale: the zone must be pinned or a UTC server and a UTC+8
+   * browser disagree about the day, which is both a wrong date and a hydration
+   * mismatch. `receiptScopeFor` pins it for the same reason, and its comment
+   * spells out the eight-hour window this gets wrong otherwise.
+   */
   createdAt: string;
+}
+
+/**
+ * Coordinator-facing rail names.
+ *
+ * `src/lib/email.ts` holds its own copy for the donor's receipt, where the
+ * wording is deliberately more formal. Two copies is the repo's stated
+ * threshold for leaving them alone; a third occurrence, or these two actually
+ * diverging in meaning rather than in register, is when this wants a shared
+ * module — which cannot live in either file's directory under this task's
+ * write scope.
+ */
+const PAYMENT_RAIL_LABELS: Record<SponsorshipRecord["paymentMethod"], string> = {
+  duitnow_qr: "DuitNow QR",
+  online_banking: "Bank transfer",
+  card: "Card",
+};
+
+/**
+ * Falls back to the raw value, which is not dead code.
+ *
+ * `PetSponsorship.paymentMethod` is a plain `String` column — constrained at the
+ * Zod boundary, not by a database enum, as its schema comment says. `toRecord`
+ * casts it to the union, so the type is a claim about the write path rather
+ * than a guarantee about the row. A value written before that boundary existed,
+ * or by anything that bypasses it, would otherwise render as `undefined` on a
+ * coordinator's screen.
+ */
+function paymentRailLabel(method: SponsorshipRecord["paymentMethod"]): string {
+  return PAYMENT_RAIL_LABELS[method] ?? method;
 }
 
 /**
@@ -377,6 +428,7 @@ export async function getPendingSponsorshipsAction(): Promise<PendingSponsorship
     amountSen: record.amountSen,
     amountDisplay: formatMYR(record.amountSen),
     paymentMethod: record.paymentMethod,
+    paymentMethodLabel: paymentRailLabel(record.paymentMethod),
     notes: record.notes,
     createdAt: record.createdAt,
   }));
