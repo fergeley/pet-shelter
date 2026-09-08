@@ -165,8 +165,21 @@ export function recordAuditLog(entry: Omit<AuditEntry, "id" | "createdAt">): Aud
 function keepAliveUntilSettled(write: Promise<void>): void {
   try {
     after(write);
-  } catch {
-    // No request scope. The write still settles on the normal microtask queue.
+  } catch (err) {
+    // Out of request scope is the expected, uninteresting case. Anything else
+    // means the guard is swallowing a real failure of the control it exists to
+    // provide — after() called past the response, or a Next upgrade tightening
+    // its contract — and the write goes back to being an unowned promise a
+    // serverless host can freeze. Still not rethrown, because that would turn
+    // every audited mutation into a 500; but it must not be silent, which is
+    // the state the whole floating-promise defect lived in.
+    const outOfScope = err instanceof Error && /request scope/i.test(err.message);
+    if (!outOfScope) {
+      console.warn(
+        "[Audit] after() refused the audit write; it is no longer protected from a serverless freeze:",
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 }
 

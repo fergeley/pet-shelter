@@ -19,16 +19,64 @@ export interface DatabaseSslPolicy {
 }
 
 /**
+ * DNS suffixes reserved for private use, so a name under one cannot be a public
+ * record: RFC 6762 (`.local`, which covers Kubernetes' `*.svc.cluster.local`),
+ * RFC 8375 (`home.arpa`), and `.internal`, which the cloud providers use for
+ * in-VPC names and ICANN has permanently reserved.
+ */
+const INTERNAL_SUFFIXES = [".local", ".internal", ".localdomain", ".home.arpa"];
+
+/**
  * True for a host only reachable from inside the deployment.
  *
- * Loopback, plus any single-label name — `db` and `postgres` are what Docker
- * Compose resolves, and a name with no dot cannot be a public DNS record. The
- * inverse is the part that matters: every dotted host is treated as remote and
- * therefore must present a certificate we can verify.
+ * A first version of this tested `startsWith("127.") || !includes(".")`, which
+ * was wrong in both directions and was caught by review rather than by a test:
+ *
+ *  - **`[2001:db8::1]` was internal**, because an IPv6 literal contains no dot.
+ *    A public IPv6 database therefore got no TLS at all — reintroducing exactly
+ *    the plaintext defect this function exists to close, in the one address
+ *    family nobody tested.
+ *  - **`10.0.1.5`, `192.168.1.9` and `postgres.default.svc.cluster.local` were
+ *    remote**, so every private-network Postgres was forced to present a
+ *    publicly-trusted certificate and stopped connecting at handshake.
+ *  - **`127.example.com` was internal**, because it starts with `127.`.
+ *
+ * So the address families are now told apart before anything is decided, and a
+ * literal is matched against the private ranges rather than against a prefix.
  */
-function isInternalHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-  return h.startsWith("127.") || !h.includes(".");
+function isInternalHost(rawHost: string): boolean {
+  const host = rawHost.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  if (host === "") return true;
+
+  if (host.includes(":")) {
+    // IPv6 literal: loopback, unique-local (fc00::/7), link-local (fe80::/10).
+    return (
+      host === "::1" ||
+      host === "::" ||
+      /^f[cd][0-9a-f]{2}:/.test(host) ||
+      /^fe[89ab][0-9a-f]:/.test(host)
+    );
+  }
+
+  const octets = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (octets) {
+    // IPv4 literal: 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16.
+    const first = Number(octets[1]);
+    const second = Number(octets[2]);
+    return (
+      first === 127 ||
+      first === 10 ||
+      (first === 192 && second === 168) ||
+      (first === 172 && second >= 16 && second <= 31) ||
+      (first === 169 && second === 254)
+    );
+  }
+
+  // A single-label name cannot be a public DNS record — `db` and `postgres` are
+  // what Docker Compose resolves.
+  if (!host.includes(".")) return true;
+
+  return INTERNAL_SUFFIXES.some((suffix) => host.endsWith(suffix));
 }
 
 /**
@@ -72,6 +120,17 @@ export function resolveDatabaseSsl(rawConnectionString: string): DatabaseSslPoli
   // Internal hosts keep the string byte-identical and let `pg` decide, so a
   // local Postgres deliberately configured for TLS keeps working unchanged.
   if (isInternalHost(url.hostname)) {
+    return { connectionString: rawConnectionString, ssl: undefined };
+  }
+
+  // `sslmode=disable` is the operator saying so in libpq's own vocabulary, in a
+  // string they wrote. Overriding it silently would strand a deployment with no
+  // recourse and no log line explaining why the database stopped answering.
+  // Honoured rather than obeyed blindly: it is the *only* opt-out, it has to be
+  // spelled out per connection, and `sslmode=no-verify` is deliberately not one
+  // — that is the unverified TLS this function exists to remove, so it is
+  // stripped like any other and upgraded to a verified connection.
+  if (url.searchParams.get("sslmode") === "disable") {
     return { connectionString: rawConnectionString, ssl: undefined };
   }
 

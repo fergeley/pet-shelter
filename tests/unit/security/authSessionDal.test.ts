@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { parse as parseConnectionString } from "pg-connection-string";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Client } from "pg";
 import { mockRequestHeaders } from "../../setup/nextMocks";
 
 /**
@@ -76,18 +76,19 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
 
     const policy = resolveDatabaseSsl(`postgresql://u:p@${NEON_HOST}/neondb?sslmode=require&schema=public`);
 
-    // Reproduces pg/lib/connection-parameters.js:60 —
-    // `Object.assign({}, config, parse(config.connectionString))`. The parsed
-    // string wins, so anything `parse()` emits under an `ssl` key silently
-    // replaces what this module asked for. `pg-connection-string` emits
-    // `ssl: {}` for sslmode=require, which is why the strip exists.
-    const effective = Object.assign(
-      {},
-      { connectionString: policy.connectionString, ssl: policy.ssl },
-      parseConnectionString(policy.connectionString)
-    );
+    // Asked of `pg` itself rather than simulated. `pg` merges the *parsed*
+    // connection string over the explicit config
+    // (connection-parameters.js:60), and `pg-connection-string` emits `ssl: {}`
+    // for sslmode=require, so without the strip the object below is discarded
+    // and this reads `{}`. Constructing a Client resolves that merge without
+    // opening a socket.
+    const client = new Client({ connectionString: policy.connectionString, ssl: policy.ssl });
+    // `connectionParameters` is where pg parks the resolved merge. Real at
+    // runtime, absent from pg's published types, hence the cast.
+    const resolved = (client as unknown as { connectionParameters: { ssl?: unknown } })
+      .connectionParameters.ssl;
 
-    expect(effective.ssl).toEqual({ rejectUnauthorized: true });
+    expect(resolved).toEqual({ rejectUnauthorized: true });
     expect(policy.connectionString).not.toContain("sslmode");
     // Everything else about the URL is left alone.
     expect(policy.connectionString).toContain("schema=public");
@@ -116,6 +117,58 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
     expect(resolveDatabaseSsl("postgresql://u:p@127.0.0.1:5432/app").ssl).toBeUndefined();
   });
 
+  // The first version of isInternalHost tested `startsWith("127.") ||
+  // !includes(".")`. Every case below was wrong under it, and no test caught
+  // any of them — review did.
+  it.each([
+    ["[2001:db8::1]", "a public IPv6 literal, which has no dot and was read as internal"],
+    ["127.example.com", "a public name that merely starts with 127."],
+    ["[64:ff9b::1]", "an IPv4-mapped public IPv6 address"],
+  ])("demands verified TLS for %s — %s", async (host) => {
+    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+
+    expect(resolveDatabaseSsl(`postgresql://u:p@${host}:5432/app`).ssl).toEqual({
+      rejectUnauthorized: true,
+    });
+  });
+
+  it.each([
+    ["10.0.1.5", "RFC 1918 /8"],
+    ["192.168.1.9", "RFC 1918 /16"],
+    ["172.20.0.5", "RFC 1918 /12"],
+    ["169.254.10.2", "link-local"],
+    ["[::1]", "IPv6 loopback"],
+    ["[fd12:3456::1]", "IPv6 unique-local"],
+    ["[fe80::1]", "IPv6 link-local"],
+    ["postgres.default.svc.cluster.local", "a Kubernetes service name"],
+    ["db.internal", "a reserved private suffix"],
+  ])("leaves %s alone — %s", async (host) => {
+    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+
+    // Forcing a publicly-trusted certificate onto a private network breaks
+    // every one of these at handshake, for connections that worked before.
+    expect(resolveDatabaseSsl(`postgresql://u:p@${host}:5432/app`).ssl).toBeUndefined();
+  });
+
+  it("honours an explicit sslmode=disable rather than overriding it silently", async () => {
+    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+
+    const explicit = "postgresql://u:p@db.managed-postgres.example.com:5432/app?sslmode=disable";
+    const policy = resolveDatabaseSsl(explicit);
+
+    expect(policy.ssl).toBeUndefined();
+    expect(policy.connectionString).toBe(explicit);
+  });
+
+  it("does not honour sslmode=no-verify, which is the defect being removed", async () => {
+    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+
+    const policy = resolveDatabaseSsl(`postgresql://u:p@${NEON_HOST}/neondb?sslmode=no-verify`);
+
+    expect(policy.ssl).toEqual({ rejectUnauthorized: true });
+    expect(policy.connectionString).not.toContain("sslmode");
+  });
+
   it("fails closed on a connection string it cannot parse", async () => {
     const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
 
@@ -142,6 +195,10 @@ describe("getVerifiedSession - an account that no longer exists is not authentic
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("rejects a session whose staff row was deleted from a reachable database", async () => {
@@ -237,6 +294,35 @@ describe("getVerifiedSession - an account that no longer exists is not authentic
     await expect(getVerifiedSession()).resolves.toBeNull();
   });
 
+  it("revokes a deleted seeded administrator in production, where the in-memory seed still vouches for it", async () => {
+    const { findMemberAuthStateById } = await import("@/lib/server/memberStore");
+    const { findUserById } = await import("@/lib/server/userStore");
+    const { getVerifiedSession } = await import("@/lib/security/dal");
+
+    vi.stubEnv("NODE_ENV", "production");
+    await signIn({ ...DELETED, id: "usr-admin-01", email: "admin@hopeforstrays.org" });
+    vi.mocked(findMemberAuthStateById).mockResolvedValue(null);
+    // The real userStore answers this from its hardcoded seed, so the first
+    // version of the fix returned a full SUPER_ADMIN session for an account
+    // deleted from production — closing the hole everywhere except the five
+    // ids that matter most. Mocked to the seed's own answer to prove the
+    // production guard, not the mock, is what refuses.
+    vi.mocked(findUserById).mockResolvedValue({
+      id: "usr-admin-01",
+      email: "admin@hopeforstrays.org",
+      name: "Dr. Sarah Tan",
+      passwordHash: "scrypt:seeded",
+      role: "SUPER_ADMIN",
+      status: "ACTIVE",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    await expect(getVerifiedSession()).resolves.toBeNull();
+    // The seed is never even consulted in production.
+    expect(vi.mocked(findUserById)).not.toHaveBeenCalled();
+  });
+
   it("still falls back to the cookie when the database is unreachable", async () => {
     const { findMemberAuthStateById } = await import("@/lib/server/memberStore");
     const { getVerifiedSession } = await import("@/lib/security/dal");
@@ -261,6 +347,18 @@ describe("getVerifiedSession - an account that no longer exists is not authentic
 describe("registerAction - an address budget the email cannot reset", () => {
   const WRONG_CODE = "definitely-not-the-invite-secret";
 
+  beforeEach(() => {
+    // The operator asserting that their proxy overwrites this header. Without
+    // it the address is untrusted and the budget deliberately does not run —
+    // see `getClientAddress`. Set here rather than assumed, because the header
+    // being believed is a configuration decision, not a default.
+    vi.stubEnv("TRUSTED_PROXY_HEADER", "x-real-ip");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   function register(email: string) {
     return import("@/actions/auth").then(({ registerAction }) =>
       registerAction({
@@ -271,6 +369,24 @@ describe("registerAction - an address budget the email cannot reset", () => {
       })
     );
   }
+
+  it("does not run at all when no proxy header is trusted", async () => {
+    vi.unstubAllEnvs();
+    mockRequestHeaders().set("x-real-ip", "203.0.113.9");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const result = await register(`guess-${attempt}@example.com`);
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    // An untrusted header is attacker-supplied input, and a budget keyed on
+    // attacker-supplied input is the defect this suite exists to prevent. The
+    // honest answer is no address budget, not a guessed one — and above all not
+    // the shared "unknown" bucket an earlier version used, which capped the
+    // whole shelter at ten registrations a minute.
+    expect(outcomes.every((message) => message.includes("invite code"))).toBe(true);
+  });
 
   it("stops a caller who varies the email on every invite-code guess", async () => {
     mockRequestHeaders().set("x-real-ip", "203.0.113.9");
@@ -319,45 +435,101 @@ describe("registerAction - an address budget the email cannot reset", () => {
     expect(outcomes[6]).toMatch(/^Too many registration attempts/);
   });
 
-  it("prefers the platform header over a client-supplied x-forwarded-for", async () => {
-    const { registerAction } = await import("@/actions/auth");
-
+  it("reads only the configured header, ignoring one the client also sent", async () => {
     // `x-forwarded-for` is appended to by each hop, so a client that sends its
-    // own puts an attacker-chosen value leftmost. Reading it in preference to
-    // the edge-set header would let a caller mint a fresh bucket per request
-    // and reduce the budget above to decoration.
+    // own puts an attacker-chosen value leftmost. Only the header the operator
+    // vouched for is read, so varying that one buys the caller nothing.
+    const outcomes: string[] = [];
     for (let attempt = 0; attempt < 12; attempt += 1) {
       mockRequestHeaders().set("x-real-ip", "203.0.113.9");
       mockRequestHeaders().set("x-forwarded-for", `192.0.2.${attempt}, 203.0.113.9`);
-      await registerAction({
-        name: "Brute Forcer",
-        email: `guess-${attempt}@example.com`,
-        password: "correct-horse-battery",
-        staffInviteCode: WRONG_CODE,
-      });
+      const result = await register(`guess-${attempt}@example.com`);
+      outcomes.push(result.error ?? "SUCCESS");
     }
 
-    mockRequestHeaders().set("x-real-ip", "203.0.113.9");
-    mockRequestHeaders().set("x-forwarded-for", "192.0.2.250, 203.0.113.9");
-    const result = await registerAction({
-      name: "Brute Forcer",
-      email: "guess-final@example.com",
-      password: "correct-horse-battery",
-      staffInviteCode: WRONG_CODE,
-    });
-
-    expect(result.error).toMatch(/^Too many registration attempts/);
+    expect(outcomes[11]).toMatch(/^Too many registration attempts/);
   });
 
-  it("falls back to x-forwarded-for when no platform header is set", async () => {
+  it("takes the leftmost entry, which the trusted hop wrote", async () => {
+    const outcomes: string[] = [];
     for (let attempt = 0; attempt < 12; attempt += 1) {
-      mockRequestHeaders().set("x-forwarded-for", "203.0.113.77, 10.0.0.1");
-      await register(`guess-${attempt}@example.com`);
+      mockRequestHeaders().set("x-real-ip", `203.0.113.77, 10.0.0.${attempt}`);
+      const result = await register(`guess-${attempt}@example.com`);
+      outcomes.push(result.error ?? "SUCCESS");
     }
 
-    const result = await register("guess-final@example.com");
+    expect(outcomes[11]).toMatch(/^Too many registration attempts/);
+  });
 
-    expect(result.error).toMatch(/^Too many registration attempts/);
+  it("refuses a header value that is not an address, rather than keying on it", async () => {
+    // Unvalidated, this becomes a limiter Map key. A caller sending a different
+    // multi-kilobyte value per request would grow that Map without bound, which
+    // is a cheap memory vector rather than a rate limit.
+    const junk = "x".repeat(8192);
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      mockRequestHeaders().set("x-real-ip", `${junk}${attempt}`);
+      const result = await register(`guess-${attempt}@example.com`);
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    // Not an address, so no address budget — and, critically, no key either.
+    expect(outcomes.every((message) => message.includes("invite code"))).toBe(true);
+  });
+});
+
+describe("loginAction - the same address budget, against password spraying", () => {
+  beforeEach(() => {
+    vi.stubEnv("TRUSTED_PROXY_HEADER", "x-real-ip");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function login(email: string) {
+    return import("@/actions/auth").then(({ loginAction }) =>
+      loginAction({ email, password: "not-the-password" })
+    );
+  }
+
+  it("stops one address trying a password against many accounts in turn", async () => {
+    mockRequestHeaders().set("x-real-ip", "203.0.113.42");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 22; attempt += 1) {
+      // A different account each time, so `login:${email}` never sees a second
+      // attempt and never fires. This is the spray the email key cannot see.
+      const result = await login(`victim-${attempt}@hopeforstrays.org`);
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    expect(outcomes.slice(0, 20).every((message) => message.includes("Invalid staff email"))).toBe(true);
+    expect(outcomes[21]).toMatch(/^Too many login attempts/);
+  });
+
+  it("keeps the per-account budget for a single account attacked from many addresses", async () => {
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 7; attempt += 1) {
+      mockRequestHeaders().set("x-real-ip", `198.51.100.${attempt}`);
+      const result = await login("victim@hopeforstrays.org");
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    expect(outcomes[6]).toMatch(/^Too many login attempts/);
+  });
+
+  it("gives a different address its own budget", async () => {
+    mockRequestHeaders().set("x-real-ip", "203.0.113.42");
+    for (let attempt = 0; attempt < 22; attempt += 1) {
+      await login(`victim-${attempt}@hopeforstrays.org`);
+    }
+
+    mockRequestHeaders().set("x-real-ip", "198.51.100.7");
+    const fromElsewhere = await login("someone@hopeforstrays.org");
+
+    expect(fromElsewhere.error).toContain("Invalid staff email");
   });
 });
 

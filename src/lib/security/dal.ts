@@ -67,6 +67,22 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
  * The auth state of an account that has no `users` row, or null if it has no
  * identity at all.
  *
+ * **Refuses outright in production.** `findUserById` falls back to `userStore`'s
+ * in-memory map, which `ensureInitialized()` seeds with five hardcoded demo
+ * accounts — `usr-admin-01` among them, SUPER_ADMIN, ACTIVE, with a hash of a
+ * compile-time password. Consulting that map when the database is reachable
+ * meant deleting `usr-admin-01` from Postgres revoked nothing: the seed vouched
+ * for it and handed back a full SUPER_ADMIN session. The first version of this
+ * fix closed the deleted-member hole for every id *except* the five where it
+ * mattered most, and review caught it rather than a test.
+ *
+ * The fallback's only legitimate subjects are development artefacts — the seeded
+ * logins, and accounts `createUser` wrote to memory while Postgres was down. In
+ * production neither should authorise anything, so the reachable database is the
+ * sole authority and a missing row is final. That is also the honest answer to
+ * "name the layer that enforces this boundary": in production it is Postgres.
+ *
+
  * This replaces a `if (!member) return session` fall-through. That line handed
  * back the cookie's own claims whenever the row was missing, so a member
  * *deleted* from a perfectly reachable database kept every capability their
@@ -85,6 +101,8 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
 async function readFallbackAuthState(
   id: string
 ): Promise<{ role: string; status: string; name: string; email: string } | null> {
+  if (process.env.NODE_ENV === "production") return null;
+
   // Only the four authorization-relevant fields are lifted out; the rest of the
   // record includes a password hash, which has no business in policy code.
   const user = await findUserById(id);
