@@ -29,6 +29,7 @@ import {
   formatReportPeriod,
   parseRinggitToSen,
 } from "@/lib/domain/transparency";
+import { HOME_METRIC_BASELINE } from "@/lib/domain/metrics";
 import { categoryVar } from "@/components/features/transparency/palette";
 import {
   createExpenseItemAction,
@@ -764,14 +765,33 @@ function ImpactTab({
               id="stat-key"
               className={fieldClass}
               placeholder="animals_fed_last_month"
+              list="stat-key-suggestions"
               value={form.key}
               onChange={(e) => setForm({ ...form, key: e.target.value })}
               disabled={!!editingKey}
               required
             />
+            {/*
+              The home page's five counters live in this same table under fixed
+              keys, and it reads them by exact match — so a typo in one of them
+              is silent: the counter simply keeps its built-in figure and
+              nothing reports a problem. Suggesting them is what makes the
+              feature discoverable. A datalist rather than a select because
+              ledger keys are still free-form; this offers without constraining.
+            */}
+            <datalist id="stat-key-suggestions">
+              {HOME_METRIC_BASELINE.map((metric) => (
+                <option key={metric.key} value={metric.key}>
+                  {`Home page — ${metric.labelEn}`}
+                </option>
+              ))}
+            </datalist>
             <p className="mt-1 text-2xs text-muted-foreground">
               Lowercase letters, digits and underscores. Reusing a key overwrites
-              that card rather than adding a second one.
+              that card rather than adding a second one. The suggested{" "}
+              <code>home_*</code> keys are the home page&apos;s impact counters —
+              they must match exactly, and they never appear on this page or
+              /donate.
             </p>
           </div>
 

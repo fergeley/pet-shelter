@@ -1,6 +1,6 @@
 # The server-action auth guard has never scanned the FAQ actions
 
-**Status:** resolved 2026-09-03 · the guard landed with the entries this note asked for
+**Decided:** 2026-09-03 · the guard landed with the entries this note asked for · filed from `tasks/open/` on 2026-09-08
 
 > **Resolution.** `tests/unit/serverActionAuth.test.ts` arrived on the QR branch
 > and now runs against `src/actions/faqs.ts`. The three reads are allowlisted
@@ -42,5 +42,5 @@ There is deliberately no `getAdminFaqsAction`; the editor page is a Server
 Component and reads drafts straight from the repository. Do not add one to give
 the client table a read path without carrying that reasoning over.
 
-**Settles when:** the guard is on `master` and green with the three reads
+**Settled:** the guard is on `master` and green with the three reads
 allowlisted for that reason.

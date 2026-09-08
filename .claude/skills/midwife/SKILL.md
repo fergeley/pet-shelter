@@ -5,7 +5,7 @@ description: Use when AUTHORING a change that touches production data, secrets, 
 
 # The Midwife — mechanics
 
-`CLAUDE.md` holds the invariants and the four triage tests; both are loaded already.
+`AGENTS.md` holds the invariants and the four triage tests; both are loaded already.
 
 **Precedence.** An invariant states the default. This file may **narrow** one, but only where it
 says so explicitly and names it — every such narrowing below is marked `narrows invariant N`. An
@@ -22,7 +22,7 @@ Repo-specific inputs this file deliberately does not contain:
 
 ## §1 Triage
 
-The four tests are in `CLAUDE.md` and run before this file loads. Two refinements:
+The four tests are in `AGENTS.md` and run before this file loads. Two refinements:
 
 - **Diff size is not gravity.** One character in a permission check is GRAVE; a 400-line fixture
   is TRIVIAL.
@@ -230,6 +230,10 @@ irreversible and you are ignorant of its effect.**
 
 The ledger contract — two categories, one file per entry, what goes where — is `tasks/README.md`.
 Read it rather than a copy of it here.
+
+**Read the drift log before the ledger write.** `AGENTS.md` carries the paths and the caveats;
+the order is what belongs here. A write the log shows and the ledger does not is either a
+ride-along to strip or an Open item to file — deciding which is part of the close, not after it.
 
 **Isolation before coordination.** File collisions are solved by running each session in its own
 worktree — `claude --worktree <name>` — which the harness *enforces*: it blocks edits, commands and

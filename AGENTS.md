@@ -33,6 +33,21 @@ name, not by number** — `npm run docs:check` fails a numbered citation. Nine n
 file and sixteen citations across eight others is precisely how they went missing on 2026-09-05,
 with nothing erroring, including two citations inside the text that replaced them.
 
+## Triage (resident — you classify before you load anything)
+
+0. **RISK VETO** — touches a one-way door? → GRAVE regardless of diff size. Doors are listed in
+   `.claude/templates/triage-rules.md`; consult it when this test might fire, not otherwise.
+1. **Mechanical trivial** — rename, typo, format; no behaviour change → TRIVIAL, just do it.
+2. **Fast-path** — one file or function, and you can name the *test case* that covers the
+   behaviour before opening the file → FAST.
+3. Anything else → ROUTINE or GRAVE, and you load the mechanics.
+
+Restored 2026-09-08, verbatim from `e9f6f70`, and placed here for the same reason the invariants
+are: these four tests run *before* the `midwife` skill loads, and a classifier that is not resident
+cannot classify. Moving the invariants out of `CLAUDE.md` left these behind, so from 2026-09-05 to
+2026-09-08 the triage invariant above named an order whose tests were defined in no file on
+`master`, while `.claude/skills/midwife/SKILL.md` still cited `CLAUDE.md` for both.
+
 ## Obsidian Vault Integration
 
 The workspace is connected to an active Obsidian vault via the Local REST API and MCP server:
@@ -90,6 +105,7 @@ Context rot is ~2% recall/instruction adherence degradation per 100K tokens. Lon
 - **Do not self-meter tokens each turn**: Models cannot reliably count their own tokens and waste attention estimating them. Trigger session resets on **task milestones** (planning settled, subsystem verified, or 15–20+ tool calls executed), not guessed numbers.
 - **Offload noisy exploration**: Deep codebase search, multi-file inspection, and verbose build/test logs belong in dedicated subagents. Keep raw exploration output out of the coordinator conversation.
 - **State persists in files, not chat**: When reaching a session reset threshold, write current progress and live state to disk (task ledger or plan artifact) before closing. Start the next session with a single pointer to that file.
+- **Read the drift log before the close write**: the write-path hook records file writes made through the tools its matcher covers, including the `cat >` and `sed -i` writes a tool name alone cannot reveal, so a "while I am here" edit is visible at review time rather than at merge time. **The log is per-tool**: `.claude/hooks/agent-guard.mjs` writes `claude-agent-drift.log`, `.codex/hooks/drift-log.mjs` writes `codex-agent-drift.log`, both in the OS temp directory — `$env:TEMP` in PowerShell, `$TEMP` in Git Bash, `${TMPDIR:-/tmp}` elsewhere. Read the one your own hook writes. An empty log is evidence of no *observed* drift, not of none: a write through an unmatched tool is recorded only if a matched tool runs afterwards.
 
 
 ## Reaching for the smallest thing that works

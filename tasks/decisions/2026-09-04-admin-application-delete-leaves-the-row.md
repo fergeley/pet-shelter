@@ -1,6 +1,6 @@
 # Deleting an adoption application from the admin table does not remove the row
 
-**Status:** resolved · resolved 2026-09-04 · measured and verified
+**Decided:** 2026-09-04 · measured and verified · filed from `tasks/open/` on 2026-09-08
 
 `e2e/specs/04_admin_application_review.spec.ts:93` — "clears applications left behind by the
 public adoption spec" — clicks the archive/delete control, confirms "Yes, remove record", and

@@ -11,14 +11,34 @@ import {
   HomeQuickActionsSection,
 } from "@/components/layout/HomeSections";
 import { getPublicPets } from "@/actions/pets";
+import { readHomeImpactStats } from "@/lib/server/transparencyRepository";
+import { selectHomeMetrics } from "@/lib/domain/metrics";
+
+/**
+ * Matches /donate and /transparency, which read the same table on the same
+ * cadence. This is the floor, not the latency an editor sees: `LEDGER_PATHS`
+ * in `src/actions/transparency.ts` includes "/", so saving an impact counter
+ * purges this page on demand rather than leaving it stale for five minutes.
+ */
+export const revalidate = 300;
 
 export default async function HomePage() {
-  const initialPets = await getPublicPets();
+  // Read in parallel: neither depends on the other, and the impact read already
+  // degrades to an empty list rather than throwing, so one slow or unreachable
+  // query cannot take the whole page down.
+  const [initialPets, impactStats] = await Promise.all([
+    getPublicPets(),
+    readHomeImpactStats(),
+  ]);
+
+  // Staff-curated figures overlaid on the FE-02 baseline. See src/lib/domain/metrics.ts
+  // for why these are not counted from the pet table.
+  const metrics = selectHomeMetrics(impactStats);
 
   return (
     <div className="flex flex-col">
       {/* 1. Hero Section with 5 Impact Stats */}
-      <Hero />
+      <Hero metrics={metrics} />
 
       {/* 2. FE-03: Our Work — The 3 Core Pillars (TNRM, Education, Rehab) */}
       <HomeOurWorkSection />
