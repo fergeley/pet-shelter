@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError, isStrictPersistence } from "@/lib/persistenceMode";
 
@@ -133,8 +134,40 @@ export function recordAuditLog(entry: Omit<AuditEntry, "id" | "createdAt">): Aud
     });
 
   pendingAuditWrites.add(write);
+  keepAliveUntilSettled(write);
 
   return newEntry;
+}
+
+/**
+ * Extends the serverless invocation until an audit write has settled.
+ *
+ * `pendingAuditWrites` makes the write *observable* to a test; it does nothing
+ * to make it *survive*. On a serverless host the invocation is frozen the
+ * moment the response is sent, so a promise nobody is holding may never be
+ * resumed — the row is simply lost, silently, and only in production. `after()`
+ * hands the promise to the platform's `waitUntil`, which is the only mechanism
+ * that keeps the function alive for it.
+ *
+ * Awaiting at the call site was the alternative and is not available:
+ * `recordAuditLog` is synchronous by contract, returns the entry, and is called
+ * from dozens of sites across actions and repositories. Making it async is a
+ * cross-module signature change, and a privileged mutation should not block on
+ * its own audit row anyway — which is the same reason `after()` exists.
+ *
+ * The guard is not defensive padding. `after()` throws "`after` was called
+ * outside a request scope" anywhere there is no request — unit tests, seed
+ * scripts, module initialisation — and `recordAuditLog` runs in all three.
+ * Measured, not assumed; `tests/unit/security/authSessionDal.test.ts` pins both
+ * halves. Losing the registration outside a server costs nothing, because
+ * nothing is about to freeze.
+ */
+function keepAliveUntilSettled(write: Promise<void>): void {
+  try {
+    after(write);
+  } catch {
+    // No request scope. The write still settles on the normal microtask queue.
+  }
 }
 
 /**

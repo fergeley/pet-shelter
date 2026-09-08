@@ -73,6 +73,48 @@ export function identityForRole(role: Role): TestIdentity {
   };
 }
 
+/** The columns `findMemberAuthStateById` selects, as a Prisma double returns them. */
+export interface TestMemberRow {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: "ACTIVE";
+}
+
+/**
+ * The `users` row a Prisma double should return for a signed-in test identity.
+ *
+ * Lives beside `identityForRole` because it is that function read backwards,
+ * and a mirror kept in another file is a mirror that drifts.
+ *
+ * Needed because `getVerifiedSession` re-reads the member on every guarded
+ * call. A double that answered this lookup with `null` used to work anyway —
+ * the DAL fell through to the cookie's own claims — but that fall-through let
+ * a member deleted from a reachable database keep every capability their cookie
+ * asserted, and closing it (`src/lib/security/dal.ts`) means a doubled Prisma
+ * now has to answer for the member the suite signed in as.
+ *
+ * Returns null for an id no identity helper here mints, which is the right
+ * answer: that is the deleted-member case, and it must stay unauthenticated.
+ */
+export function memberRowForId(id: string | undefined): TestMemberRow | null {
+  if (!id?.startsWith("usr-")) return null;
+
+  // `identityForRole` mints `usr-<role lowercased>`; the seeded demo accounts
+  // in userStore add a numeric suffix (`usr-admin-01`). Both resolve to a role.
+  const role = id.slice("usr-".length).replace(/-\d+$/, "").toUpperCase();
+  if (!Object.values(ROLES).includes(role as Role)) return null;
+
+  return {
+    id,
+    name: `Test ${role}`,
+    email: `${role.toLowerCase()}@hopeforstrays.org`,
+    role,
+    status: "ACTIVE",
+  };
+}
+
 /**
  * Seals a real session cookie for `who` and returns the sealed user, including
  * the `expiresAt` the seal computed.

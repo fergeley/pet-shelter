@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { hashPassword, verifyPassword, timingSafeCompare } from "@/lib/security/crypto";
 import {
@@ -20,6 +21,39 @@ export interface AuthResponse {
   user?: SessionUser;
   error?: string;
   retryAfterSeconds?: number;
+}
+
+/**
+ * The caller's address, as far as this deployment can be trusted to know it.
+ *
+ * Header order is a security decision, not a convenience. `x-forwarded-for` is
+ * *appended to* by each hop, so when the client sends one of its own the
+ * leftmost entry is a value the attacker chose — reading it first would let
+ * them mint a fresh rate-limit bucket per request and turn the limiter below
+ * into decoration. `x-vercel-forwarded-for` and `x-real-ip` are written by the
+ * edge and overwrite anything the client sent, so they are consulted first.
+ *
+ * ceiling: behind a proxy that sets neither, this falls back to the leftmost
+ * `x-forwarded-for` entry and is therefore only as trustworthy as that proxy.
+ * Anything stronger needs a configured trusted-proxy hop count, which this
+ * deployment has no way to express yet.
+ */
+async function getClientIp(): Promise<string> {
+  try {
+    const requestHeaders = await headers();
+
+    const platformIp = requestHeaders.get("x-vercel-forwarded-for") ?? requestHeaders.get("x-real-ip");
+    if (platformIp?.trim()) return platformIp.trim();
+
+    const forwarded = requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  } catch {
+    // No request scope (a direct unit-test call). Falls through.
+  }
+
+  // One shared bucket rather than no bucket: an unattributable caller is
+  // limited alongside every other unattributable caller, never exempted.
+  return "unknown";
 }
 
 /**
@@ -48,6 +82,23 @@ export async function loginAction(credentials: {
   }
 
   // 1. Sliding Window Rate Limiting (5 attempts / min)
+  //
+  // Per address as well as per account. Keying on the email alone bounds how
+  // fast one account can be attacked and does nothing about the attack that
+  // actually works against a staff directory: one common password tried once
+  // against every address in turn, which never spends a second attempt on any
+  // single key. Same defect as the registration limiter below, same fix, and
+  // fixed here too because leaving one of two identical holes open is how the
+  // next reader concludes the shape is acceptable.
+  const loginAddressLimit = checkRateLimit(`login:ip:${await getClientIp()}`, 20, 60000);
+  if (!loginAddressLimit.success) {
+    return {
+      success: false,
+      error: `Too many login attempts. Please wait ${loginAddressLimit.retryAfterSeconds} seconds before trying again.`,
+      retryAfterSeconds: loginAddressLimit.retryAfterSeconds,
+    };
+  }
+
   const rateLimit = checkRateLimit(`login:${emailKey}`, 5, 60000);
   if (!rateLimit.success) {
     return {
@@ -141,7 +192,14 @@ export async function registerAction(data: {
    * are granted only through an administrator's invitation.
    */
   role?: Role;
-  /** @deprecated Ignored. Retained so existing callers still compile. */
+  /**
+   * Required. Compared against `STAFF_INVITE_SECRET` in constant time; without
+   * a match no account is created, whatever else the payload says.
+   *
+   * This was documented as `@deprecated Ignored` while step 2 below enforced
+   * it — a stale note on the only gate standing in front of applicant PII, and
+   * exactly the sort of thing a reader trusts instead of the code.
+   */
   staffInviteCode?: string;
 }): Promise<AuthResponse> {
   const name = (data.name || "").trim();
@@ -167,7 +225,36 @@ export async function registerAction(data: {
   }
 
   // 1. Rate Limiting on Registrations
-  const rateLimit = checkRateLimit(`register:${email || "anon"}`, 5, 60000);
+  //
+  // Two *independent* budgets, and deliberately not one composite key. The
+  // address budget is what makes the invite guard below non-enumerable, and it
+  // only works because the email is absent from its key.
+  //
+  // `register:${email}` alone was the defect — `src/lib/security/secrets.ts`
+  // names it at getStaffInviteSecret(): the email is attacker-supplied, so a
+  // caller walking the invite code just varies the address and draws a fresh
+  // 5-per-minute budget on every single request. Folding the IP *into* that key
+  // as `register:${ip}:${email}` does not fix it and is strictly worse: a
+  // composite key is a narrower key, so every distinct email still opens a
+  // fresh bucket, and a distributed caller now gets one per (ip, email) pair.
+  // Widening a key never narrows what it limits.
+  //
+  // ceiling: `checkRateLimit` is a per-process Map, so on a serverless host
+  // each warm instance counts separately and a botnet is not bounded by either
+  // budget. Bounding those needs shared state (Redis, or Postgres) — out of
+  // scope here, and not a reason to leave the single-host case open.
+  const ip = await getClientIp();
+
+  const addressLimit = checkRateLimit(`register:ip:${ip}`, 10, 60000);
+  if (!addressLimit.success) {
+    return {
+      success: false,
+      error: `Too many registration attempts. Please wait ${addressLimit.retryAfterSeconds} seconds before trying again.`,
+      retryAfterSeconds: addressLimit.retryAfterSeconds,
+    };
+  }
+
+  const rateLimit = checkRateLimit(`register:email:${email || "anon"}`, 5, 60000);
   if (!rateLimit.success) {
     return {
       success: false,

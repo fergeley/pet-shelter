@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ROLES } from "@/lib/security/permissions";
-import { identityForRole, signInAs } from "../setup/authSession";
+import { identityForRole, memberRowForId, signInAs } from "../setup/authSession";
 
 /**
  * The donation QR audit path: changing a code donors scan to send money must
@@ -25,9 +25,17 @@ import { identityForRole, signInAs } from "../setup/authSession";
 /**
  * The Prisma surface this path touches: the audit row it writes, the settings
  * row the repository would upsert, and the member lookup the DAL makes to
- * refresh the session's role. `user.findUnique` resolving null is what makes
- * the DAL fall through to the cookie's own claims, so the actor asserted below
- * is the actor signed in.
+ * refresh the session's role.
+ *
+ * `user.findUnique` used to resolve null, and the actor asserted below was the
+ * actor signed in only because the DAL then fell through to the cookie's own
+ * claims. That fall-through was a privilege-retention hole — a member deleted
+ * from a reachable database kept every capability their cookie claimed until
+ * it expired — and closing it (`src/lib/security/dal.ts`, pinned by
+ * `tests/unit/security/authSessionDal.test.ts`) took this suite's premise with
+ * it. So the double now answers the lookup with the row a signed-in member
+ * actually has, which is what the suite meant by "authorization here is real"
+ * in the first place.
  *
  * Declared through `vi.hoisted` because `vi.mock` is hoisted above every import
  * and so cannot close over an ordinary module-scope binding.
@@ -42,7 +50,10 @@ const prismaDouble = vi.hoisted(() => ({
     upsert: vi.fn().mockResolvedValue({}),
   },
   user: {
-    findUnique: vi.fn().mockResolvedValue(null),
+    // `memberRowForId` mirrors `identityForRole`, so whichever role a case
+    // signs in as is the role the DAL reads back. An id no helper mints is
+    // answered null on purpose — that is the deleted-member case.
+    findUnique: vi.fn(async (args?: { where?: { id?: string } }) => memberRowForId(args?.where?.id)),
   },
 }));
 
