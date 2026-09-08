@@ -11,14 +11,29 @@ import {
   HomeQuickActionsSection,
 } from "@/components/layout/HomeSections";
 import { getPublicPets } from "@/actions/pets";
+import { readAllocationSummary } from "@/lib/server/transparencyRepository";
+import { selectHomeMetrics } from "@/lib/domain/metrics";
+
+/** Matches /donate and /transparency, which read the same ledger on the same cadence. */
+export const revalidate = 300;
 
 export default async function HomePage() {
-  const initialPets = await getPublicPets();
+  // Read in parallel: neither depends on the other, and the impact read already
+  // degrades to a fallback of its own rather than throwing, so one slow or
+  // unreachable query cannot take the whole page down.
+  const [initialPets, summary] = await Promise.all([
+    getPublicPets(),
+    readAllocationSummary(),
+  ]);
+
+  // Staff-curated figures overlaid on the FE-02 baseline. See src/lib/domain/metrics.ts
+  // for why these are not counted from the pet table.
+  const metrics = selectHomeMetrics(summary.impactStats);
 
   return (
     <div className="flex flex-col">
       {/* 1. Hero Section with 5 Impact Stats */}
-      <Hero />
+      <Hero metrics={metrics} />
 
       {/* 2. FE-03: Our Work — The 3 Core Pillars (TNRM, Education, Rehab) */}
       <HomeOurWorkSection />

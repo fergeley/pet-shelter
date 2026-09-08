@@ -8,58 +8,53 @@ import {
   ArrowRight,
   HeartHandshake,
   ShieldCheck,
-  Package,
   Award,
   Users2,
   Stethoscope,
 } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { PetMatchQuiz } from "@/components/features/pets/PetMatchQuiz";
 import { SponsorshipModal } from "@/components/features/pets/SponsorshipModal";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import {
+  HOME_METRIC_BASELINE,
+  metricLabel,
+  type HomeMetric,
+  type HomeMetricIcon,
+} from "@/lib/domain/metrics";
 
-export function Hero() {
+/**
+ * Presentation for the five counters. Kept here rather than in the domain module
+ * so `metrics.ts` stays React-free and testable in the node tier; the tone
+ * classes are the seven-token set the design-system guards enforce.
+ */
+const METRIC_PRESENTATION: Record<
+  HomeMetricIcon,
+  { icon: typeof ShieldCheck; color: string }
+> = {
+  neutered: { icon: ShieldCheck, color: "text-success-accent" },
+  rehabilitated: { icon: Stethoscope, color: "text-care-accent" },
+  adopted: { icon: Heart, color: "text-danger-accent" },
+  volunteers: { icon: Users2, color: "text-warning-accent" },
+  collaborations: { icon: Award, color: "text-info-accent" },
+};
+
+export interface HeroProps {
+  /**
+   * Resolved by the server component from the `ImpactStat` table. Omitted — in
+   * tests, or if the read fails — the curated FE-02 figures render instead, so
+   * this section never shows an empty grid or a database-shaped zero.
+   */
+  metrics?: HomeMetric[];
+}
+
+export function Hero({ metrics }: HeroProps = {}) {
   const { isMs } = useLanguage();
   const [isQuizOpen, setIsQuizOpen] = useState(false);
   const [isSponsorshipOpen, setIsSponsorshipOpen] = useState(false);
 
-  const impactStats = [
-    {
-      metric: "520+",
-      labelEn: "Neutered via TNRM",
-      labelMs: "Dimandulkan (TNRM)",
-      icon: ShieldCheck,
-      color: "text-success-accent ",
-    },
-    {
-      metric: "380+",
-      labelEn: "Animals Rehabilitated",
-      labelMs: "Haiwan Dipulihkan",
-      icon: Stethoscope,
-      color: "text-care-accent ",
-    },
-    {
-      metric: "290+",
-      labelEn: "Adopted into Homes",
-      labelMs: "Berjaya Diadopsi",
-      icon: Heart,
-      color: "text-danger-accent ",
-    },
-    {
-      metric: "150+",
-      labelEn: "Active Volunteers",
-      labelMs: "Sukarelawan Aktif",
-      icon: Users2,
-      color: "text-warning-accent ",
-    },
-    {
-      metric: "25+",
-      labelEn: "Partnerships & Vets",
-      labelMs: "Rakan Kolaborasi & Vet",
-      icon: Award,
-      color: "text-info-accent ",
-    },
-  ];
+  const impactStats =
+    metrics && metrics.length > 0 ? metrics : [...HOME_METRIC_BASELINE];
 
   return (
     <>
@@ -100,27 +95,29 @@ export function Hero() {
                   <ArrowRight className="size-4 ml-0.5" />
                 </Link>
 
-                {/* <Link
-                  href="/needs"
+                <Link
+                  href="/donate"
                   className={buttonVariants({
                     variant: "outline",
                     size: "lg",
                     className: "gap-2 px-5 text-sm font-bold tracking-wide rounded-xl",
                   })}
                 >
-                  <Package className="size-4 text-primary" />
-                  {isMs ? "Keperluan Pemulihan" : "Wishlist Needs"}
-                </Link> */}
-
-                {/* <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setIsSponsorshipOpen(true)}
-                  className="gap-2 px-5 text-sm font-bold tracking-wide rounded-xl cursor-pointer"
-                >
                   <HeartHandshake className="size-4 text-care-accent" />
-                  {isMs ? "Taja Haiwan (RM30)" : "Sponsor Care"}
-                </Button> */}
+                  {isMs ? "Sumbang & Taja" : "Donate & Sponsor"}
+                </Link>
+
+                <Link
+                  href="/get-involved"
+                  className={buttonVariants({
+                    variant: "outline",
+                    size: "lg",
+                    className: "gap-2 px-5 text-sm font-bold tracking-wide rounded-xl",
+                  })}
+                >
+                  <Users2 className="size-4 text-primary" />
+                  {isMs ? "Jadi Sukarelawan" : "Get Involved"}
+                </Link>
               </div>
 
               {/* Sanctuary Hours & Address Banner */}
@@ -158,22 +155,26 @@ export function Hero() {
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {impactStats.map((stat, idx) => (
-                <div
-                  key={idx}
-                  className="border border-border bg-card p-4 rounded-2xl space-y-1.5 shadow-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight ${stat.color}`}>
-                      {stat.metric}
-                    </span>
-                    <stat.icon className="size-4 text-muted-foreground opacity-60" />
+              {impactStats.map((stat) => {
+                const { icon: Icon, color } = METRIC_PRESENTATION[stat.icon];
+                return (
+                  <div
+                    key={stat.key}
+                    data-testid={`impact-stat-${stat.key}`}
+                    className="border border-border bg-card p-4 rounded-2xl space-y-1.5 shadow-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight ${color}`}>
+                        {stat.value}
+                      </span>
+                      <Icon className="size-4 text-muted-foreground opacity-60" />
+                    </div>
+                    <p className="text-xs font-semibold text-foreground leading-tight">
+                      {metricLabel(stat, isMs)}
+                    </p>
                   </div>
-                  <p className="text-xs font-semibold text-foreground leading-tight">
-                    {isMs ? stat.labelMs : stat.labelEn}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
