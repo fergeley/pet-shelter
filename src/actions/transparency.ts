@@ -58,9 +58,14 @@ export interface ActionResult<T = undefined> {
 
 /**
  * Paths that render ledger-derived figures. `/donate` is on this list because
- * its allocation summary is server-rendered from the same snapshot.
+ * its allocation summary is server-rendered from the same snapshot, and `/` is
+ * because the home page's impact counters read the same `ImpactStat` table
+ * (`readHomeImpactStats`). Without the home path an editor corrects a figure,
+ * is told the write succeeded, watches /transparency and /donate update — and
+ * the home page, the surface they were fixing, keeps the old number until its
+ * `revalidate = 300` window lapses, with nothing saying so.
  */
-const LEDGER_PATHS = ["/transparency", "/donate"];
+const LEDGER_PATHS = ["/transparency", "/donate", "/"];
 
 /** Generous enough never to block real editing; stops a runaway client loop. */
 const WRITE_RATE_LIMIT = 60;

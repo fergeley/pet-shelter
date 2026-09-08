@@ -16,9 +16,9 @@ import { selectHomeMetrics } from "@/lib/domain/metrics";
 
 /**
  * Matches /donate and /transparency, which read the same table on the same
- * cadence. Note that `revalidateLedger()` does not invalidate "/" — see
- * tasks/open/home-page-is-not-revalidated-by-impact-stat-writes.md — so this
- * window is what bounds how long a corrected figure takes to appear here.
+ * cadence. This is the floor, not the latency an editor sees: `LEDGER_PATHS`
+ * in `src/actions/transparency.ts` includes "/", so saving an impact counter
+ * purges this page on demand rather than leaving it stale for five minutes.
  */
 export const revalidate = 300;
 
