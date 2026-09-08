@@ -19,13 +19,14 @@ import {
 import {
   SponsorshipWriteError,
   findSponsorshipByPledgeRef,
+  listPendingSponsorships,
   recordSponsorshipPledge,
   reconcileSponsorship,
   summarizeSponsorshipsForPet,
 } from "@/lib/server/sponsorshipLedger";
 import { ReceiptIssuanceError, issueDonationReceipt } from "@/lib/server/donationLedger";
 import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/email";
-import { getCurrentSession } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 
 /** What the supporter sees the moment checkout completes. */
@@ -200,7 +201,11 @@ export interface ReconcileSponsorshipResult {
 export async function reconcilePetSponsorshipAction(
   pledgeRef: string
 ): Promise<ReconcileSponsorshipResult> {
-  const session = await getCurrentSession();
+  // Through the DAL, for the reason given on `getPendingSponsorshipsAction`.
+  // It matters more here: this is the endpoint that mints a statutory receipt,
+  // and a suspended coordinator holding a live cookie could otherwise keep
+  // issuing them for a day.
+  const session = await getVerifiedSession();
   assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
   const actorEmail = session?.email ?? "coordinator@hopeforstrays.org";
 
@@ -304,6 +309,77 @@ export async function reconcilePetSponsorshipAction(
   }).catch((err) => console.error("[Sponsorship Receipt Email Dispatch Failed]", err));
 
   return { success: true, receiptNumber: donation.receiptNumber };
+}
+
+/**
+ * One row of the coordinator's reconciliation queue.
+ *
+ * A projection, not the `SponsorshipRecord`. The record carries `taxIdOrIc` — a
+ * NRIC or tax reference — and nothing on this screen needs it: reconciliation
+ * reads it server-side straight from the ledger when it issues the receipt. A
+ * Server Action's return value is serialised to the browser, so returning the
+ * record wholesale would publish an identifier to every coordinator's devtools
+ * for no gain. `receiptNumber` is absent for the same reason it is null in the
+ * data: nothing has been issued yet.
+ */
+export interface PendingSponsorshipDTO {
+  pledgeRef: string;
+  petName: string;
+  sponsorName: string;
+  sponsorEmail: string;
+  sponsorPhone?: string;
+  tierName: string;
+  frequency: "one_time" | "monthly";
+  /** Integer sen, for callers that need to compute rather than display. */
+  amountSen: number;
+  /** Preformatted "RM 80.00", so the table cannot drift from the ledger's rounding. */
+  amountDisplay: string;
+  paymentMethod: string;
+  /** What the supporter typed at checkout — the closest thing to a payment note. */
+  notes?: string;
+  /** ISO-8601 UTC. Formatted in the client, in the reader's locale. */
+  createdAt: string;
+}
+
+/**
+ * Server Action: the queue of commitments awaiting a coordinator's confirmation.
+ *
+ * Guarded to the same two roles as `reconcilePetSponsorshipAction`, because a
+ * queue that lists supporter names, emails and phone numbers is as sensitive as
+ * the button beside it. Unlike the public read below this one, it deliberately
+ * does NOT swallow its errors: an empty table and a broken table look identical
+ * to a coordinator, and one of them means a supporter is still waiting.
+ *
+ * Resolved through the DAL rather than through `getCurrentSession`, which only
+ * unseals the cookie. A Server Action is a POST endpoint whose id the client
+ * already holds, and the session cookie lives for 24 hours — so a coordinator
+ * suspended in `/admin/members` would still be able to POST this and pull every
+ * pending supporter's name, email and phone until their cookie expired.
+ * `getVerifiedSession` re-reads the member row, so a suspension takes effect on
+ * the next request. It falls back to the cookie's own claims when the database
+ * is unreachable, which is the trade `dal.ts` documents and the demo logins
+ * depend on.
+ */
+export async function getPendingSponsorshipsAction(): Promise<PendingSponsorshipDTO[]> {
+  const session = await getVerifiedSession();
+  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
+
+  const pending = await listPendingSponsorships();
+
+  return pending.map((record) => ({
+    pledgeRef: record.pledgeRef,
+    petName: record.petName,
+    sponsorName: record.sponsorName,
+    sponsorEmail: record.sponsorEmail,
+    sponsorPhone: record.sponsorPhone,
+    tierName: record.tierName,
+    frequency: record.frequency,
+    amountSen: record.amountSen,
+    amountDisplay: formatMYR(record.amountSen),
+    paymentMethod: record.paymentMethod,
+    notes: record.notes,
+    createdAt: record.createdAt,
+  }));
 }
 
 /**

@@ -314,6 +314,41 @@ export async function findSponsorshipByPledgeRef(
   return row ? toRecord(row) : null;
 }
 
+// ---------------------------------------------------------- coordinator reads
+//
+// Staff-side reads. Here rather than in a new module for the same reason the
+// supporter-account reads below are: this module owns `pet_sponsorships`, and a
+// second module querying that table is how two sources of truth start.
+
+/**
+ * Every commitment a coordinator still has to reconcile, oldest first.
+ *
+ * Oldest first because this is a work queue, not a history. Every other read in
+ * this module is newest-first, which is right for a feed and wrong here: the
+ * supporter who has waited longest for their receipt is the one to serve next.
+ *
+ * Deliberately unpaginated — a coordinator matches the whole queue against one
+ * bank statement in a sitting, and a page boundary in the middle of that is a
+ * missed transfer.
+ *
+ * ceiling: unindexed scan. `@@index([petId, status])` leads with `petId`, so it
+ * cannot serve this `WHERE status = 'PENDING_PAYMENT'`. Fine at tens of rows;
+ * add a `status` index and a cursor if the queue outgrows ~500.
+ */
+export async function listPendingSponsorships(): Promise<SponsorshipRecord[]> {
+  if (!isLedgerPersistent()) {
+    return memorySponsorships
+      .filter((row) => row.status === "PENDING_PAYMENT")
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  const rows = await prisma.petSponsorship.findMany({
+    where: { status: "PENDING_PAYMENT" },
+    orderBy: { createdAt: "asc" },
+  });
+  return rows.map(toRecord);
+}
+
 // ------------------------------------------------------- supporter-account reads
 //
 // The sponsor portal needs to see a supporter's own commitments. These live here

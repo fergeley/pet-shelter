@@ -9,7 +9,14 @@ a donor.
 
 ---
 
-## 1. Nothing reaches `reconcilePetSponsorshipAction` — blocking
+## 1. Nothing reaches `reconcilePetSponsorshipAction` — ~~blocking~~ screen built 2026-09-08
+
+> **Partly closed.** `/admin/sponsorships` now exists and calls the action, so the paragraph
+> below is history rather than current state. It is kept because the *consequence* it
+> describes is still live for a different reason: the queue will be **empty on production**
+> even though the screen works, because the public checkout never creates a
+> `PetSponsorship`. See "What remains" at the end of this section. The blocking label moves
+> to item 2 and to that paragraph.
 
 `src/actions/sponsorships.ts` exports it, RBAC-guarded to ADMIN/COORDINATOR and audited. No
 admin page calls it. So:
@@ -24,12 +31,33 @@ The three demo logins in the guide work because `sponsorDemoSeed.ts` reconciles 
 commitments in offline mode. On production, with a database configured, no seed runs and
 the portal has zero usable accounts.
 
-**What is needed:** a coordinator view listing `PENDING_PAYMENT` commitments with their
+**What was needed:** a coordinator view listing `PENDING_PAYMENT` commitments with their
 `pledgeRef`, amount, supporter and animal, and a confirm action. `pledgeRef` is prefixed
 `HFS-PLG` precisely so a coordinator reading a bank statement can tell a claim from a
 receipt — the screen should show it prominently. `reconcileSponsorship` already returns
 `already_reconciled` with the existing number, so two coordinators racing is handled;
 the UI needs to render that outcome rather than treat it as an error.
+
+**What was built (2026-09-08):** `src/app/admin/sponsorships/page.tsx` and
+`SponsorshipReconciliationTable`, reading `listPendingSponsorships()` through the guarded
+`getPendingSponsorshipsAction`. `already_reconciled` renders as settled with the existing
+receipt number. Covered by `tests/unit/sponsorships/reconciliation.test.ts`.
+
+**What remains — now the blocking item:**
+
+1. **No pledge row is ever created.** `src/hooks/useSponsorshipController.ts` calls
+   `submitDonationPledgeAction`, so the public "Sponsorship" modal writes an immediate
+   `Donation` and never a `PetSponsorship`. The queue is therefore empty on production no
+   matter how well the dashboard works, and `createPetSponsorshipAction` still has no caller
+   outside tests. This is a one-line action swap plus reconciling the two tier catalogues —
+   the modal's amounts come from `SPONSORSHIP_TIERS`, which the sponsorship path does not use.
+2. **No nav entry and no permission.** The page is reachable only by typing the URL.
+   `src/app/admin/layout.tsx` needs a `navLinks` entry and `src/lib/security/permissions.ts`
+   has no `RECONCILE_SPONSORSHIPS` to gate it with, so the page guards on role instead —
+   matching the action's own allow-list exactly, but not the repo's preferred capability
+   surface.
+3. The Prisma branch of `listPendingSponsorships` has never run against a real Postgres:
+   Docker will not start on this machine and the only configured database is production.
 
 ## 2. The production migration has not been applied — blocking, operational
 
