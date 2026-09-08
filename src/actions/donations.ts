@@ -1,5 +1,6 @@
 "use server";
 
+import { ZodError } from "zod";
 import {
   donationPledgeSchema,
   DonationPledgeInput,
@@ -166,6 +167,19 @@ export async function submitDonationPledgeAction(
         error:
           "We could not record your donation just now, so no receipt was issued. " +
           "Nothing has been charged — please try again in a moment.",
+      };
+    }
+
+    // A ZodError's `.message` is `JSON.stringify(issues)`. Returning it put a JSON
+    // array in front of the donor, which was survivable only because every rule the
+    // form could break was already blocked by a `required` attribute. The
+    // `wantsTaxReceipt` rule is conditional, so the browser cannot express it and
+    // this path became reachable in ordinary use. Surface the first issue's message,
+    // which is written for the donor, rather than the serialised error.
+    if (err instanceof ZodError) {
+      return {
+        success: false,
+        error: err.issues[0]?.message ?? "Please check the donation details and try again.",
       };
     }
 

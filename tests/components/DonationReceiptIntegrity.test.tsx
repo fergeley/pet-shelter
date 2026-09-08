@@ -89,3 +89,96 @@ describe("the browser never invents a receipt number", () => {
     expect(await screen.findByText("HFS-DON-202609-0007")).toBeInTheDocument();
   });
 });
+
+/**
+ * The form displayed the tax identifier as required and the schema accepted its
+ * absence, so a donor could be handed a receipt that announces itself as
+ * tax-deductible while carrying nothing to deduct against.
+ *
+ * The checkbox is what reconciles the two. It gates the *identifier*, never the
+ * receipt: a receipt is issued for every gift, because the ledger is the shelter's
+ * record of money received rather than of claims made.
+ */
+describe("Section 44(6) relief is opt-in", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedSubmit.mockResolvedValue({ success: false, error: "stubbed" });
+  });
+
+  it("still lets a donor give with only a name and an email", async () => {
+    renderWidget();
+    await submitAGift();
+
+    // The regression this guards: defaulting the box to ticked would make the IC
+    // field required and block every donor who could complete this form before.
+    expect(mockedSubmit).toHaveBeenCalledTimes(1);
+    expect(mockedSubmit.mock.calls[0][0]).toMatchObject({
+      wantsTaxReceipt: false,
+      taxIdOrIc: undefined,
+    });
+  });
+
+  it("leaves the identifier field disabled until relief is asked for", async () => {
+    renderWidget();
+    expect(screen.getByLabelText(/Malaysian IC/i)).toBeDisabled();
+
+    const user = setupUser();
+    await user.click(screen.getByRole("checkbox", { name: /tax-exemption receipt/i }));
+
+    expect(screen.getByLabelText(/Malaysian IC/i)).toBeEnabled();
+  });
+
+  it("blocks the submission when relief is claimed with no identifier", async () => {
+    renderWidget();
+    const user = setupUser();
+
+    await user.type(screen.getByLabelText(/donor full name/i), "Aisyah Rahman");
+    await user.type(screen.getByLabelText(/email address/i), "aisyah@example.com");
+    await user.click(screen.getByRole("checkbox", { name: /tax-exemption receipt/i }));
+    await user.click(screen.getByRole("button", { name: /complete donation pledge/i }));
+
+    // The required attribute stops it here; `donationPledgeSchema.superRefine` stops
+    // it server-side for anything that bypasses the browser. Both exist on purpose.
+    expect(mockedSubmit).not.toHaveBeenCalled();
+  });
+
+  it("sends the identifier once relief is claimed and it is supplied", async () => {
+    renderWidget();
+    const user = setupUser();
+
+    await user.type(screen.getByLabelText(/donor full name/i), "Aisyah Rahman");
+    await user.type(screen.getByLabelText(/email address/i), "aisyah@example.com");
+    await user.click(screen.getByRole("checkbox", { name: /tax-exemption receipt/i }));
+    await user.type(screen.getByLabelText(/Malaysian IC/i), "920512-10-5432");
+    await user.click(screen.getByRole("button", { name: /complete donation pledge/i }));
+
+    expect(mockedSubmit).toHaveBeenCalledTimes(1);
+    expect(mockedSubmit.mock.calls[0][0]).toMatchObject({
+      wantsTaxReceipt: true,
+      taxIdOrIc: "920512-10-5432",
+    });
+  });
+
+  it("drops an identifier the donor typed and then withdrew", async () => {
+    renderWidget();
+    const user = setupUser();
+
+    await user.type(screen.getByLabelText(/donor full name/i), "Aisyah Rahman");
+    await user.type(screen.getByLabelText(/email address/i), "aisyah@example.com");
+    const box = screen.getByRole("checkbox", { name: /tax-exemption receipt/i });
+
+    await user.click(box);
+    await user.type(screen.getByLabelText(/Malaysian IC/i), "920512-10-5432");
+    await user.click(box); // changed their mind
+
+    await user.click(screen.getByRole("button", { name: /complete donation pledge/i }));
+
+    // A tax number the donor withdrew is not ours to keep, so it must not ride along
+    // in the payload merely because the input still holds the text.
+    expect(mockedSubmit).toHaveBeenCalledTimes(1);
+    expect(mockedSubmit.mock.calls[0][0]).toMatchObject({
+      wantsTaxReceipt: false,
+      taxIdOrIc: undefined,
+    });
+  });
+});
