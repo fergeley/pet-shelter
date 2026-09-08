@@ -159,6 +159,74 @@ describe("Section 44(6) relief is opt-in", () => {
     });
   });
 
+  it("does not call a receipt tax-exempt when it carries no identifier", async () => {
+    mockedSubmit.mockResolvedValue({
+      success: true,
+      data: {
+        receiptNumber: "HFS-DON-202609-0008",
+        date: "8 Sep 2026, 10:00 am",
+        donorName: "Aisyah Rahman",
+        donorEmail: "aisyah@example.com",
+        tierId: "vaccine",
+        tierName: "Core Vaccination & Deworming",
+        amountMYR: 50,
+        frequency: "one_time",
+        paymentMethod: "duitnow_qr",
+        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
+        shelterRegistrationNo: "PPM-021-10-18082021",
+        // No taxIdOrIc — the donor declined relief.
+      },
+    });
+
+    renderWidget();
+    await submitAGift();
+
+    // The whole point of the opt-in: a document that announces itself as deductible
+    // while carrying nothing to deduct against is the defect, and unticking the box
+    // is now the default path into it.
+    expect(await screen.findByText("HFS-DON-202609-0008")).toBeInTheDocument();
+    expect(screen.getByText(/cannot be claimed against a return/i)).toBeInTheDocument();
+    expect(screen.queryByText(/tax-exempt e-Receipt/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/LHDN\.01\/35\/42\/51\/179-6\.4912/)).not.toBeInTheDocument();
+  });
+
+  it("clears the opt-in when the donor starts another gift", async () => {
+    mockedSubmit.mockResolvedValue({
+      success: true,
+      data: {
+        receiptNumber: "HFS-DON-202609-0009",
+        date: "8 Sep 2026, 10:00 am",
+        donorName: "Aisyah Rahman",
+        donorEmail: "aisyah@example.com",
+        tierId: "vaccine",
+        tierName: "Core Vaccination & Deworming",
+        amountMYR: 50,
+        frequency: "one_time",
+        paymentMethod: "duitnow_qr",
+        taxIdOrIc: "920512-10-5432",
+        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
+        shelterRegistrationNo: "PPM-021-10-18082021",
+      },
+    });
+
+    renderWidget();
+    const user = setupUser();
+
+    await user.type(screen.getByLabelText(/donor full name/i), "Aisyah Rahman");
+    await user.type(screen.getByLabelText(/email address/i), "aisyah@example.com");
+    await user.click(screen.getByRole("checkbox", { name: /tax-exemption receipt/i }));
+    await user.type(screen.getByLabelText(/Malaysian IC/i), "920512-10-5432");
+    await user.click(screen.getByRole("button", { name: /complete donation pledge/i }));
+
+    await screen.findByText("HFS-DON-202609-0009");
+    await user.click(screen.getByRole("button", { name: /another donation/i }));
+
+    // handleReset cleared taxIdOrIc but not the box, so the field came back required
+    // and empty — blocking the next submission on something the donor never re-chose.
+    expect(screen.getByRole("checkbox", { name: /tax-exemption receipt/i })).not.toBeChecked();
+    expect(screen.getByLabelText(/Malaysian IC/i)).toBeDisabled();
+  });
+
   it("drops an identifier the donor typed and then withdrew", async () => {
     renderWidget();
     const user = setupUser();

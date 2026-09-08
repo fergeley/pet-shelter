@@ -1,6 +1,10 @@
 "use client";
 
-import { LHDN_TAX_DEDUCTIBLE_REF, PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
+import {
+  LHDN_TAX_DEDUCTIBLE_REF,
+  PUBLIC_ROS_REGISTRATION_NO,
+  isTaxClaimable,
+} from "@/lib/domain/shelterIdentity";
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -238,6 +242,10 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
     setDonorEmail("");
     setDonorPhone("");
     setTaxIdOrIc("");
+    // Cleared alongside the identifier, never on its own. Leaving the box ticked
+    // while wiping the value it requires blocks the next submission on a field the
+    // donor did not knowingly re-opt into.
+    setWantsTaxReceipt(false);
     setNotes("");
     setErrorMessage(null);
   };
@@ -260,9 +268,13 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 : "Thank You! Your Donation Has Been Received."}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {isMs
-                ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
-                : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`}
+              {isTaxClaimable(completedReceipt)
+                ? isMs
+                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
+                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`
+                : isMs
+                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 telah dihantar ke ${completedReceipt.donorEmail}. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
+                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 has been dispatched to ${completedReceipt.donorEmail}. It carries no tax identifier, so it cannot be claimed against a return.`}
             </p>
           </div>
         </div>
@@ -281,8 +293,13 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
               </p>
               <p className="text-2xs text-receipt-ink-faint">
-                ROS Reg: {completedReceipt.shelterRegistrationNo} • Tax Exemption:{" "}
-                {completedReceipt.taxDeductibleRef}
+                ROS Reg: {completedReceipt.shelterRegistrationNo}
+                {/* The shelter's exemption reference belongs on a document the donor
+                    can actually file. Printing it on one that carries no identifier
+                    states the relief is available on this gift, which it is not. */}
+                {isTaxClaimable(completedReceipt) && (
+                  <> • Tax Exemption: {completedReceipt.taxDeductibleRef}</>
+                )}
               </p>
             </div>
 
@@ -363,11 +380,15 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
 
           <div className="text-3xs text-receipt-ink-faint leading-relaxed italic">
             *{" "}
-            {t(
-              "donations.receiptSubtitle",
-              "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
-              { taxRef: LHDN_TAX_DEDUCTIBLE_REF }
-            )}
+            {isTaxClaimable(completedReceipt)
+              ? t(
+                  "donations.receiptSubtitle",
+                  "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
+                  { taxRef: LHDN_TAX_DEDUCTIBLE_REF }
+                )
+              : isMs
+                ? "Resit ini tidak mengandungi No. Kad Pengenalan / Pasport / SSM, jadi ia tidak boleh difailkan untuk potongan cukai."
+                : "This receipt carries no NRIC, passport or SSM number, so it cannot be filed for a tax deduction."}
           </div>
         </div>
 

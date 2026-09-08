@@ -81,6 +81,23 @@ export interface StatutoryIssuerIdentity {
 }
 
 /** Captures the issuer identity in force right now. */
+/**
+ * Whether an issued receipt can actually back a Section 44(6) claim.
+ *
+ * Every gift is receipted — the ledger records money received, not claims made —
+ * but only a receipt carrying a donor identifier can be filed against a return.
+ * A document that asserts deductibility while carrying nothing to deduct against
+ * is a receipt the donor cannot use and the shelter cannot reconcile, so every
+ * surface that renders one asks this first: the on-screen dossier, the printed
+ * copy, and the emailed receipt. Keeping the predicate here rather than repeating
+ * the truthiness test at each site is what stops the three drifting apart.
+ *
+ * See `tasks/decisions/2026-09-08-lhdn-relief-is-opt-in-not-a-column.md`.
+ */
+export function isTaxClaimable(receipt: { taxIdOrIc?: string | null }): boolean {
+  return Boolean(receipt.taxIdOrIc?.trim());
+}
+
 export function currentIssuerIdentity(): StatutoryIssuerIdentity {
   return {
     taxDeductibleRef: LHDN_TAX_DEDUCTIBLE_REF,

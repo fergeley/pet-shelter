@@ -10,6 +10,7 @@ import {
   EMAIL_RECEIPT,
 } from "@/lib/presentation/emailTokens";
 import { getApplicationStatusPresentation } from "@/lib/presentation/applicationStatusPresentation";
+import { isTaxClaimable } from "@/lib/domain/shelterIdentity";
 
 export interface EmailResult {
   success: boolean;
@@ -670,12 +671,17 @@ export async function sendDonationReceiptEmail(
     taxIdOrIc: receipt.taxIdOrIc ?? "",
     targetPetName: receipt.targetPetName ?? "",
     notes: receipt.notes ?? "",
+    // Whether this document may call itself deductible. Resolved once, here, for the
+    // same reason every other field is: the two halves stated the payment rail
+    // differently once already, and a receipt that claims relief in the HTML and
+    // disclaims it in the plain text would be a worse version of that bug.
+    claimable: isTaxClaimable(receipt),
   };
 
   const subject = `🐾 Official Donation Receipt: ${fields.amount} - ${receipt.receiptNumber} (${SHELTER_NAME})`;
 
   const plainText = `
-OFFICIAL DONATION RECEIPT & TAX DEDUCTION DOSSIER
+${fields.claimable ? "OFFICIAL DONATION RECEIPT & TAX DEDUCTION DOSSIER" : "OFFICIAL DONATION RECEIPT"}
 ===================================================
 ${SHELTER_NAME}
 ${SHELTER_ADDRESS}
@@ -697,7 +703,11 @@ ${fields.targetPetName ? `- Dedicated Animal: ${fields.targetPetName}\n` : ""}- 
 ${fields.notes ? `- Donor Message: "${fields.notes}"\n` : ""}
 TOTAL CONTRIBUTION RECEIVED: ${fields.amount}
 
-* Under Subsection 44(6) of the Income Tax Act 1967 (Malaysia), donations to Pertubuhan Kebajikan Hope for Strays are eligible for income tax deductions.
+${
+    fields.claimable
+      ? "* Under Subsection 44(6) of the Income Tax Act 1967 (Malaysia), donations to Pertubuhan Kebajikan Hope for Strays are eligible for income tax deductions."
+      : "* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Reply with yours and we will reissue it as a Subsection 44(6) tax-exemption receipt."
+  }
 * This receipt is computer-generated and valid without signature.
 
 Thank you for your life-saving generosity and support of our shelter animals!
@@ -759,7 +769,11 @@ Thank you for your life-saving generosity and support of our shelter animals!
       <strong>Malaysian Tax Deduction Information:</strong><br/>
       Official Shelter Registration No: <strong>${receipt.shelterRegistrationNo}</strong><br/>
       LHDN Inland Revenue Board Tax Exemption Reference: <strong>${receipt.taxDeductibleRef}</strong><br/>
-      <em>* This computer-generated receipt is valid for personal or corporate tax filing in Malaysia under Section 44(6) of the Income Tax Act 1967.</em>
+      ${
+        fields.claimable
+          ? "<em>* This computer-generated receipt is valid for personal or corporate tax filing in Malaysia under Section 44(6) of the Income Tax Act 1967.</em>"
+          : "<em>* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Reply with yours and we will reissue it as a Subsection 44(6) tax-exemption receipt.</em>"
+      }
     </div>
 
     <p style="font-size: 14px; color: ${EMAIL_BRAND.mutedForeground};">
