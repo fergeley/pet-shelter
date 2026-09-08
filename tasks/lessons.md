@@ -2,6 +2,106 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-08 — "Make it dynamic" is not a licence to count a different population
+
+The task said to replace the home page's five impact figures with "cached aggregation queries".
+Every one of them was an organisation-lifetime claim, and the schema models none of them: TNRM
+animals are returned to their colony and never become `Pet` rows, `Pet.spayedNeutered` is
+`@default(true)` so counting it counts every row nobody has touched, `User` is staff-only and
+cannot stand in for community volunteers, and there is no corporate-partner model at all. The
+aggregate would have replaced "520+ neutered" with the size of a demo pet table — on the public
+front page of a real charity, against a `DATABASE_URL` that
+[[the dev database is production]] confirms is the production branch.
+
+The instruction was not wrong about wanting staff-editable figures. It was wrong about where the
+number lives. Reading it literally would have shipped a confident, well-tested, wrong number.
+
+**Rule:** before replacing a curated figure with a query, name the rows the query counts and check
+they are the same population as the claim. If the claim covers animals the system never stored, no
+amount of caching makes the query correct — and the failure is invisible in dev, where the small
+seeded number looks like a plausible small number.
+
+## 2026-09-08 — A shared table needs its namespace subtracted at *every* read, not just yours
+
+The five home counters reuse `ImpactStat` under `home_*` keys. `selectHomeMetrics` ignored keys it
+did not own, so I called the namespace enforced and wrote a ledger entry describing the leftover
+coupling as "not a correctness bug today". It was a correctness bug the first time anyone used the
+feature: `TransparencyEditor` creates a counter at `displayOrder: 0`, the seeded ledger rows are
+1/2/3, and `/donate` renders `sortImpactStats(...).slice(0, 3)`. The first home figure staff
+published would have evicted a real donation figure, and `/transparency`, which does not slice,
+would have listed all five among the ledger's own.
+
+Only one direction of the filter existed. The direction I did not write is the one that corrupts,
+because my own reader was the one I was thinking about.
+
+**Rule:** when two features share a table, the filter belongs at every read of that table, and the
+key set gets exactly one definition that both sides import. Write the *other* surface's test first
+— "does the ledger still show its own three when a home row exists?" — because your own surface
+passing proves only half the contract.
+
+## 2026-09-08 — Documenting a defect is not a substitute for fixing it, and "latent" is a tell
+
+I logged the above in `tasks/open/` with a settles-when, and moved on. The entry was accurate,
+well-written, and functioned as a way of not doing the work. The giveaway was in my own sentence:
+"not a correctness bug today ... no `home_*` row exists yet" — the row does not exist yet *because
+the feature shipped in the same branch*. A defect that only waits for a user is not latent.
+
+**Rule:** a ledger entry is for something you cannot resolve — a genuine unknown, or a fix that
+needs a decision or an owner you do not have. If you can name the failing sequence concretely
+enough to write it down, you are usually close enough to fix it. Before filing, ask what the entry
+is protecting: the codebase, or the size of the diff.
+
+## 2026-09-08 — `aria-label` on a bare `<span>` is discarded, and `getByLabelText` still passes
+
+To keep a count-up animation from being announced frame by frame, I put the settled figure in an
+`aria-label` on the wrapping `<span>` and marked the climbing digits `aria-hidden`. A `span` has no
+role, so it maps to `role=generic`, which prohibits naming — the label is dropped and the only other
+copy was hidden. All five figures left the accessibility tree entirely, which is worse than the
+plain text they replaced.
+
+The test agreed with the bug. RTL's `getByLabelText` matches the `aria-label` *attribute*
+regardless of whether the element's role can carry a name, so my assertion passed against markup no
+screen reader could read. The fix is an `sr-only` sibling holding the real value — real text, in
+the tree, next to `aria-hidden` decoration.
+
+**Rule:** `aria-label` needs an element whose role supports naming. On a decorative wrapper, use a
+visually-hidden text node instead. And never let an attribute-matching query stand as proof of an
+accessibility contract — it tests the attribute you wrote, not what a user is given.
+
+## 2026-09-08 — A `waitFor` assertion proves the frame it sampled and nothing else
+
+I "verified" that a counter animation never emitted a malformed intermediate value with a `waitFor`
+that asserted the visible text did not match a bad pattern. `waitFor` resolves on the first polling
+attempt that passes, so it proves such a frame existed — not that every frame was well formed. The
+real defect it was supposed to catch (a thousands separator left in the suffix, so "1,250" climbed
+0→1 with a stray ",250" beside it) lived in a regex, which is pure.
+
+Moving `splitFigure`/`formatFigureFrame` into `src/lib/domain/metrics.ts` turned a racy one-sample
+observation into an exhaustive loop over every intermediate value, in the node tier, in
+milliseconds. The jsdom test kept only the claim that tier can actually own: the climb *ends* on
+the published figure.
+
+**Rule:** if the property under test is deterministic, extract it and test it deterministically.
+Reserve the timing-dependent tier for the one thing it uniquely owns — usually the settled state —
+and note in the test why the rest is asserted elsewhere.
+
+## 2026-09-08 — Diff the plan against the tree before implementing it
+
+Four of the six steps in the task had already shipped: the pillars, the featured-animal grid with
+its status badges, and the quick-action cards all existed in `1137d3e` and earlier. Two of the
+remaining instructions were actively wrong for this repo — the named test path
+(`tests/unit/components/`) runs under `environment: "node"`, where `vitest.config.mts` deliberately
+does not mount components, and the specified commit subject was 74 characters against a 72-char
+hard limit the repo's own linter enforces.
+
+Ten minutes of reading the tree turned "implement six things" into "implement one thing, fix two
+instructions, and leave four alone".
+
+**Rule:** treat a handed-down plan as a claim about the codebase, not a description of it. Read the
+files it names and run the commands it prescribes *before* writing code — a plan that restates
+shipped work will otherwise be re-implemented on top of itself, which is
+[[the repo's top defect shape]].
+
 ## 2026-09-04 — Hybrid Promises returned from synchronous signatures break caller truthiness
 
 In an attempt to bridge asynchronous database queries (`PrismaClient`) into functions called synchronously across the action layer (`findServerPetById`), returning a hybrid Thenable object (`Pet & Promise<Pet | null>`) introduces severe runtime regressions. In JavaScript, all `Promise` objects are truthy (`Boolean(new Promise(...)) === true`). When a record exists neither in memory nor in the database, a returned unsettled Promise causes synchronous guards (`if (!pet) return { error: "Pet not found" }`) to evaluate to false. Callers treat non-existent entities as valid, and subsequent synchronous field access (`pet.name`, `pet.status`) evaluates to `undefined`, silently corrupting downstream payloads.
