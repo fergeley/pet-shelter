@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -38,6 +38,90 @@ const METRIC_PRESENTATION: Record<
   volunteers: { icon: Users2, color: "text-warning-accent" },
   collaborations: { icon: Award, color: "text-info-accent" },
 };
+
+/**
+ * Splits "520+" into "", 520, "+" so the digits can count up while the suffix
+ * stays put. `ImpactStat.metricValue` is free-form — "100%" and "RM 0" are both
+ * legal — so anything without digits ("Ongoing") returns null and never animates.
+ */
+function splitFigure(
+  value: string
+): { lead: string; num: number; trail: string } | null {
+  const match = /^(\D*?)(\d+)(.*)$/.exec(value);
+  if (!match) return null;
+  return { lead: match[1], num: Number(match[2]), trail: match[3] };
+}
+
+const COUNT_UP_MS = 1100;
+
+/**
+ * Counts a figure up from zero, as progressive enhancement.
+ *
+ * Initial state is the *settled* figure, so the server-rendered HTML and the
+ * pre-hydration paint both carry the real number — a reader with JS disabled,
+ * or a crawler, sees "520+" rather than "0+". The climb only starts once the
+ * effect runs, and `prefers-reduced-motion` skips it entirely.
+ */
+function useCountUp(value: string): string {
+  // `null` means "not mid-climb", so the settled figure is always `value` itself
+  // and never a rounded reconstruction of it. State is written only from inside
+  // the animation frame — assigning it in the effect body would be a cascading
+  // render, which the React Compiler lint rejects.
+  const [climbing, setClimbing] = useState<string | null>(null);
+
+  useEffect(() => {
+    const parsed = splitFigure(value);
+    if (!parsed || parsed.num === 0) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+    let frame = 0;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - start) / COUNT_UP_MS);
+      if (progress >= 1) {
+        setClimbing(null);
+        return;
+      }
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setClimbing(`${parsed.lead}${Math.round(parsed.num * eased)}${parsed.trail}`);
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return climbing ?? value;
+}
+
+/** One card, so the count-up hook has a component of its own to live in. */
+function ImpactStatCard({ metric, isMs }: { metric: HomeMetric; isMs: boolean }) {
+  const { icon: Icon, color } = METRIC_PRESENTATION[metric.icon];
+  const display = useCountUp(metric.value);
+
+  return (
+    <div
+      data-testid={`impact-stat-${metric.key}`}
+      className="border border-border bg-card p-4 rounded-2xl space-y-1.5 shadow-xs"
+    >
+      <div className="flex items-center justify-between">
+        <span
+          className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight tabular-nums ${color}`}
+          // The climbing digits are decoration; assistive tech should be read the
+          // settled figure once, not every intermediate frame.
+          aria-label={metric.value}
+        >
+          <span aria-hidden="true">{display}</span>
+        </span>
+        <Icon className="size-4 text-muted-foreground opacity-60" />
+      </div>
+      <p className="text-xs font-semibold text-foreground leading-tight">
+        {metricLabel(metric, isMs)}
+      </p>
+    </div>
+  );
+}
 
 export interface HeroProps {
   /**
@@ -155,26 +239,9 @@ export function Hero({ metrics }: HeroProps = {}) {
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {impactStats.map((stat) => {
-                const { icon: Icon, color } = METRIC_PRESENTATION[stat.icon];
-                return (
-                  <div
-                    key={stat.key}
-                    data-testid={`impact-stat-${stat.key}`}
-                    className="border border-border bg-card p-4 rounded-2xl space-y-1.5 shadow-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className={`font-heading text-2xl sm:text-3xl font-bold tracking-tight ${color}`}>
-                        {stat.value}
-                      </span>
-                      <Icon className="size-4 text-muted-foreground opacity-60" />
-                    </div>
-                    <p className="text-xs font-semibold text-foreground leading-tight">
-                      {metricLabel(stat, isMs)}
-                    </p>
-                  </div>
-                );
-              })}
+              {impactStats.map((stat) => (
+                <ImpactStatCard key={stat.key} metric={stat} isMs={isMs} />
+              ))}
             </div>
           </div>
         </div>
