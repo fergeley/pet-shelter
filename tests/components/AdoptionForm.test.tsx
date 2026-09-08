@@ -21,8 +21,12 @@ const VALID = {
   name: "Nurul Huda binti Ahmad",
   email: "nurul@example.com",
   phone: "012-345 6789",
+  identification: "880101-14-5678",
   address: "No. 24, Jalan SS 2/10, 47300 Petaling Jaya, Selangor",
+  vetClinic: "Klinik Haiwan SS2, Petaling Jaya",
 };
+
+type User = ReturnType<typeof setupUser>;
 
 function renderForm(overrides: Partial<Parameters<typeof AdoptionForm>[0]> = {}) {
   const pet = makePet({ name: "Bella", breed: "Labrador Mix" });
@@ -39,15 +43,66 @@ function renderForm(overrides: Partial<Parameters<typeof AdoptionForm>[0]> = {})
   return { ...result, pet, onOpenChange, user: setupUser() };
 }
 
-/** Fills every required text field with input the schema accepts. */
-async function fillValidContact(user: ReturnType<typeof setupUser>) {
+const nextButton = () => screen.getByRole("button", { name: /next/i });
+const backButton = () => screen.getByRole("button", { name: /^back$/i });
+const submitButton = () => screen.getByRole("button", { name: /submit/i });
+
+/**
+ * The form is a four-step wizard (`ADOPTION_STEPS`), and only the current
+ * step's fields are mounted. Each helper below fills the step it names with
+ * input the schema accepts and presses Next.
+ *
+ * Next is `type="button"` and advances only when `trigger()` passes for that
+ * step's own fields, so awaiting the *next* step's first control is both the
+ * wait and the assertion that the step just filled was accepted — a helper that
+ * silently failed to advance fails here rather than three lines into the test.
+ */
+async function completeContactStep(user: User) {
   await user.type(screen.getByLabelText(/full name/i), VALID.name);
   await user.type(screen.getByLabelText(/email address/i), VALID.email);
   await user.type(screen.getByLabelText(/contact phone number/i), VALID.phone);
+  await user.type(screen.getByLabelText(/nric or passport number/i), VALID.identification);
   await user.type(screen.getByLabelText(/residential address/i), VALID.address);
+
+  await user.click(nextButton());
+  await screen.findByLabelText(/housing & accommodation type/i);
 }
 
-const submitButton = () => screen.getByRole("button", { name: /submit/i });
+/** Every control on this step has a schema-valid default; `housingType` is the one tests vary. */
+async function completeLivingStep(user: User, housingType?: string) {
+  if (housingType) {
+    await user.selectOptions(screen.getByLabelText(/housing & accommodation type/i), housingType);
+  }
+
+  await user.click(nextButton());
+  await screen.findByLabelText(/preferred veterinary clinic/i);
+}
+
+async function completeCareStep(user: User) {
+  await user.type(screen.getByLabelText(/preferred veterinary clinic/i), VALID.vetClinic);
+
+  await user.click(nextButton());
+  await screen.findByLabelText(/shelter adoption terms/i);
+}
+
+/** Leaves the wizard on step 4, every earlier step valid and both consents unticked. */
+async function advanceToAgreementStep(user: User, housingType?: string) {
+  await completeContactStep(user);
+  await completeLivingStep(user, housingType);
+  await completeCareStep(user);
+}
+
+/** Both consents default to unchecked, so submission stays gated until this runs. */
+async function acceptConsents(user: User) {
+  await user.click(screen.getByLabelText(/shelter adoption terms/i));
+  await user.click(screen.getByLabelText(/home check/i));
+}
+
+async function submitCompletedApplication(user: User, housingType?: string) {
+  await advanceToAgreementStep(user, housingType);
+  await acceptConsents(user);
+  await user.click(submitButton());
+}
 
 beforeEach(() => {
   submitApplication.mockReset();
@@ -68,34 +123,81 @@ describe("AdoptionForm", () => {
     expect(screen.getByLabelText(/selected rescue animal/i)).toHaveValue(pet.id);
   });
 
+  describe("wizard navigation", () => {
+    it("keeps a later step's fields out of the DOM until that step is reached", async () => {
+      const { user } = renderForm();
+
+      // Guards the step partition itself. Were every field mounted at once and
+      // merely hidden, the per-step validation asserted below would be proving
+      // nothing, and a later step's control could be queried — and reported as
+      // present — while the applicant never saw it.
+      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      expect(screen.queryByLabelText(/housing & accommodation type/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/preferred veterinary clinic/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/shelter adoption terms/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+
+      await completeContactStep(user);
+
+      expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/housing & accommodation type/i)).toBeInTheDocument();
+    });
+
+    it("returns to the previous step with the entered values intact", async () => {
+      const { user } = renderForm();
+      await completeContactStep(user);
+
+      await user.selectOptions(
+        screen.getByLabelText(/housing & accommodation type/i),
+        "condo_apartment"
+      );
+      await user.click(backButton());
+
+      // Unmounting a step must not reset it: an applicant stepping back to fix
+      // one typo would otherwise find the whole step blank.
+      expect(await screen.findByLabelText(/full name/i)).toHaveValue(VALID.name);
+      expect(screen.getByLabelText(/email address/i)).toHaveValue(VALID.email);
+      expect(screen.getByLabelText(/contact phone number/i)).toHaveValue(VALID.phone);
+      expect(screen.getByLabelText(/nric or passport number/i)).toHaveValue(VALID.identification);
+      expect(screen.getByLabelText(/residential address/i)).toHaveValue(VALID.address);
+
+      await user.click(nextButton());
+
+      expect(await screen.findByLabelText(/housing & accommodation type/i)).toHaveValue(
+        "condo_apartment"
+      );
+    });
+  });
+
   describe("validation", () => {
     it("reports every empty required field rather than only the first", async () => {
       const { user } = renderForm();
 
-      await user.click(submitButton());
+      await user.click(nextButton());
 
-      // Asserted together: react-hook-form resolves the whole schema per submit,
-      // so a form surfacing only one message at a time would still pass a test
-      // that checked them one by one.
+      // Asserted together: Next resolves the whole of its own step in one pass
+      // (`trigger(ADOPTION_STEPS[0].fields)`), so a form surfacing only one
+      // message at a time would still pass a test that checked them one by one.
       expect(await screen.findByText(/enter your full name/i)).toBeInTheDocument();
       expect(screen.getByText(/valid email address/i)).toBeInTheDocument();
       expect(screen.getByText(/valid malaysian phone number/i)).toBeInTheDocument();
+      expect(screen.getByText(/enter your nric or passport number/i)).toBeInTheDocument();
       expect(screen.getByText(/residential address and city/i)).toBeInTheDocument();
+      // A step that fails validation does not advance, so nothing is sent.
+      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
       expect(submitApplication).not.toHaveBeenCalled();
     });
 
     it("rejects a domainless email the browser would have accepted", async () => {
       const { user } = renderForm();
-      await fillValidContact(user);
 
+      await user.type(screen.getByLabelText(/full name/i), VALID.name);
       // `nurul@example` deliberately: the field is `type="email"`, so anything
-      // the browser's own constraint validation rejects (`nurul@@example`)
-      // never reaches React at all — the submit event is cancelled and the Zod
-      // message is never rendered. Only a value that passes native validation
-      // and fails the schema proves the application's own layer is doing work.
-      await user.clear(screen.getByLabelText(/email address/i));
+      // the browser's own constraint validation rejects (`nurul@@example`) can
+      // be stopped before the application ever sees it. Only a value that
+      // passes native validation and fails the schema proves this layer works.
       await user.type(screen.getByLabelText(/email address/i), "nurul@example");
-      await user.click(submitButton());
+      await user.click(nextButton());
 
       expect(await screen.findByText(/valid email address/i)).toBeInTheDocument();
       expect(submitApplication).not.toHaveBeenCalled();
@@ -103,11 +205,9 @@ describe("AdoptionForm", () => {
 
     it("rejects a phone number too short to be Malaysian", async () => {
       const { user } = renderForm();
-      await fillValidContact(user);
 
-      await user.clear(screen.getByLabelText(/contact phone number/i));
       await user.type(screen.getByLabelText(/contact phone number/i), "0123");
-      await user.click(submitButton());
+      await user.click(nextButton());
 
       expect(await screen.findByText(/valid malaysian phone number/i)).toBeInTheDocument();
       expect(submitApplication).not.toHaveBeenCalled();
@@ -115,15 +215,21 @@ describe("AdoptionForm", () => {
 
     it("blocks submission until the adoption terms are agreed", async () => {
       const { user } = renderForm();
-      await fillValidContact(user);
+      await advanceToAgreementStep(user);
 
-      // The checkbox defaults to checked, so the gate is only observable by
-      // clearing it — a test that merely left it alone would pass either way.
-      await user.click(screen.getByRole("checkbox"));
+      // Both consent boxes default to unchecked, so the gate is observable
+      // without clearing anything — the applicant has to give consent rather
+      // than withdraw a consent the form gave on their behalf.
       await user.click(submitButton());
 
       expect(await screen.findByText(/agree to the adoption terms/i)).toBeInTheDocument();
+      expect(screen.getByText(/consent to a home check/i)).toBeInTheDocument();
       expect(submitApplication).not.toHaveBeenCalled();
+
+      await acceptConsents(user);
+      await user.click(submitButton());
+
+      await waitFor(() => expect(submitApplication).toHaveBeenCalledTimes(1));
     });
   });
 
@@ -135,8 +241,9 @@ describe("AdoptionForm", () => {
      * so picking any of them failed validation silently and the submit button
      * appeared to do nothing at all.
      */
-    it("offers exactly the values the schema accepts", () => {
-      renderForm();
+    it("offers exactly the values the schema accepts", async () => {
+      const { user } = renderForm();
+      await completeContactStep(user);
 
       const rendered = within(screen.getByLabelText(/housing & accommodation type/i))
         .getAllByRole("option")
@@ -147,13 +254,8 @@ describe("AdoptionForm", () => {
 
     it("submits successfully with a housing type chosen from the control", async () => {
       const { user } = renderForm();
-      await fillValidContact(user);
 
-      await user.selectOptions(
-        screen.getByLabelText(/housing & accommodation type/i),
-        "condo_apartment"
-      );
-      await user.click(submitButton());
+      await submitCompletedApplication(user, "condo_apartment");
 
       await waitFor(() => expect(submitApplication).toHaveBeenCalledTimes(1));
       expect(submitApplication.mock.calls[0][0]).toMatchObject({
@@ -165,33 +267,68 @@ describe("AdoptionForm", () => {
   describe("submission", () => {
     it("sends the applicant's details to the server action", async () => {
       const { user, pet } = renderForm();
-      await fillValidContact(user);
 
-      await user.click(submitButton());
+      await submitCompletedApplication(user);
 
       await waitFor(() => expect(submitApplication).toHaveBeenCalledTimes(1));
-      // The form's field names and the action's payload keys differ
-      // (`applicantEmail` vs `email`), so this pins the mapping, not just the call.
-      expect(submitApplication.mock.calls[0][0]).toMatchObject({
+      const payload = submitApplication.mock.calls[0][0];
+      // Pins the payload, not merely the call: every step's answers have to
+      // arrive under the canonical names the action and the record use.
+      expect(payload).toMatchObject({
         petId: pet.id,
         petName: pet.name,
         applicantName: VALID.name,
         email: VALID.email,
         phone: VALID.phone,
+        identification: VALID.identification,
         address: VALID.address,
+        housingType: "landed_terrace",
+        hasFencedYard: "yes",
+        landlordApproval: "owner_occupied",
+        currentPets: "none",
+        householdExperience: "experienced",
+        vetClinic: VALID.vetClinic,
+        dailyAloneHours: "4_to_8",
       });
+      // The consents gate submission; they are not application data, and
+      // `toApplicationInput()` is what has to keep them out of the record.
+      expect(payload).not.toHaveProperty("agreeToTerms");
+      expect(payload).not.toHaveProperty("agreeToHomeVisit");
     });
 
     it("replaces the form with a confirmation naming the applicant and pet", async () => {
-      const { user } = renderForm();
-      await fillValidContact(user);
+      const { user, pet } = renderForm();
 
-      await user.click(submitButton());
+      await submitCompletedApplication(user);
 
       expect(await screen.findByText(/application submitted/i)).toBeInTheDocument();
-      expect(screen.getByText(new RegExp(VALID.name, "i"))).toBeInTheDocument();
-      expect(screen.getByText(/bella/i)).toBeInTheDocument();
-      expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument();
+      // One query for both names: the dialog title also says "Bella", so a bare
+      // `/bella/i` would match two elements and prove nothing about the
+      // confirmation itself.
+      expect(
+        screen.getByText(new RegExp(`${VALID.name}[\\s\\S]*${pet.name}`, "i"))
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /submit/i })).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/shelter adoption terms/i)).not.toBeInTheDocument();
+    });
+
+    it("shows the reference code the action returns so the applicant can track it", async () => {
+      submitApplication.mockResolvedValue({
+        success: true,
+        data: { id: "app-1", referenceCode: "HFS-APP-202609-K7QM" },
+      });
+      const { user } = renderForm();
+
+      await submitCompletedApplication(user);
+
+      expect(await screen.findByText("HFS-APP-202609-K7QM")).toBeInTheDocument();
+      // Shown *and* carried into the tracking link: the code is useless to the
+      // applicant if the confirmation prints it and then sends them to a bare
+      // /applications/track form.
+      expect(screen.getByRole("link", { name: /track my application/i })).toHaveAttribute(
+        "href",
+        "/applications/track?ref=HFS-APP-202609-K7QM"
+      );
     });
 
     it("keeps the form open and shows the reason when the action refuses", async () => {
@@ -200,22 +337,22 @@ describe("AdoptionForm", () => {
         error: "This animal is currently archived and is no longer accepting new adoption applications.",
       });
       const { user } = renderForm();
-      await fillValidContact(user);
 
-      await user.click(submitButton());
+      await submitCompletedApplication(user);
 
       expect(await screen.findByText(/currently archived/i)).toBeInTheDocument();
       expect(screen.queryByText(/application submitted/i)).not.toBeInTheDocument();
-      // Still editable, so the applicant can correct and retry.
-      expect(screen.getByLabelText(/full name/i)).toBeInTheDocument();
+      // Still on the last step and still editable, so the applicant can correct
+      // and retry rather than refilling four steps.
+      expect(screen.getByLabelText(/shelter adoption terms/i)).toBeInTheDocument();
+      expect(submitButton()).toBeInTheDocument();
     });
 
     it("surfaces a thrown transport error instead of failing silently", async () => {
       submitApplication.mockRejectedValue(new Error("Network unreachable"));
       const { user } = renderForm();
-      await fillValidContact(user);
 
-      await user.click(submitButton());
+      await submitCompletedApplication(user);
 
       expect(await screen.findByText(/network unreachable/i)).toBeInTheDocument();
       expect(screen.queryByText(/application submitted/i)).not.toBeInTheDocument();
@@ -229,9 +366,8 @@ describe("AdoptionForm", () => {
         })
       );
       const { user } = renderForm();
-      await fillValidContact(user);
 
-      await user.click(submitButton());
+      await submitCompletedApplication(user);
 
       // Guards against a double-submit creating two applications for one animal.
       await waitFor(() => expect(submitButton()).toBeDisabled());
@@ -253,8 +389,12 @@ describe("AdoptionForm", () => {
         { language: "ms" }
       );
 
-      expect(screen.getByText(/maklumat pemohon/i)).toBeInTheDocument();
-      expect(screen.getByText(/maklumat kediaman/i)).toBeInTheDocument();
+      // The wizard names its sections from `STEP_TITLES`: the current step's
+      // title appears in the step counter and again in the progress rail, and
+      // the rail names every section still to come.
+      expect(screen.getAllByText(/hubungan & pengenalan/i).length).toBeGreaterThan(0);
+      expect(screen.getByText(/persekitaran kediaman/i)).toBeInTheDocument();
+      expect(screen.getByText(/pengalaman & pelan penjagaan/i)).toBeInTheDocument();
     });
   });
 });

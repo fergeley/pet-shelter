@@ -1,32 +1,65 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Pet } from "@/types/pet";
 import { useApplicationStore } from "@/lib/client/applicationStore";
 import { submitApplication } from "@/actions/applications";
+import {
+  adoptionFormSchema,
+  toApplicationInput,
+  type AdoptionFormValues,
+} from "@/lib/validations/application";
 
-export const adoptionFormSchema = z.object({
-  petId: z.string().min(1, "Please select an adoptable pet"),
-  petName: z.string().min(1, "Pet name is required"),
-  applicantName: z.string().min(2, "Please enter your full name"),
-  applicantEmail: z.string().email("Please enter a valid email address"),
-  applicantPhone: z.string().min(9, "Please enter a valid Malaysian phone number"),
-  applicantAddress: z.string().min(5, "Please provide your residential address and city"),
-  housingType: z.enum(["landed_terrace", "semi_d_bungalow", "condo_apartment", "townhouse", "other"]),
-  hasFencedYard: z.enum(["yes", "no", "not_applicable"]),
-  currentPets: z.enum(["none", "dogs", "cats", "both", "other"]),
-  currentPetDetails: z.string().optional(),
-  householdExperience: z.enum(["first_time", "some_experience", "experienced"]),
-  applicantNotes: z.string().optional(),
-  agreeToTerms: z.boolean().refine((val) => val === true, {
-    message: "Please agree to the adoption terms to submit your application",
-  }),
-});
+export { adoptionFormSchema };
+export type { AdoptionFormValues };
 
-export type AdoptionFormValues = z.infer<typeof adoptionFormSchema>;
+/**
+ * The wizard, as data.
+ *
+ * Each step names the fields it owns. That single list drives both what the
+ * step renders and what "Next" validates, so a field can never be shown on one
+ * step and validated on another. Crucially there is still only ONE Zod schema:
+ * per-step validation is `form.trigger(step.fields)`, a partition of the whole
+ * contract rather than four schemas that have to be kept summing to it.
+ *
+ * Adding a field is therefore a two-line change — the schema, and the step that
+ * owns it — and TypeScript rejects a name that is not in the schema.
+ */
+export const ADOPTION_STEPS = [
+  {
+    id: "contact",
+    fields: ["petId", "petName", "applicantName", "email", "phone", "identification", "address"],
+  },
+  {
+    id: "living",
+    fields: ["housingType", "hasFencedYard", "landlordApproval"],
+  },
+  {
+    id: "care",
+    fields: ["currentPets", "currentPetDetails", "householdExperience", "vetClinic", "dailyAloneHours"],
+  },
+  {
+    id: "agreement",
+    fields: ["applicantNotes", "agreeToTerms", "agreeToHomeVisit"],
+  },
+] as const satisfies readonly {
+  id: string;
+  fields: readonly (keyof AdoptionFormValues)[];
+}[];
+
+export type AdoptionStepId = (typeof ADOPTION_STEPS)[number]["id"];
+
+export const ADOPTION_STEP_COUNT = ADOPTION_STEPS.length;
+
+/**
+ * The pet the form opens on. Shared with the dialog wrapper so the title and
+ * the form's default selection cannot disagree about which animal this is.
+ */
+export function resolveDefaultPet(selectedPet: Pet | null, allPets: Pet[]): Pet | null {
+  return selectedPet || allPets.find((p) => p.status === "Available") || allPets[0] || null;
+}
 
 export interface UseAdoptionFormControllerProps {
   selectedPet: Pet | null;
@@ -45,30 +78,42 @@ export function useAdoptionFormController({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState<AdoptionFormValues | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [referenceCode, setReferenceCode] = useState<string | null>(null);
 
   const availablePets = allPets.filter((p) => p.status === "Available");
-  const defaultPet = selectedPet || availablePets[0] || allPets[0] || null;
+  const defaultPet = resolveDefaultPet(selectedPet, allPets);
 
   const form = useForm<AdoptionFormValues>({
     resolver: zodResolver(adoptionFormSchema),
+    // Surface a step's errors as the applicant corrects them, rather than only
+    // when they press Next a second time.
+    mode: "onTouched",
     defaultValues: {
       petId: defaultPet?.id || "",
       petName: defaultPet?.name || "",
       applicantName: "",
-      applicantEmail: "",
-      applicantPhone: "",
-      applicantAddress: "",
+      email: "",
+      phone: "",
+      identification: "",
+      address: "",
       housingType: "landed_terrace",
       hasFencedYard: "yes",
+      landlordApproval: "owner_occupied",
       currentPets: "none",
       currentPetDetails: "",
       householdExperience: "experienced",
+      vetClinic: "",
+      dailyAloneHours: "4_to_8",
       applicantNotes: "",
-      agreeToTerms: true,
+      // Consent is withheld until the applicant gives it. These defaulted to
+      // `true`, which pre-accepted the adoption terms on the applicant's behalf.
+      agreeToTerms: false,
+      agreeToHomeVisit: false,
     },
   });
 
-  const { setValue, control, reset } = form;
+  const { setValue, control, reset, trigger } = form;
 
   useEffect(() => {
     if (selectedPet && open) {
@@ -80,50 +125,56 @@ export function useAdoptionFormController({
   const activePetId = useWatch({ control, name: "petId" }) || defaultPet?.id;
   const activePet = allPets.find((p) => p.id === activePetId) || selectedPet;
 
-  const onSubmit = async (data: AdoptionFormValues) => {
+  const isFirstStep = stepIndex === 0;
+  const isLastStep = stepIndex === ADOPTION_STEPS.length - 1;
+
+  const goToNextStep = useCallback(async (): Promise<boolean> => {
+    const valid = await trigger([...ADOPTION_STEPS[stepIndex].fields]);
+    if (valid) {
+      setStepIndex((i) => Math.min(i + 1, ADOPTION_STEPS.length - 1));
+    }
+    return valid;
+  }, [trigger, stepIndex]);
+
+  const goToPreviousStep = useCallback(() => {
     setSubmissionError(null);
+    setStepIndex((i) => Math.max(i - 1, 0));
+  }, []);
+
+  const submit = async (data: AdoptionFormValues) => {
+    setSubmissionError(null);
+    const input = toApplicationInput(data);
+
     try {
-      const res = await submitApplication({
-        petId: data.petId,
-        petName: data.petName,
-        applicantName: data.applicantName,
-        email: data.applicantEmail,
-        phone: data.applicantPhone,
-        address: data.applicantAddress,
-        housingType: data.housingType,
-        hasFencedYard: data.hasFencedYard,
-        currentPets: data.currentPets,
-        currentPetDetails: data.currentPetDetails,
-        householdExperience: data.householdExperience,
-        applicantNotes: data.applicantNotes,
-      });
+      const res = await submitApplication(input);
 
       if (!res.success) {
         setSubmissionError(res.error || "Failed to submit adoption application. Please try again.");
         return;
       }
+      setReferenceCode(res.data?.referenceCode ?? null);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Connection error while submitting application.";
       setSubmissionError(msg);
       return;
     }
 
-    addApplication({
-      petId: data.petId,
-      petName: data.petName,
-      applicantName: data.applicantName,
-      email: data.applicantEmail,
-      phone: data.applicantPhone,
-      address: data.applicantAddress,
-      housingType: data.housingType,
-      hasFencedYard: data.hasFencedYard,
-      currentPets: data.currentPets,
-      currentPetDetails: data.currentPetDetails,
-      householdExperience: data.householdExperience,
-      applicantNotes: data.applicantNotes,
-    });
+    addApplication(input);
     setSubmittedData(data);
     setIsSubmitted(true);
+  };
+
+  /**
+   * The form's only submit handler. On any step but the last it advances
+   * instead of submitting, so pressing Enter in a text field moves the wizard
+   * forward rather than posting a half-filled application.
+   */
+  const onSubmit = async (data: AdoptionFormValues) => {
+    if (!isLastStep) {
+      await goToNextStep();
+      return;
+    }
+    await submit(data);
   };
 
   const handleClose = () => {
@@ -132,6 +183,8 @@ export function useAdoptionFormController({
       setTimeout(() => {
         setIsSubmitted(false);
         setSubmissionError(null);
+        setReferenceCode(null);
+        setStepIndex(0);
         reset();
       }, 200);
     } else {
@@ -147,11 +200,19 @@ export function useAdoptionFormController({
       isSubmitted,
       submittedData,
       submissionError,
+      referenceCode,
+      stepIndex,
+      stepId: ADOPTION_STEPS[stepIndex].id,
+      stepCount: ADOPTION_STEPS.length,
+      isFirstStep,
+      isLastStep,
     },
     form,
     handlers: {
       onSubmit,
       handleClose,
+      goToNextStep,
+      goToPreviousStep,
       setIsSubmitted,
       setSubmissionError,
     },
