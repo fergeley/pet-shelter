@@ -2,6 +2,40 @@
 
 Patterns worth not relearning. Newest first.
 
+## 2026-09-08 — A security fix needs an adversarial pass of its own, and its tests are not it
+
+Four inert security controls were repaired, each with tests written alongside, each test mutation-checked
+against the *wrong* fix and observed failing. All of it passed. A review of the finished diff then found
+that **two of the repairs had introduced the very defect they removed**:
+
+- The new TLS host test read `startsWith("127.") || !host.includes(".")`. An IPv6 literal contains no
+  dot, so `[2001:db8::1]` was classified internal and a public IPv6 database got **no TLS at all** —
+  the plaintext hole the function existed to close, moved into the fix. `10.0.1.5` and
+  `postgres.default.svc.cluster.local` went the other way and were forced to present a public CA.
+- The new rate limiter keyed on `x-real-ip`, documented as "written by the edge and overwrites anything
+  the client sent". True on Vercel; false on the `docker-compose` deployment this repo ships. The budget
+  added to stop an attacker resetting a key was keyed on a value the attacker sets. Its `"unknown"`
+  fallback also capped the entire shelter at twenty sign-ins a minute.
+- The session-revocation fix routed its fallback through a store whose in-memory seed holds five
+  hardcoded accounts, so deleting `usr-admin-01` — SUPER_ADMIN, compile-time password — revoked nothing.
+  The hole was closed everywhere except the five ids where it mattered most.
+
+Each test passed because it exercised the case its author was *thinking about*: `sslmode=require` but
+never IPv6, a deleted synthetic id but never a seeded one, a header assumed trustworthy rather than
+probed. Mutation testing does not help here — it proves the test discriminates against the fix you
+considered, not against the case you never imagined.
+
+**Rule:** after finishing a security change, run `/code-review` over the resulting diff and treat your
+own new code as the primary suspect, not the code it replaced. Then verify each finding by probe before
+accepting *or* dismissing it — of the fifteen raised here, the three most serious were confirmed by a
+throwaway test that took two minutes, and that evidence is what made them safe to act on.
+
+**Corollary for the tests:** enumerate the input *space*, not the inputs you have in mind. For a host
+classifier that means both address families, the private ranges, and a name that merely resembles one.
+For anything reading a request header it means asking who is allowed to write that header on each
+deployment shape the repo actually ships. See
+[[2026-09-08-review-corrected-three-of-the-same-days-security-decisions]].
+
 ## 2026-09-08 — "Make it dynamic" is not a licence to count a different population
 
 The task said to replace the home page's five impact figures with "cached aggregation queries".
@@ -376,6 +410,7 @@ takes the ref as its own argument.
 **Rule:** any probe whose negative result is itself a finding must let stderr through on at least
 one run before the finding is reported. "Not found" and "the command never ran" are the same string
 once stderr is discarded, and only one of them is evidence.
+
 ## 2026-09-03 — On a busy trunk, a branch is only as merged as its last sync
 
 The QR branch needed four syncs with `origin/master` in one sitting. Between
@@ -483,6 +518,7 @@ until a review found it.
 **Rule:** mock a dangerous dependency per-test, not globally. Use `vi.hoisted`
 mock functions and give them resolved values for the happy path so the real
 mapping runs, then override with rejections for the failure cases.
+
 ## 2026-09-03 — Schema changes ship as additive SQL here, never as `db push`
 
 **What happened:** the sponsor portal was ready to merge with two schema changes (a
@@ -724,6 +760,7 @@ overturned all three: the post-mutation refetch fix was backwards; branching on 
 `proxy` is impossible because Next strips those headers on purpose; and
 `NextResponse.rewrite(url, { status })` silently drops the status. This is a modified Next.js —
 general knowledge of Next is not evidence about it.
+
 ## 2026-09-03 — A server action is a public POST endpoint, and reads leak too
 
 Three actions in the donation QR work shipped reachable without a session.
@@ -936,6 +973,7 @@ it is an open invitation to a concurrent agent that has no way to know it was st
 Corollary for the reader on the other side: an error that appears in a file you are not working on,
 for a symbol you have never heard of, is more likely someone else's experiment than a real gap.
 Check `git diff` before filling it in.
+
 ## 2026-08-28 — Email clients cannot parse `oklch()` or `var()`, but the mirror must be mathematically provable
 
 HTML email cannot consume CSS custom properties or modern color spaces (`oklch()`). The design system must provide a `#rrggbb` hex mirror for email templates and server settings (`src/lib/presentation/emailTokens.ts`). However, hand-written tables rot into divergent palettes.

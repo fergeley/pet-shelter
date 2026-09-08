@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type { DbPetRecord } from "@/lib/server/petMappers";
+import { memberRowForId } from "../../setup/authSession";
 
 /**
  * Shared plumbing for Tier 3a — the strict-persistence suites that do *not*
@@ -85,7 +86,14 @@ export function createPrismaDouble(): PrismaDouble {
     petUpdate: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     medicalTimelineEvent: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     user: {
-      findUnique: vi.fn().mockResolvedValue(null),
+      // Answers the member lookup `getVerifiedSession` makes on every guarded
+      // call, for whichever identity the suite signed in as. Resolving null
+      // here used to authorize anyway, via a DAL fall-through to the cookie's
+      // own claims that also kept deleted members signed in; see
+      // `memberRowForId`, which this mirrors.
+      findUnique: vi.fn(async (args?: { where?: { id?: string } }) =>
+        memberRowForId(args?.where?.id)
+      ),
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({}),
     },

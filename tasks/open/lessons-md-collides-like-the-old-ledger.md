@@ -88,4 +88,16 @@ same loss the ledger split was designed to make impossible.
 auto-mode permission classifier refused. The resolution above is mechanical and ready to apply; it
 needs either an approved merge or a human to perform it.
 
+**Third occurrence, 2026-09-09 — it blocked a merge for real.** PR #35
+(`feature/agent-2-security`) was verified conflict-free against `origin/master` three times while
+it was being prepared. PR #34 then landed, and the branch went from clean to `CONFLICT (content):
+Merge conflict in tasks/lessons.md` with **nothing else in the tree disagreeing** — 4 commits
+ahead, 4 behind, one conflicting file. Both sides had prepended a dated H2 under the file's own
+"newest first" rule, and both entries were wanted; the resolution was to delete three marker lines.
+
+That is now three occurrences, so the "wait for a third" bar in `AGENTS.md` is met and option 1 is
+no longer merely recommended. It also confirms the predicted failure mode is the dangerous one: the
+resolve is *so* mechanical that doing it carelessly — taking one side, as a hurried `--ours` would
+— silently discards a lesson nobody will notice is missing.
+
 **Settles when:** the human picks one, or the file is split.

@@ -74,6 +74,84 @@ export function identityForRole(role: Role): TestIdentity {
 }
 
 /**
+ * A `users` row as a Prisma double returns it.
+ *
+ * Carries more than `findMemberAuthStateById` selects on purpose. A double
+ * answering `user.findUnique` answers it for *every* caller, and the other two
+ * readers of that row — `memberStore.toMemberRecord` and `userStore.findUserById`
+ * — dereference `createdAt`/`updatedAt` and read `passwordHash`. A row with only
+ * the four authorization columns turns those into a `TypeError` on `undefined`
+ * instead of the safe `null` they used to get.
+ */
+export interface TestMemberRow {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: "ACTIVE";
+  passwordHash: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * The `users` row a Prisma double should return for a signed-in test identity.
+ *
+ * Lives beside `identityForRole` because it is that function read backwards,
+ * and a mirror kept in another file is a mirror that drifts.
+ *
+ * Needed because `getVerifiedSession` re-reads the member on every guarded
+ * call. A double that answered this lookup with `null` used to work anyway —
+ * the DAL fell through to the cookie's own claims — but that fall-through let
+ * a member deleted from a reachable database keep every capability their cookie
+ * asserted, and closing it (`src/lib/security/dal.ts`) means a doubled Prisma
+ * now has to answer for the member the suite signed in as.
+ *
+ * Resolves exactly the identities this module mints — the `identityForRole`
+ * ids and `TEST_ADMIN` — and returns null for anything else. That is not a gap:
+ * an id no test signs in as is a member who does not exist, and must stay
+ * unauthenticated. The seeded `userStore` fixtures `usr-coord-01`,
+ * `usr-animal-01` and `usr-editor-01` are deliberately among the nulls; they
+ * are database fixtures rather than test identities, and an earlier version's
+ * claim that a numeric suffix always resolved to a role was wrong for three of
+ * the five.
+ *
+ * The row is built *from* the identity rather than re-derived, so the name and
+ * email cannot drift from what the suite signed in as. `readVerifiedSession`
+ * now overwrites the session's name and email with this row's, so a synthesised
+ * `Test ADMIN` here would silently rename `TEST_ADMIN` ("Dr. Sarah Tan") in
+ * every audit row and rendered header a suite asserts on.
+ */
+export function memberRowForId(id: string | undefined): TestMemberRow | null {
+  if (!id?.startsWith("usr-")) return null;
+
+  if (id === TEST_ADMIN.id) return memberRowFor(TEST_ADMIN);
+
+  // `identityForRole` mints `usr-<role lowercased>`.
+  const role = id.slice("usr-".length).toUpperCase();
+  if (!Object.values(ROLES).includes(role as Role)) return null;
+
+  return memberRowFor(identityForRole(role as Role));
+}
+
+/** The stored row for an identity, mirroring it field for field. */
+function memberRowFor(identity: TestIdentity): TestMemberRow {
+  return {
+    id: identity.id,
+    name: identity.name,
+    email: identity.email,
+    role: identity.role,
+    status: "ACTIVE",
+    // Never verified against: these suites authenticate by sealing a cookie,
+    // not by presenting a password. Present so the row's other readers do not
+    // dereference undefined.
+    passwordHash: "scrypt:test-fixture-hash",
+    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+  };
+}
+
+/**
  * Seals a real session cookie for `who` and returns the sealed user, including
  * the `expiresAt` the seal computed.
  */
