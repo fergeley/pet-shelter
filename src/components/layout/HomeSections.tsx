@@ -23,20 +23,11 @@ import {
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
-export function HomeGalleryHeader() {
-  return null;
-}
-
 /**
- * FE-03: "Our Work" — The 3 Core Pillars of Hope for Strays UM:
- * 1. TNRM (Trap-Neuter-Return-Manage)
- * 2. Education & Campus Coexistence
- * 3. Clinical Rehabilitation & Medical Care
+ * Section content, hoisted out of the components so `/preview` can render alternative
+ * layouts over the same copy. Two sources of this text is how one of them goes stale.
  */
-export function HomeOurWorkSection() {
-  const { isMs } = useLanguage();
-
-  const pillars = [
+export const PILLARS = [
     {
       image:
         "https://images.unsplash.com/photo-1511044568932-338cba0ad803?auto=format&fit=crop&w=900&q=80",
@@ -109,7 +100,100 @@ export function HomeOurWorkSection() {
         "Adopsi percuma 100% setelah sembuh sepenuhnya",
       ],
     },
+];
+
+export function getQuickActions(isMs: boolean) {
+  return [
+    {
+      image:
+        "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=900&q=80",
+      alt: isMs ? "Seekor anjing reskue yang ceria" : "A cheerful rescue dog outdoors",
+      title: isMs ? "Adopsi" : "Adopt",
+      description: isMs
+        ? "Temui haiwan yang sedia untuk perumahan baharu dan hantar permohonan adopsi dengan mudah."
+        : "Meet animals ready for a new home and apply to adopt in just a few steps.",
+      cta: isMs ? "Lihat Haiwan" : "See Animals",
+      href: "/pets",
+    },
+    {
+      image:
+        "https://images.unsplash.com/photo-1494947665470-20322015e3a8?auto=format&fit=crop&w=900&q=80",
+      alt: isMs ? "Sukarelawan memegang tali beberapa ekor anjing" : "A volunteer walking several dogs on leads",
+      title: isMs ? "Sukarelawan" : "Volunteer",
+      description: isMs
+        ? "Bantu di santuari, lawatan mingguan, dan aktiviti komuniti tanpa pengalaman terdahulu."
+        : "Support the sanctuary through weekly care, walking, transport, and community events.",
+      cta: isMs ? "Sertai Kami" : "Get Involved",
+      href: "/get-involved",
+    },
+    {
+      image:
+        "https://images.unsplash.com/photo-1589924691995-400dc9ecc119?auto=format&fit=crop&w=900&q=80",
+      alt: isMs ? "Mangkuk makanan haiwan di atas lantai kayu" : "A bowl of food on a wooden floor beside a dog",
+      title: isMs ? "Derma" : "Donate",
+      description: isMs
+        ? "Sokong makanan, ubat, operasi dan pemulihan klinikal untuk haiwan yang memerlukan."
+        : "Fund food, treatment, surgery, and recovery costs for rescued animals in need.",
+      cta: isMs ? "Sokong HFS" : "Support HFS",
+      href: "/donate",
+    },
+    {
+      image:
+        "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=900&q=80",
+      alt: isMs ? "Kucing yang tenang sedang berehat di dalam rumah" : "A settled cat resting indoors",
+      title: isMs ? "Taja" : "Sponsor",
+      description: isMs
+        ? "Taja pemulihan haiwan, rawatan veterinar, dan penjagaan jangka panjang setiap bulan."
+        : "Sponsor ongoing care, treatment, and rehabilitation for animals who need longer-term support.",
+      cta: isMs ? "Taja Seekor Haiwan" : "Sponsor an Animal",
+      href: "/needs",
+    },
   ];
+}
+
+export function getShelterProtocols(isMs: boolean) {
+  return [
+    {
+      title: isMs ? "Protokol Veterinar Lengkap" : "Complete Veterinary Protocol",
+      description: isMs
+        ? "Setiap haiwan menjalani pemeriksaan kesihatan lengkap, pembedahan pemandulan, vaksinasi teras 6-dalam-1 / FVRCP, ubat cacing, dan mikrocip sebelum adopsi."
+        : "Every rescue animal undergoes full veterinary health screening, spay/neuter surgery, core vaccinations (6-in-1 / FVRCP), internal deworming, and microchip registration before rehoming.",
+    },
+    {
+      title: isMs ? "Polisi Adopsi Percuma 100%" : "100% Free Adoption Policy",
+      description: isMs
+        ? "Kami tidak menjual haiwan atau mengenakan yuran adopsi komersial. Penempatan dibuat berdasarkan keserasian gaya hidup dan kebajikan haiwan."
+        : "We do not sell animals or charge commercial adoption fees. Rescues are placed into qualified homes purely based on lifestyle compatibility and animal welfare.",
+    },
+    {
+      title: isMs ? "Bimbingan & Jaring Keselamatan" : "Post-Adoption Guidance & Safety Net",
+      description: isMs
+        ? "Kami menyediakan bimbingan tingkah laku berterusan. Jika situasi hidup pengadopsi berubah, kami mengekalkan polisi pintu terbuka tanpa syarat untuk menerima semula haiwan."
+        : "Our team provides ongoing behavioral transition guidance. If an adopter's life circumstances ever change, we maintain an unconditional open-door policy to welcome the animal back.",
+    },
+    {
+      title: isMs ? "Semakan Kediaman & Keselamatan" : "Structured Premise & Lifestyle Review",
+      description: isMs
+        ? "Kami menyemak kesesuaian asas kediaman (pagar selamat, kelulusan bangunan bertingkat) bagi memastikan persekitaran hidup yang kekal dan selamat."
+        : "We verify basic living suitability (landed housing vs high-rise pet guidelines, fenced perimeter safety, and household consensus) to ensure a safe, lasting match.",
+    },
+  ];
+}
+
+export function HomeGalleryHeader() {
+  return null;
+}
+
+/**
+ * FE-03: "Our Work" — The 3 Core Pillars of Hope for Strays UM:
+ * 1. TNRM (Trap-Neuter-Return-Manage)
+ * 2. Education & Campus Coexistence
+ * 3. Clinical Rehabilitation & Medical Care
+ */
+export function HomeOurWorkSection() {
+  const { isMs } = useLanguage();
+
+  const pillars = PILLARS;
 
   return (
     <section id="our-work" className="bg-work-ground py-16 sm:py-20">
@@ -187,52 +271,7 @@ export function HomeOurWorkSection() {
 export function HomeQuickActionsSection() {
   const { isMs } = useLanguage();
 
-  const actions = [
-    {
-      image:
-        "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=900&q=80",
-      alt: isMs ? "Seekor anjing reskue yang ceria" : "A cheerful rescue dog outdoors",
-      title: isMs ? "Adopsi" : "Adopt",
-      description: isMs
-        ? "Temui haiwan yang sedia untuk perumahan baharu dan hantar permohonan adopsi dengan mudah."
-        : "Meet animals ready for a new home and apply to adopt in just a few steps.",
-      cta: isMs ? "Lihat Haiwan" : "See Animals",
-      href: "/pets",
-    },
-    {
-      image:
-        "https://images.unsplash.com/photo-1494947665470-20322015e3a8?auto=format&fit=crop&w=900&q=80",
-      alt: isMs ? "Sukarelawan memegang tali beberapa ekor anjing" : "A volunteer walking several dogs on leads",
-      title: isMs ? "Sukarelawan" : "Volunteer",
-      description: isMs
-        ? "Bantu di santuari, lawatan mingguan, dan aktiviti komuniti tanpa pengalaman terdahulu."
-        : "Support the sanctuary through weekly care, walking, transport, and community events.",
-      cta: isMs ? "Sertai Kami" : "Get Involved",
-      href: "/get-involved",
-    },
-    {
-      image:
-        "https://images.unsplash.com/photo-1589924691995-400dc9ecc119?auto=format&fit=crop&w=900&q=80",
-      alt: isMs ? "Mangkuk makanan haiwan di atas lantai kayu" : "A bowl of food on a wooden floor beside a dog",
-      title: isMs ? "Derma" : "Donate",
-      description: isMs
-        ? "Sokong makanan, ubat, operasi dan pemulihan klinikal untuk haiwan yang memerlukan."
-        : "Fund food, treatment, surgery, and recovery costs for rescued animals in need.",
-      cta: isMs ? "Sokong HFS" : "Support HFS",
-      href: "/donate",
-    },
-    {
-      image:
-        "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?auto=format&fit=crop&w=900&q=80",
-      alt: isMs ? "Kucing yang tenang sedang berehat di dalam rumah" : "A settled cat resting indoors",
-      title: isMs ? "Taja" : "Sponsor",
-      description: isMs
-        ? "Taja pemulihan haiwan, rawatan veterinar, dan penjagaan jangka panjang setiap bulan."
-        : "Sponsor ongoing care, treatment, and rehabilitation for animals who need longer-term support.",
-      cta: isMs ? "Taja Seekor Haiwan" : "Sponsor an Animal",
-      href: "/needs",
-    },
-  ];
+  const actions = getQuickActions(isMs);
 
   return (
     <section className="bg-work-ground py-16 sm:py-20">
@@ -364,32 +403,7 @@ export function HomeProcessSection() {
 export function HomeStandardsSection() {
   const { isMs } = useLanguage();
 
-  const shelterProtocols = [
-    {
-      title: isMs ? "Protokol Veterinar Lengkap" : "Complete Veterinary Protocol",
-      description: isMs
-        ? "Setiap haiwan menjalani pemeriksaan kesihatan lengkap, pembedahan pemandulan, vaksinasi teras 6-dalam-1 / FVRCP, ubat cacing, dan mikrocip sebelum adopsi."
-        : "Every rescue animal undergoes full veterinary health screening, spay/neuter surgery, core vaccinations (6-in-1 / FVRCP), internal deworming, and microchip registration before rehoming.",
-    },
-    {
-      title: isMs ? "Polisi Adopsi Percuma 100%" : "100% Free Adoption Policy",
-      description: isMs
-        ? "Kami tidak menjual haiwan atau mengenakan yuran adopsi komersial. Penempatan dibuat berdasarkan keserasian gaya hidup dan kebajikan haiwan."
-        : "We do not sell animals or charge commercial adoption fees. Rescues are placed into qualified homes purely based on lifestyle compatibility and animal welfare.",
-    },
-    {
-      title: isMs ? "Bimbingan & Jaring Keselamatan" : "Post-Adoption Guidance & Safety Net",
-      description: isMs
-        ? "Kami menyediakan bimbingan tingkah laku berterusan. Jika situasi hidup pengadopsi berubah, kami mengekalkan polisi pintu terbuka tanpa syarat untuk menerima semula haiwan."
-        : "Our team provides ongoing behavioral transition guidance. If an adopter's life circumstances ever change, we maintain an unconditional open-door policy to welcome the animal back.",
-    },
-    {
-      title: isMs ? "Semakan Kediaman & Keselamatan" : "Structured Premise & Lifestyle Review",
-      description: isMs
-        ? "Kami menyemak kesesuaian asas kediaman (pagar selamat, kelulusan bangunan bertingkat) bagi memastikan persekitaran hidup yang kekal dan selamat."
-        : "We verify basic living suitability (landed housing vs high-rise pet guidelines, fenced perimeter safety, and household consensus) to ensure a safe, lasting match.",
-    },
-  ];
+  const shelterProtocols = getShelterProtocols(isMs);
 
   return (
     <section id="mission" className="bg-work-ground py-16 sm:py-20">
