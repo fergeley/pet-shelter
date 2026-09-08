@@ -3,23 +3,37 @@ import { Client } from "pg";
 import { mockRequestHeaders } from "../../setup/nextMocks";
 
 /**
- * The four security fixes on this branch, pinned together.
+ * The security fixes on this branch, pinned together.
  *
  * They share a file because they share a failure mode rather than a subject:
- * every one of them is a guard that was *present in the source and inert at
- * runtime*, so none of them broke a test when it stopped working. Splitting
- * them across four files would put that shared property nowhere.
+ * every one was a guard *present in the source and inert at runtime*, so none
+ * of them broke a test when it stopped working. Splitting them across files
+ * would put that shared property nowhere.
  *
- * Two suites below are written to fail against a specific wrong fix, because a
+ * Several cases are written to fail against a specific *wrong* fix, because a
  * rate-limit or TLS assertion that passes either way documents an intention
- * instead of enforcing a behaviour:
+ * instead of enforcing a behaviour. Each was run against that wrong fix and
+ * observed failing:
  *
- *   - "an address budget the email cannot reset" fails against
- *     `register:${ip}:${email}`, which is the composite key that looks like a
- *     fix and is not one.
- *   - "survives pg's own connection-string merge" fails if the `sslmode` strip
- *     is removed, which is what makes the explicit `ssl` option take effect at
- *     all.
+ *   - "stops a caller who varies the email" fails against
+ *     `register:${ip}:${email}` — the composite key that looks like a fix and
+ *     throttles nothing, because a narrower key is not a smaller budget.
+ *   - "survives pg's own connection-string merge" fails without the `sslmode`
+ *     strip, which is the only reason the explicit `ssl` option takes effect.
+ *   - "demands verified TLS for [2001:db8::1]" and the private-range cases fail
+ *     against the first host test, which classified every IPv6 literal as
+ *     internal and every private IPv4 as public. Both directions wrong, and
+ *     found by review rather than by the tests written alongside the fix.
+ *   - "revokes a deleted seeded administrator in production" fails without the
+ *     production guard, because the in-memory seed vouches for `usr-admin-01`
+ *     forever.
+ *   - the address-budget cases on login, sponsor sign-in and invite redemption
+ *     each fail with their budget deleted.
+ *
+ * The `TRUSTED_PROXY_HEADER` stubbing is not incidental. Where no proxy header
+ * is vouched for, the address budgets deliberately do not run at all, and two
+ * cases here pin that: a guessed address is worse than none, and a shared
+ * bucket for unattributable callers is a site-wide outage waiting to happen.
  */
 
 vi.mock("@/lib/server/memberStore", async (importOriginal) => ({
@@ -530,6 +544,94 @@ describe("loginAction - the same address budget, against password spraying", () 
     const fromElsewhere = await login("someone@hopeforstrays.org");
 
     expect(fromElsewhere.error).toContain("Invalid staff email");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. The same budget on the three sibling endpoints
+// ---------------------------------------------------------------------------
+
+describe("the other unauthenticated auth endpoints spend an address budget too", () => {
+  beforeEach(() => {
+    vi.stubEnv("TRUSTED_PROXY_HEADER", "x-real-ip");
+    mockRequestHeaders().set("x-real-ip", "203.0.113.55");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("bounds sponsor sign-in attempts that walk the address list", async () => {
+    const { sponsorLoginAction } = await import("@/actions/sponsors");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 22; attempt += 1) {
+      // A different sponsor each time, so `sponsor-login:${email}` never sees a
+      // second attempt and never fires. This is the spray it cannot see.
+      const result = await sponsorLoginAction({
+        email: `sponsor-${attempt}@example.com`,
+        password: "not-the-password",
+      });
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    expect(outcomes[21]).toMatch(/^Too many sign-in attempts/);
+    expect(outcomes[0]).not.toMatch(/^Too many sign-in attempts/);
+  });
+
+  it("bounds invite-token redemption, where the token is the credential", async () => {
+    const { acceptInvitation } = await import("@/actions/members");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 17; attempt += 1) {
+      // Varying the email resets `accept-invite:${email}` every time, so
+      // without an address budget the emailed token is enumerable.
+      const result = await acceptInvitation({
+        email: `invitee-${attempt}@hopeforstrays.org`,
+        token: `guessed-token-${attempt}`,
+        password: "a-new-password",
+        confirmPassword: "a-new-password",
+      });
+      outcomes.push(result.success ? "SUCCESS" : (result.error ?? ""));
+    }
+
+    expect(outcomes[16]).toMatch(/^Too many attempts/);
+    expect(outcomes[0]).not.toMatch(/^Too many attempts/);
+  });
+
+  it("bounds sponsor registration attempts from one address", async () => {
+    const { registerSponsorAction } = await import("@/actions/sponsors");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const result = await registerSponsorAction({
+        name: "Brute Forcer",
+        email: `sponsor-${attempt}@example.com`,
+        password: "correct-horse-battery",
+        receiptNumber: `HFS-DON-202608-${String(attempt).padStart(4, "0")}`,
+      });
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    expect(outcomes[11]).toMatch(/^Too many registration attempts/);
+  });
+
+  it("leaves all three unlimited when no proxy header is trusted", async () => {
+    vi.unstubAllEnvs();
+    const { sponsorLoginAction } = await import("@/actions/sponsors");
+
+    const outcomes: string[] = [];
+    for (let attempt = 0; attempt < 22; attempt += 1) {
+      const result = await sponsorLoginAction({
+        email: `sponsor-${attempt}@example.com`,
+        password: "not-the-password",
+      });
+      outcomes.push(result.error ?? "SUCCESS");
+    }
+
+    // Same trade as registerAction: an untrusted address bounds nothing, and a
+    // shared bucket would cap every sponsor at once.
+    expect(outcomes.every((message) => !message.startsWith("Too many"))).toBe(true);
   });
 });
 

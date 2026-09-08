@@ -1,8 +1,7 @@
 "use server";
 
-import { isIP } from "node:net";
-import { headers } from "next/headers";
 import { checkRateLimit } from "@/lib/security/rateLimit";
+import { checkAddressRateLimit } from "@/lib/security/clientAddress";
 import { hashPassword, verifyPassword, timingSafeCompare } from "@/lib/security/crypto";
 import {
   setSessionCookie,
@@ -22,66 +21,6 @@ export interface AuthResponse {
   user?: SessionUser;
   error?: string;
   retryAfterSeconds?: number;
-}
-
-/**
- * Which request header, if any, carries a client address this deployment may
- * believe. Null means "no trustworthy address is available here".
- *
- * A forwarding header is only as honest as the hop that wrote it. Nothing stops
- * a client from sending `x-real-ip` or `x-forwarded-for` itself, so on a
- * deployment with no proxy overwriting them they are simply attacker-supplied
- * input — and an address budget keyed on attacker-supplied input is the very
- * defect the email-keyed limiter had. This repo ships a `docker-compose.yml`
- * and runs `next start`, so that is a real deployment shape here, not a
- * hypothetical one.
- *
- * Hence: believe a header only when something external vouches for it. Vercel's
- * edge overwrites `x-vercel-forwarded-for` on the way in, which is why it is
- * consulted only when actually running on Vercel. Any other topology has to say
- * so with `TRUSTED_PROXY_HEADER`, which is the operator asserting that their
- * proxy overwrites that header rather than appending to it.
- */
-function trustedAddressHeader(): string | null {
-  const configured = process.env.TRUSTED_PROXY_HEADER?.trim().toLowerCase();
-  if (configured) return configured;
-  if (process.env.VERCEL) return "x-vercel-forwarded-for";
-  return null;
-}
-
-/**
- * The caller's address when it can be trusted, and null when it cannot.
- *
- * Null is not a bucket. An earlier version returned the string `"unknown"` and
- * limited every unattributable caller together, which on any deployment setting
- * none of these headers made the budget a shelter-wide cap: twenty sign-ins a
- * minute for the whole staff, and one person fumbling a password behind a shared
- * address locking out their colleagues. A limiter that denies service to the
- * people it is protecting is worse than the gap it was covering.
- *
- * The value is parsed as an IP before it is used as a limiter key. `isIP`
- * rejects anything else, which also bounds the key: without it, a caller could
- * send a different multi-kilobyte header per request and grow the limiter's Map
- * without limit.
- *
- * ceiling: with no `TRUSTED_PROXY_HEADER` and no Vercel edge, the address budget
- * does not run at all, and the per-email budget is the only one left. That is
- * the honest state — an untrustworthy address cannot bound anything — but it
- * means self-hosted deployments must set that variable to get address limiting.
- */
-async function getClientAddress(): Promise<string | null> {
-  const header = trustedAddressHeader();
-  if (!header) return null;
-
-  try {
-    // Leftmost entry: the hop named above overwrites this header, so the first
-    // value is the one it wrote rather than one the client prepended.
-    const value = (await headers()).get(header)?.split(",")[0]?.trim();
-    return value && isIP(value) ? value : null;
-  } catch {
-    // No request scope (a direct unit-test call).
-    return null;
-  }
 }
 
 /**
@@ -118,16 +57,13 @@ export async function loginAction(credentials: {
   // single key. Same defect as the registration limiter below, same fix, and
   // fixed here too because leaving one of two identical holes open is how the
   // next reader concludes the shape is acceptable.
-  const loginAddress = await getClientAddress();
-  if (loginAddress) {
-    const loginAddressLimit = checkRateLimit(`login:ip:${loginAddress}`, 20, 60000);
-    if (!loginAddressLimit.success) {
-      return {
-        success: false,
-        error: `Too many login attempts. Please wait ${loginAddressLimit.retryAfterSeconds} seconds before trying again.`,
-        retryAfterSeconds: loginAddressLimit.retryAfterSeconds,
-      };
-    }
+  const loginAddressLimit = await checkAddressRateLimit("login", 20, 60000);
+  if (loginAddressLimit.limited) {
+    return {
+      success: false,
+      error: `Too many login attempts. Please wait ${loginAddressLimit.retryAfterSeconds} seconds before trying again.`,
+      retryAfterSeconds: loginAddressLimit.retryAfterSeconds,
+    };
   }
 
   const rateLimit = checkRateLimit(`login:${emailKey}`, 5, 60000);
@@ -279,16 +215,13 @@ export async function registerAction(data: {
   // an address it is allowed to believe. Where it cannot, the per-email budget
   // is the only one left and the invite code is enumerable again by varying the
   // address — see that function for why a guessed address is worse than none.
-  const address = await getClientAddress();
-  if (address) {
-    const addressLimit = checkRateLimit(`register:ip:${address}`, 10, 60000);
-    if (!addressLimit.success) {
-      return {
-        success: false,
-        error: `Too many registration attempts. Please wait ${addressLimit.retryAfterSeconds} seconds before trying again.`,
-        retryAfterSeconds: addressLimit.retryAfterSeconds,
-      };
-    }
+  const addressLimit = await checkAddressRateLimit("register", 10, 60000);
+  if (addressLimit.limited) {
+    return {
+      success: false,
+      error: `Too many registration attempts. Please wait ${addressLimit.retryAfterSeconds} seconds before trying again.`,
+      retryAfterSeconds: addressLimit.retryAfterSeconds,
+    };
   }
 
   const rateLimit = checkRateLimit(`register:email:${email || "anon"}`, 5, 60000);
