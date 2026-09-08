@@ -197,3 +197,16 @@ Both items that stood when this table was written are now closed:
   for one-way doors only" and drops its plan-mode parenthetical, so it no longer contradicts the
   workflow section `CLAUDE.md` carries. Citations stay by name; `npm run docs:check` fails a
   numbered one and now reports all nine defined.
+
+**Correction 2026-09-08 — 4.3, 4.5 and 4.6 describe an arrangement that no longer exists.** Left
+above as written, because it was true when written. `CLAUDE.md` is now the workflow-orchestration
+file and carries no midwife machinery: its `## Context & Session Hygiene` section was removed, so
+it neither reads the drift log (4.3) nor points at the reset rule (4.5) — the read rule moved to
+`AGENTS.md`, and the *order* into `.claude/skills/midwife/SKILL.md` §5, which is the checklist that
+actually runs at close and had no drift step at all until now. On 4.6: dropping invariant 7's
+parenthetical removed the tiebreaker, not the conflict. `CLAUDE.md` still says "Enter plan mode for
+ANY non-trivial task (3+ steps)" and "Check in before starting implementation", invariant 7 still
+says halting is for one-way doors only, both still load, and
+`tasks/decisions/2026-08-30-plan-mode-superseded.md` records the plan-mode rule as superseded. The
+four triage tests were left behind entirely by that move and were defined in no file on `master`
+until `975a5f9`.

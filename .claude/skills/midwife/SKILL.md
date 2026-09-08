@@ -231,6 +231,10 @@ irreversible and you are ignorant of its effect.**
 The ledger contract — two categories, one file per entry, what goes where — is `tasks/README.md`.
 Read it rather than a copy of it here.
 
+**Read the drift log before the ledger write.** `AGENTS.md` carries the paths and the caveats;
+the order is what belongs here. A write the log shows and the ledger does not is either a
+ride-along to strip or an Open item to file — deciding which is part of the close, not after it.
+
 **Isolation before coordination.** File collisions are solved by running each session in its own
 worktree — `claude --worktree <name>` — which the harness *enforces*: it blocks edits, commands and
 git redirects that reach the main checkout. Prefer that to any protocol written here. A rule the

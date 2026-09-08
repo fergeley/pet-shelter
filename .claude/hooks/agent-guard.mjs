@@ -63,9 +63,12 @@ const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.lo
 /**
  * Write-path drift log. Non-blocking by design: it records every file write so that
  * "while I'm here" edits are visible at review time, and it never denies, so it cannot
- * train reflex approval. A log nobody reads is furniture, so `AGENTS.md`'s session close now
- * reads it before the ledger write — memory lives in files, not in the chat:
- *     cat "$TEMP/claude-agent-drift.log"     (Windows; $TMPDIR elsewhere)
+ * train reflex approval. A log nobody reads is furniture, so `AGENTS.md` carries the read rule
+ * and `.claude/skills/midwife/SKILL.md` §5 places it before the ledger write — memory lives in
+ * files, not in the chat. This hook writes the Claude log; `.codex/hooks/drift-log.mjs` writes its
+ * own. Read the one your harness produced:
+ *     PowerShell: cat "$env:TEMP/claude-agent-drift.log"   Git Bash: "$TEMP/..."
+ *     elsewhere:  cat "${TMPDIR:-/tmp}/claude-agent-drift.log"
  */
 const DRIFT = process.env.AGENT_DRIFT_LOG || join(tmpdir(), "claude-agent-drift.log");
 
