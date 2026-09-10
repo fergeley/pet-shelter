@@ -21,6 +21,7 @@ import { AdoptionApplicationRecord } from "@/types/application";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { assertHasPermission, PERMISSIONS } from "@/lib/security/rbac";
 import { checkRateLimit } from "@/lib/security/rateLimit";
+import { checkAddressRateLimit } from "@/lib/security/clientAddress";
 import { withIdempotency } from "@/lib/security/idempotency";
 import {
   getServerApplicationsAsync,
@@ -112,12 +113,22 @@ export async function submitApplication(
       };
     }
 
-    // 1. Rate Limiting on public adoption applications (10 applications per 10 minutes per email)
-    const rateLimit = checkRateLimit(`submit-app:${validated.email.toLowerCase()}`, 10, 600000);
-    if (!rateLimit.success) {
+    // 1. Rate limiting — two independent budgets, neither keyed on the other's input.
+    // The address budget is the one that actually bounds an attacker; the email
+    // budget bounds spam against one mailbox but is trivially bypassed by varying
+    // the address. See tasks/decisions/2026-09-08-rate-limit-keys-carry-no-attacker-supplied-value.md.
+    const addressLimit = await checkAddressRateLimit("submit-app", 20, 600000);
+    if (addressLimit.limited) {
       return {
         success: false,
-        error: `Submission rate limit exceeded. Please wait ${rateLimit.retryAfterSeconds}s before submitting again.`,
+        error: `Submission rate limit exceeded. Please wait ${addressLimit.retryAfterSeconds}s before submitting again.`,
+      };
+    }
+    const emailLimit = checkRateLimit(`submit-app:email:${validated.email.toLowerCase()}`, 10, 600000);
+    if (!emailLimit.success) {
+      return {
+        success: false,
+        error: `Submission rate limit exceeded. Please wait ${emailLimit.retryAfterSeconds}s before submitting again.`,
       };
     }
 
@@ -457,12 +468,19 @@ export async function lookupApplicationStatusAction(
   try {
     const validated = trackApplicationLookupSchema.parse(input);
 
-    // 1. Rate Limiting: max 15 lookup attempts per 5 minutes per email/IP
-    const rateLimit = checkRateLimit(`track-app:${validated.email}`, 15, 300000);
-    if (!rateLimit.success) {
+    // 1. Rate limiting — same two-budget pattern as submitApplication.
+    const addressLimit = await checkAddressRateLimit("track-app", 30, 300000);
+    if (addressLimit.limited) {
       return {
         success: false,
-        error: `Too many lookup attempts. Please wait ${rateLimit.retryAfterSeconds}s before trying again.`,
+        error: `Too many lookup attempts. Please wait ${addressLimit.retryAfterSeconds}s before trying again.`,
+      };
+    }
+    const emailLimit = checkRateLimit(`track-app:email:${validated.email}`, 15, 300000);
+    if (!emailLimit.success) {
+      return {
+        success: false,
+        error: `Too many lookup attempts. Please wait ${emailLimit.retryAfterSeconds}s before trying again.`,
       };
     }
 
