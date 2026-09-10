@@ -129,9 +129,17 @@ export function getAdminSecretKey(): string {
  *
  * Keeps the default 16-character minimum deliberately. A shorter bound (4 was
  * proposed) is not defensible here: this single shared code is the only gate on
- * an account that can read applicant PII under PDPA 2010, and the registration
- * rate limit is keyed on `register:${email}` — an attacker-supplied value — so
- * varying the email defeats it and leaves the code effectively enumerable.
+ * an account that can read applicant PII under PDPA 2010.
+ *
+ * That bound used to be the *only* thing standing between this code and
+ * enumeration, because the registration rate limit was keyed on
+ * `register:${email}` — an attacker-supplied value, so varying the email defeated
+ * it. `registerAction` now also spends an independent `register:ip:` budget that
+ * holds nothing the caller controls
+ * (`tasks/decisions/2026-09-08-rate-limit-keys-carry-no-attacker-supplied-value.md`).
+ * The length minimum still carries the weight wherever that budget cannot run —
+ * see the ceiling on `getClientAddress()`, which declines to trust a forwarding
+ * header no proxy vouches for — so it stays 16.
  */
 export function getStaffInviteSecret(): string {
   return resolveSecret("STAFF_INVITE_SECRET", {

@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { findMemberAuthStateById } from "@/lib/server/memberStore";
+import { findUserById } from "@/lib/server/userStore";
 import { getCurrentSession, type SessionUser } from "./session";
 import {
   ForbiddenError,
@@ -28,6 +29,9 @@ import { USER_STATUSES } from "./permissions";
  * operation when Postgres is offline, and failing every admin request closed on
  * a transient outage would be a worse trade than a suspension taking effect one
  * session late. Revisit if the in-memory fallback is ever removed.
+ *
+ * A *reachable* database that simply has no such row is the opposite case, and
+ * is handled by `readFallbackAuthState` below.
  */
 async function readVerifiedSession(): Promise<SessionUser | null> {
   const session = await getCurrentSession();
@@ -37,25 +41,73 @@ async function readVerifiedSession(): Promise<SessionUser | null> {
     // Queried through the repository rather than Prisma directly: only
     // src/lib/server/ may reach the client (LAYERS.md §L-B2), and this module
     // is authorization policy, not data access.
-    const member = await findMemberAuthStateById(session.id);
+    const authState = (await findMemberAuthStateById(session.id)) ?? (await readFallbackAuthState(session.id));
 
-    // No row: either a demo/in-memory account or a deleted user. Fall through
-    // to the cookie rather than locking out the seeded demo logins.
-    if (!member) return session;
+    // Nothing vouches for this id in either store, so the account does not
+    // exist: a row deleted straight out of the database, or a session id that
+    // never named a real member.
+    if (!authState) return null;
 
-    if (member.status !== USER_STATUSES.ACTIVE) return null;
+    if (authState.status !== USER_STATUSES.ACTIVE) return null;
 
     return {
       ...session,
-      name: member.name,
-      email: member.email,
+      name: authState.name,
+      email: authState.email,
       // Raw, for the same reason getCurrentSession() no longer normalises:
       // folding VOLUNTEER onto STAFF would grant it STAFF's application read.
-      role: member.role as SessionUser["role"],
+      role: authState.role as SessionUser["role"],
     };
   } catch {
     return session;
   }
+}
+
+/**
+ * The auth state of an account that has no `users` row, or null if it has no
+ * identity at all.
+ *
+ * **Refuses outright in production.** `findUserById` falls back to `userStore`'s
+ * in-memory map, which `ensureInitialized()` seeds with five hardcoded demo
+ * accounts — `usr-admin-01` among them, SUPER_ADMIN, ACTIVE, with a hash of a
+ * compile-time password. Consulting that map when the database is reachable
+ * meant deleting `usr-admin-01` from Postgres revoked nothing: the seed vouched
+ * for it and handed back a full SUPER_ADMIN session. The first version of this
+ * fix closed the deleted-member hole for every id *except* the five where it
+ * mattered most, and review caught it rather than a test.
+ *
+ * The fallback's only legitimate subjects are development artefacts — the seeded
+ * logins, and accounts `createUser` wrote to memory while Postgres was down. In
+ * production neither should authorise anything, so the reachable database is the
+ * sole authority and a missing row is final. That is also the honest answer to
+ * "name the layer that enforces this boundary": in production it is Postgres.
+ *
+
+ * This replaces a `if (!member) return session` fall-through. That line handed
+ * back the cookie's own claims whenever the row was missing, so a member
+ * *deleted* from a perfectly reachable database kept every capability their
+ * cookie asserted until it expired — up to 24 hours of full authority for an
+ * account that no longer exists. Inverting the one guarantee this module is
+ * here to provide.
+ *
+ * It could not simply be deleted: the seeded demo logins in `userStore` have no
+ * `users` row on a reachable-but-unseeded database, and denying them would lock
+ * every local and offline session out of /admin. So the question is narrowed
+ * from "is the row missing?" to "does *any* store still vouch for this id?".
+ * `findUserById` is the right authority because it is the same lookup that
+ * authenticated them — Prisma first, then the in-memory seed — so an id it
+ * cannot produce is one nothing can.
+ */
+async function readFallbackAuthState(
+  id: string
+): Promise<{ role: string; status: string; name: string; email: string } | null> {
+  if (process.env.NODE_ENV === "production") return null;
+
+  // Only the four authorization-relevant fields are lifted out; the rest of the
+  // record includes a password hash, which has no business in policy code.
+  const user = await findUserById(id);
+  if (!user) return null;
+  return { role: user.role, status: user.status, name: user.name, email: user.email };
 }
 
 /**

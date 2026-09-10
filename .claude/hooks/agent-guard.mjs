@@ -63,9 +63,12 @@ const LOG = process.env.AGENT_GUARD_LOG || join(tmpdir(), "claude-agent-guard.lo
 /**
  * Write-path drift log. Non-blocking by design: it records every file write so that
  * "while I'm here" edits are visible at review time, and it never denies, so it cannot
- * train reflex approval. A log nobody reads is furniture, so `CLAUDE.md`'s session close now
- * reads it before the ledger write — memory lives in files, not in the chat:
- *     cat "$TEMP/claude-agent-drift.log"     (Windows; $TMPDIR elsewhere)
+ * train reflex approval. A log nobody reads is furniture, so `AGENTS.md` carries the read rule
+ * and `.claude/skills/midwife/SKILL.md` §5 places it before the ledger write — memory lives in
+ * files, not in the chat. This hook writes the Claude log; `.codex/hooks/drift-log.mjs` writes its
+ * own. Read the one your harness produced:
+ *     PowerShell: cat "$env:TEMP/claude-agent-drift.log"   Git Bash: "$TEMP/..."
+ *     elsewhere:  cat "${TMPDIR:-/tmp}/claude-agent-drift.log"
  */
 const DRIFT = process.env.AGENT_DRIFT_LOG || join(tmpdir(), "claude-agent-drift.log");
 
@@ -129,9 +132,20 @@ const ROOT = input.cwd || process.env.CLAUDE_PROJECT_DIR || process.cwd();
  * Only a worktree per session fixes that
  * (`tasks/decisions/2026-08-31-worktrees-are-free-and-the-guard-was-the-wrong-layer.md`).
  */
+/**
+ * The session a drift line belongs to. `DRIFT` is one shared append-only file — across
+ * sessions, across days, and across checkouts on the same machine — so without this field a
+ * reader cannot tell their own writes from a concurrent session's, and the "read it before the
+ * ledger write" rule has nothing to filter on.
+ * See `tasks/open/drift-log-cannot-be-attributed-to-a-session.md`.
+ *
+ * Sanitised because it also names a file: an id carrying a path separator would otherwise
+ * escape `tmpdir()`. `.codex/hooks/drift-log.mjs` sanitises the same way.
+ */
+const SESSION = String(input.session_id || "nosession").replace(/[^a-zA-Z0-9_.-]/g, "_");
+
 const DRIFT_STATE =
-  process.env.AGENT_DRIFT_STATE ||
-  join(tmpdir(), `claude-agent-drift.${input.session_id || "nosession"}.state`);
+  process.env.AGENT_DRIFT_STATE || join(tmpdir(), `claude-agent-drift.${SESSION}.state`);
 
 const agent = input.agent_type ?? "main";
 const tool = input.tool_name;
@@ -200,7 +214,7 @@ if (input.hook_event_name === "PostToolUse") {
           changed
             .map(
               (l) =>
-                `${new Date().toISOString()} ${agent} ${tool} ${l.slice(0, 2).trim()} ${l
+                `${new Date().toISOString()} ${SESSION} ${agent} ${tool} ${l.slice(0, 2).trim()} ${l
                   .slice(3)
                   .split("\t")[0]}`,
             )

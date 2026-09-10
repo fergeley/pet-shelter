@@ -83,4 +83,4 @@ Baseline was **53 files / 710 tests** at `76de94f`. **Re-measure before quoting 
 branch takes several commits an hour and every number in a target doc here goes stale.
 
 Finish by marking `TARGET_SECRET_HARDENING.md` §3.5 closed with the commit SHA, and appending
-retrospective lessons to `tasks/lessons/`, one file each.
+retrospective lessons to `tasks/lessons/` — one file per lesson, `tasks/lessons/README.md`.
