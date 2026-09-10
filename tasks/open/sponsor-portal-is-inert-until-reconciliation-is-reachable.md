@@ -96,4 +96,4 @@ tracked separately in
 - Design: `docs/architecture/GUIDE_SPONSOR_TIERS_AND_GATED_CONTENT.md`
 - Why sponsor state annotates the ledger instead of extending it:
   `tasks/decisions/2026-09-03-sponsor-state-annotates-the-ledger.md`
-- What went wrong building it, and the six lessons: `tasks/lessons.md`
+- What went wrong building it, and the six lessons: `tasks/lessons/` (the sponsorship entries)

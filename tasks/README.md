@@ -13,9 +13,15 @@ it knows without opening its config.
 
 There is no third category. A third category is where the first two go to diverge.
 
-`lessons.md` and `todo.md` are **repo files, not ledger** — a pattern is appended to `lessons.md`
-after a human correction, and a work stream may live in `todo.md`, but neither is read as state and
-neither may hold a decision or an open question.
+`lessons/` and `todo.md` are **repo files, not ledger** — a pattern goes into `lessons/` after a
+human correction, and a work stream may live in `todo.md`, but neither is read as state and neither
+may hold a decision or an open question.
+
+`lessons/` is one file per lesson, `lessons/<YYYY-MM-DD>-<slug>.md`, for the reason below. It was a
+single `lessons.md` until 2026-09-11 and kept exactly the collision this layout was built to remove
+— every session appended to the same tail by rule, and a conflicted PR gets no CI run at all
+(`decisions/2026-09-11-lessons-split-one-file-per-lesson.md`). Older ledger entries and handoff docs
+that cite `tasks/lessons.md` mean this directory; they are left as written.
 
 ## Why one file per entry
 

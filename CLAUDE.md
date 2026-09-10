@@ -12,7 +12,7 @@ Offload research, exploration, and parallel analysis to subagents
 For complex problems, throw more compute at it via subagents
 One tack per subagent for focused execution
 3. Self-Improvement Loop
-After ANY correction from the user: update tasks/lessons.md with the pattern
+After ANY correction from the user: write the pattern as a new file in tasks/lessons/
 Write rules for yourself that prevent the same mistake
 Ruthlessly iterate on these lessons until mistake rate drops
 Review lessons at session start for relevant project
@@ -37,7 +37,7 @@ Verify Plan: Check in before starting implementation
 Track Progress: Mark items complete as you go
 Explain Changes: High-level summary at each step
 Document Results: Add review section to tasks/todo.md
-Capture Lessons: Update tasks/lessons.md after corrections
+Capture Lessons: Add a file to tasks/lessons/ after corrections
 Core Principles
 Simplicity First: Make every change as simple as possible. Impact minimal code.
 No Laziness: Find root causes. No temporary fixes. Senior developer standards.
@@ -79,9 +79,11 @@ what each returned — announcing "done" without them is not a close.
 3. **Write the ledger** per `tasks/README.md` — live threads and conclusions-reached-without-
    evidence to `tasks/open/`, choices someone could reasonably reverse to `tasks/decisions/`, and
    delete any `open/` entry this session actually closed.
-4. **Write the lessons** to `tasks/lessons.md`, appended at the tail. Only patterns that would
-   change a future decision; a "lesson" that restates the diff is noise, and this file is read by
-   every session.
+4. **Write the lessons**, one new file each: `tasks/lessons/<YYYY-MM-DD>-<slug>.md`, shaped as
+   `# <title>`, a `**Learned:** YYYY-MM-DD` line, then the pattern and its **Rule:**. Never edit
+   another session's lesson to add yours — a new path is what makes two sessions unable to
+   collide. Only patterns that would change a future decision; a "lesson" that restates the diff
+   is noise, and every session reads this directory.
 5. **Fill in the review section of `tasks/todo.md`**, including what was deliberately *not* done
    and why — the omissions are the part nobody can reconstruct from the code.
 6. **Commit and push.** Message checked with `node scripts/commit-msg.mjs`.
