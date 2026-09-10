@@ -659,7 +659,9 @@ export const translations: Record<Language, TranslationDictionary> = {
       donorNameLabel: "Donor Full Name (for tax receipt) *",
       donorEmailLabel: "Email Address (to receive e-Receipt) *",
       donorPhoneLabel: "Phone Number (WhatsApp receipt updates)",
-      donorIcLabel: "Malaysian IC / Passport / SSM Company No. *",
+      // No baked-in "*": this field is required only when the donor asks for a
+      // Section 44(6) receipt, so the marker is rendered from that state instead.
+      donorIcLabel: "Malaysian IC / Passport / SSM Company No.",
       donorNotesLabel: "Special Message / Donor Wishes (Optional)",
       bankTransferTitle: "Direct Bank Transfer (Maybank)",
       bankName: "Maybank Berhad",
@@ -1019,7 +1021,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       donorNameLabel: "Nama Penuh Penderma (untuk resit cukai) *",
       donorEmailLabel: "Alamat E-mel (untuk penerimaan e-Resit) *",
       donorPhoneLabel: "Nombor Telefon (makluman WhatsApp)",
-      donorIcLabel: "No. Kad Pengenalan / Pasport / No. SSM Syarikat *",
+      donorIcLabel: "No. Kad Pengenalan / Pasport / No. SSM Syarikat",
       donorNotesLabel: "Mesej Khas / Harapan Penderma (Pilihan)",
       bankTransferTitle: "Pindahan Bank Terus (Maybank)",
       bankName: "Maybank Berhad",

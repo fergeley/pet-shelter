@@ -9,7 +9,20 @@ a donor.
 
 ---
 
-## 1. Nothing reaches `reconcilePetSponsorshipAction` — blocking
+## 1. ~~Nothing reaches `reconcilePetSponsorshipAction`~~ — **Resolved 2026-09-08**
+
+> `/admin/donations` now lists the pending queue and confirms a row, through
+> `listPendingSponsorshipsAction` and the existing mutation. Gated on the new
+> `RECONCILE_SPONSORSHIPS` permission, granted to exactly the roles the mutation's own
+> guard admits — pinned by `tests/unit/sponsorshipReconciliation.test.ts`, because the two
+> guards are written in different vocabularies. Rationale and what stayed unmeasured:
+> `tasks/decisions/2026-09-08-reconciliation-screen-closes-the-sponsor-portal.md`.
+>
+> **This does not unblock production on its own — §2 below still does.** The screen reads
+> and writes through the database; with the migration unapplied there is no `sponsors`
+> table for it to reach.
+
+The original text, unedited:
 
 `src/actions/sponsorships.ts` exports it, RBAC-guarded to ADMIN/COORDINATOR and audited. No
 admin page calls it. So:

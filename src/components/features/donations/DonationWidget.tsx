@@ -1,6 +1,10 @@
 "use client";
 
-import { LHDN_TAX_DEDUCTIBLE_REF, PUBLIC_ROS_REGISTRATION_NO } from "@/lib/domain/shelterIdentity";
+import {
+  LHDN_TAX_DEDUCTIBLE_REF,
+  PUBLIC_ROS_REGISTRATION_NO,
+  isTaxClaimable,
+} from "@/lib/domain/shelterIdentity";
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -97,6 +101,14 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
   const [donorEmail, setDonorEmail] = useState("");
   const [donorPhone, setDonorPhone] = useState("");
   const [taxIdOrIc, setTaxIdOrIc] = useState("");
+  // Unticked by default, which is the conservative reading of what this form used
+  // to do. It *displayed* the tax identifier as required and *accepted* its absence,
+  // so the two readings disagree — and only one of them can be preserved. Honouring
+  // the marker would newly block every donor who until now completed this form with
+  // a name and an email, turning a cosmetic defect into a funding one. Honouring the
+  // behaviour blocks nobody and adds a way to opt in. `DonationReceiptIntegrity`
+  // pins the first reading: name plus email is a complete gift.
+  const [wantsTaxReceipt, setWantsTaxReceipt] = useState(false);
   const [notes, setNotes] = useState("");
   const [copiedBank, setCopiedBank] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -190,7 +202,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
       amountMYR: finalAmount,
       frequency,
       targetPetName: targetPetName.trim() || undefined,
-      taxIdOrIc: taxIdOrIc.trim() || undefined,
+      wantsTaxReceipt,
+      // Sent only when the donor asked for a claimable receipt. Otherwise the
+      // identifier they may have typed before unticking the box is dropped rather
+      // than stored, because a tax number the donor withdrew is not ours to keep.
+      taxIdOrIc: wantsTaxReceipt ? taxIdOrIc.trim() || undefined : undefined,
       notes: notes.trim() || undefined,
       paymentMethod: "duitnow_qr" as const,
     };
@@ -226,6 +242,10 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
     setDonorEmail("");
     setDonorPhone("");
     setTaxIdOrIc("");
+    // Cleared alongside the identifier, never on its own. Leaving the box ticked
+    // while wiping the value it requires blocks the next submission on a field the
+    // donor did not knowingly re-opt into.
+    setWantsTaxReceipt(false);
     setNotes("");
     setErrorMessage(null);
   };
@@ -248,9 +268,13 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 : "Thank You! Your Donation Has Been Received."}
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              {isMs
-                ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
-                : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`}
+              {isTaxClaimable(completedReceipt)
+                ? isMs
+                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
+                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`
+                : isMs
+                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 telah dihantar ke ${completedReceipt.donorEmail}. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
+                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 has been dispatched to ${completedReceipt.donorEmail}. It carries no tax identifier, so it cannot be claimed against a return.`}
             </p>
           </div>
         </div>
@@ -269,8 +293,13 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
                 No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia
               </p>
               <p className="text-2xs text-receipt-ink-faint">
-                ROS Reg: {completedReceipt.shelterRegistrationNo} • Tax Exemption:{" "}
-                {completedReceipt.taxDeductibleRef}
+                ROS Reg: {completedReceipt.shelterRegistrationNo}
+                {/* The shelter's exemption reference belongs on a document the donor
+                    can actually file. Printing it on one that carries no identifier
+                    states the relief is available on this gift, which it is not. */}
+                {isTaxClaimable(completedReceipt) && (
+                  <> • Tax Exemption: {completedReceipt.taxDeductibleRef}</>
+                )}
               </p>
             </div>
 
@@ -351,11 +380,15 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
 
           <div className="text-3xs text-receipt-ink-faint leading-relaxed italic">
             *{" "}
-            {t(
-              "donations.receiptSubtitle",
-              "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
-              { taxRef: LHDN_TAX_DEDUCTIBLE_REF }
-            )}
+            {isTaxClaimable(completedReceipt)
+              ? t(
+                  "donations.receiptSubtitle",
+                  "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
+                  { taxRef: LHDN_TAX_DEDUCTIBLE_REF }
+                )
+              : isMs
+                ? "Resit ini tidak mengandungi No. Kad Pengenalan / Pasport / SSM, jadi ia tidak boleh difailkan untuk potongan cukai."
+                : "This receipt carries no NRIC, passport or SSM number, so it cannot be filed for a tax deduction."}
           </div>
         </div>
 
@@ -690,6 +723,36 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             </p>
           </div>
 
+          {/* Section 44(6) opt-in. This gates the tax identifier rather than the
+              receipt: a receipt is issued for every gift either way, because the
+              ledger is the shelter's complete record of money received and a
+              donation the series never saw would be worse than one that cannot be
+              claimed. See the superRefine in `src/lib/validations/donation.ts`. */}
+          <div className="tone-soft tone-info flex items-start gap-3 rounded-2xl border p-4">
+            <input
+              type="checkbox"
+              id="widgetWantsTaxReceipt"
+              checked={wantsTaxReceipt}
+              onChange={(e) => setWantsTaxReceipt(e.target.checked)}
+              className="mt-0.5 size-4.5 accent-primary cursor-pointer"
+            />
+            <div className="space-y-0.5">
+              <label
+                htmlFor="widgetWantsTaxReceipt"
+                className="text-sm font-bold cursor-pointer"
+              >
+                {isMs
+                  ? "Saya mahu resit pengecualian cukai rasmi (Subseksyen 44(6) ACP 1967)"
+                  : "I want an official tax-exemption receipt (Subsection 44(6) ITA 1967)"}
+              </label>
+              <p id="widgetTaxReceiptHint" className="text-xs">
+                {isMs
+                  ? "Memerlukan No. Kad Pengenalan, Pasport atau SSM anda. Nyahtanda untuk menderma tanpa memberikan pengenalan cukai — resit tetap dikeluarkan, cuma tidak boleh dituntut."
+                  : "Requires your NRIC, passport or SSM number. Untick to give without providing a tax identifier — a receipt is still issued, it simply cannot be claimed."}
+              </p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor="widgetDonorName" className="text-xs font-semibold">
@@ -737,14 +800,21 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
 
             <div className="space-y-1.5">
               <Label htmlFor="widgetTaxIdOrIc" className="text-xs font-semibold">
-                {t("donations.donorIcLabel", "Malaysian IC / Passport / SSM No. *")}
+                {t("donations.donorIcLabel", "Malaysian IC / Passport / SSM Company No.")}
+                {wantsTaxReceipt && <span className="text-destructive"> *</span>}
               </Label>
               <Input
                 id="widgetTaxIdOrIc"
+                // The browser blocks the empty case before the round trip; the
+                // `superRefine` in donationPledgeSchema is the authority, because a
+                // required attribute is advice a caller can ignore.
+                required={wantsTaxReceipt}
+                disabled={!wantsTaxReceipt}
                 placeholder="e.g. 920512-10-5432 / 202101012345"
                 value={taxIdOrIc}
                 onChange={(e) => setTaxIdOrIc(e.target.value)}
-                className="rounded-xl font-mono"
+                aria-describedby="widgetTaxReceiptHint"
+                className="rounded-xl font-mono disabled:opacity-50"
               />
             </div>
 

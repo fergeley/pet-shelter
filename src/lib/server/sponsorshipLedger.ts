@@ -302,6 +302,46 @@ export async function listActiveSponsorshipsForPet(
   return rows.map(toRecord);
 }
 
+/**
+ * Every commitment still awaiting a coordinator's confirmation, oldest first.
+ *
+ * Oldest first, deliberately: this is a work queue, and the supporter who has been
+ * waiting longest for their receipt is the one who should be settled next. Every
+ * other list in this module is newest-first because those are activity feeds.
+ *
+ * A read failure propagates rather than returning `[]`. The same asymmetry
+ * `donationLedger.listDonationsOrThrow` documents applies with more force here: an
+ * empty queue is a *claim* that every supporter has been paid out, and a coordinator
+ * who believes it stops looking. Being told the read failed is strictly better.
+ */
+export async function listPendingSponsorships(take = 200): Promise<SponsorshipRecord[]> {
+  if (!isLedgerPersistent()) {
+    return (
+      memorySponsorships
+        .filter((row) => row.status === "PENDING_PAYMENT")
+        // `memorySponsorships` is newest-first because `recordSponsorshipPledge`
+        // prepends. Reversing before the sort matters: two pledges recorded in the
+        // same millisecond compare equal, and `Array.sort` is stable, so without
+        // this the tie keeps the array's newest-first order and the queue comes out
+        // backwards. A unit test that records three pledges in a loop hits this
+        // every time; production rarely would, which is exactly why it needs pinning.
+        // ceiling: same-millisecond ties fall back to insertion order. Give
+        // PetSponsorship a monotonic sequence if the shelter ever needs a total order.
+        .reverse()
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .slice(0, take)
+    );
+  }
+
+  const rows = await prisma.petSponsorship.findMany({
+    where: { status: "PENDING_PAYMENT" },
+    orderBy: { createdAt: "asc" },
+    take,
+  });
+
+  return rows.map(toRecord);
+}
+
 /** Looks a commitment up by the reference the supporter was given. */
 export async function findSponsorshipByPledgeRef(
   pledgeRef: string

@@ -271,3 +271,89 @@ describe("Donation persistence (the ledger is the system of record)", () => {
     expect(await listDonations()).toHaveLength(0);
   });
 });
+
+/**
+ * The form has always rendered the tax identifier with a required marker while the
+ * schema accepted its absence, so a donor could be handed a receipt that announces
+ * itself as tax-deductible and carries nothing to deduct against. `wantsTaxReceipt`
+ * is what makes the marker true, and these pin the three states it has.
+ */
+describe("LHDN Section 44(6) relief is opt-in, and opting in requires an identifier", () => {
+  const pledge = {
+    donorName: "Nurul Huda binti Ahmad",
+    donorEmail: "nurul.huda@example.com",
+    tierId: "vaccine" as const,
+    amountMYR: 50,
+    // `DonationPledgeInput` is the schema's output type, where every `.default()`
+    // field is required. The action's callers spell these out for the same reason.
+    frequency: "one_time" as const,
+    paymentMethod: "duitnow_qr" as const,
+  };
+
+  it("rejects a claimed receipt with no tax identifier, naming the field", () => {
+    const result = donationPledgeSchema.safeParse({ ...pledge, wantsTaxReceipt: true });
+
+    expect(result.success).toBe(false);
+    const issue = result.error!.issues[0];
+    expect(issue.path).toEqual(["taxIdOrIc"]);
+    expect(issue.message).toMatch(/NRIC, passport or SSM number is required/);
+  });
+
+  it("rejects a whitespace-only identifier, which a trim check would otherwise pass", () => {
+    const result = donationPledgeSchema.safeParse({
+      ...pledge,
+      wantsTaxReceipt: true,
+      taxIdOrIc: "   ",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error!.issues[0].path).toEqual(["taxIdOrIc"]);
+  });
+
+  it("accepts a claimed receipt that carries one", () => {
+    const result = donationPledgeSchema.safeParse({
+      ...pledge,
+      wantsTaxReceipt: true,
+      taxIdOrIc: "920512-10-5432",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data!.taxIdOrIc).toBe("920512-10-5432");
+  });
+
+  it("still accepts a gift that declines relief, with no identifier at all", () => {
+    const result = donationPledgeSchema.safeParse({ ...pledge, wantsTaxReceipt: false });
+    expect(result.success).toBe(true);
+  });
+
+  it("leaves every pre-existing caller working — the flag is optional, not defaulted", () => {
+    // `DonationPledgeInput` is `z.infer`, the schema's *output* type, where a
+    // `.default()` field is required. Had this been `.default(false)`, every existing
+    // call site would have stopped compiling for a flag it has no opinion about.
+    const result = donationPledgeSchema.safeParse(pledge);
+
+    expect(result.success).toBe(true);
+    expect(result.data!.wantsTaxReceipt).toBeUndefined();
+  });
+
+  it("issues a receipt for a gift that declined relief — the ledger stays complete", async () => {
+    const result = await submitDonationPledgeAction({ ...pledge, wantsTaxReceipt: false });
+
+    // Declining relief must not create a donation the gapless series never saw:
+    // the ledger is the shelter's record of money received, not of claims made.
+    expect(result.success).toBe(true);
+    expect(result.data!.receiptNumber).toMatch(/^HFS-DON-\d{6}-\d{4}$/);
+    expect(result.data!.taxIdOrIc).toBeUndefined();
+    expect(await listDonations()).toHaveLength(1);
+  });
+
+  it("hands the donor the message, not a serialised ZodError", async () => {
+    const result = await submitDonationPledgeAction({ ...pledge, wantsTaxReceipt: true });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/NRIC, passport or SSM number is required/);
+    // The regression this guards: `err.message` on a Zod 4 error is JSON.
+    expect(result.error).not.toMatch(/^\s*\[/);
+    expect(await listDonations()).toHaveLength(0);
+  });
+});
