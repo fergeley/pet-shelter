@@ -294,6 +294,10 @@ describe("Soft Deletes & Query Filtering", () => {
       hasFencedYard: "yes",
       currentPets: "none",
       householdExperience: "experienced",
+      identification: "880101-14-5678",
+      landlordApproval: "owner_occupied",
+      vetClinic: "Klinik Haiwan SS2",
+      dailyAloneHours: "4_to_8",
     });
 
     expect(submitResult.success).toBe(false);
