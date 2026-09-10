@@ -35,6 +35,14 @@ Candidates considered and deliberately ranked lower:
 
 ---
 
+## Check master's CI first
+
+On 2026-09-11 master's Playwright job was red, inherited by every PR, since #39 merged — see
+`tasks/open/master-playwright-red-since-pr-39.md`. If that file still exists, fix it first or
+expect `01_public_adoption_flow` to fail on your PR for reasons that are not yours. Do not merge
+past a red check on the grounds that "it's always red" until you have confirmed it is the same two
+tests.
+
 ## Before you start — what the last session learned the hard way
 
 These are `tasks/lessons/2026-09-09-*` in one line each. Read the files if one bites.
