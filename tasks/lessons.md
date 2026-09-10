@@ -1462,3 +1462,73 @@ checked against a command string.
 This is [[the shell-parser finding]] arriving from the other side: a rule stated as prose about
 *purpose* has an unbounded surface, and one stated as a list of *shapes* can be verified. Verify an
 allow rule by asserting what it must NOT match, not only what it should.
+
+## 2026-09-10 — A predicate is only as true as the read underneath it
+
+I closed a real leak — `/pets/[id]` served soft-deleted animals — by adding `if (pet.isArchived)
+return null` to `getPetById`, wrote a passing test, and reported it fixed. It was not fixed. The
+action read `findServerPetById`, the *synchronous* mirror lookup, and the mirror is initialised
+from `src/data/pets.json` by every cold process. So the guard was asking a bundled fixture whether
+a database row had been archived. An archive performed in another instance stayed invisible; the
+page kept serving the animal. The converse failed too — a pet that existed only in the database
+returned 404 until something else happened to warm the mirror.
+
+The guard was correct. The read was wrong. Reviewing my own diff, I checked the predicate against
+the requirement and never checked what `findServerPetById` actually queried — the name says "find
+pet by id" and reads like the obvious primitive, and the async sibling six lines below is the one
+that reaches Postgres. This repo already knew that pair was a hazard: [[Hybrid Promises returned
+from synchronous signatures break caller truthiness]] is the same two functions, from the other
+direction.
+
+**Rule:** when you add a filter, a guard, or an authorization check, open the function it reads
+from and confirm what that function's *source of truth* is before claiming the composite works. A
+predicate over a stale mirror is not a weaker version of the fix — it is no fix at all, wearing
+the diff of one. The tell is a name that describes the *shape* of a read ("find by id") rather
+than its *source*; where a codebase carries a sync/async pair over the same entity, assume the
+plain-named one is the fallback until proven otherwise.
+
+## 2026-09-10 — Ask why a regression test passes, not just whether it fails
+
+Having fixed the above, I wrote four DB-backed tests and did the right thing: reverted the fix and
+confirmed they went red. **Two of four went red. The archived-animal case stayed green** — the one
+assertion the whole exercise existed to protect.
+
+It used the id `itest-archived`, consistent with the file's other fixtures. That id appears in no
+`pets.json` row, so against the broken mirror-reading code the lookup returned `null` for *not
+found* rather than for *archived*, and `toBeNull()` was satisfied either way. The test asserted
+the right outcome through the wrong mechanism. Repointing it at `pet-001` — a real fixture row,
+present and unarchived in the mirror — is what made it discriminate, and that is also the exact
+production scenario: staff archive an animal that the fixture still lists as available.
+
+A red/green check answers "does this test respond to this bug." It does not answer "does it
+respond *for the reason I think*." Where the arrangement and the assertion can both produce the
+same result down two different paths, only reading the failure tells them apart.
+
+**Rule:** when a regression test does not go red under the reverted fix, that is data, not noise —
+stop and find out why before adjusting the assertion. And when it does go red, check the failure
+message names the mechanism you meant. Prefer fixture identifiers that already exist in the
+fallback data, because an id absent everywhere makes "not found" and "correctly filtered"
+indistinguishable.
+
+## 2026-09-10 — `ln -s` on Git Bash silently deep-copies, and `lstat` will not tell you
+
+Trying to give a worktree a `node_modules` for a Turbopack build, I ran `ln -s <target> <dest>`
+in the Bash tool. It exited 0, printed nothing, and created **a real recursive copy of 622
+packages**, several hundred megabytes, nested one level deeper than intended because the
+destination directory already existed. MSYS falls back to copying when it cannot create a symlink,
+and says so nowhere.
+
+Cleaning up was the dangerous part. `fs.lstatSync().isSymbolicLink()` returned `false` and
+`fs.realpathSync()` returned the path itself — both consistent with "real directory", but also
+with a junction on some Node/Windows combinations, so neither settled it. Had I trusted a guess
+and run a recursive delete on what was in fact a link, it would have followed into the real
+`node_modules` and deleted the parent checkout's dependencies. The check that actually decides is
+`fs.readlinkSync()`: it returns the target for a symlink or junction and throws `EINVAL` for a
+genuine directory. Only after that did I delete, then re-counted the parent's 622 entries to
+confirm it survived.
+
+**Rule:** do not create links through the Bash tool on Windows — use `fs.symlinkSync(target, dest,
+'junction')` from Node, which fails loudly instead of copying. Before any recursive delete of
+something you believe is a link, prove it with `readlinkSync` and not with `lstat`/`realpath`, and
+verify the *target* still exists afterwards. A cleanup that follows a link is how a mistake in a
+scratch directory becomes a mistake in the repository.

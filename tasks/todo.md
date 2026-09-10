@@ -88,7 +88,7 @@ Marked with a `ceiling:` comment naming ~500 as the point to page it.
 | `npm run lint` | 0 errors, 17 warnings, none in touched files |
 | `npm run docs:check` | OK, every invariant reference resolves |
 | `npm run arch:check` | no new orphans or cycles |
-| `npm run build` | **could not run** — see below |
+| `npm run build` | could not run at the time — **since resolved, see "The build gap, closed"** |
 
 `npm run build` fails in this worktree with *"Could not find the Next.js package
 (next/package.json)"*: the worktree has no `node_modules` of its own, and Turbopack will not
@@ -160,4 +160,28 @@ stale-snapshot hazard `updateFilters` guards against would need an E2E test.
 
 `typecheck` clean · `test` 79 files / **1310** pass · `test:components` 6 files / **100** pass ·
 `test:integration` 6 files / **56** pass · `lint` 0 errors (17 pre-existing warnings, none in
-touched files) · `docs:check` OK. `npm run build` still cannot run here — unchanged, same reason.
+touched files) · `docs:check` OK.
+
+## The build gap, closed (2026-09-10)
+
+Reported twice as unrunnable. It runs; the worktree just needed its own dependencies —
+`npm ci` (not `install`, so the lockfile is not rewritten), because vitest resolves by walking up
+to the parent checkout and Turbopack refuses to compile outside its workspace root.
+
+It then failed a second time, on `SESSION_SECRET is not set`: `.env.local` is gitignored, so a
+worktree has no environment at all, and `next build` sets `NODE_ENV=production`, which flips
+`resolveSecret` from warn to throw. Built with a throwaway `SESSION_SECRET`/`ADMIN_SECRET_KEY`
+passed inline rather than by copying `.env.local` across — that file points `DATABASE_URL` at the
+Neon **production** branch, and a build with no database is the more honest test anyway.
+
+**`npm run build` passes.** The route table confirms the rendering-mode decision rather than
+leaving it as reasoning:
+
+    ├ ƒ /pets                    ← Dynamic, as `force-dynamic` intends
+    ├   /pets/[id]
+    │ ├ ● /pets/pet-001          ← SSG, 10 paths prerendered
+
+With no `DATABASE_URL` the reads fell back to `pets.json` and prerendered ten fixture animals —
+which is precisely the outage shape `force-dynamic` keeps off `/pets`. Nothing left unverified
+except the URL round-trip noted in
+`tasks/open/gallery-url-round-trip-is-never-exercised.md`.
