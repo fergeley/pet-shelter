@@ -12,7 +12,7 @@ Offload research, exploration, and parallel analysis to subagents
 For complex problems, throw more compute at it via subagents
 One tack per subagent for focused execution
 3. Self-Improvement Loop
-After ANY correction from the user: update tasks/lessons.md with the pattern
+After ANY correction from the user: add a file to tasks/lessons/ with the pattern
 Write rules for yourself that prevent the same mistake
 Ruthlessly iterate on these lessons until mistake rate drops
 Review lessons at session start for relevant project
@@ -37,7 +37,7 @@ Verify Plan: Check in before starting implementation
 Track Progress: Mark items complete as you go
 Explain Changes: High-level summary at each step
 Document Results: Add review section to tasks/todo.md
-Capture Lessons: Update tasks/lessons.md after corrections
+Capture Lessons: Add a file to tasks/lessons/ after corrections — one file per lesson, never append to another session's. See tasks/lessons/README.md
 Core Principles
 Simplicity First: Make every change as simple as possible. Impact minimal code.
 No Laziness: Find root causes. No temporary fixes. Senior developer standards.
