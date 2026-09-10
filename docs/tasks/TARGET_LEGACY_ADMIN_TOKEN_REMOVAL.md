@@ -170,4 +170,4 @@ before quoting it, this branch moves fast.
 - [ ] A test that sets the correct `admin_session` secret and asserts `null`.
 - [ ] `tsc` clean, `lint` 0 errors, full suite green at or above the re-measured baseline.
 - [ ] `TARGET_SECRET_HARDENING.md` §3.5 marked closed, naming the commit.
-- [ ] Retrospective lessons appended to `tasks/lessons.md`.
+- [ ] Retrospective lessons written to `tasks/lessons/`, one file each.

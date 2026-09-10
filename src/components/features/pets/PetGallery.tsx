@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+import { GENDER_VALUES, GENDER_LABEL_KEYS } from "@/lib/validations/pet";
 
 /**
  * i18n keys for the lifecycle band names. The year range printed beside each name is derived
@@ -56,11 +57,15 @@ export function PetGallery({
     pets,
     filteredPets,
     hasActiveFilters,
+    trackOptions,
+    statusOptions,
     searchQuery,
     selectedSpecies,
+    selectedGender,
     selectedAge,
     selectedSize,
     selectedStatus,
+    selectedTrack,
     activePetForDetail,
     isDetailOpen,
     activePetForAdoption,
@@ -72,9 +77,11 @@ export function PetGallery({
   const {
     setSearchQuery,
     setSelectedSpecies,
+    setSelectedGender,
     setSelectedAge,
     setSelectedSize,
     setSelectedStatus,
+    setSelectedTrack,
     handleResetFilters,
     handleOpenDetail,
     handleOpenAdoption,
@@ -131,6 +138,57 @@ export function PetGallery({
           </div> */}
         </div>
       </div>
+
+      {/* Track strip. Rendered from the population, so a shelter that has never rehomed an
+          animal shows no "Adopted" tab, and a track that empties under the active filters stops
+          being offered rather than leading to a blank grid. "All" is always present because it
+          is the way back out of a track. */}
+      {showFilters && (trackOptions.length > 1 || selectedTrack !== "all") && (
+        <div
+          className="mb-5 flex flex-wrap gap-2 border-b border-border pb-3"
+          role="group"
+          aria-label={t("pets.trackFilter", "Filter by care track")}
+        >
+          {[
+            {
+              value: "all",
+              label: t("common.all", "All"),
+              // Summed from the tracks, not taken from `filteredPets` — that list is already
+              // narrowed to the selected track, so using it would make "All" count only the
+              // tab you are standing on.
+              count: trackOptions.reduce((total, option) => total + option.count, 0),
+            },
+            ...trackOptions.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey, option.labelFallback),
+              count: option.count,
+            })),
+          ].map((tab) => {
+            const isActive = selectedTrack === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => setSelectedTrack(tab.value)}
+                className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-bold tracking-wide transition-colors focus-visible:ring-2 rounded-lg cursor-pointer ${
+                  isActive
+                    ? "bg-foreground text-background shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+                <span
+                  className={`font-mono text-xs ${isActive ? "opacity-80" : "opacity-70"}`}
+                  aria-hidden="true"
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filter Controls Bar */}
       {showFilters && (
@@ -216,7 +274,26 @@ export function PetGallery({
           </div>
 
           {/* Secondary Dropdown Selects */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3.5 pt-3 border-t border-border/60">
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-3.5 pt-3 border-t border-border/60">
+            <div>
+              <label htmlFor="filter-gender" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
+                {t("pets.genderFilter", "Gender")}
+              </label>
+              <select
+                id="filter-gender"
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+                className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
+              >
+                <option value="all">{isMs ? "Semua Jantina" : "All Genders"}</option>
+                {GENDER_VALUES.map((gender) => (
+                  <option key={gender} value={gender}>
+                    {t(GENDER_LABEL_KEYS[gender], gender)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label htmlFor="filter-age" className="text-xs sm:text-sm font-semibold text-foreground block mb-1">
                 {t("pets.ageFilter", "Age Group")}
@@ -264,13 +341,22 @@ export function PetGallery({
                 className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground focus:outline-hidden focus:ring-2 focus:ring-foreground font-medium rounded-lg"
               >
                 <option value="all">{isMs ? "Semua Status" : "All Statuses"}</option>
-                <option value="Available">{isMs ? "Tersedia untuk Adopsi" : "Available for Adoption"}</option>
-                <option value="In Rehabilitation">{isMs ? "Dalam Pemulihan" : "In Rehabilitation"}</option>
-                <option value="Pending">{isMs ? "Sedang Diproses" : "Application Pending"}</option>
+                {/* Derived, not hand-listed. The hand-written list this replaces offered three
+                    of the four statuses and silently omitted "Adopted" — the same omission
+                    `buildPetStatusFilterOptions` was written to prevent after it happened to
+                    the admin table. Options are scoped to the selected track, so the choices
+                    on offer are always choices that match something. */}
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {`${t(option.labelKey, option.labelFallback)} (${option.count})`}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="col-span-2 sm:col-span-3 md:col-span-1 flex items-end min-w-0">
+            {/* Spans the full row beneath the selects; `sm` is four columns wide now that gender
+                joined age, size and status, so this follows rather than leaving a dangling cell. */}
+            <div className="col-span-2 sm:col-span-4 md:col-span-1 flex items-end min-w-0">
               <Button
                 variant="outline"
                 size="sm"

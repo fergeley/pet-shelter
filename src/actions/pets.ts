@@ -15,6 +15,7 @@ import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/secur
 import {
   getServerPetsAsync,
   findServerPetById,
+  findServerPetByIdAsync,
   insertServerPet,
   updateServerPet,
   archiveServerPet,
@@ -37,6 +38,10 @@ export async function getPublicPets(filters?: PetFilterInput): Promise<Pet[]> {
 
   if (filters?.species && filters.species !== "all") {
     filtered = filtered.filter((p) => p.species === filters.species);
+  }
+
+  if (filters?.gender && filters.gender !== "all") {
+    filtered = filtered.filter((p) => p.gender === filters.gender);
   }
 
   if (filters?.status && filters.status !== "all") {
@@ -103,8 +108,27 @@ export async function getAdminPets(): Promise<(Pet & { applicationCount: number 
   });
 }
 
+/**
+ * Public profile read: an archived animal is not found.
+ *
+ * `getPublicPets` has filtered archived rows since it was written, but this — the reader behind
+ * `/pets/[id]`, its only production caller — did not, so a soft-deleted animal kept its public
+ * page and stayed reachable by direct link and by anything holding the old URL. Archiving is the
+ * shelter's "take this down" action, and it was only taking down the grid.
+ *
+ * The repository stays unfiltered on purpose: `findServerPetById` is what the update and archive
+ * mutations read with, and they must see the row they are about to write.
+ */
 export async function getPetById(id: string): Promise<Pet | null> {
-  return findServerPetById(id);
+  // `findServerPetByIdAsync`, not `findServerPetById`. The synchronous reader only searches the
+  // in-memory mirror, which a cold process initialises from `src/data/pets.json` — so an archive
+  // performed in another instance was invisible here, and the guard below read `isArchived` off
+  // a fixture. The same read also 404'd any animal that exists only in the database. The
+  // catalogue beside it has always gone through the async path (`getServerPetsAsync`); this is
+  // the single-animal read catching up with it.
+  const pet = await findServerPetByIdAsync(id);
+  if (!pet || pet.isArchived) return null;
+  return pet;
 }
 
 /**
