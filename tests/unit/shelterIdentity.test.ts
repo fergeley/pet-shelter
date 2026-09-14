@@ -38,7 +38,7 @@ describe("the unresolved ROS registration discrepancy (P2)", () => {
     // Two digit-transposed ROS numbers are in use: one on public pages, one on
     // statutory receipts and ROS exports. Which is correct is BLOCKED on someone
     // checking the physical ROS certificate — see
-    // docs/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md (P2).
+    // docs/archives/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md (P2).
     //
     // This assertion exists so the divergence cannot be "tidied up" by aligning
     // one constant to the other without that check. When the certificate is

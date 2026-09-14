@@ -14,7 +14,7 @@ export type { Role };
  * Admin mutations refuse every unauthenticated caller in every environment --
  * `getAdminActorOrThrow()` in `src/actions/pets.ts` used to make an exception for
  * any build that was not production, and no longer does
- * (`docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`). So a suite that drives one
+ * (`docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`). So a suite that drives one
  * has to hold a real session.
  *
  * Three files had each grown their own copy of that ceremony before this module

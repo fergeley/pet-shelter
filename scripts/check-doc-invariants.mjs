@@ -47,7 +47,7 @@ const FLOOR_FILES = 100;
 const FLOOR_REFERENCES = 5;
 
 /** Records of a past decision. They cite the invariants of their day, correctly. */
-const ARCHIVE = [/^tasks\/decisions\//, /^docs\/tasks\//];
+const ARCHIVE = [/^tasks\/decisions\//, /^tasks\/archive\//, /^docs\/tasks\//, /^docs\/archives\//];
 
 /**
  * This guard and its test necessarily spell out the citations they hunt for — in the regex,

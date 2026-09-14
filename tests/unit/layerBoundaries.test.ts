@@ -213,7 +213,7 @@ describe("layer boundaries", () => {
     // `src/lib/server/` is the repository layer: every module there reaches
     // Prisma, the fixture caches, or both. A `"use client"` module importing one
     // pulls the database client into the browser bundle, and no type error says
-    // so. Introduced green — see docs/tasks/PLAN_LIB_RESTRUCTURE.md §4.
+    // so. Introduced green — see docs/archives/tasks/PLAN_LIB_RESTRUCTURE.md §4.
     const serverModules = Object.keys(graph).filter((f) =>
       f.startsWith("src/lib/server/")
     );

@@ -1,6 +1,7 @@
 # The main checkout has not pulled, so the commit-msg hook is still inert
 
-**Status:** open · opened 2026-09-02 · **needs a human; no agent in a worktree can do it**
+**Status:** OBSOLETE · settled 2026-09-06 · archived 2026-09-10
+**Settled:** Development checkouts moved to native Windows Developer Drive (`D:\Dev\Repos\pet-shelter`) per decision `tasks/decisions/2026-09-06-development-checkouts-live-on-native-developer-drive.md`. The checkout at `C:/Users/User/pet-shelter` was retired, and `scripts/commit-msg.mjs` is present and enforcing in `D:\Dev\Repos\pet-shelter`.
 
 The commit standard merged into `feat/tnrm-rehabilitation` as `3c623a3`, and the fixes a code
 review found merged as `dd4eb63`. `.git/hooks/commit-msg` has been installed since 2026-09-01 and

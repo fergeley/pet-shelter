@@ -4,7 +4,7 @@ import type { ImpactStatRecord } from "@/lib/domain/transparency";
  * The five "Our Impact So Far" counters on the home page.
  *
  * These are deliberately NOT database aggregates, and that distinction is the
- * whole reason this module exists. `docs/tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md`
+ * whole reason this module exists. `docs/archives/tasks/SPRINT_PLAN_BACKEND_AND_FRONTEND.md`
  * (FE-02) specifies them as organisation-lifetime figures — "520+ neutered
  * through TNRM", "25+ collaborations". Nothing in `prisma/schema.prisma` can
  * produce those numbers:

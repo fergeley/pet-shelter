@@ -30,7 +30,7 @@ import { fileURLToPath } from "url";
  * does that job now and the harness enforces it. What remains here is the two
  * agent rules, the drift log, and — in the wiring block — assertions about the
  * permission rules themselves plus a ledger of the twelve shapes prefix matching
- * cannot reach. See docs/tasks/TARGET_AGENT_GUARDRAILS.md.
+ * cannot reach. See docs/archives/tasks/TARGET_AGENT_GUARDRAILS.md.
  *
  * What this file does NOT establish: that Claude Code runs the hook. Frontmatter
  * hooks load from the definition as it stood at SESSION START, so a hook wired

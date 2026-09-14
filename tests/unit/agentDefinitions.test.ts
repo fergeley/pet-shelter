@@ -19,7 +19,7 @@ import { execFileSync } from "child_process";
  * so the definition was broken from that edit until this file was written, and
  * nothing in the repo could see it. Guard 4 is that bug.
  *
- * Background: docs/tasks/TARGET_MIDWIFE_ADOPTION.md,
+ * Background: docs/archives/tasks/TARGET_MIDWIFE_ADOPTION.md,
  * tasks/decisions/2026-08-31-agent-roster-ported-and-pruned.md.
  */
 
