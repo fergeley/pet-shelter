@@ -34,14 +34,14 @@ import {
  * imported from it rather than re-derived so the two can never disagree about
  * which mode the process is in:
  *
- * - `DATABASE_URL` set — Postgres is authoritative and a failed write
- *   propagates. A commitment that did not reach the database has not been made.
+ * - `DATABASE_URL` set — Postgres is authoritative and an unconfirmed write
+ *   propagates. No in-memory fallback can pretend it succeeded.
  * - `DATABASE_URL` unset — the in-memory ledger is authoritative. This is a
  *   deliberate configuration (local dev, unit tests), not a degraded database.
  *
- * The distinction matters here more than usual: reconciliation is what causes a
- * statutory receipt to be issued, so "the write may or may not have landed" is
- * not an acceptable third state.
+ * The distinction matters here more than usual: reconciliation issues a receipt.
+ * If a commit acknowledgement is lost, the caller must surface that uncertainty
+ * and read back before retrying; silently switching stores is never an answer.
  */
 
 export interface SponsorshipRecord {
@@ -82,7 +82,7 @@ export class SponsorshipWriteError extends Error {
   }
 }
 
-/** Postgres foreign key violation — the named pet has no row. */
+/** Postgres foreign key violation — an optional relation no longer has a row. */
 const FK_VIOLATION = "P2003";
 
 function isForeignKeyViolation(err: unknown): boolean {
@@ -144,6 +144,7 @@ export async function recordSponsorshipPledge(
     sponsorEmail: draft.sponsorEmail,
     sponsorPhone: draft.sponsorPhone ?? null,
     userId: draft.userId ?? null,
+    displayOnWall: draft.displayOnWall ?? false,
     tierId: draft.tierId,
     tierName: draft.tierName,
     frequency: draft.frequency,
@@ -159,14 +160,33 @@ export async function recordSponsorshipPledge(
   try {
     return toRecord(await prisma.petSponsorship.create({ data }));
   } catch (err) {
-    // A pet served from the JSON fixture has no row to point at. The commitment
-    // is still real and the snapshot still names the animal, so it is stored
-    // unlinked rather than refused.
-    if (isForeignKeyViolation(err) && draft.petId) {
-      const unlinked = await prisma.petSponsorship.create({
-        data: { ...data, petId: null },
-      });
-      return toRecord(unlinked);
+    if (isForeignKeyViolation(err) && (draft.petId || draft.userId)) {
+      try {
+        // Both relations are optional and can disappear independently. Read the
+        // referents after the failed insert instead of assuming every P2003 names
+        // the pet: an account can be deleted between checkout identity resolution
+        // and this write. Only the missing relation is cleared, so a fixture pet
+        // does not discard a valid sponsor link (or vice versa).
+        const [pet, sponsor] = await Promise.all([
+          draft.petId
+            ? prisma.pet.findUnique({ where: { id: draft.petId }, select: { id: true } })
+            : null,
+          draft.userId
+            ? prisma.sponsor.findUnique({ where: { id: draft.userId }, select: { id: true } })
+            : null,
+        ]);
+        const retryData = {
+          ...data,
+          petId: pet ? draft.petId : null,
+          userId: sponsor ? draft.userId : null,
+        };
+
+        if (retryData.petId !== data.petId || retryData.userId !== data.userId) {
+          return toRecord(await prisma.petSponsorship.create({ data: retryData }));
+        }
+      } catch (retryError) {
+        throw new SponsorshipWriteError("Could not record the sponsorship", retryError);
+      }
     }
     throw new SponsorshipWriteError("Could not record the sponsorship", err);
   }
@@ -277,6 +297,12 @@ export async function reconcileSponsorship(
   reconciledBy: string,
   options?: { now?: Date }
 ): Promise<ReconcileOutcome> {
+  if (isLedgerPersistent()) {
+    throw new Error(
+      "reconcileSponsorship is an offline-only helper; persistent reconciliation must use settleSponsorship."
+    );
+  }
+
   const when = options?.now ?? new Date();
 
   const outcome = await transitionPending(pledgeRef, {
@@ -358,8 +384,20 @@ export async function settleSponsorship(
     // the transaction's own limit. It would then report an issuance failure for a
     // pledge the winner has just settled. Read the row once more before saying so.
     if (err instanceof ReceiptIssuanceError) {
-      const now = await findSponsorshipByPledgeRef(pledgeRef).catch(() => null);
-      if (now?.receiptNumber) return settledOutcome(now);
+      const now = await prisma.petSponsorship
+        .findUnique({
+          where: { pledgeRef },
+          select: { receiptNumber: true, reconciledBy: true },
+        })
+        .catch(() => null);
+      // A different actor's receipt proves this attempt lost a race. The same
+      // actor could instead be observing its own commit after the acknowledgement
+      // was lost, which is not enough evidence to report a confirmed outcome.
+      // ceiling: an operation id stored with the row would distinguish same-actor
+      // retries; add one if reconciliation must recover automatically after lost ACKs.
+      if (now?.receiptNumber && now.reconciledBy !== reconciledBy) {
+        return { status: "already_reconciled", receiptNumber: now.receiptNumber };
+      }
     }
     throw err;
   }

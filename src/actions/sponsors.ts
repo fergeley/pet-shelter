@@ -7,6 +7,7 @@ import {
   SponsorRegistrationInput,
   SponsorLoginInput,
 } from "@/lib/validations/sponsor";
+import { pledgeRefSchema } from "@/lib/validations/sponsorship";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { checkAddressRateLimit } from "@/lib/security/clientAddress";
 import { hashPassword, verifyPassword } from "@/lib/security/crypto";
@@ -318,11 +319,16 @@ export async function cancelRecurringPledgeAction(
     return { success: false, error: "Please sign in to manage your pledges." };
   }
 
-  const cancelled = await cancelSponsorshipForUser(session.sponsorId, pledgeRef);
+  const ref = pledgeRefSchema.safeParse(pledgeRef);
+  if (!ref.success) {
+    return { success: false, error: "No sponsorship found for that pledge reference." };
+  }
+
+  const cancelled = await cancelSponsorshipForUser(session.sponsorId, ref.data);
   if (!cancelled) {
     return {
       success: false,
-      error: "No active recurring pledge of yours matches that receipt number.",
+      error: "No active recurring pledge of yours matches that pledge reference.",
     };
   }
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/actions/sponsorships", () => ({
   listPendingSponsorshipsAction: vi.fn(),
@@ -31,6 +31,25 @@ const pendingPledge = {
   createdAt: "2026-09-14T12:00:00.000Z",
 };
 
+function queuePage(
+  data: Array<typeof pendingPledge> = [pendingPledge],
+  hasMore = false,
+) {
+  // `hasMore` is the lookahead contract the action is about to expose. Keeping
+  // it in the test double now makes the pagination regression executable before
+  // that field reaches the current action type.
+  return { success: true as const, data, hasMore };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((fulfil) => {
+    resolve = fulfil;
+  });
+
+  return { promise, resolve };
+}
+
 function renderQueue() {
   return renderWithLanguage(<SponsorshipReconciliation />);
 }
@@ -49,10 +68,7 @@ function expectUnconfirmedOutcome(alert: HTMLElement) {
 describe("SponsorshipReconciliation uncertain action outcomes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedListPending.mockResolvedValue({
-      success: true,
-      data: [pendingPledge],
-    });
+    mockedListPending.mockResolvedValue(queuePage());
     mockedReconcile.mockResolvedValue({
       success: false,
       error: "stubbed confirmation",
@@ -92,15 +108,91 @@ describe("SponsorshipReconciliation uncertain action outcomes", () => {
     expectUnconfirmedOutcome(alert);
     expect(mockedReject).toHaveBeenCalledWith(pendingPledge.pledgeRef, "");
   });
+
+  it("keeps the issuing progress step mounted while confirmation is unresolved", async () => {
+    const pending = deferred<
+      Awaited<ReturnType<typeof reconcilePetSponsorshipAction>>
+    >();
+    mockedReconcile.mockReturnValue(pending.promise);
+    renderQueue();
+    const user = setupUser();
+
+    await waitForPledge();
+    await user.click(
+      screen.getByRole("button", { name: /confirm payment received/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /issue receipt/i }));
+
+    expect(
+      await screen.findByRole("button", { name: /issuing/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeDisabled();
+
+    await act(async () => {
+      pending.resolve({ success: false, error: "stubbed confirmation" });
+      await pending.promise;
+    });
+  });
+
+  it("keeps the dismissing progress step mounted while dismissal is unresolved", async () => {
+    const pending = deferred<
+      Awaited<ReturnType<typeof rejectPetSponsorshipAction>>
+    >();
+    mockedReject.mockReturnValue(pending.promise);
+    renderQueue();
+    const user = setupUser();
+
+    await waitForPledge();
+    await user.click(screen.getByRole("button", { name: /^dismiss$/i }));
+    await user.click(screen.getByRole("button", { name: /dismiss pledge/i }));
+
+    expect(
+      await screen.findByRole("button", { name: /dismissing/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeDisabled();
+
+    await act(async () => {
+      pending.resolve({ success: false, error: "stubbed dismissal" });
+      await pending.promise;
+    });
+  });
+
+  it("preserves a refused dismissal's reason and retry step", async () => {
+    mockedReject.mockResolvedValue({
+      success: false,
+      error: "The pledge could not be dismissed.",
+    });
+    renderQueue();
+    const user = setupUser();
+
+    await waitForPledge();
+    await user.click(screen.getByRole("button", { name: /^dismiss$/i }));
+    const reason = screen.getByLabelText(
+      `Reason for dismissing ${pendingPledge.pledgeRef}`,
+    );
+    await user.type(reason, "No matching transfer after 30 days");
+    await user.click(screen.getByRole("button", { name: /dismiss pledge/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /could not be dismissed/i,
+    );
+    expect(screen.getByLabelText(/reason for dismissing/i)).toHaveValue(
+      "No matching transfer after 30 days",
+    );
+    expect(
+      screen.getByRole("button", { name: /dismiss pledge/i }),
+    ).toBeEnabled();
+    expect(mockedReject).toHaveBeenCalledWith(
+      pendingPledge.pledgeRef,
+      "No matching transfer after 30 days",
+    );
+  });
 });
 
 describe("SponsorshipReconciliation receipt copy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedListPending.mockResolvedValue({
-      success: true,
-      data: [pendingPledge],
-    });
+    mockedListPending.mockResolvedValue(queuePage());
   });
 
   it("does not label an identifier-free pledge receipt as LHDN, Section 44, or tax", async () => {
@@ -116,5 +208,72 @@ describe("SponsorshipReconciliation receipt copy", () => {
         .getByRole("button", { name: /confirm payment received/i })
         .getAttribute("title"),
     ).not.toMatch(/LHDN|Section 44\(6\)|\btax\b/i);
+  });
+});
+
+describe("SponsorshipReconciliation queue continuation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedListPending.mockResolvedValue(queuePage());
+    mockedReconcile.mockResolvedValue({
+      success: false,
+      error: "stubbed confirmation",
+    });
+  });
+
+  it("does not count an already reconciled receipt as issued by this session", async () => {
+    const alreadyReconciled = {
+      success: true as const,
+      outcome: "already_reconciled" as const,
+      receiptNumber: "HFS-DON-202609-0042",
+    };
+    mockedReconcile.mockResolvedValue(alreadyReconciled);
+    renderQueue();
+    const user = setupUser();
+
+    await waitForPledge();
+    await user.click(
+      screen.getByRole("button", { name: /confirm payment received/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /issue receipt/i }));
+
+    expect(
+      await screen.findByText(alreadyReconciled.receiptNumber),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/receipts issued this session/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refreshes a drained page with more rows or withholds the all-reconciled claim", async () => {
+    mockedListPending
+      .mockResolvedValueOnce(queuePage([pendingPledge], true))
+      .mockResolvedValueOnce(queuePage([], false));
+    const reconciled = {
+      success: true as const,
+      outcome: "reconciled" as const,
+      receiptNumber: "HFS-DON-202609-0043",
+    };
+    mockedReconcile.mockResolvedValue(reconciled);
+    renderQueue();
+    const user = setupUser();
+
+    await waitForPledge();
+    await user.click(
+      screen.getByRole("button", { name: /confirm payment received/i }),
+    );
+    await user.click(screen.getByRole("button", { name: /issue receipt/i }));
+    await screen.findByText(reconciled.receiptNumber);
+
+    await waitFor(() => {
+      const refreshedFromServer = mockedListPending.mock.calls.length > 1;
+      const claimsEverythingIsReconciled = screen.queryByText(
+        /every commitment has been reconciled/i,
+      );
+
+      expect(
+        refreshedFromServer || claimsEverythingIsReconciled === null,
+      ).toBe(true);
+    });
   });
 });

@@ -195,6 +195,24 @@ describe("listPendingSponsorshipsAction", () => {
     expect(timestamps).toEqual([...timestamps].sort((a, b) => a - b));
   });
 
+  it("uses one-row lookahead so a full page cannot masquerade as the end", async () => {
+    const { recordSponsorshipPledge } = await import("@/lib/server/sponsorshipLedger");
+    const { listPendingSponsorshipsAction } = await import("@/actions/sponsorships");
+
+    for (let index = 0; index < 201; index += 1) {
+      await recordSponsorshipPledge(
+        pledge({ pledgeRef: `HFS-PLG-PAGE-${String(index).padStart(6, "0")}` })
+      );
+    }
+
+    currentRole.value = ROLES.VOLUNTEER_COORDINATOR;
+    const result = await listPendingSponsorshipsAction();
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(200);
+    expect(result.hasMore).toBe(true);
+  });
+
   it("projects no tax identifier onto the coordinator's screen", async () => {
     const { recordSponsorshipPledge } = await import("@/lib/server/sponsorshipLedger");
     const { listPendingSponsorshipsAction } = await import("@/actions/sponsorships");
@@ -275,6 +293,11 @@ describe("reconcilePetSponsorshipAction issues exactly one receipt per pledge", 
     expect(second.success).toBe(true);
     // The loser is told the number that exists, not a number of its own.
     expect(first.receiptNumber).toBe(second.receiptNumber);
+    expect(
+      [first, second]
+        .map((result) => (result as typeof result & { outcome?: string }).outcome)
+        .sort()
+    ).toEqual(["already_reconciled", "reconciled"]);
 
     const issued = await listDonations();
     expect(issued.map((d) => d.receiptNumber)).toEqual([first.receiptNumber]);
@@ -528,6 +551,34 @@ describe("the queue's arguments are checked before anything is written", () => {
     );
     expect(getAuditLogs().find((e) => e.action === "SPONSORSHIP_REJECTED")).toBeUndefined();
   });
+
+  it("accepts exactly 500 characters and records nullish reasons as no reason", async () => {
+    const ledger = await import("@/lib/server/sponsorshipLedger");
+    const { getAuditLogs } = await import("@/lib/domain/auditLog");
+    const { rejectPetSponsorshipAction } = await import("@/actions/sponsorships");
+    const refs = ["HFS-PLG-000053", "HFS-PLG-000054", "HFS-PLG-000055"] as const;
+
+    for (const pledgeRef of refs) {
+      await ledger.recordSponsorshipPledge(pledge({ pledgeRef }));
+    }
+
+    const exactLimit = "x".repeat(500);
+    expect(await rejectPetSponsorshipAction(refs[0], exactLimit)).toEqual({ success: true });
+    expect(await rejectPetSponsorshipAction(refs[1], undefined)).toEqual({ success: true });
+    expect(
+      await rejectPetSponsorshipAction(refs[2], null)
+    ).toEqual({ success: true });
+
+    const rejectionReason = (pledgeRef: string) =>
+      getAuditLogs().find(
+        (entry) =>
+          entry.action === "SPONSORSHIP_REJECTED" && entry.entityId === pledgeRef
+      )?.details?.reason;
+
+    expect(rejectionReason(refs[0])).toBe(exactLimit);
+    expect(rejectionReason(refs[1])).toBeNull();
+    expect(rejectionReason(refs[2])).toBeNull();
+  });
 });
 
 describe("a settled commitment its supporter later withdrew still names its receipt", () => {
@@ -551,6 +602,7 @@ describe("a settled commitment its supporter later withdrew still names its rece
 
     expect(await reconcilePetSponsorshipAction("HFS-PLG-000060")).toEqual({
       success: true,
+      outcome: "already_reconciled",
       receiptNumber: settled.receiptNumber,
     });
     const dismissed = await rejectPetSponsorshipAction("HFS-PLG-000060");

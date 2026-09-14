@@ -104,6 +104,21 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     expect(record.id).not.toMatch(/^mem-spn-/);
   });
 
+  it("persists the checkout's Sponsor Wall consent instead of falling back to the column default", async () => {
+    const record = await recordSponsorshipPledge(
+      draft({ displayOnWall: true }),
+      { now: PROBE_INSTANT }
+    );
+
+    // Read through Prisma, not the mapper that accepted the input, so this proves
+    // the Boolean crossed the actual persistence boundary.
+    const row = await prisma.petSponsorship.findUnique({
+      where: { pledgeRef: record.pledgeRef },
+      select: { displayOnWall: true },
+    });
+    expect(row?.displayOnWall).toBe(true);
+  });
+
   it("lists pending commitments oldest first, breaking a same-instant tie on id", async () => {
     const sameInstant = new Date("2999-01-10T04:00:00.000Z");
     const tied = [
@@ -117,7 +132,7 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     const settled = await recordSponsorshipPledge(draft(), {
       now: new Date("2999-01-01T04:00:00.000Z"),
     });
-    await reconcileSponsorship(settled.pledgeRef, formatReceiptNumber(SCOPE, 9999), "probe@x");
+    await settleSponsorship(settled.pledgeRef, ISSUER, "probe@x", { now: sameInstant });
 
     // The tiebreak is `id`, in the database's own ordering of that column — asked of
     // Postgres rather than assumed, because text collation decides it, not JavaScript.
@@ -238,6 +253,24 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     // Nothing was drawn from the series at any point.
     expect(await prisma.donation.findMany({ where: { sequenceScope: SCOPE } })).toHaveLength(0);
     expect(await prisma.receiptSequence.findUnique({ where: { scope: SCOPE } })).toBeNull();
+  });
+
+  it("refuses the offline receipt-attachment helper in persistent mode", async () => {
+    const record = await recordSponsorshipPledge(draft(), { now: PROBE_INSTANT });
+
+    await expect(
+      reconcileSponsorship(
+        record.pledgeRef,
+        formatReceiptNumber(SCOPE, 9999),
+        "probe@example.test"
+      )
+    ).rejects.toThrow(/offline-only helper.*settleSponsorship/i);
+
+    const row = await prisma.petSponsorship.findUnique({
+      where: { pledgeRef: record.pledgeRef },
+    });
+    expect(row).toMatchObject({ status: "PENDING_PAYMENT", receiptNumber: null });
+    expect(await prisma.donation.findMany({ where: { sequenceScope: SCOPE } })).toEqual([]);
   });
 
   it("commits a rejected pledge and its actor/reason audit as one durable outcome", async () => {

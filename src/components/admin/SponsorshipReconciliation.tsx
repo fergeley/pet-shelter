@@ -38,6 +38,7 @@ const PAYMENT_LABELS: Record<PendingSponsorshipDTO["paymentMethod"], string> = {
 /** What one attempt at the queue produced. Exactly one field is ever set. */
 interface QueueOutcome {
   rows?: PendingSponsorshipDTO[];
+  hasMore?: boolean;
   error?: string;
 }
 
@@ -58,7 +59,9 @@ interface RowIntent {
 async function fetchPending(): Promise<QueueOutcome> {
   try {
     const result = await listPendingSponsorshipsAction();
-    if (result.success && result.data) return { rows: result.data };
+    if (result.success && result.data) {
+      return { rows: result.data, hasMore: result.hasMore === true };
+    }
     // A denial lands here too, as the guard's own message: the action asserts the
     // permission inside its try, so a STAFF account that typed the URL is told it
     // may not reconcile payments rather than that the shelter is down.
@@ -118,12 +121,13 @@ function Notice({
  */
 export function SponsorshipReconciliation() {
   const [rows, setRows] = useState<PendingSponsorshipDTO[]>([]);
+  const [hasMore, setHasMore] = useState(false);
   const [settled, setSettled] = useState<SettledRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // Distinct from "no rows". A read failure must never render as an empty queue.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
-  const [rowNotice, setRowNotice] = useState<string | null>(null);
+  const [rowNotice, setRowNotice] = useState<ReactNode | null>(null);
   const [busyRef, setBusyRef] = useState<string | null>(null);
   const [intent, setIntent] = useState<RowIntent | null>(null);
   const [dismissReason, setDismissReason] = useState("");
@@ -133,6 +137,7 @@ export function SponsorshipReconciliation() {
       // `[]` is a successful empty queue, not a failure — the check is on the field
       // being present, never on its length.
       setRows(outcome.rows);
+      setHasMore(outcome.hasMore === true);
       setLoadError(null);
     } else {
       setLoadError(outcome.error ?? "Could not load the pending commitments.");
@@ -141,6 +146,7 @@ export function SponsorshipReconciliation() {
       // would be asserting pending work at the one moment it has just said not to
       // trust it, and another coordinator may have settled those rows already.
       setRows([]);
+      setHasMore(false);
     }
   }, []);
 
@@ -163,6 +169,7 @@ export function SponsorshipReconciliation() {
     setRowError(null);
     setRowNotice(null);
     setIntent(null);
+    setDismissReason("");
     apply(await fetchPending());
     setIsLoading(false);
   }, [apply]);
@@ -172,10 +179,22 @@ export function SponsorshipReconciliation() {
     setIntent({ pledgeRef, action });
   };
 
-  // Both mutations keep the row's second step mounted until they settle, in
-  // `finally`: that step is where "Issuing…" / "Dismissing…" render, and closing
-  // it before the await would snap the row back to its idle buttons with no sign
-  // that anything is in flight.
+  const removeResolvedRow = async (pledgeRef: string) => {
+    if (!hasMore) {
+      setRows((prev) => prev.filter((row) => row.pledgeRef !== pledgeRef));
+      return;
+    }
+
+    // The page had a lookahead row. Re-read after the mutation so the next oldest
+    // pledge moves onto the screen instead of rendering a false empty/full-page end.
+    setIsLoading(true);
+    apply(await fetchPending());
+    setIsLoading(false);
+  };
+
+  // Both mutations keep the row's second step mounted until they succeed. That
+  // step shows progress while the call is in flight and preserves the entered
+  // reason after a refusal, so a retry does not require retyping it.
   const confirm = async (row: PendingSponsorshipDTO) => {
     setBusyRef(row.pledgeRef);
     setRowError(null);
@@ -185,15 +204,25 @@ export function SponsorshipReconciliation() {
       const result = await reconcilePetSponsorshipAction(row.pledgeRef);
 
       if (result.success && result.receiptNumber) {
-        // `already_reconciled` also lands here, carrying the number that already
-        // exists. Two coordinators clicking at once is a settled outcome, not an
-        // error, and rendering it as one would send someone hunting a failure that
-        // did not happen.
-        setSettled((prev) => [
-          { pledgeRef: row.pledgeRef, sponsorName: row.sponsorName, receiptNumber: result.receiptNumber! },
-          ...prev,
-        ]);
-        setRows((prev) => prev.filter((r) => r.pledgeRef !== row.pledgeRef));
+        if (result.outcome === "already_reconciled") {
+          setRowNotice(
+            <>
+              {row.pledgeRef} was already reconciled as receipt{" "}
+              <span className="font-mono font-semibold">{result.receiptNumber}</span>.
+            </>
+          );
+        } else {
+          setSettled((prev) => [
+            {
+              pledgeRef: row.pledgeRef,
+              sponsorName: row.sponsorName,
+              receiptNumber: result.receiptNumber!,
+            },
+            ...prev,
+          ]);
+        }
+        await removeResolvedRow(row.pledgeRef);
+        setIntent(null);
       } else {
         setRowError(result.error ?? "The confirmation did not complete.");
       }
@@ -202,7 +231,6 @@ export function SponsorshipReconciliation() {
         "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
-      setIntent(null);
       setBusyRef(null);
     }
   };
@@ -216,10 +244,12 @@ export function SponsorshipReconciliation() {
       const result = await rejectPetSponsorshipAction(row.pledgeRef, dismissReason);
 
       if (result.success) {
-        setRows((prev) => prev.filter((r) => r.pledgeRef !== row.pledgeRef));
+        await removeResolvedRow(row.pledgeRef);
         setRowNotice(
           `${row.pledgeRef} for ${row.sponsorName} was dismissed. No receipt was issued.`
         );
+        setIntent(null);
+        setDismissReason("");
       } else {
         setRowError(result.error ?? "The pledge could not be dismissed.");
       }
@@ -228,8 +258,6 @@ export function SponsorshipReconciliation() {
         "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
-      setIntent(null);
-      setDismissReason("");
       setBusyRef(null);
     }
   };
@@ -308,7 +336,7 @@ export function SponsorshipReconciliation() {
         <p className="text-sm text-muted-foreground p-4">Loading pending commitments…</p>
       )}
 
-      {!isLoading && !loadError && rows.length === 0 && (
+      {!isLoading && !loadError && rows.length === 0 && !hasMore && (
         <div className="border border-border bg-background p-8 text-center space-y-2">
           <Inbox className="size-6 mx-auto text-muted-foreground" />
           <p className="text-sm font-semibold text-foreground">Nothing awaiting confirmation</p>

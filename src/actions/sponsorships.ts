@@ -19,7 +19,7 @@ import {
   generatePledgeRef,
   reconciliationNotice,
 } from "@/lib/domain/petSponsorship";
-import { SPONSORSHIP_RECORDING_FAILURE_MESSAGE } from "@/lib/domain/contributionFailure";
+import { SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE } from "@/lib/domain/contributionFailure";
 import {
   SponsorshipWriteError,
   listPendingSponsorships,
@@ -33,6 +33,10 @@ import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/ema
 import type { SessionUser } from "@/lib/security/session";
 import { requirePermission } from "@/lib/security/dal";
 import { PERMISSIONS, isAuthorizationError } from "@/lib/security/rbac";
+import { getCurrentSponsorSession } from "@/lib/security/sponsorSession";
+import { findSponsorById } from "@/lib/server/sponsorRepository";
+import { findServerPetByIdAsync } from "@/lib/server/petRepository";
+import { scheduleAfterResponse } from "@/lib/scheduleAfterResponse";
 
 /** What the supporter sees the moment checkout completes. */
 export interface SponsorshipPledgeDTO {
@@ -50,18 +54,33 @@ export interface SponsorshipPledgeDTO {
   reconciliationNotice: string;
 }
 
-export interface CreateSponsorshipResult {
-  success: boolean;
-  data?: SponsorshipPledgeDTO;
-  error?: string;
+export type CreateSponsorshipResult =
+  | { success: true; data: SponsorshipPledgeDTO; error?: never }
+  | { success: false; error: string; data?: never };
+
+/**
+ * Links checkout only when the signed token, live account and submitted address
+ * all identify the same sponsor. Runtime extras such as a forged `userId` never
+ * cross this boundary.
+ */
+async function resolveCheckoutSponsorId(sponsorEmail: string): Promise<string | null> {
+  const session = await getCurrentSponsorSession();
+  if (!session) return null;
+
+  const sponsor = await findSponsorById(session.sponsorId);
+  if (!sponsor) return null;
+
+  const sessionEmail = session.email.trim().toLowerCase();
+  const accountEmail = sponsor.email.trim().toLowerCase();
+  return sessionEmail === accountEmail && accountEmail === sponsorEmail ? sponsor.id : null;
 }
 
 /**
  * Server Action: records a supporter's commitment to fund one animal's care.
  *
  * Ordering mirrors `submitDonationPledgeAction`: validate -> rate-limit ->
- * persist -> audit -> email. A failed write means the audit entry and the email
- * never happen and the supporter is told to retry.
+ * persist -> audit -> email. If persistence does not return a confirmed outcome,
+ * audit and email do not start and the supporter is told to verify before retrying.
  *
  * The one deliberate difference is what comes out the other end. The donation
  * form issues a receipt because that flow treats submission as the gift; a
@@ -112,15 +131,30 @@ export async function createPetSponsorshipAction(
   const amountSen = senFromRinggit(validated.amountMYR);
   const pledgeRef = generatePledgeRef();
 
+  let pet;
+  let sponsorUserId: string | null;
+  try {
+    [pet, sponsorUserId] = await Promise.all([
+      findServerPetByIdAsync(validated.petId),
+      resolveCheckoutSponsorId(sponsorEmail),
+    ]);
+  } catch (err) {
+    console.error("[Sponsorship Checkout] Identity lookup failed:", err);
+    return { success: false, error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE };
+  }
+  if (!pet) {
+    return { success: false, error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE };
+  }
+
   let record;
   try {
     record = await recordSponsorshipPledge({
-      petId: validated.petId?.trim() || null,
-      petName: validated.petName.trim(),
+      petId: pet.id,
+      petName: pet.name,
       sponsorName: validated.sponsorName.trim(),
       sponsorEmail,
       sponsorPhone: validated.sponsorPhone?.trim() || undefined,
-      userId: validated.userId?.trim() || null,
+      userId: sponsorUserId,
       tierId: validated.tierId,
       tierName,
       frequency: validated.frequency,
@@ -135,7 +169,7 @@ export async function createPetSponsorshipAction(
     if (err instanceof SponsorshipWriteError) {
       return {
         success: false,
-        error: SPONSORSHIP_RECORDING_FAILURE_MESSAGE,
+        error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE,
       };
     }
     throw err;
@@ -177,11 +211,10 @@ export async function createPetSponsorshipAction(
     reconciliationNotice: reconciliationNotice(record.frequency, record.paymentMethod),
   };
 
-  // Fire-and-forget, as the donation receipt is: a mail outage must not cost the
-  // supporter their commitment.
-  sendSponsorshipWelcomeEmail(dto).catch((err) =>
-    console.error("[Sponsorship Welcome Email Dispatch Failed]", err)
-  );
+  // The pledge is already durable, so mail failure cannot undo it. Register the
+  // promise with the request lifecycle so a serverless instance is not frozen
+  // while the acknowledgement is still in flight.
+  scheduleAfterResponse(() => sendSponsorshipWelcomeEmail(dto));
 
   return { success: true, data: dto };
 }
@@ -201,11 +234,11 @@ export interface PendingSponsorshipDTO {
   createdAt: string;
 }
 
-export interface PendingSponsorshipsResult {
-  success: boolean;
-  data?: PendingSponsorshipDTO[];
-  error?: string;
-}
+export type PendingSponsorshipsResult =
+  | { success: true; data: PendingSponsorshipDTO[]; hasMore: boolean; error?: never }
+  | { success: false; error: string; data?: never; hasMore?: never };
+
+const PENDING_SPONSORSHIP_PAGE_SIZE = 200;
 
 /** `PENDING_PAYMENT` → "pending payment", for a sentence a coordinator reads. */
 function statusLabel(status: string): string {
@@ -242,10 +275,11 @@ export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshi
   try {
     await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
 
-    const rows = await listPendingSponsorships();
+    const rows = await listPendingSponsorships(PENDING_SPONSORSHIP_PAGE_SIZE + 1);
     return {
       success: true,
-      data: rows.map((row) => ({
+      hasMore: rows.length > PENDING_SPONSORSHIP_PAGE_SIZE,
+      data: rows.slice(0, PENDING_SPONSORSHIP_PAGE_SIZE).map((row) => ({
         pledgeRef: row.pledgeRef,
         petName: row.petName,
         sponsorName: row.sponsorName,
@@ -271,11 +305,14 @@ export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshi
   }
 }
 
-export interface ReconcileSponsorshipResult {
-  success: boolean;
-  receiptNumber?: string;
-  error?: string;
-}
+export type ReconcileSponsorshipResult =
+  | {
+      success: true;
+      outcome: "reconciled" | "already_reconciled";
+      receiptNumber: string;
+      error?: never;
+    }
+  | { success: false; error: string; outcome?: never; receiptNumber?: never };
 
 /**
  * Server Action: a coordinator confirms the transfer for a pledge has landed.
@@ -319,7 +356,7 @@ export async function reconcilePetSponsorshipAction(
       return {
         success: false,
         error:
-          "We could not issue the receipt just now, so the sponsorship is still pending. Please try again in a moment.",
+          "We could not confirm whether reconciliation completed. Reload the queue before trying again.",
       };
     }
     throw err;
@@ -337,7 +374,11 @@ export async function reconcilePetSponsorshipAction(
   if (outcome.status === "already_reconciled") {
     // Settled already, by this coordinator a moment ago or by another. Return the
     // number that exists rather than minting another for the same money.
-    return { success: true, receiptNumber: outcome.receiptNumber };
+    return {
+      success: true,
+      outcome: "already_reconciled",
+      receiptNumber: outcome.receiptNumber,
+    };
   }
 
   const { record, donation } = outcome;
@@ -359,7 +400,7 @@ export async function reconcilePetSponsorshipAction(
     },
   });
 
-  sendDonationReceiptEmail({
+  const receipt = {
     receiptNumber: donation.receiptNumber,
     date: new Date(donation.issuedAt).toLocaleDateString("en-MY", {
       timeZone: "Asia/Kuala_Lumpur",
@@ -382,15 +423,19 @@ export async function reconcilePetSponsorshipAction(
     notes: donation.notes,
     taxDeductibleRef: donation.taxDeductibleRef,
     shelterRegistrationNo: donation.shelterRegistrationNo,
-  }).catch((err) => console.error("[Sponsorship Receipt Email Dispatch Failed]", err));
+  };
+  scheduleAfterResponse(() => sendDonationReceiptEmail(receipt));
 
-  return { success: true, receiptNumber: donation.receiptNumber };
+  return {
+    success: true,
+    outcome: "reconciled",
+    receiptNumber: donation.receiptNumber,
+  };
 }
 
-export interface RejectSponsorshipResult {
-  success: boolean;
-  error?: string;
-}
+export type RejectSponsorshipResult =
+  | { success: true; error?: never }
+  | { success: false; error: string };
 
 /**
  * Server Action: a coordinator dismisses a pledge no transfer ever backed.
@@ -403,13 +448,13 @@ export interface RejectSponsorshipResult {
  *
  * Both arguments are validated before anything is written. They arrive
  * deserialised and unchecked, and a bad one has to fail *before* the row flips:
- * an error after it would leave the pledge cancelled with no audit row and a
- * message saying it is still pending. The audit write sits outside the `try` for
- * the same reason.
+ * an error after it would leave the pledge cancelled with no audit row. The
+ * ledger therefore writes the transition and audit row in the same transaction;
+ * this action reports uncertainty if it cannot confirm that transaction's outcome.
  */
 export async function rejectPetSponsorshipAction(
   pledgeRef: string,
-  reason?: string
+  reason?: string | null
 ): Promise<RejectSponsorshipResult> {
   let session: SessionUser;
   try {

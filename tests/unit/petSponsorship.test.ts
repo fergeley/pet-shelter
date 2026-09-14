@@ -16,6 +16,7 @@ import {
   findSponsorshipByPledgeRef,
   recordSponsorshipPledge,
   reconcileSponsorship,
+  settleSponsorship,
   summarizeSponsorshipsForPet,
 } from "@/lib/server/sponsorshipLedger";
 import {
@@ -23,6 +24,11 @@ import {
   getPetSponsorshipSummaryAction,
 } from "@/actions/sponsorships";
 import { findDonationByReceiptNumber } from "@/lib/server/donationLedger";
+import {
+  sealSponsorSession,
+  SPONSOR_SESSION_COOKIE_NAME,
+} from "@/lib/security/sponsorSession";
+import { mockCookieStore } from "../setup/nextMocks";
 
 const rows = (...items: [string, number, string][]): SponsorshipAggregateRow[] =>
   items.map(([sponsorEmail, sen, status]) => ({
@@ -163,7 +169,29 @@ describe("sponsorship validation", () => {
 
   it("requires an animal, and tolerates one with no database row", () => {
     expect(() => petSponsorshipSchema.parse({ ...base, petName: "" })).toThrow();
-    expect(petSponsorshipSchema.parse({ ...base, petId: undefined }).petId).toBeUndefined();
+    expect(() => petSponsorshipSchema.parse({ ...base, petName: "   " })).toThrow();
+    expect(() => petSponsorshipSchema.parse({ ...base, petId: undefined })).toThrow();
+  });
+
+  it("trims names and refuses a whitespace-only sponsor", () => {
+    const parsed = petSponsorshipSchema.parse({
+      ...base,
+      petName: "  Milo  ",
+      sponsorName: "  Aisyah Rahman  ",
+    });
+
+    expect(parsed.petName).toBe("Milo");
+    expect(parsed.sponsorName).toBe("Aisyah Rahman");
+    expect(() => petSponsorshipSchema.parse({ ...base, sponsorName: "  " })).toThrow(
+      /at least 2 characters/i
+    );
+  });
+
+  it("refuses amounts that cannot be represented as an integer number of sen", () => {
+    expect(() => petSponsorshipSchema.parse({ ...base, amountMYR: 10.001 })).toThrow(
+      /at most two decimal places/i
+    );
+    expect(petSponsorshipSchema.parse({ ...base, amountMYR: 19.9 }).amountMYR).toBe(19.9);
   });
 
   it("enables only the rails the shelter can settle", () => {
@@ -231,7 +259,7 @@ describe("the ledger: a commitment starts unpaid", () => {
 
 describe("createPetSponsorshipAction", () => {
   const input = (over: Record<string, unknown> = {}) => ({
-    petId: "pet-200",
+    petId: "pet-001",
     petName: "Bella",
     sponsorName: "Aisyah Rahman",
     sponsorEmail: `sponsor.${Math.random().toString(36).slice(2, 9)}@example.com`,
@@ -265,6 +293,15 @@ describe("createPetSponsorshipAction", () => {
     expect(result.success).toBe(false);
   });
 
+  it("returns a validation result for fractional-sen input instead of rejecting", async () => {
+    await expect(
+      createPetSponsorshipAction(input({ amountMYR: 10.001 }))
+    ).resolves.toEqual({
+      success: false,
+      error: "Sponsorship amount must use at most two decimal places",
+    });
+  });
+
   it("returns the first donor-facing issue for an overlong note, not Zod's JSON", async () => {
     const result = await createPetSponsorshipAction(input({ notes: "x".repeat(501) }));
 
@@ -275,14 +312,119 @@ describe("createPetSponsorshipAction", () => {
     expect(result.error).not.toMatch(/[{}\[\]"]/);
   });
 
-  it("stores the animal's name even when it has no database row", async () => {
+  it("stores the authoritative fixture name even when the animal has no database row", async () => {
     const result = await createPetSponsorshipAction(
-      input({ petId: "pet-does-not-exist", petName: "Tuah" })
+      input({ petId: "pet-001", petName: "Forged or stale name" })
     );
     expect(result.success).toBe(true);
 
     const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
-    expect(stored?.petName).toBe("Tuah");
+    expect(stored?.petId).toBe("pet-001");
+    expect(stored?.petName).toBe("Bella");
+  });
+
+  it("refuses an unknown animal instead of trusting a caller-supplied name", async () => {
+    const result = await createPetSponsorshipAction(
+      input({ petId: "pet-does-not-exist", petName: "Forged name" })
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/could not confirm that a pledge was recorded/i);
+  });
+
+  it("never attaches a caller-supplied supporter account id", async () => {
+    const result = await createPetSponsorshipAction(
+      input({ userId: "spn-gold-01" })
+    );
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.userId).toBeNull();
+  });
+
+  it("links only a signed-in sponsor whose live account and submitted email agree", async () => {
+    mockCookieStore.seed(
+      SPONSOR_SESSION_COOKIE_NAME,
+      sealSponsorSession({
+        sponsorId: "spn-bronze-01",
+        email: "bronze@example.com",
+        name: "Nurul Aisyah",
+      })
+    );
+
+    const result = await createPetSponsorshipAction(
+      input({ sponsorEmail: "BRONZE@EXAMPLE.COM", userId: "spn-gold-01" })
+    );
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.sponsorEmail).toBe("bronze@example.com");
+    expect(stored?.userId).toBe("spn-bronze-01");
+  });
+
+  it("does not link an account when the submitted email differs from the signed-in sponsor", async () => {
+    mockCookieStore.seed(
+      SPONSOR_SESSION_COOKIE_NAME,
+      sealSponsorSession({
+        sponsorId: "spn-bronze-01",
+        email: "bronze@example.com",
+        name: "Nurul Aisyah",
+      })
+    );
+
+    const result = await createPetSponsorshipAction(
+      input({ sponsorEmail: "someone-else@example.com", userId: "spn-bronze-01" })
+    );
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.userId).toBeNull();
+  });
+
+  it("does not trust a signed cookie whose email disagrees with the live account", async () => {
+    mockCookieStore.seed(
+      SPONSOR_SESSION_COOKIE_NAME,
+      sealSponsorSession({
+        sponsorId: "spn-bronze-01",
+        email: "attacker@example.com",
+        name: "Attacker",
+      })
+    );
+
+    const result = await createPetSponsorshipAction(
+      input({ sponsorEmail: "attacker@example.com", userId: "spn-bronze-01" })
+    );
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.userId).toBeNull();
+  });
+
+  it("does not link a deleted account named only by a stale signed cookie", async () => {
+    mockCookieStore.seed(
+      SPONSOR_SESSION_COOKIE_NAME,
+      sealSponsorSession({
+        sponsorId: "spn-deleted-account",
+        email: "deleted@example.com",
+        name: "Deleted Sponsor",
+      })
+    );
+
+    const result = await createPetSponsorshipAction(
+      input({ sponsorEmail: "deleted@example.com", userId: "spn-deleted-account" })
+    );
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.userId).toBeNull();
+  });
+
+  it("keeps the checkout's Sponsor Wall consent on the commitment", async () => {
+    const result = await createPetSponsorshipAction(input({ displayOnWall: true }));
+    expect(result.success).toBe(true);
+
+    const stored = await findSponsorshipByPledgeRef(result.data!.pledgeRef);
+    expect(stored?.displayOnWall).toBe(true);
   });
 
   it("leaves the animal's public figures unmoved", async () => {
@@ -311,24 +453,19 @@ describe("reconciliation draws its receipt from the shared gapless series", () =
       pledgeRef: generatePledgeRef(),
     });
 
-    // Stand in for what reconcilePetSponsorshipAction does, without the RBAC
-    // session that a unit test has no way to hold.
-    const { issueDonationReceipt } = await import("@/lib/server/donationLedger");
-    const donation = await issueDonationReceipt({
-      donorName: pledge.sponsorName,
-      donorEmail: pledge.sponsorEmail,
-      tierId: "vaccine",
-      tierName: pledge.tierName,
-      amountSen: pledge.amountSen,
-      currency: "MYR",
-      frequency: "one_time",
-      paymentMethod: "duitnow_qr",
-      targetPetName: pledge.petName,
-      taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-      shelterRegistrationNo: "PPM-021-10-18082021",
-    });
-
-    await reconcileSponsorship(pledge.pledgeRef, donation.receiptNumber, "coordinator@example.com");
+    // Explicit test-double issuer identity: production identity remains a deployment
+    // verification concern, while this test proves the atomic ledger path.
+    const outcome = await settleSponsorship(
+      pledge.pledgeRef,
+      {
+        taxDeductibleRef: "TEST-TAX-REFERENCE",
+        shelterRegistrationNo: "TEST-REGISTRATION",
+      },
+      "coordinator@example.com"
+    );
+    expect(outcome.status).toBe("reconciled");
+    if (outcome.status !== "reconciled") return;
+    const { donation } = outcome;
 
     // The receipt is a first-class row in the donation ledger, so it reaches the
     // LHDN export like every other receipt rather than living only on the
