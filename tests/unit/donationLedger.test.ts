@@ -97,14 +97,21 @@ function createFakeDb(): FakeDb {
       insertFailuresRemaining = 0;
     },
     // Models atomicity: a throwing callback rolls the counter back to its
-    // pre-transaction value, which is exactly what a bare SEQUENCE cannot do.
+    // pre-transaction value, which is exactly what a bare SEQUENCE cannot do —
+    // and rolls the inserted row and its serial back with it, which is what
+    // lets an attach step that throws leave no receipt behind.
     transaction: async (fn: (t: unknown) => Promise<unknown>) => {
       const snapshot = new Map(counters);
+      const rowCount = rows.length;
+      const serials = new Set(takenSerials);
       try {
         return await fn(tx);
       } catch (err) {
         counters.clear();
         for (const [k, v] of snapshot) counters.set(k, v);
+        rows.length = rowCount;
+        takenSerials.clear();
+        for (const key of serials) takenSerials.add(key);
         throw err;
       }
     },
@@ -125,16 +132,20 @@ vi.mock("@/lib/server/prisma", () => ({
   },
 }));
 
+import type { Prisma } from "@prisma/client";
 import {
   DonationDraft,
   ReceiptIssuanceError,
+  drawAndInsert,
   formatReceiptNumber,
   isLedgerPersistent,
   issueDonationReceipt,
+  issueReceiptInMemory,
   listDonations,
   listDonationsOrThrow,
   receiptScopeFor,
   resetDonationLedger,
+  withReceiptTransaction,
 } from "@/lib/server/donationLedger";
 import { prisma } from "@/lib/server/prisma";
 import { senFromRinggit } from "@/lib/domain/money";
@@ -350,5 +361,84 @@ describe("read policy: the export must be able to see a failure", () => {
     vi.mocked(prisma.donation.findMany).mockRejectedValueOnce(new Error("neon unreachable"));
 
     await expect(listDonationsOrThrow(10)).rejects.toThrow("neon unreachable");
+  });
+});
+
+/**
+ * `withReceiptTransaction` and `drawAndInsert` are how a caller with a row of its
+ * own to write — the sponsorship ledger — puts that write in the same transaction
+ * as the serial draw. The property that matters is the rollback: a `work` that
+ * throws after drawing must leave no row and no burned serial, and must come back
+ * as a ReceiptIssuanceError so the caller says "nothing was issued" and means it.
+ */
+describe("withReceiptTransaction: a caller's writes share the receipt's fate", () => {
+  beforeEach(() => {
+    vi.stubEnv("DATABASE_URL", "postgresql://user:pw@localhost:5432/pet_shelter");
+  });
+
+  it("hands `work` the transaction the serial is drawn in and returns what it returns", async () => {
+    const seen = await withReceiptTransaction(async (tx) => {
+      const donation = await drawAndInsert(tx, draft(), AUGUST);
+      // The fake transaction client is what `$transaction` handed out.
+      return { number: donation.receiptNumber, sameTransaction: "receiptSequence" in tx };
+    });
+
+    expect(seen).toEqual({ number: "HFS-DON-202608-0001", sameTransaction: true });
+    expect(fakeDb.rows).toHaveLength(1);
+  });
+
+  it("rolls the serial and the row back when `work` throws after drawing", async () => {
+    await issueDonationReceipt(draft(), { now: AUGUST }); // 0001
+
+    const error = await withReceiptTransaction(async (tx) => {
+      await drawAndInsert(tx, draft(), AUGUST); // would be 0002
+      throw new Error("guard matched zero rows");
+    }).catch((err: unknown) => err);
+
+    // Whatever went wrong, the transaction rolled back and no receipt was issued —
+    // which is the one contract the caller relies on to tell the donor so.
+    expect(error).toBeInstanceOf(ReceiptIssuanceError);
+    expect((error as ReceiptIssuanceError).cause).toMatchObject({
+      message: "guard matched zero rows",
+    });
+    expect(fakeDb.rows).toHaveLength(1);
+    // The rolled-back serial is drawn again: 0002, not 0003.
+    const next = await issueDonationReceipt(draft(), { now: AUGUST });
+    expect(next.receiptNumber).toBe("HFS-DON-202608-0002");
+  });
+
+  it("retries `work` once past a serial collision, and not past anything else", async () => {
+    fakeDb.failNextInsert(1);
+    const collided = vi.fn(async (tx: Prisma.TransactionClient) =>
+      drawAndInsert(tx, draft(), AUGUST)
+    );
+    await expect(withReceiptTransaction(collided)).resolves.toMatchObject({
+      receiptNumber: "HFS-DON-202608-0001",
+    });
+    expect(collided).toHaveBeenCalledTimes(2);
+
+    const failed = vi.fn(async (): Promise<never> => {
+      throw new Error("not a collision");
+    });
+    await expect(withReceiptTransaction(failed)).rejects.toBeInstanceOf(ReceiptIssuanceError);
+    expect(failed).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("issueReceiptInMemory: the offline draw is synchronous", () => {
+  it("returns the receipt without a promise, so a caller can guard, draw and write in one tick", () => {
+    vi.stubEnv("DATABASE_URL", "");
+
+    const receipt = issueReceiptInMemory(draft(), AUGUST);
+
+    expect(receipt).not.toBeInstanceOf(Promise);
+    expect(receipt.receiptNumber).toBe("HFS-DON-202608-0001");
+  });
+
+  it("refuses to run when a database is configured", () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://user:pw@localhost:5432/pet_shelter");
+
+    expect(() => issueReceiptInMemory(draft(), AUGUST)).toThrow(/offline branch/);
+    expect(fakeDb.rows).toHaveLength(0);
   });
 });

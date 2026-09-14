@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { Sen, senFromInteger } from "@/lib/domain/money";
 import type { SponsorshipTierId } from "@/types/sponsorship";
@@ -142,7 +143,22 @@ export function resetDonationLedger(): void {
   memorySeq = 0;
 }
 
-function issueInMemory(draft: DonationDraft, when: Date): DonationRecord {
+/**
+ * The offline branch of issuance. **Synchronous by design.**
+ *
+ * A caller whose guard, draw and write have to happen in one tick — the
+ * sponsorship ledger's memory branch — has no other way to be atomic in a
+ * single-threaded process: a promise here would hand a concurrent caller a window
+ * between the guard and the draw. Refuses to run when a database is configured, so
+ * it cannot become a way around `withReceiptTransaction`.
+ */
+export function issueReceiptInMemory(draft: DonationDraft, when: Date): DonationRecord {
+  if (isLedgerPersistent()) {
+    throw new Error(
+      "issueReceiptInMemory is the offline branch; with DATABASE_URL set, draw inside withReceiptTransaction."
+    );
+  }
+
   const scope = receiptScopeFor(when);
   const serial = (memoryCounters.get(scope) ?? 0) + 1;
   memoryCounters.set(scope, serial);
@@ -222,48 +238,96 @@ function toRecord(row: DonationRow): DonationRecord {
 }
 
 /**
- * Draws the next serial and writes the receipt in one transaction.
+ * Draws the next serial and writes the receipt, both through `tx`.
  *
  * The `upsert` takes a row-level write lock on the scope's counter, so concurrent
  * donors queue rather than race. Because the increment and the insert share a
  * transaction, an insert that fails rolls the counter back too — which is precisely
  * what a bare `SEQUENCE` cannot do, and what makes the series gapless.
+ *
+ * Exported for a caller that has a row of its own to write in the same transaction:
+ * the sponsorship ledger guards a pledge, then draws its receipt, then attaches the
+ * number, and either all three commit or none do. Call it only inside
+ * `withReceiptTransaction`, which owns the transaction, the retry and the error
+ * contract; this function owns only the draw.
  */
-async function issueInPostgres(draft: DonationDraft, when: Date): Promise<DonationRecord> {
+export async function drawAndInsert(
+  tx: Prisma.TransactionClient,
+  draft: DonationDraft,
+  when: Date
+): Promise<DonationRecord> {
   const scope = receiptScopeFor(when);
 
-  const row = await prisma.$transaction(async (tx) => {
-    const counter = await tx.receiptSequence.upsert({
-      where: { scope },
-      create: { scope, lastValue: 1 },
-      update: { lastValue: { increment: 1 } },
-    });
+  const counter = await tx.receiptSequence.upsert({
+    where: { scope },
+    create: { scope, lastValue: 1 },
+    update: { lastValue: { increment: 1 } },
+  });
 
-    return tx.donation.create({
-      data: {
-        receiptNumber: formatReceiptNumber(scope, counter.lastValue),
-        sequenceScope: scope,
-        sequenceValue: counter.lastValue,
-        donorName: draft.donorName,
-        donorEmail: draft.donorEmail,
-        donorPhone: draft.donorPhone ?? null,
-        taxIdOrIc: draft.taxIdOrIc ?? null,
-        tierId: draft.tierId,
-        tierName: draft.tierName,
-        amountSen: draft.amountSen,
-        currency: draft.currency,
-        frequency: draft.frequency,
-        paymentMethod: draft.paymentMethod,
-        targetPetName: draft.targetPetName ?? null,
-        notes: draft.notes ?? null,
-        taxDeductibleRef: draft.taxDeductibleRef,
-        shelterRegistrationNo: draft.shelterRegistrationNo,
-        issuedAt: when,
-      },
-    });
+  const row = await tx.donation.create({
+    data: {
+      receiptNumber: formatReceiptNumber(scope, counter.lastValue),
+      sequenceScope: scope,
+      sequenceValue: counter.lastValue,
+      donorName: draft.donorName,
+      donorEmail: draft.donorEmail,
+      donorPhone: draft.donorPhone ?? null,
+      taxIdOrIc: draft.taxIdOrIc ?? null,
+      tierId: draft.tierId,
+      tierName: draft.tierName,
+      amountSen: draft.amountSen,
+      currency: draft.currency,
+      frequency: draft.frequency,
+      paymentMethod: draft.paymentMethod,
+      targetPetName: draft.targetPetName ?? null,
+      notes: draft.notes ?? null,
+      taxDeductibleRef: draft.taxDeductibleRef,
+      shelterRegistrationNo: draft.shelterRegistrationNo,
+      issuedAt: when,
+    },
   });
 
   return toRecord(row);
+}
+
+/**
+ * Runs `work` in the transaction a receipt is drawn in.
+ *
+ * Whatever `work` writes commits with the receipt, and a throw from `work` rolls the
+ * serial and the receipt row back with it — so a caller that guards first, draws
+ * second and writes third has done all three or none. Every failure comes back as
+ * `ReceiptIssuanceError`: whatever went wrong, the transaction rolled back and no
+ * receipt was issued, which is the one thing the caller has to tell the donor.
+ *
+ * Two writers creating the same scope row concurrently, or drawing the same serial,
+ * trip the unique index; one retry re-runs `work` against the now-existing counter.
+ * A second failure is not a race, so it propagates.
+ *
+ * @throws {ReceiptIssuanceError} when the transaction did not commit. The caller
+ *   must surface this rather than pretending success — see the module comment on
+ *   why this path deliberately does not fall back to memory.
+ */
+export async function withReceiptTransaction<T>(
+  work: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  try {
+    return await prisma.$transaction(work);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      try {
+        return await prisma.$transaction(work);
+      } catch (retryErr) {
+        throw new ReceiptIssuanceError(
+          "Could not allocate a receipt number after a concurrent-issuance retry.",
+          retryErr
+        );
+      }
+    }
+    throw new ReceiptIssuanceError(
+      "Donation could not be recorded, so no receipt was issued.",
+      err
+    );
+  }
 }
 
 /**
@@ -283,30 +347,10 @@ export async function issueDonationReceipt(
   const when = options?.now ?? new Date();
 
   if (!isLedgerPersistent()) {
-    return issueInMemory(draft, when);
+    return issueReceiptInMemory(draft, when);
   }
 
-  try {
-    return await issueInPostgres(draft, when);
-  } catch (err) {
-    // Two writers created the same scope row concurrently, or drew the same serial.
-    // The unique index caught it; one retry re-reads the now-existing counter and
-    // draws a fresh number. A second failure is not a race, so it propagates.
-    if (isUniqueViolation(err)) {
-      try {
-        return await issueInPostgres(draft, when);
-      } catch (retryErr) {
-        throw new ReceiptIssuanceError(
-          "Could not allocate a receipt number after a concurrent-issuance retry.",
-          retryErr
-        );
-      }
-    }
-    throw new ReceiptIssuanceError(
-      "Donation could not be recorded, so no receipt was issued.",
-      err
-    );
-  }
+  return withReceiptTransaction((tx) => drawAndInsert(tx, draft, when));
 }
 
 /**
