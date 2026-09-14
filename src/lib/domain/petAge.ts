@@ -95,19 +95,25 @@ export function formatAgeBandRange(band: AgeCategory, locale: "en" | "ms" = "en"
  */
 export function withDerivedAge<T extends {
   birthDate?: string;
+  birthDateIsEstimate?: boolean;
   intakeDate: string;
   age?: string;
   ageCategory?: string;
 }>(pet: T, asOf: Date | string = new Date()): T & {
   birthDate: string;
+  birthDateIsEstimate: boolean;
   age: string;
   ageCategory: AgeCategory;
 } {
   const birthDate = deriveBirthDate(pet);
+  const birthDateIsEstimate = pet.birthDate
+    ? (pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true)
+    : true;
 
   return {
     ...pet,
     birthDate,
+    birthDateIsEstimate,
     age: formatAgeString(birthDate, asOf).en,
     ageCategory: computeAgeCategory(birthDate, asOf),
   };
@@ -144,31 +150,33 @@ export function deriveBirthDate(pet: { birthDate?: string; age?: string; intakeD
 }
 
 /**
- * Approximates a birth date from a legacy age string (e.g. "2 years", "4 months")
- * relative to an intake date.
+ * Approximates a birth date from a legacy age string (e.g. "2 years", "4 months", "2 tahun")
+ * relative to an intake date. Timezone-invariant UTC arithmetic.
  */
-export function approximateBirthDate(ageStr: string, intakeDateStr: string): { birthDate: string; isEstimate: boolean } {
+export function approximateBirthDate(
+  ageStr: string,
+  intakeDateStr: string
+): { birthDate: string; isEstimate: boolean } {
   const norm = ageStr.toLowerCase().trim();
-  const intake = new Date(intakeDateStr);
-  if (isNaN(intake.getTime())) {
+  const parts = parseDateParts(intakeDateStr);
+  if (!parts) {
     return { birthDate: new Date().toISOString().split("T")[0], isEstimate: true };
   }
 
-  const yearMatch = norm.match(/(\d+)\s*y/);
+  const yearMatch = norm.match(/(\d+)\s*(?:y|yr|year|thn|tahun)/i);
   if (yearMatch) {
     const years = parseInt(yearMatch[1], 10);
-    const d = new Date(intake);
-    d.setFullYear(d.getFullYear() - years);
+    const d = new Date(Date.UTC(parts.year - years, parts.month, parts.day));
     return { birthDate: d.toISOString().split("T")[0], isEstimate: true };
   }
 
-  const monthMatch = norm.match(/(\d+)\s*m/);
+  const monthMatch = norm.match(/(\d+)\s*(?:m|mo|month|bln|bulan)/i);
   if (monthMatch) {
     const months = parseInt(monthMatch[1], 10);
-    const d = new Date(intake);
-    d.setMonth(d.getMonth() - months);
+    const d = new Date(Date.UTC(parts.year, parts.month - months, parts.day));
     return { birthDate: d.toISOString().split("T")[0], isEstimate: true };
   }
 
-  return { birthDate: intakeDateStr, isEstimate: true };
+  const dateOnly = intakeDateStr.split("T")[0];
+  return { birthDate: dateOnly, isEstimate: true };
 }

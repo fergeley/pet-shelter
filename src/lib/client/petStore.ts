@@ -73,7 +73,7 @@ export function usePetStore() {
         featured: input.featured,
         intakeDate: input.intakeDate,
         birthDate: input.birthDate || undefined,
-        birthDateIsEstimate: input.birthDateIsEstimate ?? true,
+        birthDateIsEstimate: input.birthDate ? (input.birthDateIsEstimate ?? true) : true,
         rehabStage: input.rehabStage,
         rehabStageMs: input.rehabStageMs,
         rehabProgressPercent: input.rehabProgressPercent,
@@ -125,7 +125,9 @@ export function usePetStore() {
         featured: input.featured ?? false,
         intakeDate: input.intakeDate,
         birthDate: input.birthDate !== undefined ? (input.birthDate || undefined) : pets[index].birthDate,
-        birthDateIsEstimate: input.birthDateIsEstimate !== undefined ? input.birthDateIsEstimate : pets[index].birthDateIsEstimate,
+        birthDateIsEstimate: (input.birthDate !== undefined ? (input.birthDate || undefined) : pets[index].birthDate)
+          ? (input.birthDateIsEstimate !== undefined ? input.birthDateIsEstimate : (pets[index].birthDateIsEstimate ?? true))
+          : true,
         rehabStage: input.rehabStage,
         rehabStageMs: input.rehabStageMs,
         rehabProgressPercent: input.rehabProgressPercent,

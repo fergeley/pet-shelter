@@ -160,7 +160,7 @@ export async function createPet(
       featured: validated.featured,
       intakeDate: validated.intakeDate,
       birthDate: validated.birthDate || undefined,
-      birthDateIsEstimate: validated.birthDateIsEstimate ?? true,
+      birthDateIsEstimate: validated.birthDate ? (validated.birthDateIsEstimate ?? true) : true,
       customQrUrl: validated.customQrUrl || null,
       rehabStage: validated.rehabStage,
       rehabStageMs: validated.rehabStageMs,
@@ -251,7 +251,7 @@ export async function updatePet(
       ...existing,
       ...validated,
       birthDate: validated.birthDate || undefined,
-      birthDateIsEstimate: validated.birthDateIsEstimate ?? existing.birthDateIsEstimate ?? true,
+      birthDateIsEstimate: validated.birthDate ? (validated.birthDateIsEstimate ?? existing.birthDateIsEstimate ?? true) : true,
       // The submitted form is authoritative for rehabilitation progress: omitting the
       // fields clears them, so a cleared animal cannot keep a stale progress bar.
       rehabStage: validated.rehabStage,

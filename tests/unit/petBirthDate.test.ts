@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createPet, updatePet, getPetById } from "@/actions/pets";
 import { buildPetPersistencePayload } from "@/lib/server/petMappers";
 import { petFormSchema, PetFormInput, isValidCalendarDate } from "@/lib/validations/pet";
+import { approximateBirthDate, withDerivedAge } from "@/lib/domain/petAge";
 import { signInAsAdmin } from "../setup/authSession";
 
 describe("Pet Birth Date (PS-114)", () => {
@@ -79,6 +80,26 @@ describe("Pet Birth Date (PS-114)", () => {
       if (!parsed.success) {
         expect(parsed.error.issues[0]?.message).toContain("cannot be in the future");
       }
+    });
+
+    it("rejects birth date that is after intake date", () => {
+      const parsed = petFormSchema.safeParse({
+        ...basePetInput,
+        intakeDate: "2026-01-10",
+        birthDate: "2026-05-20",
+      });
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues[0]?.message).toContain("cannot be after intake date");
+      }
+    });
+
+    it("rejects an invalid calendar date for intakeDate", () => {
+      const parsed = petFormSchema.safeParse({
+        ...basePetInput,
+        intakeDate: "2024-02-31",
+      });
+      expect(parsed.success).toBe(false);
     });
 
     it("rejects non-ISO formatted dates", () => {
@@ -192,6 +213,75 @@ describe("Pet Birth Date (PS-114)", () => {
       expect(updated.success).toBe(true);
       expect(updated.data?.birthDate).toBeDefined();
       expect(updated.data?.birthDate).not.toBe("");
+    });
+
+    it("resets birthDateIsEstimate to true when clearing an exact birthDate", async () => {
+      const created = await createPet({
+        ...basePetInput,
+        name: "Mochi Exact Clear",
+        birthDate: "2023-05-10",
+        birthDateIsEstimate: false,
+      });
+      expect(created.success).toBe(true);
+      expect(created.data?.birthDateIsEstimate).toBe(false);
+
+      const petId = created.data!.id;
+      const updated = await updatePet(petId, {
+        ...basePetInput,
+        name: "Mochi Exact Clear",
+        age: "2 years",
+        birthDate: "",
+      });
+
+      expect(updated.success).toBe(true);
+      expect(updated.data?.birthDateIsEstimate).toBe(true);
+    });
+
+    it("enforces birthDateIsEstimate: true on createPet when birthDate is omitted", async () => {
+      const result = await createPet({
+        ...basePetInput,
+        name: "Mochi Fallback Estimate",
+        age: "2 years",
+        birthDate: "",
+        birthDateIsEstimate: false, // Attempt to falsely mark an approximated date as exact
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.birthDateIsEstimate).toBe(true);
+    });
+  });
+
+  describe("approximateBirthDate & withDerivedAge Edge Cases", () => {
+    it("handles Malay terms correctly and symmetrically with English", () => {
+      const intake = "2026-06-12";
+      const en = approximateBirthDate("2 years", intake);
+      const ms = approximateBirthDate("2 tahun", intake);
+      expect(ms.birthDate).toBe(en.birthDate);
+      expect(ms.birthDate).toBe("2024-06-12");
+      expect(ms.isEstimate).toBe(true);
+
+      const enMonth = approximateBirthDate("4 months", "2026-07-22");
+      const msMonth = approximateBirthDate("4 bulan", "2026-07-22");
+      expect(msMonth.birthDate).toBe(enMonth.birthDate);
+      expect(msMonth.birthDate).toBe("2026-03-22");
+      expect(msMonth.isEstimate).toBe(true);
+    });
+
+    it("withDerivedAge enforces birthDateIsEstimate: boolean", () => {
+      const petWithoutDate = withDerivedAge({
+        intakeDate: "2026-06-12",
+        age: "2 years",
+      });
+      expect(petWithoutDate.birthDateIsEstimate).toBe(true);
+      expect(petWithoutDate.birthDate).toBe("2024-06-12");
+
+      const petWithDate = withDerivedAge({
+        intakeDate: "2026-06-12",
+        birthDate: "2023-01-01",
+        birthDateIsEstimate: false,
+      });
+      expect(petWithDate.birthDateIsEstimate).toBe(false);
+      expect(petWithDate.birthDate).toBe("2023-01-01");
     });
   });
 });

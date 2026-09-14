@@ -251,6 +251,9 @@ export function PetFormDialog({
       const derivedCategory = computeAgeCategory(bDate);
       setValue("age", derivedAge, { shouldValidate: true, shouldDirty: true });
       setValue("ageCategory", derivedCategory, { shouldValidate: true, shouldDirty: true });
+    } else if (!bDate) {
+      // With no explicit birth date, birthday reverts to an estimate
+      setValue("birthDateIsEstimate", true, { shouldDirty: true });
     }
   };
 
@@ -259,8 +262,8 @@ export function PetFormDialog({
     ageField.onChange(e);
     const typedAge = e.target.value.trim();
     // Only derive approximate birth date when the user types an age expression with a unit
-    // (e.g. "2 years", "4 months", "1y", "3m") to avoid premature derivation on a single digit.
-    const hasUnit = /(\d+)\s*(y|m|year|month|yr|mo|thn|bulan)/i.test(typedAge);
+    // (e.g. "2 years", "4 months", "1y", "3m", "2 tahun", "4 bulan") to avoid premature derivation on a single digit.
+    const hasUnit = /(\d+)\s*(y|m|year|month|yr|mo|thn|tahun|bln|bulan)/i.test(typedAge);
     const currentBirthDate = getValues("birthDate");
     const isEstimate = getValues("birthDateIsEstimate");
     if ((!currentBirthDate || isEstimate) && hasUnit) {

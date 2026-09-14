@@ -175,7 +175,7 @@ export const petBaseFormSchema = z.object({
   galleryImages: z.array(uploadedImageUrl).optional().default([]),
   tags: z.array(z.string()).min(1, "Please provide at least 1 characteristic tag"),
   featured: z.boolean().default(false),
-  intakeDate: z.string().min(4, "Intake date is required"),
+  intakeDate: isoDateSchema,
 
   /// Dedicated donation QR for this animal's medical fund drive.
   customQrUrl: optionalQrImageUrl,
@@ -243,6 +243,16 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
         code: "custom",
         path: [field],
         message: `Duplicate '${field}' id '${id}' — history event ids must be unique`,
+      });
+    }
+  }
+
+  if (data.birthDate && data.intakeDate && isValidCalendarDate(data.birthDate) && isValidCalendarDate(data.intakeDate)) {
+    if (data.birthDate > data.intakeDate) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["birthDate"],
+        message: "Birth date cannot be after intake date",
       });
     }
   }
