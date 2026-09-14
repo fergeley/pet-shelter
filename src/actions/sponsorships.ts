@@ -1,5 +1,6 @@
 "use server";
 
+import { ZodError } from "zod";
 import {
   petSponsorshipSchema,
   PetSponsorshipInput,
@@ -82,7 +83,12 @@ export async function createPetSponsorshipAction(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Please check the sponsorship details",
+      error:
+        err instanceof ZodError
+          ? (err.issues[0]?.message ?? "Please check the sponsorship details")
+          : err instanceof Error
+            ? err.message
+            : "Please check the sponsorship details",
     };
   }
 
@@ -407,10 +413,18 @@ export async function rejectPetSponsorshipAction(
     const session = await getCurrentSession();
     assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
 
-    const note =
-      typeof reason === "string" ? reason.trim().slice(0, REJECTION_REASON_MAX) || null : null;
+    if (reason !== undefined && typeof reason !== "string") {
+      return { success: false, error: "Dismissal reason must be text." };
+    }
 
-    const outcome = await rejectPendingSponsorship(pledgeRef);
+    const note = reason?.trim().slice(0, REJECTION_REASON_MAX) || null;
+
+    const outcome = await rejectPendingSponsorship(pledgeRef, {
+      actorId: session.id,
+      actorEmail: session.email,
+      actorRole: session.role,
+      reason: note,
+    });
     if (outcome.status === "not_found") {
       return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
     }
@@ -427,24 +441,6 @@ export async function rejectPetSponsorshipAction(
       };
     }
 
-    const { record } = outcome;
-    recordAuditLog({
-      actorId: session.id,
-      actorEmail: session.email,
-      actorRole: session.role,
-      action: "SPONSORSHIP_REJECTED",
-      entity: "PetSponsorship",
-      entityId: pledgeRef,
-      details: {
-        pledgeRef,
-        reason: note,
-        petName: record.petName,
-        sponsorEmail: record.sponsorEmail,
-        amountSen: record.amountSen as number,
-        amountDisplay: formatMYR(record.amountSen),
-      },
-    });
-
     return { success: true };
   } catch (err) {
     if (isAuthorizationError(err)) return { success: false, error: err.message };
@@ -453,7 +449,7 @@ export async function rejectPetSponsorshipAction(
     return {
       success: false,
       error:
-        "We could not dismiss that pledge, so it is still pending. Please reload and try again.",
+        "We could not complete or verify that dismissal. Reload the queue before trying again.",
     };
   }
 }

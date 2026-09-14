@@ -10,7 +10,12 @@ import {
 } from "@/lib/server/donationLedger";
 import type { StatutoryIssuerIdentity } from "@/lib/domain/shelterIdentity";
 import type { SponsorshipTierId } from "@/types/sponsorship";
-import { Sen, senFromInteger } from "@/lib/domain/money";
+import { formatMYR, Sen, senFromInteger } from "@/lib/domain/money";
+import {
+  persistAuditLog,
+  recordAuditLog,
+  type AuditEntryInput,
+} from "@/lib/domain/auditLog";
 import {
   DEFAULT_SPONSORSHIP_GOAL_SEN,
   PetSponsorshipSummary,
@@ -232,17 +237,17 @@ async function transitionPending(
   }
 
   const db: Prisma.TransactionClient = tx ?? prisma;
-  const { count } = await db.petSponsorship.updateMany({
+  const [updated] = await db.petSponsorship.updateManyAndReturn({
     where: { pledgeRef, status: "PENDING_PAYMENT" },
     data: transition.data,
   });
 
+  if (updated) return { status: "transitioned", record: toRecord(updated) };
+
   const row = await db.petSponsorship.findUnique({ where: { pledgeRef } });
   if (!row) return { status: "not_found" };
 
-  return count === 1
-    ? { status: "transitioned", record: toRecord(row) }
-    : { status: "not_pending", record: toRecord(row) };
+  return { status: "not_pending", record: toRecord(row) };
 }
 
 /**
@@ -364,6 +369,36 @@ export type RejectOutcome =
   | { status: "rejected"; record: SponsorshipRecord }
   | Exclude<ReconcileOutcome, { status: "reconciled" }>;
 
+export interface RejectSponsorshipCommand {
+  actorId: string;
+  actorEmail: string;
+  actorRole: string;
+  reason: string | null;
+  now?: Date;
+}
+
+function rejectionAuditEntry(
+  record: SponsorshipRecord,
+  command: RejectSponsorshipCommand
+): AuditEntryInput {
+  return {
+    actorId: command.actorId,
+    actorEmail: command.actorEmail,
+    actorRole: command.actorRole,
+    action: "SPONSORSHIP_REJECTED",
+    entity: "PetSponsorship",
+    entityId: record.pledgeRef,
+    details: {
+      pledgeRef: record.pledgeRef,
+      reason: command.reason,
+      petName: record.petName,
+      sponsorEmail: record.sponsorEmail,
+      amountSen: record.amountSen as number,
+      amountDisplay: formatMYR(record.amountSen),
+    },
+  };
+}
+
 /**
  * A coordinator dismisses a claim that no transfer ever backed.
  *
@@ -379,18 +414,41 @@ export type RejectOutcome =
  */
 export async function rejectPendingSponsorship(
   pledgeRef: string,
-  options?: { now?: Date }
+  command: RejectSponsorshipCommand
 ): Promise<RejectOutcome> {
-  const when = options?.now ?? new Date();
+  const when = command.now ?? new Date();
 
-  const outcome = await transitionPending(pledgeRef, {
-    data: { status: "CANCELLED", cancelledAt: when },
-    patch: { status: "CANCELLED" },
+  if (!isLedgerPersistent()) {
+    const outcome = await transitionPending(pledgeRef, {
+      data: { status: "CANCELLED", cancelledAt: when },
+      patch: { status: "CANCELLED" },
+    });
+
+    if (outcome.status === "transitioned") {
+      recordAuditLog(rejectionAuditEntry(outcome.record, command));
+      return { status: "rejected", record: outcome.record };
+    }
+    if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+    return outcome;
+  }
+
+  return prisma.$transaction(async (tx): Promise<RejectOutcome> => {
+    const outcome = await transitionPending(
+      pledgeRef,
+      {
+        data: { status: "CANCELLED", cancelledAt: when },
+        patch: { status: "CANCELLED" },
+      },
+      tx
+    );
+
+    if (outcome.status === "transitioned") {
+      await persistAuditLog(tx, rejectionAuditEntry(outcome.record, command));
+      return { status: "rejected", record: outcome.record };
+    }
+    if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+    return outcome;
   });
-
-  if (outcome.status === "transitioned") return { status: "rejected", record: outcome.record };
-  if (outcome.status === "not_pending") return settledOutcome(outcome.record);
-  return outcome;
 }
 
 // ---------------------------------------------------------------------- reads

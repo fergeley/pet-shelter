@@ -405,6 +405,30 @@ describe("rejectPetSponsorshipAction", () => {
     expect(stored?.receiptNumber).toBe(settled.receiptNumber);
   });
 
+  it("rejects a runtime non-string reason before the ledger mutation", async () => {
+    const ledger = await import("@/lib/server/sponsorshipLedger");
+    const { rejectPetSponsorshipAction } = await import("@/actions/sponsorships");
+
+    await ledger.recordSponsorshipPledge(pledge({ pledgeRef: "HFS-PLG-000043" }));
+    const rejectSpy = vi.spyOn(ledger, "rejectPendingSponsorship");
+
+    try {
+      const result = await rejectPetSponsorshipAction(
+        "HFS-PLG-000043",
+        42 as unknown as string
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/reason/i);
+      expect(rejectSpy).not.toHaveBeenCalled();
+      expect((await ledger.findSponsorshipByPledgeRef("HFS-PLG-000043"))?.status).toBe(
+        "PENDING_PAYMENT"
+      );
+    } finally {
+      rejectSpy.mockRestore();
+    }
+  });
+
   it("reports an unknown pledge rather than inventing one", async () => {
     const { rejectPetSponsorshipAction } = await import("@/actions/sponsorships");
     const result = await rejectPetSponsorshipAction("HFS-PLG-20260101-000000");

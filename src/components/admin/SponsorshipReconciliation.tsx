@@ -195,7 +195,7 @@ export function SponsorshipReconciliation() {
       }
     } catch {
       setRowError(
-        "We could not confirm that commitment. Nothing was issued — please reload and try again."
+        "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
       setBusyRef(null);
@@ -223,7 +223,7 @@ export function SponsorshipReconciliation() {
       }
     } catch {
       setRowError(
-        "We could not dismiss that pledge. It is still pending — please reload and try again."
+        "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
       setBusyRef(null);
@@ -242,8 +242,8 @@ export function SponsorshipReconciliation() {
               Sponsorship Payment Reconciliation
             </h2>
             <p className="text-xs text-muted-foreground">
-              Confirm a transfer has landed to issue the supporter&apos;s LHDN Section 44(6)
-              receipt. Match the <span className="font-mono font-semibold">HFS-PLG</span> reference
+              Confirm a transfer has landed to issue the supporter&apos;s official receipt. Match
+              the <span className="font-mono font-semibold">HFS-PLG</span> reference
               against your bank statement — a pledge reference is not a receipt number. Dismiss a
               pledge that no transfer ever backed.
             </p>
@@ -413,7 +413,7 @@ export function SponsorshipReconciliation() {
                         disabled={isBusy || busyRef !== null}
                         className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
                         // Two steps because the receipt cannot be withdrawn once issued.
-                        title="Confirm this transfer has landed and issue the tax receipt"
+                        title="Confirm this transfer has landed and issue the official receipt"
                       >
                         <CheckCircle2 className="size-3.5" />
                         Confirm payment received

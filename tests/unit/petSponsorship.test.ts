@@ -126,6 +126,15 @@ describe("a pledge reference is not a receipt number", () => {
     expect(reconciliationNotice("monthly", "duitnow_qr")).toMatch(/standing instruction/);
     expect(reconciliationNotice("one_time", "card")).toMatch(/not enabled/);
   });
+
+  it("does not promise receipts for future transfers that this one-shot pledge never records", () => {
+    const notice = reconciliationNotice("monthly", "duitnow_qr");
+
+    expect(notice).not.toMatch(/receipt is issued for each month we receive/i);
+    expect(notice).toMatch(
+      /(?:this (?:pledge|commitment).*(?:one|single)|future transfers?.*(?:recorded|confirmed|reconciled) separately)/i
+    );
+  });
 });
 
 describe("sponsorship validation", () => {
@@ -254,6 +263,16 @@ describe("createPetSponsorshipAction", () => {
   it("refuses a commitment below the floor", async () => {
     const result = await createPetSponsorshipAction(input({ amountMYR: 5 }));
     expect(result.success).toBe(false);
+  });
+
+  it("returns the first donor-facing issue for an overlong note, not Zod's JSON", async () => {
+    const result = await createPetSponsorshipAction(input({ notes: "x".repeat(501) }));
+
+    expect(result).toEqual({
+      success: false,
+      error: "Note to the shelter must be under 500 characters",
+    });
+    expect(result.error).not.toMatch(/[{}\[\]"]/);
   });
 
   it("stores the animal's name even when it has no database row", async () => {

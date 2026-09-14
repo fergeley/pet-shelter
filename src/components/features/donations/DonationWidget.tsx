@@ -274,11 +274,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             <p className="text-sm text-muted-foreground mt-1">
               {isTaxClaimable(completedReceipt)
                 ? isMs
-                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
-                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`
+                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 sedia di bawah.`
+                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 is ready below.`
                 : isMs
-                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 telah dihantar ke ${completedReceipt.donorEmail}. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
-                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 has been dispatched to ${completedReceipt.donorEmail}. It carries no tax identifier, so it cannot be claimed against a return.`}
+                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 sedia di bawah. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
+                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 is ready below. It carries no tax identifier, so it cannot be claimed against a return.`}
             </p>
           </div>
         </div>

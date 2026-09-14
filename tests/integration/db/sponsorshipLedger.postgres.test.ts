@@ -24,6 +24,7 @@ import {
   cleanProbeLedger,
   PROBE_INSTANT,
   PROBE_PLEDGE_PREFIX,
+  PROBE_REJECTION_AUDIT_CONTEXT,
 } from "./support/database";
 
 /**
@@ -214,7 +215,10 @@ describe("sponsorship ledger against real PostgreSQL", () => {
   it("dismisses an unpaid pledge, and refuses to settle it afterwards", async () => {
     const record = await recordSponsorshipPledge(draft(), { now: PROBE_INSTANT });
 
-    const rejected = await rejectPendingSponsorship(record.pledgeRef, { now: PROBE_INSTANT });
+    const rejected = await rejectPendingSponsorship(record.pledgeRef, {
+      ...PROBE_REJECTION_AUDIT_CONTEXT,
+      now: PROBE_INSTANT,
+    });
     expect(rejected.status).toBe("rejected");
 
     const row = await prisma.petSponsorship.findUnique({ where: { pledgeRef: record.pledgeRef } });
@@ -223,7 +227,7 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     expect(await probeQueue()).not.toContain(record.pledgeRef);
 
     // Terminal in both directions: not dismissible twice, and never reconcilable.
-    expect(await rejectPendingSponsorship(record.pledgeRef)).toEqual({
+    expect(await rejectPendingSponsorship(record.pledgeRef, PROBE_REJECTION_AUDIT_CONTEXT)).toEqual({
       status: "not_pending",
       currentStatus: "CANCELLED",
     });
@@ -236,6 +240,57 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     expect(await prisma.receiptSequence.findUnique({ where: { scope: SCOPE } })).toBeNull();
   });
 
+  it("commits a rejected pledge and its actor/reason audit as one durable outcome", async () => {
+    const record = await recordSponsorshipPledge(draft(), { now: PROBE_INSTANT });
+
+    await expect(
+      rejectPendingSponsorship(record.pledgeRef, {
+        ...PROBE_REJECTION_AUDIT_CONTEXT,
+        now: PROBE_INSTANT,
+      })
+    ).resolves.toMatchObject({ status: "rejected" });
+
+    const [pledge, auditRows] = await Promise.all([
+      prisma.petSponsorship.findUnique({ where: { pledgeRef: record.pledgeRef } }),
+      prisma.auditLog.findMany({
+        where: { action: "SPONSORSHIP_REJECTED", targetId: record.pledgeRef },
+      }),
+    ]);
+    expect(pledge).toMatchObject({ status: "CANCELLED", cancelledAt: PROBE_INSTANT });
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]).toMatchObject({
+      actorId: PROBE_REJECTION_AUDIT_CONTEXT.actorId,
+      actorEmail: PROBE_REJECTION_AUDIT_CONTEXT.actorEmail,
+      actorRole: PROBE_REJECTION_AUDIT_CONTEXT.actorRole,
+      targetEntity: "PetSponsorship",
+      targetId: record.pledgeRef,
+      metadata: expect.objectContaining({
+        pledgeRef: record.pledgeRef,
+        reason: PROBE_REJECTION_AUDIT_CONTEXT.reason,
+      }),
+    });
+  });
+
+  it("rolls cancellation back when PostgreSQL refuses the audit row", async () => {
+    const record = await recordSponsorshipPledge(draft(), { now: PROBE_INSTANT });
+    const invalidAuditContext = {
+      ...PROBE_REJECTION_AUDIT_CONTEXT,
+      // Runtime callers can violate the TypeScript surface. The non-null database
+      // column is the last boundary and must abort the enclosing transaction.
+      actorEmail: null as unknown as string,
+      now: PROBE_INSTANT,
+    };
+
+    await expect(rejectPendingSponsorship(record.pledgeRef, invalidAuditContext)).rejects.toThrow();
+
+    const [pledge, auditRows] = await Promise.all([
+      prisma.petSponsorship.findUnique({ where: { pledgeRef: record.pledgeRef } }),
+      prisma.auditLog.findMany({ where: { targetId: record.pledgeRef } }),
+    ]);
+    expect(pledge).toMatchObject({ status: "PENDING_PAYMENT", cancelledAt: null });
+    expect(auditRows).toEqual([]);
+  });
+
   it("refuses to dismiss a pledge that already carries a receipt", async () => {
     const record = await recordSponsorshipPledge(draft(), { now: PROBE_INSTANT });
     const settled = await settleSponsorship(record.pledgeRef, ISSUER, "probe@x", {
@@ -246,7 +301,7 @@ describe("sponsorship ledger against real PostgreSQL", () => {
 
     // The same vocabulary as reconciliation: a row that already carries a receipt is
     // "already reconciled", whichever transition asks.
-    expect(await rejectPendingSponsorship(record.pledgeRef)).toEqual({
+    expect(await rejectPendingSponsorship(record.pledgeRef, PROBE_REJECTION_AUDIT_CONTEXT)).toEqual({
       status: "already_reconciled",
       receiptNumber: number,
     });
@@ -254,7 +309,12 @@ describe("sponsorship ledger against real PostgreSQL", () => {
       status: "already_reconciled",
       receiptNumber: number,
     });
-    expect(await rejectPendingSponsorship(`${PROBE_PLEDGE_PREFIX}-NOPE`)).toEqual({
+    expect(
+      await rejectPendingSponsorship(
+        `${PROBE_PLEDGE_PREFIX}-NOPE`,
+        PROBE_REJECTION_AUDIT_CONTEXT
+      )
+    ).toEqual({
       status: "not_found",
     });
   });

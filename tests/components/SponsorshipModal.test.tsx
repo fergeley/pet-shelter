@@ -461,6 +461,26 @@ describe("SponsorshipModal checkout contract", () => {
     expect(saveDonationReceipt).not.toHaveBeenCalled();
   });
 
+  it("does not claim an acknowledgement email was delivered from ledger success alone", async () => {
+    mockedCreateSponsorship.mockResolvedValue({
+      success: true,
+      data: sponsorshipPledge,
+    });
+    const pet = makePet({ id: "pet-bella", name: "Bella" });
+    renderWithLanguage(
+      <SponsorshipModal open onOpenChange={vi.fn()} targetPet={pet} />,
+    );
+
+    const user = await fillRequiredDonorDetails();
+    await user.click(submissionButton());
+
+    const acknowledgement = await screen.findByRole("status");
+    expect(acknowledgement).toHaveTextContent(/sponsorship pledge recorded/i);
+    expect(acknowledgement).not.toHaveTextContent(
+      /emailed|email (?:was|has been) sent|sent (?:an? )?(?:acknowledgement )?(?:email|to)|delivered/i,
+    );
+  });
+
   it("does not label an opted-out general receipt as tax-exempt", async () => {
     mockedSubmitDonation.mockResolvedValue({
       success: true,

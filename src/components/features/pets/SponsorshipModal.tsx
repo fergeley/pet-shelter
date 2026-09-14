@@ -499,6 +499,7 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                     <Input
                       id="donorName"
                       required
+                      maxLength={100}
                       placeholder="e.g. Rachel Lim / Apex Sdn Bhd"
                       value={donorName}
                       onChange={(e) => setDonorName(e.target.value)}
@@ -525,6 +526,7 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                     </Label>
                     <Input
                       id="donorPhone"
+                      maxLength={25}
                       placeholder="012-345 6789"
                       value={donorPhone}
                       onChange={(e) => setDonorPhone(e.target.value)}
@@ -540,6 +542,7 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                       id="taxIdOrIc"
                       required={wantsTaxReceipt}
                       disabled={!wantsTaxReceipt}
+                      maxLength={30}
                       placeholder="e.g. 920512-10-5432 / 202101012345"
                       value={taxIdOrIc}
                       onChange={(e) => setTaxIdOrIc(e.target.value)}
@@ -555,6 +558,7 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                     <Textarea
                       id="notes"
                       rows={2}
+                      maxLength={500}
                       placeholder="Leave a message for our shelter team..."
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
@@ -596,8 +600,8 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                   </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     We recorded your RM {completedPledge.amountMYR.toFixed(2)} commitment for{" "}
-                    <strong className="text-foreground">{completedPledge.petName}</strong> and sent
-                    an acknowledgement to <strong>{completedPledge.sponsorEmail}</strong>.
+                    <strong className="text-foreground">{completedPledge.petName}</strong>. The
+                    pledge reference below is your on-screen acknowledgement.
                   </p>
                 </div>
               </div>
@@ -663,7 +667,7 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                         <strong className="text-foreground">
                           RM {completedReceipt.amountMYR.toFixed(2)}
                         </strong>{" "}
-                        was dispatched to <strong>{completedReceipt.donorEmail}</strong>.
+                        is ready below.
                       </>
                     ) : (
                       <>
@@ -671,8 +675,8 @@ function SponsorshipModalCheckout(props: UseSponsorshipControllerProps) {
                         <strong className="text-foreground">
                           RM {completedReceipt.amountMYR.toFixed(2)}
                         </strong>{" "}
-                        was dispatched to <strong>{completedReceipt.donorEmail}</strong>. It carries
-                        no tax identifier, so it cannot be claimed against a return.
+                        is ready below. It carries no tax identifier, so it cannot be claimed
+                        against a return.
                       </>
                     )}
                   </p>

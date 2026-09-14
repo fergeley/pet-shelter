@@ -116,6 +116,14 @@ export const PROBE_SCOPE_PREFIX = "HFS-DON-2999";
  */
 export const PROBE_PLEDGE_PREFIX = "HFS-PLG-2999";
 
+/** Actor/reason captured by every rejection probe. */
+export const PROBE_REJECTION_AUDIT_CONTEXT = {
+  actorId: "probe-coordinator-id",
+  actorEmail: "coordinator@example.test",
+  actorRole: "VOLUNTEER_COORDINATOR",
+  reason: "No transfer received after 30 days",
+};
+
 /**
  * Whether `assertDatabaseReachable()` has succeeded in this worker.
  *
@@ -142,9 +150,14 @@ export function isDatabaseReady(): boolean {
 export async function cleanProbeLedger(): Promise<void> {
   if (!databaseReady) return;
 
-  // Sponsorships first: a settled probe pledge carries a probe receipt number, and
-  // although that is a string rather than a foreign key, deleting in dependency
-  // order keeps the intent legible.
+  // Audit rows first: their target is a string rather than a foreign key, but they
+  // are part of a rejected probe pledge's durable record. The same year-2999 fence
+  // means cleanup cannot reach an application audit row.
+  await prisma.auditLog.deleteMany({
+    where: { targetId: { startsWith: PROBE_PLEDGE_PREFIX } },
+  });
+  // A settled probe pledge carries a probe receipt number. There is no database
+  // foreign key, but deleting in dependency order keeps the intent legible.
   await prisma.petSponsorship.deleteMany({
     where: { pledgeRef: { startsWith: PROBE_PLEDGE_PREFIX } },
   });
