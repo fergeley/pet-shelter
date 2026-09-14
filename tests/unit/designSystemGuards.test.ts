@@ -28,7 +28,7 @@ import {
  * looking utility at a time. The token layer removed them; this file is what
  * keeps them gone.
  *
- * Background: docs/tasks/TARGET_DESIGN_SYSTEM_GUARDS.md.
+ * Background: docs/archives/tasks/TARGET_DESIGN_SYSTEM_GUARDS.md.
  */
 
 const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "..", "..");
@@ -465,7 +465,7 @@ describe("design system guards", () => {
    * understand content, not a decorative hairline on a panel already distinguished by its
    * fill — asserting those would turn sixteen legitimate design choices red and teach people
    * to skip the guard, which is the failure mode this whole file is written to avoid.
-   * Background: docs/tasks/TARGET_LIGHT_PRIMARY_CONTRAST.md §3.2.
+   * Background: docs/archives/tasks/TARGET_LIGHT_PRIMARY_CONTRAST.md §3.2.
    */
   describe("colour contrast", () => {
     /** WCAG AA for body text. The app has no text large enough to earn the 3:1 allowance. */

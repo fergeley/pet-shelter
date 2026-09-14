@@ -20,7 +20,7 @@ import { getAdminSecretKey } from "@/lib/security/secrets";
  *
  * There was a third member, `dev-bypass`, recording that nothing authenticated
  * at all and a non-production build allowed the write anyway. It is gone with
- * the bypass itself -- see docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
+ * the bypass itself -- see docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
  */
 export type AdminAuthMethod = "session" | "legacy-shared-secret";
 

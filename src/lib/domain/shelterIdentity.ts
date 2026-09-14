@@ -10,7 +10,7 @@
  * apart across those copies, and the variant that reaches **LHDN Section 44(6) tax
  * e-receipts and ROS CSV exports** is not the one shown to the public.
  *
- * That is P2 in `docs/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md`, and it is
+ * That is P2 in `docs/archives/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md`, and it is
  * explicitly **blocked on a stakeholder checking the physical ROS certificate**.
  * This module therefore does *not* resolve which value is correct — guessing on a
  * statutory identifier is worse than leaving it visibly unresolved. What it does is

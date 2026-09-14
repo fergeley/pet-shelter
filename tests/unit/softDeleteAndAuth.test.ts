@@ -306,7 +306,7 @@ describe("Soft Deletes & Query Filtering", () => {
 });
 
 /**
- * The regression guard for `docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
+ * The regression guard for `docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
  *
  * `getAdminActorOrThrow()` used to throw only when `NODE_ENV === "production"`
  * and hand every other build an ADMIN principal, so an unauthenticated caller

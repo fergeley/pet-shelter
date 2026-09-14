@@ -373,7 +373,7 @@ export async function sendStaffApplicationAlert(
   // The only two values in this alert that are resolved rather than passed straight through. Both
   // halves below read them from here; neither re-derives a fallback of its own. Writing `|| "None"`
   // twice by hand is precisely how the HTML half came to omit the applicant's own notes while the
-  // plain text carried them — see docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md. The HTML escapes
+  // plain text carried them — see docs/archives/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md. The HTML escapes
   // at the point of use: `notes` is free text straight off a public form.
   const fields = {
     petId: app.petId || "N/A",
@@ -628,7 +628,7 @@ type PaymentMethod = DonationReceipt["paymentMethod"];
  * templates below render — so a fourth rail added to that type fails the build here rather than
  * silently receipting the donation as something it was not. A card donation was previously
  * receipted as a bank transfer in the HTML half; see
- * docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
+ * docs/archives/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
  *
  * `online_banking` deliberately does not name a bank: the receipt carries no bank field, so the
  * old "(Maybank)" in the plain-text half was an unverifiable claim on a tax document.

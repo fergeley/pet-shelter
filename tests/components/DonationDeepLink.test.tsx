@@ -129,7 +129,7 @@ describe("DonationWidget deep linking", () => {
       // `sponsorPetId=pet-002` purely because Bella is listed first. The id is
       // the unambiguous key and arguably should take precedence; nothing the
       // app generates can produce a disagreeing pair, so this is recorded as a
-      // wrinkle in docs/tasks/TARGET_TEST_TIERS_3_4_5_EXECUTION.md rather than
+      // wrinkle in docs/archives/tasks/TARGET_TEST_TIERS_3_4_5_EXECUTION.md rather than
       // changed here.
       renderAt("sponsorPetId=pet-002&pet=Bella&freq=monthly");
 
