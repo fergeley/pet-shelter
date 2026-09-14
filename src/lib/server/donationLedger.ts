@@ -181,14 +181,27 @@ export function issueReceiptInMemory(draft: DonationDraft, when: Date): Donation
 // Postgres ledger
 // ---------------------------------------------------------------------------
 
-/** Prisma's unique-constraint violation code. */
+/** The models whose unique constraints a concurrent draw can genuinely trip. */
+const RETRYABLE_MODELS = new Set(["ReceiptSequence", "Donation"]);
+
+/**
+ * A unique-constraint violation on the receipt series itself — the counter row or
+ * a `donations` unique — which is the only collision the retry exists for.
+ *
+ * Scoped by model, which Prisma reports in `meta.modelName` (measured on this
+ * client against PostgreSQL 18: `"Donation"`, `"ReceiptSequence"`,
+ * `"PetSponsorship"`). A caller's own row inside the same transaction can trip a
+ * unique too — `PetSponsorship.receiptNumber` — and retrying that would draw the
+ * same serial again after the rollback and collide again, deterministically,
+ * reported as a concurrency retry that never happened. A P2002 with no model name
+ * is treated as the series' own; that is what the unit-test fake throws.
+ */
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === "P2002"
-  );
+  if (typeof err !== "object" || err === null) return false;
+  const { code, meta } = err as { code?: unknown; meta?: { modelName?: unknown } };
+  if (code !== "P2002") return false;
+  const modelName = meta?.modelName;
+  return typeof modelName !== "string" || RETRYABLE_MODELS.has(modelName);
 }
 
 interface DonationRow {
@@ -291,6 +304,18 @@ export async function drawAndInsert(
 }
 
 /**
+ * Interactive-transaction limits for the receipt series.
+ *
+ * Prisma's defaults are 2 s to start and 5 s to finish. A settler that loses a
+ * race waits on the winner's row lock inside that window, and a managed Postgres
+ * waking from idle can take several seconds before the winner even begins
+ * (`prisma.ts` allows a 10 s connect for the same reason). Generous rather than
+ * tight: a timeout here is reported as "no receipt was issued", and that has to be
+ * true whenever it is said.
+ */
+const RECEIPT_TRANSACTION = { maxWait: 5_000, timeout: 15_000 } as const;
+
+/**
  * Runs `work` in the transaction a receipt is drawn in.
  *
  * Whatever `work` writes commits with the receipt, and a throw from `work` rolls the
@@ -311,11 +336,11 @@ export async function withReceiptTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   try {
-    return await prisma.$transaction(work);
+    return await prisma.$transaction(work, RECEIPT_TRANSACTION);
   } catch (err) {
     if (isUniqueViolation(err)) {
       try {
-        return await prisma.$transaction(work);
+        return await prisma.$transaction(work, RECEIPT_TRANSACTION);
       } catch (retryErr) {
         throw new ReceiptIssuanceError(
           "Could not allocate a receipt number after a concurrent-issuance retry.",

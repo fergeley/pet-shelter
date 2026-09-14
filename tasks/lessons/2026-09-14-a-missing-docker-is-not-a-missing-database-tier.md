@@ -20,4 +20,6 @@ was broken, and nobody had asked whether the rung had a second ladder.
 second route before writing ASSERTED. For Postgres specifically: `embedded-postgres` in the
 scratchpad, port 5432, user `postgres`, password `postgrespassword`, database `pet_shelter`, then
 the two `:local` scripts. Stop it before running the offline suites, or the "no database" branches
-find one.
+find one — observed as twelve failures in `tests/unit/softDeleteAndAuth.test.ts`, whose sealed
+sessions name ids no reachable database vouches for, all green again the moment the server was
+down.

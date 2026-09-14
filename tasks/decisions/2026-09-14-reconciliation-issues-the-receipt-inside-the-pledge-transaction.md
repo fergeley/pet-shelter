@@ -46,6 +46,25 @@ guard can simply run first, which is equally atomic and deletes all of that. It 
 decision entry's own admission that draw-first was "a mechanism, not a requirement" cut the other
 way. Rebuilt; the observable outcomes are unchanged and re-measured below.
 
+**What the second review changed.** The rebuilt diff was reviewed again, and four of its ten
+findings were correctness. The pledge reference reached Prisma's `updateMany` unvalidated, and a
+crafted object argument would have matched every pending row. All three actions guarded on the
+cookie alone, so a coordinator suspended in /admin/members kept issuing receipts until it expired.
+The dismiss path wrote and read back in two statements with the audit row inside the same `try`,
+so a failure after the flip lost the audit row and said "still pending". And `settledOutcome` keyed
+on status rather than on the receipt, hiding an existing receipt behind a supporter's later
+withdrawal. All four are fixed: `pledgeRefSchema` and `rejectionReasonSchema` at the action
+boundary, with a `typeof` guard at the one write choke point; `requirePermission` from the DAL on
+all three actions; the transition and its read-back in one transaction, the audit write outside
+the `try`; and the receipt as the discriminator. The other six were acted on too. The
+unique-violation retry is scoped by `meta.modelName`, which Prisma was measured to report, so a
+collision on `PetSponsorship.receiptNumber` no longer retries into the same serial. The receipt
+transaction carries explicit `maxWait`/`timeout`, and a loser that times out on the winner's row
+lock re-reads the row before claiming "still pending". The settle failure is logged. The in-flight
+labels render, because the row's second step stays mounted until `finally`. The transition takes
+one column set instead of two. And the reason limit lives in the validations module both sides
+import, refusing over-length input rather than truncating it.
+
 **Why the offline draw is synchronous.** `issueReceiptInMemory` returns a record, not a promise,
 and refuses to run when a database is configured. In a single-threaded process the memory branch
 of `settleSponsorship` is atomic only if its guard, draw and write happen with no `await` between
@@ -115,14 +134,18 @@ records the server; it is a throwaway with `persistent: false`.
   guard-first build: the reader's `ORDER BY`, the four-way settle race (one receipt,
   `lastValue = 1`, three losers holding the number, serial 2 for the next pledge), the rejection
   transition and its terminality. §4 closes MEASURED.
-- Unit, memory mode: `sponsorshipReconciliation`, `donationLedger`, `petSponsorship` — all green
-  on the rebuilt code. The `Promise.all` test failed against the old action (excerpt above) and
-  passes against the new one; the same-instant queue test fails with the `id` tiebreak removed and
-  passes with it.
+- Unit, memory mode, after the second review's fixes: `sponsorshipReconciliation`,
+  `donationLedger`, `petSponsorship`, `softDeleteAndAuth` and the three guard suites —
+  **118 passed**. The `Promise.all` test failed against the old action (excerpt above) and passes
+  against the new one; the same-instant queue test fails with the `id` tiebreak removed and passes
+  with it; a crafted `{ not: "" }` pledge reference leaves every pledge pending on both mutations.
 - `npm run check` — `tsc` clean, `eslint` 0 errors (14 warnings, all pre-existing in files this
   branch does not touch), `docs:check` OK.
 - `DATABASE_URL="" RESEND_API_KEY="" npm run test:all`, with the embedded server stopped first so
-  the "no database" branches found none — every project green (counts in the commit).
+  the "no database" branches found none — **95 files, 1554 tests, all passed**. With the server
+  still up, twelve `softDeleteAndAuth` cases fail: their sealed session ids exist in no reachable
+  database. That is the suite's environment assumption, not this branch, and it is recorded in
+  `tasks/lessons/2026-09-14-a-missing-docker-is-not-a-missing-database-tier.md`.
 
 ## Not verified
 
@@ -140,12 +163,17 @@ Recorded because a Codex session holds `src/hooks/useSponsorshipController.ts` a
 rather than infer them.
 
 - `createPetSponsorshipAction(input)` — unchanged.
-- `listPendingSponsorshipsAction()` → `{ success, data?, error? }` — a denial is now returned in
-  `error`, never thrown.
-- `reconcilePetSponsorshipAction(pledgeRef)` → `{ success, receiptNumber?, error? }` — a denial is
-  now returned; new `success: false` for a pledge that is `CANCELLED`/`EXPIRED`;
-  `already_reconciled` still returns `success: true` with the existing number.
-- `rejectPetSponsorshipAction(pledgeRef, reason?)` → `{ success, error? }` — new.
+- All three queue actions guard through `requirePermission(RECONCILE_SPONSORSHIPS)`, which
+  re-reads the member's live status, and return a denial in `error` rather than throwing. A
+  pledge reference that is not a non-empty string of at most 64 characters is answered with
+  "No sponsorship found for that pledge reference" before anything is read.
+- `listPendingSponsorshipsAction()` → `{ success, data?, error? }`.
+- `reconcilePetSponsorshipAction(pledgeRef)` → `{ success, receiptNumber?, error? }` — any row
+  that already carries a receipt, `ACTIVE` or since withdrawn, returns `success: true` with that
+  number; a row that left the queue without one returns `success: false`.
+- `rejectPetSponsorshipAction(pledgeRef, reason?)` → `{ success, error? }` — new. `reason` over
+  `REJECTION_REASON_MAX` (500) characters, or not text, is refused with a message rather than
+  truncated; the limit is exported from `src/lib/validations/sponsorship.ts` for the client.
 
 Related: [[2026-09-08-reconciliation-screen-closes-the-sponsor-portal]],
 [[2026-09-08-a-receipt-asserts-relief-only-when-it-can-back-it]],

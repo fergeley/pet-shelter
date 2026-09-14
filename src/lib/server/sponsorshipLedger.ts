@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import {
+  ReceiptIssuanceError,
   drawAndInsert,
   isLedgerPersistent,
   issueReceiptInMemory,
@@ -182,23 +183,21 @@ export type ReconcileOutcome =
 function settledOutcome(
   record: SponsorshipRecord
 ): Extract<ReconcileOutcome, { status: "already_reconciled" | "not_pending" }> {
-  return record.status === "ACTIVE" && record.receiptNumber
+  // The receipt is the discriminator, not the status. A commitment that was settled
+  // and later withdrawn by its supporter (`cancelSponsorshipForUser`) is CANCELLED
+  // *with* a receipt, and that receipt is what a coordinator needs to be told about.
+  return record.receiptNumber
     ? { status: "already_reconciled", receiptNumber: record.receiptNumber }
     : { status: "not_pending", currentStatus: record.status };
 }
 
-/** What a `PENDING_PAYMENT` row becomes, in both storage modes. */
+/** The columns a transition out of `PENDING_PAYMENT` writes. */
 interface PendingTransition {
-  /** The columns the Postgres branch writes. */
-  data: {
-    status: "ACTIVE" | "CANCELLED";
-    receiptNumber?: string;
-    reconciledAt?: Date;
-    reconciledBy?: string;
-    cancelledAt?: Date;
-  };
-  /** The same transition applied to a memory record. */
-  patch: Partial<SponsorshipRecord> & { status: SponsorshipStatus };
+  status: "ACTIVE" | "CANCELLED";
+  receiptNumber?: string;
+  reconciledAt?: Date;
+  reconciledBy?: string;
+  cancelledAt?: Date;
 }
 
 type TransitionOutcome =
@@ -209,21 +208,31 @@ type TransitionOutcome =
 /**
  * Moves a commitment out of `PENDING_PAYMENT`, guarded on that source state.
  *
- * In Postgres this is a single conditional UPDATE. Two coordinators — or two
- * serverless instances — racing on the same pledge therefore produce exactly one
- * winner, and the loser is told what the row has become rather than writing over
- * it. Guarding on an in-process value instead would be no guard at all: that value
- * is empty on every other instance. The memory branch guards on the same status, so
- * the two modes cannot disagree about a pledge that has already left the queue.
+ * In Postgres this is a conditional UPDATE and the read-back of the row, in one
+ * transaction — `tx` when the caller already holds one, its own otherwise — so a
+ * caller is never told "still pending" about a row that has just flipped. Two
+ * coordinators, or two serverless instances, racing on the same pledge produce
+ * exactly one winner, and the loser is told what the row has become rather than
+ * writing over it. Guarding on an in-process value instead would be no guard at
+ * all: that value is empty on every other instance.
  *
- * `tx` runs the update inside a transaction somebody else opened: `settleSponsorship`
- * guards here first and only then draws the receipt, in the same transaction.
+ * The memory branch guards on the same status and projects the same columns onto
+ * the record — `SponsorshipRecord` carries `status` and `receiptNumber`; the
+ * timestamps and actor are Postgres-only — so the two modes cannot disagree about
+ * a pledge that has already left the queue.
+ *
+ * `pledgeRef` must already be a string. Prisma's `where` accepts a filter object
+ * too, and this is the one place every write to a pledge goes through.
  */
 async function transitionPending(
   pledgeRef: string,
-  transition: PendingTransition,
+  data: PendingTransition,
   tx?: Prisma.TransactionClient
 ): Promise<TransitionOutcome> {
+  if (typeof pledgeRef !== "string") {
+    throw new TypeError("pledgeRef must be a string");
+  }
+
   if (!isLedgerPersistent()) {
     const index = memorySponsorships.findIndex((row) => row.pledgeRef === pledgeRef);
     if (index < 0) return { status: "not_found" };
@@ -231,7 +240,11 @@ async function transitionPending(
     const current = memorySponsorships[index];
     if (current.status !== "PENDING_PAYMENT") return { status: "not_pending", record: current };
 
-    const record: SponsorshipRecord = { ...current, ...transition.patch };
+    const record: SponsorshipRecord = {
+      ...current,
+      status: data.status,
+      ...(data.receiptNumber !== undefined ? { receiptNumber: data.receiptNumber } : {}),
+    };
     memorySponsorships[index] = record;
     return { status: "transitioned", record };
   }
@@ -239,7 +252,7 @@ async function transitionPending(
   const db: Prisma.TransactionClient = tx ?? prisma;
   const [updated] = await db.petSponsorship.updateManyAndReturn({
     where: { pledgeRef, status: "PENDING_PAYMENT" },
-    data: transition.data,
+    data,
   });
 
   if (updated) return { status: "transitioned", record: toRecord(updated) };
@@ -267,8 +280,10 @@ export async function reconcileSponsorship(
   const when = options?.now ?? new Date();
 
   const outcome = await transitionPending(pledgeRef, {
-    data: { status: "ACTIVE", receiptNumber, reconciledAt: when, reconciledBy },
-    patch: { status: "ACTIVE", receiptNumber },
+    status: "ACTIVE",
+    receiptNumber,
+    reconciledAt: when,
+    reconciledBy,
   });
 
   if (outcome.status === "transitioned") return { status: "reconciled", record: outcome.record };
@@ -321,25 +336,33 @@ export async function settleSponsorship(
     return { status: "reconciled", record, donation };
   }
 
-  return withReceiptTransaction(async (tx): Promise<SettleOutcome> => {
-    const guard = await transitionPending(
-      pledgeRef,
-      {
-        data: { status: "ACTIVE", reconciledAt: when, reconciledBy },
-        patch: { status: "ACTIVE" },
-      },
-      tx
-    );
-    if (guard.status === "not_found") return guard;
-    if (guard.status === "not_pending") return settledOutcome(guard.record);
+  try {
+    return await withReceiptTransaction(async (tx): Promise<SettleOutcome> => {
+      const guard = await transitionPending(
+        pledgeRef,
+        { status: "ACTIVE", reconciledAt: when, reconciledBy },
+        tx
+      );
+      if (guard.status === "not_found") return guard;
+      if (guard.status === "not_pending") return settledOutcome(guard.record);
 
-    const donation = await drawAndInsert(tx, receiptDraftFor(guard.record, issuer), when);
-    const row = await tx.petSponsorship.update({
-      where: { pledgeRef },
-      data: { receiptNumber: donation.receiptNumber },
+      const donation = await drawAndInsert(tx, receiptDraftFor(guard.record, issuer), when);
+      const row = await tx.petSponsorship.update({
+        where: { pledgeRef },
+        data: { receiptNumber: donation.receiptNumber },
+      });
+      return { status: "reconciled", record: toRecord(row), donation };
     });
-    return { status: "reconciled", record: toRecord(row), donation };
-  });
+  } catch (err) {
+    // The loser of a slow race waits on the winner's row lock, and can wait past
+    // the transaction's own limit. It would then report an issuance failure for a
+    // pledge the winner has just settled. Read the row once more before saying so.
+    if (err instanceof ReceiptIssuanceError) {
+      const now = await findSponsorshipByPledgeRef(pledgeRef).catch(() => null);
+      if (now?.receiptNumber) return settledOutcome(now);
+    }
+    throw err;
+  }
 }
 
 /** The receipt a commitment earns, snapshotting what the pledge recorded. */
@@ -420,8 +443,8 @@ export async function rejectPendingSponsorship(
 
   if (!isLedgerPersistent()) {
     const outcome = await transitionPending(pledgeRef, {
-      data: { status: "CANCELLED", cancelledAt: when },
-      patch: { status: "CANCELLED" },
+      status: "CANCELLED",
+      cancelledAt: when,
     });
 
     if (outcome.status === "transitioned") {
@@ -435,10 +458,7 @@ export async function rejectPendingSponsorship(
   return prisma.$transaction(async (tx): Promise<RejectOutcome> => {
     const outcome = await transitionPending(
       pledgeRef,
-      {
-        data: { status: "CANCELLED", cancelledAt: when },
-        patch: { status: "CANCELLED" },
-      },
+      { status: "CANCELLED", cancelledAt: when },
       tx
     );
 

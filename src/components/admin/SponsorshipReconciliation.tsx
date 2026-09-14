@@ -20,6 +20,7 @@ import {
   rejectPetSponsorshipAction,
   type PendingSponsorshipDTO,
 } from "@/actions/sponsorships";
+import { REJECTION_REASON_MAX } from "@/lib/validations/sponsorship";
 
 /** A pledge that has just been settled, kept on screen so the number is readable. */
 interface SettledRow {
@@ -171,11 +172,14 @@ export function SponsorshipReconciliation() {
     setIntent({ pledgeRef, action });
   };
 
+  // Both mutations keep the row's second step mounted until they settle, in
+  // `finally`: that step is where "Issuing…" / "Dismissing…" render, and closing
+  // it before the await would snap the row back to its idle buttons with no sign
+  // that anything is in flight.
   const confirm = async (row: PendingSponsorshipDTO) => {
     setBusyRef(row.pledgeRef);
     setRowError(null);
     setRowNotice(null);
-    setIntent(null);
 
     try {
       const result = await reconcilePetSponsorshipAction(row.pledgeRef);
@@ -198,20 +202,18 @@ export function SponsorshipReconciliation() {
         "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
+      setIntent(null);
       setBusyRef(null);
     }
   };
 
   const dismiss = async (row: PendingSponsorshipDTO) => {
-    const reason = dismissReason;
     setBusyRef(row.pledgeRef);
     setRowError(null);
     setRowNotice(null);
-    setIntent(null);
-    setDismissReason("");
 
     try {
-      const result = await rejectPetSponsorshipAction(row.pledgeRef, reason);
+      const result = await rejectPetSponsorshipAction(row.pledgeRef, dismissReason);
 
       if (result.success) {
         setRows((prev) => prev.filter((r) => r.pledgeRef !== row.pledgeRef));
@@ -226,6 +228,8 @@ export function SponsorshipReconciliation() {
         "The outcome is unconfirmed. Reload the queue before trying again."
       );
     } finally {
+      setIntent(null);
+      setDismissReason("");
       setBusyRef(null);
     }
   };
@@ -386,7 +390,7 @@ export function SponsorshipReconciliation() {
                         onChange={(event) => setDismissReason(event.target.value)}
                         placeholder="Reason (optional), e.g. no transfer after 30 days"
                         aria-label={`Reason for dismissing ${row.pledgeRef}`}
-                        maxLength={500}
+                        maxLength={REJECTION_REASON_MAX}
                         disabled={isBusy}
                         className="h-8 text-xs sm:w-64"
                       />

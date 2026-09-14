@@ -88,3 +88,31 @@ export const ENABLED_PAYMENT_METHODS = ["duitnow_qr", "online_banking"] as const
 export function isPaymentMethodEnabled(method: string): boolean {
   return (ENABLED_PAYMENT_METHODS as readonly string[]).includes(method);
 }
+
+/**
+ * The reference a supporter was handed at checkout, as a coordinator submits it back.
+ *
+ * Checked at the action boundary because Server Action arguments arrive deserialised
+ * and unchecked, and Prisma's `where: { pledgeRef }` accepts a filter *object* as
+ * well as a string — an unvalidated argument could match every row. A pledge
+ * reference is a plain string, and this makes it one before anything reads it.
+ */
+export const pledgeRefSchema = z
+  .string({ message: "A pledge reference must be text" })
+  .trim()
+  .min(1, "A pledge reference is required")
+  .max(64, "That is not a pledge reference");
+
+/** Longest reason the audit row keeps for a dismissed pledge: a note, not an essay. */
+export const REJECTION_REASON_MAX = 500;
+
+/**
+ * Why a coordinator dismissed a pledge. Optional, and refused rather than truncated
+ * when it is over length or not text, so the audit row never carries a note the
+ * coordinator did not write. The queue's input shares `REJECTION_REASON_MAX`.
+ */
+export const rejectionReasonSchema = z
+  .string({ message: "The reason must be text" })
+  .trim()
+  .max(REJECTION_REASON_MAX, `The reason must be under ${REJECTION_REASON_MAX} characters`)
+  .optional();

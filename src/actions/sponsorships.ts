@@ -5,6 +5,8 @@ import {
   petSponsorshipSchema,
   PetSponsorshipInput,
   isPaymentMethodEnabled,
+  pledgeRefSchema,
+  rejectionReasonSchema,
 } from "@/lib/validations/sponsorship";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
@@ -28,14 +30,9 @@ import {
 } from "@/lib/server/sponsorshipLedger";
 import { ReceiptIssuanceError } from "@/lib/server/donationLedger";
 import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/email";
-import { getCurrentSession, type SessionUser } from "@/lib/security/session";
-import {
-  PERMISSIONS,
-  ROLES,
-  assertAuthorized,
-  assertHasPermission,
-  isAuthorizationError,
-} from "@/lib/security/rbac";
+import type { SessionUser } from "@/lib/security/session";
+import { requirePermission } from "@/lib/security/dal";
+import { PERMISSIONS, isAuthorizationError } from "@/lib/security/rbac";
 
 /** What the supporter sees the moment checkout completes. */
 export interface SponsorshipPledgeDTO {
@@ -215,6 +212,9 @@ function statusLabel(status: string): string {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
+/** The one message for a reference that names nothing, whatever shape it arrived in. */
+const NO_SUCH_PLEDGE = "No sponsorship found for that pledge reference";
+
 /**
  * Server Action: the commitments awaiting a coordinator's confirmation.
  *
@@ -224,10 +224,10 @@ function statusLabel(status: string): string {
  * account-claim challenge — which requires one — could never be satisfied by
  * anybody. See `tasks/open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md`.
  *
- * Guarded with `RECONCILE_SPONSORSHIPS` rather than a role list because a capability
- * question survives a role being renamed. The permission is granted to exactly the
- * roles `reconcilePetSponsorshipAction`'s own `[ADMIN, COORDINATOR]` guard admits, so
- * this page never shows a button that the mutation behind it would reject.
+ * Guarded through `requirePermission`, which re-reads the member's live role and
+ * status: a coordinator suspended in /admin/members loses this screen on their
+ * next request, not when their cookie expires. `RECONCILE_SPONSORSHIPS` rather
+ * than a role list because a capability question survives a role being renamed.
  *
  * The guard sits inside the `try`, as in `fetchAuditLogsAction`. A production build
  * masks a thrown Server Action error into an opaque digest, so a thrown denial reached
@@ -240,8 +240,7 @@ function statusLabel(status: string): string {
  */
 export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshipsResult> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
+    await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
 
     const rows = await listPendingSponsorships();
     return {
@@ -299,19 +298,24 @@ export async function reconcilePetSponsorshipAction(
 ): Promise<ReconcileSponsorshipResult> {
   let session: SessionUser;
   try {
-    const current = await getCurrentSession();
-    assertAuthorized(current, [ROLES.ADMIN, ROLES.COORDINATOR]);
-    session = current;
+    session = await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
   } catch (err) {
     if (isAuthorizationError(err)) return { success: false, error: err.message };
     throw err;
   }
 
+  const ref = pledgeRefSchema.safeParse(pledgeRef);
+  if (!ref.success) return { success: false, error: NO_SUCH_PLEDGE };
+
   let outcome;
   try {
-    outcome = await settleSponsorship(pledgeRef, currentIssuerIdentity(), session.email);
+    outcome = await settleSponsorship(ref.data, currentIssuerIdentity(), session.email);
   } catch (err) {
     if (err instanceof ReceiptIssuanceError) {
+      // The ledger folds every failure inside the transaction into this one error,
+      // and an outage that only ever reaches a coordinator as "try again" is an
+      // outage nobody investigates.
+      console.error("[Sponsorship Reconciliation] Settle failed:", err.cause ?? err);
       return {
         success: false,
         error:
@@ -322,12 +326,12 @@ export async function reconcilePetSponsorshipAction(
   }
 
   if (outcome.status === "not_found") {
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
+    return { success: false, error: NO_SUCH_PLEDGE };
   }
   if (outcome.status === "not_pending") {
     return {
       success: false,
-      error: `Pledge ${pledgeRef} is ${statusLabel(outcome.currentStatus)} and cannot be reconciled`,
+      error: `Pledge ${ref.data} is ${statusLabel(outcome.currentStatus)} and cannot be reconciled`,
     };
   }
   if (outcome.status === "already_reconciled") {
@@ -344,9 +348,9 @@ export async function reconcilePetSponsorshipAction(
     actorRole: session.role,
     action: "SPONSORSHIP_RECONCILED",
     entity: "PetSponsorship",
-    entityId: pledgeRef,
+    entityId: ref.data,
     details: {
-      pledgeRef,
+      pledgeRef: ref.data,
       receiptNumber: donation.receiptNumber,
       petName: record.petName,
       sponsorEmail: record.sponsorEmail,
@@ -388,9 +392,6 @@ export interface RejectSponsorshipResult {
   error?: string;
 }
 
-/** Longest reason the audit row keeps: a coordinator's note, not an essay. */
-const REJECTION_REASON_MAX = 500;
-
 /**
  * Server Action: a coordinator dismisses a pledge no transfer ever backed.
  *
@@ -400,51 +401,46 @@ const REJECTION_REASON_MAX = 500;
  * receipt. The actor and the reason go to the audit log, which is the record of
  * *why* a pledge left the queue; the row itself records only that it did.
  *
- * `reason` is normalised before the write. A Server Action's arguments arrive
- * deserialised and unchecked, and a reason that is not a string must be rejected
- * *before* the row flips — a TypeError after it would leave the pledge cancelled
- * with no audit row and a message saying it is still pending.
+ * Both arguments are validated before anything is written. They arrive
+ * deserialised and unchecked, and a bad one has to fail *before* the row flips:
+ * an error after it would leave the pledge cancelled with no audit row and a
+ * message saying it is still pending. The audit write sits outside the `try` for
+ * the same reason.
  */
 export async function rejectPetSponsorshipAction(
   pledgeRef: string,
   reason?: string
 ): Promise<RejectSponsorshipResult> {
+  let session: SessionUser;
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
+    session = await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+    throw err;
+  }
 
-    if (reason !== undefined && typeof reason !== "string") {
-      return { success: false, error: "Dismissal reason must be text." };
-    }
+  const ref = pledgeRefSchema.safeParse(pledgeRef);
+  if (!ref.success) return { success: false, error: NO_SUCH_PLEDGE };
 
-    const note = reason?.trim().slice(0, REJECTION_REASON_MAX) || null;
+  const note = rejectionReasonSchema.safeParse(reason);
+  if (!note.success) {
+    return {
+      success: false,
+      error: note.error.issues[0]?.message ?? "Please check the reason and try again",
+    };
+  }
 
-    const outcome = await rejectPendingSponsorship(pledgeRef, {
+  let outcome;
+  try {
+    outcome = await rejectPendingSponsorship(ref.data, {
       actorId: session.id,
       actorEmail: session.email,
       actorRole: session.role,
-      reason: note,
+      reason: note.data || null,
     });
-    if (outcome.status === "not_found") {
-      return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
-    }
-    if (outcome.status === "already_reconciled") {
-      return {
-        success: false,
-        error: `Pledge ${pledgeRef} has already been reconciled as receipt ${outcome.receiptNumber} and cannot be dismissed`,
-      };
-    }
-    if (outcome.status === "not_pending") {
-      return {
-        success: false,
-        error: `Pledge ${pledgeRef} is already ${statusLabel(outcome.currentStatus)}`,
-      };
-    }
-
-    return { success: true };
   } catch (err) {
-    if (isAuthorizationError(err)) return { success: false, error: err.message };
-
+    // The transition and its audit share a transaction, but a lost commit
+    // acknowledgement cannot prove whether that transaction committed.
     console.error("[Sponsorship Reconciliation] Dismiss failed:", err);
     return {
       success: false,
@@ -452,6 +448,24 @@ export async function rejectPetSponsorshipAction(
         "We could not complete or verify that dismissal. Reload the queue before trying again.",
     };
   }
+
+  if (outcome.status === "not_found") {
+    return { success: false, error: NO_SUCH_PLEDGE };
+  }
+  if (outcome.status === "already_reconciled") {
+    return {
+      success: false,
+      error: `Pledge ${ref.data} has already been reconciled as receipt ${outcome.receiptNumber} and cannot be dismissed`,
+    };
+  }
+  if (outcome.status === "not_pending") {
+    return {
+      success: false,
+      error: `Pledge ${ref.data} is already ${statusLabel(outcome.currentStatus)}`,
+    };
+  }
+
+  return { success: true };
 }
 
 /**

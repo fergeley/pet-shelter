@@ -26,18 +26,36 @@ import type { SponsorshipDraft } from "@/lib/server/sponsorshipLedger";
 
 const currentRole = { value: null as string | null };
 
+/**
+ * The seeded staff account for each role.
+ *
+ * The actions guard through `requirePermission`, which re-reads the member behind
+ * the cookie — Postgres first, then the in-memory seed when nothing is listening —
+ * and only an id one of those stores vouches for survives it. With no database at
+ * all the lookup throws and the cookie's own claims pass through. These ids resolve
+ * to the same role and email on every path, so a case means the same thing with or
+ * without a database on localhost.
+ */
+const SEEDED: Record<string, { id: string; email: string }> = {
+  [ROLES.SUPER_ADMIN]: { id: "usr-admin-01", email: "admin@hopeforstrays.org" },
+  [ROLES.VOLUNTEER_COORDINATOR]: { id: "usr-coord-01", email: "coordinator@hopeforstrays.org" },
+  [ROLES.ANIMAL_MANAGER]: { id: "usr-animal-01", email: "animals@hopeforstrays.org" },
+  [ROLES.CONTENT_EDITOR]: { id: "usr-editor-01", email: "content@hopeforstrays.org" },
+  [ROLES.STAFF]: { id: "usr-staff-01", email: "staff@hopeforstrays.org" },
+};
+
 vi.mock("@/lib/security/session", () => ({
-  getCurrentSession: vi.fn(async () =>
-    currentRole.value === null
-      ? null
-      : {
-          id: "actor-1",
-          email: "coordinator@hopeforstrays.org",
-          name: "Test Coordinator",
-          role: currentRole.value,
-          expiresAt: Date.now() + 3_600_000,
-        }
-  ),
+  getCurrentSession: vi.fn(async () => {
+    if (currentRole.value === null) return null;
+    const seeded = SEEDED[currentRole.value];
+    return {
+      id: seeded.id,
+      email: seeded.email,
+      name: `Test ${currentRole.value}`,
+      role: currentRole.value,
+      expiresAt: Date.now() + 3_600_000,
+    };
+  }),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
@@ -69,10 +87,12 @@ describe("the reconciliation guard admits exactly who the mutation admits", () =
   /**
    * K2 from the build gate, kept as a permanent guard rather than a one-off spike.
    *
-   * The admin nav gates `/admin/donations` on RECONCILE_SPONSORSHIPS while
-   * `reconcilePetSponsorshipAction` still enforces `[ROLES.ADMIN, ROLES.COORDINATOR]`.
-   * If those two sets ever diverge, a coordinator sees a button whose mutation
-   * rejects them — a failure that only shows up at the moment money is confirmed.
+   * The admin nav gates `/admin/donations` on RECONCILE_SPONSORSHIPS, and since
+   * 2026-09-14 so do all three queue actions, through `requirePermission`. Until
+   * then `reconcilePetSponsorshipAction` enforced `[ROLES.ADMIN, ROLES.COORDINATOR]`,
+   * and the grant was chosen to equal that list. This pins that the migration
+   * changed nobody's access: the set of roles that may reconcile is exactly the set
+   * the old allow-list admitted.
    */
   it("grants RECONCILE_SPONSORSHIPS to precisely the roles the legacy allow-list admits", () => {
     const permissionHolders = (CANONICAL_ROLES as readonly string[]).filter((role) =>
@@ -450,5 +470,91 @@ describe("rejectPetSponsorshipAction", () => {
     const result = await rejectPetSponsorshipAction("HFS-PLG-000040");
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/RECONCILE_SPONSORSHIPS/);
+  });
+});
+
+describe("the queue's arguments are checked before anything is written", () => {
+  beforeEach(() => {
+    currentRole.value = ROLES.VOLUNTEER_COORDINATOR;
+  });
+
+  it("refuses a pledge reference that is not a string, on both mutations", async () => {
+    const ledger = await import("@/lib/server/sponsorshipLedger");
+    const { listDonations } = await import("@/lib/server/donationLedger");
+    const { reconcilePetSponsorshipAction, rejectPetSponsorshipAction } = await import(
+      "@/actions/sponsorships"
+    );
+
+    await ledger.recordSponsorshipPledge(pledge({ pledgeRef: "HFS-PLG-000050" }));
+    await ledger.recordSponsorshipPledge(pledge({ pledgeRef: "HFS-PLG-000051" }));
+
+    // Server Action arguments are deserialised, not typed. Prisma's `where` would
+    // read this object as a filter, and a filter matching every pending row would
+    // have cancelled every pending pledge in one statement.
+    const crafted = { not: "" } as unknown as string;
+    expect(await rejectPetSponsorshipAction(crafted)).toEqual({
+      success: false,
+      error: expect.stringMatching(/No sponsorship found/),
+    });
+    expect(await reconcilePetSponsorshipAction(crafted)).toEqual({
+      success: false,
+      error: expect.stringMatching(/No sponsorship found/),
+    });
+
+    const pending = await ledger.listPendingSponsorships();
+    expect(pending.map((r) => r.pledgeRef)).toEqual(["HFS-PLG-000050", "HFS-PLG-000051"]);
+    expect(await listDonations()).toEqual([]);
+  });
+
+  it("refuses a reason that is over length or not text, leaving the pledge pending", async () => {
+    const ledger = await import("@/lib/server/sponsorshipLedger");
+    const { getAuditLogs } = await import("@/lib/domain/auditLog");
+    const { rejectPetSponsorshipAction } = await import("@/actions/sponsorships");
+
+    await ledger.recordSponsorshipPledge(pledge({ pledgeRef: "HFS-PLG-000052" }));
+
+    // Refused, not truncated: the audit row must never carry a note the coordinator
+    // did not write, and a bad argument must fail before the row flips.
+    const tooLong = await rejectPetSponsorshipAction("HFS-PLG-000052", "x".repeat(501));
+    expect(tooLong.success).toBe(false);
+    expect(tooLong.error).toMatch(/500/);
+
+    const notText = await rejectPetSponsorshipAction("HFS-PLG-000052", 123 as unknown as string);
+    expect(notText.success).toBe(false);
+    expect(notText.error).toMatch(/must be text/i);
+
+    expect((await ledger.findSponsorshipByPledgeRef("HFS-PLG-000052"))?.status).toBe(
+      "PENDING_PAYMENT"
+    );
+    expect(getAuditLogs().find((e) => e.action === "SPONSORSHIP_REJECTED")).toBeUndefined();
+  });
+});
+
+describe("a settled commitment its supporter later withdrew still names its receipt", () => {
+  it("reports the existing receipt to Confirm and refuses Dismiss by number", async () => {
+    currentRole.value = ROLES.VOLUNTEER_COORDINATOR;
+    const ledger = await import("@/lib/server/sponsorshipLedger");
+    const { reconcilePetSponsorshipAction, rejectPetSponsorshipAction } = await import(
+      "@/actions/sponsorships"
+    );
+
+    await ledger.recordSponsorshipPledge(
+      pledge({ pledgeRef: "HFS-PLG-000060", userId: "spn-test-01", frequency: "monthly" })
+    );
+    const settled = await reconcilePetSponsorshipAction("HFS-PLG-000060");
+    expect(settled.success).toBe(true);
+
+    // The supporter cancels their recurring pledge from the portal. The row is
+    // CANCELLED but keeps the receipt the money already has — and that receipt,
+    // not the status, is what a coordinator with a stale queue needs to hear.
+    expect(await ledger.cancelSponsorshipForUser("spn-test-01", "HFS-PLG-000060")).not.toBeNull();
+
+    expect(await reconcilePetSponsorshipAction("HFS-PLG-000060")).toEqual({
+      success: true,
+      receiptNumber: settled.receiptNumber,
+    });
+    const dismissed = await rejectPetSponsorshipAction("HFS-PLG-000060");
+    expect(dismissed.success).toBe(false);
+    expect(dismissed.error).toContain(settled.receiptNumber);
   });
 });
