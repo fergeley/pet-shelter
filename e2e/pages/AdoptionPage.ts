@@ -5,6 +5,9 @@ export interface AdoptionFormData {
   email: string;
   phone: string;
   address: string;
+  identification?: string;
+  housingType?: string;
+  vetClinic?: string;
 }
 
 /**
@@ -56,16 +59,82 @@ export class AdoptionPage {
     return this.page.getByRole("dialog");
   }
 
-  async fillApplication(data: AdoptionFormData): Promise<void> {
+  /** Advances to the next step in the multi-step wizard. */
+  async nextStep(): Promise<void> {
+    await this.dialog().getByRole("button", { name: /next/i }).click();
+  }
+
+  /** Steps back to the previous step in the multi-step wizard. */
+  async previousStep(): Promise<void> {
+    await this.dialog().getByRole("button", { name: /back/i }).click();
+  }
+
+  /** Fills Step 1: Contact & Identification. */
+  async fillContactStep(data: AdoptionFormData): Promise<void> {
     const dialog = this.dialog();
     await dialog.getByLabel(/full name/i).fill(data.applicantName);
     await dialog.getByLabel(/email address/i).fill(data.email);
     await dialog.getByLabel(/contact phone number/i).fill(data.phone);
+    await dialog.getByLabel(/nric or passport number/i).fill(data.identification ?? "880101-14-5678");
     await dialog.getByLabel(/residential address/i).fill(data.address);
   }
 
+  /** Fills Step 2: Living Environment. Defaults are pre-selected. */
+  async fillLivingStep(housingType?: string): Promise<void> {
+    const housingSelect = this.dialog().getByLabel(/housing & accommodation type/i);
+    await housingSelect.waitFor();
+    if (housingType) {
+      await housingSelect.selectOption(housingType);
+    }
+  }
+
+  /** Fills Step 3: Experience & Care Plan. */
+  async fillCareStep(vetClinic = "Klinik Haiwan SS2, Petaling Jaya"): Promise<void> {
+    const vetInput = this.dialog().getByLabel(/preferred veterinary clinic/i);
+    await vetInput.waitFor();
+    await vetInput.fill(vetClinic);
+  }
+
+  /** Fills Step 4: Agrees to terms and home visit check. */
+  async acceptAgreements(): Promise<void> {
+    const dialog = this.dialog();
+    const terms = dialog.getByLabel(/shelter adoption terms/i);
+    await terms.waitFor();
+    await terms.check();
+    await dialog.getByLabel(/home check/i).check();
+  }
+
+  /**
+   * Completes all 4 steps of the adoption wizard.
+   */
+  async fillApplication(data: AdoptionFormData): Promise<void> {
+    // Step 1: Contact
+    await this.fillContactStep(data);
+    await this.nextStep();
+
+    // Step 2: Living Environment
+    await this.fillLivingStep(data.housingType);
+    await this.nextStep();
+
+    // Step 3: Care Plan
+    await this.fillCareStep(data.vetClinic);
+    await this.nextStep();
+
+    // Step 4: Agreement
+    await this.acceptAgreements();
+  }
+
+  /**
+   * Submits the adoption application on Step 4. If called on an earlier step,
+   * falls back to clicking Next to trigger step-level validation.
+   */
   async submitApplication(): Promise<void> {
-    await this.dialog().getByRole("button", { name: /submit/i }).click();
+    const submitBtn = this.dialog().getByRole("button", { name: /submit/i });
+    if (await submitBtn.isVisible()) {
+      await submitBtn.click();
+    } else {
+      await this.nextStep();
+    }
   }
 
   /** The post-submission confirmation panel. */

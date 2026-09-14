@@ -52,7 +52,7 @@ test.describe("public adoption", () => {
     await adoption.gotoPet("pet-001");
     await adoption.openApplication();
 
-    await adoption.submitApplication();
+    await adoption.nextStep();
 
     await expect(adoption.dialog().getByText(/enter your full name/i)).toBeVisible();
     await expect(adoption.confirmation()).toBeHidden();
