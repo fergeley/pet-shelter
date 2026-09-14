@@ -23,7 +23,7 @@ interface CreateArgs {
 interface FakeDb {
   rows: Record<string, unknown>[];
   counters: Map<string, number>;
-  failNextInsert: (times: number) => void;
+  failNextInsert: (times: number, modelName?: string | null) => void;
   /** Clears every piece of fake state, including the unique-index set. */
   reset: () => void;
   transaction: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
@@ -34,6 +34,16 @@ function createFakeDb(): FakeDb {
   const rows: Record<string, unknown>[] = [];
   const takenSerials = new Set<string>();
   let insertFailuresRemaining = 0;
+  let insertFailureModel: string | null = "Donation";
+
+  const uniqueViolation = (modelName: string | null) => {
+    const err = new Error("Unique constraint failed on the fields: (`receiptNumber`)");
+    Object.assign(
+      err,
+      modelName === null ? { code: "P2002" } : { code: "P2002", meta: { modelName } }
+    );
+    return err;
+  };
 
   const tx = {
     receiptSequence: {
@@ -53,17 +63,13 @@ function createFakeDb(): FakeDb {
       create: async (args: CreateArgs) => {
         if (insertFailuresRemaining > 0) {
           insertFailuresRemaining -= 1;
-          const err = new Error("Unique constraint failed on the fields: (`receiptNumber`)");
-          (err as Error & { code: string }).code = "P2002";
-          throw err;
+          throw uniqueViolation(insertFailureModel);
         }
 
         // The real @@unique([sequenceScope, sequenceValue]) guarantee.
         const key = `${args.data.sequenceScope}#${args.data.sequenceValue}`;
         if (takenSerials.has(key)) {
-          const err = new Error("Unique constraint failed");
-          (err as Error & { code: string }).code = "P2002";
-          throw err;
+          throw uniqueViolation("Donation");
         }
         takenSerials.add(key);
 
@@ -85,8 +91,9 @@ function createFakeDb(): FakeDb {
   return {
     rows,
     counters,
-    failNextInsert: (times: number) => {
+    failNextInsert: (times: number, modelName = "Donation") => {
       insertFailuresRemaining = times;
+      insertFailureModel = modelName;
     },
     reset: () => {
       counters.clear();
@@ -95,6 +102,7 @@ function createFakeDb(): FakeDb {
       // across tests would fail a legitimate retry that redraws a rolled-back serial.
       takenSerials.clear();
       insertFailuresRemaining = 0;
+      insertFailureModel = "Donation";
     },
     // Models atomicity: a throwing callback rolls the counter back to its
     // pre-transaction value, which is exactly what a bare SEQUENCE cannot do —
@@ -367,9 +375,10 @@ describe("read policy: the export must be able to see a failure", () => {
 /**
  * `withReceiptTransaction` and `drawAndInsert` are how a caller with a row of its
  * own to write — the sponsorship ledger — puts that write in the same transaction
- * as the serial draw. The property that matters is the rollback: a `work` that
- * throws after drawing must leave no row and no burned serial, and must come back
- * as a ReceiptIssuanceError so the caller says "nothing was issued" and means it.
+ * as the serial draw. The property measured by the fake transaction is rollback:
+ * a `work` that throws after drawing leaves no row or burned serial. The wrapper
+ * still reports only an unconfirmed outcome because a real commit acknowledgement
+ * can be lost after PostgreSQL has committed.
  */
 describe("withReceiptTransaction: a caller's writes share the receipt's fate", () => {
   beforeEach(() => {
@@ -395,8 +404,8 @@ describe("withReceiptTransaction: a caller's writes share the receipt's fate", (
       throw new Error("guard matched zero rows");
     }).catch((err: unknown) => err);
 
-    // Whatever went wrong, the transaction rolled back and no receipt was issued —
-    // which is the one contract the caller relies on to tell the donor so.
+    // The wrapper normalises the failure but does not claim whether the commit
+    // landed: an acknowledgement can be lost after PostgreSQL committed it.
     expect(error).toBeInstanceOf(ReceiptIssuanceError);
     expect((error as ReceiptIssuanceError).cause).toMatchObject({
       message: "guard matched zero rows",
@@ -422,6 +431,21 @@ describe("withReceiptTransaction: a caller's writes share the receipt's fate", (
     });
     await expect(withReceiptTransaction(failed)).rejects.toBeInstanceOf(ReceiptIssuanceError);
     expect(failed).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a P2002 outside the receipt series or without a model", async () => {
+    for (const modelName of ["PetSponsorship", null] as const) {
+      fakeDb.failNextInsert(1, modelName);
+      const collidedElsewhere = vi.fn(async (tx: Prisma.TransactionClient) =>
+        drawAndInsert(tx, draft(), AUGUST)
+      );
+
+      await expect(withReceiptTransaction(collidedElsewhere)).rejects.toBeInstanceOf(
+        ReceiptIssuanceError
+      );
+      expect(collidedElsewhere).toHaveBeenCalledTimes(1);
+      fakeDb.reset();
+    }
   });
 });
 

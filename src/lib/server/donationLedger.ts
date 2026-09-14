@@ -193,15 +193,15 @@ const RETRYABLE_MODELS = new Set(["ReceiptSequence", "Donation"]);
  * `"PetSponsorship"`). A caller's own row inside the same transaction can trip a
  * unique too — `PetSponsorship.receiptNumber` — and retrying that would draw the
  * same serial again after the rollback and collide again, deterministically,
- * reported as a concurrency retry that never happened. A P2002 with no model name
- * is treated as the series' own; that is what the unit-test fake throws.
+ * reported as a concurrency retry that never happened. A model-less P2002 is
+ * not enough evidence to spend the retry on this narrow recovery path.
  */
 function isUniqueViolation(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
   const { code, meta } = err as { code?: unknown; meta?: { modelName?: unknown } };
   if (code !== "P2002") return false;
   const modelName = meta?.modelName;
-  return typeof modelName !== "string" || RETRYABLE_MODELS.has(modelName);
+  return typeof modelName === "string" && RETRYABLE_MODELS.has(modelName);
 }
 
 interface DonationRow {
@@ -310,8 +310,8 @@ export async function drawAndInsert(
  * race waits on the winner's row lock inside that window, and a managed Postgres
  * waking from idle can take several seconds before the winner even begins
  * (`prisma.ts` allows a 10 s connect for the same reason). Generous rather than
- * tight: a timeout here is reported as "no receipt was issued", and that has to be
- * true whenever it is said.
+ * tight: a timeout here leaves the caller unable to confirm the commit outcome,
+ * which must be surfaced as uncertainty rather than as a safe retry.
  */
 const RECEIPT_TRANSACTION = { maxWait: 5_000, timeout: 15_000 } as const;
 
@@ -321,16 +321,17 @@ const RECEIPT_TRANSACTION = { maxWait: 5_000, timeout: 15_000 } as const;
  * Whatever `work` writes commits with the receipt, and a throw from `work` rolls the
  * serial and the receipt row back with it — so a caller that guards first, draws
  * second and writes third has done all three or none. Every failure comes back as
- * `ReceiptIssuanceError`: whatever went wrong, the transaction rolled back and no
- * receipt was issued, which is the one thing the caller has to tell the donor.
+ * `ReceiptIssuanceError`: the caller could not confirm the transaction outcome.
+ * PostgreSQL rolls back an ordinary transaction failure, but a lost commit
+ * acknowledgement means the application cannot prove that from the error alone.
  *
  * Two writers creating the same scope row concurrently, or drawing the same serial,
  * trip the unique index; one retry re-runs `work` against the now-existing counter.
  * A second failure is not a race, so it propagates.
  *
- * @throws {ReceiptIssuanceError} when the transaction did not commit. The caller
- *   must surface this rather than pretending success — see the module comment on
- *   why this path deliberately does not fall back to memory.
+ * @throws {ReceiptIssuanceError} when the transaction outcome could not be
+ *   confirmed. The caller must surface that uncertainty rather than pretending
+ *   either success or a safe retry.
  */
 export async function withReceiptTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>
@@ -348,10 +349,7 @@ export async function withReceiptTransaction<T>(
         );
       }
     }
-    throw new ReceiptIssuanceError(
-      "Donation could not be recorded, so no receipt was issued.",
-      err
-    );
+    throw new ReceiptIssuanceError("Could not confirm the receipt transaction outcome.", err);
   }
 }
 
@@ -361,9 +359,9 @@ export async function withReceiptTransaction<T>(
  * @param draft The donation to record.
  * @param options.now Injectable clock. Defaults to the current instant; tests pass
  *   a fixed date so receipt numbers and month scoping are deterministic.
- * @throws {ReceiptIssuanceError} when a configured database rejects the write. The
- *   caller must surface this to the donor rather than pretending success — see the
- *   module comment on why this path deliberately does not fall back to memory.
+ * @throws {ReceiptIssuanceError} when the configured database does not confirm the
+ *   write outcome. The caller must surface the uncertainty rather than prompting
+ *   a duplicate attempt.
  */
 export async function issueDonationReceipt(
   draft: DonationDraft,
