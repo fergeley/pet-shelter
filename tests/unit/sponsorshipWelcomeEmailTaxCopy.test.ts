@@ -32,11 +32,13 @@ describe("identifier-free sponsorship welcome email", () => {
       expect(fetchSpy).toHaveBeenCalledTimes(1);
 
       const request = JSON.parse(String(fetchSpy.mock.calls[0][1]?.body)) as {
+        subject: string;
         text: string;
         html: string;
       };
 
       for (const [half, body] of [
+        ["subject", request.subject],
         ["plain text", request.text],
         ["HTML", request.html],
       ] as const) {
@@ -48,6 +50,10 @@ describe("identifier-free sponsorship welcome email", () => {
           body,
           `${half} must not call a future receipt tax-exempt without an identifier`,
         ).not.toMatch(/\btax[\s-]*exempt\b/i);
+        expect.soft(
+          body,
+          `${half} must describe a pending pledge, not a current or confirmed sponsorship`,
+        ).not.toMatch(/\b(?:sponsorship confirmed|you are now a sponsor|current sponsor)\b/i);
       }
     } finally {
       fetchSpy.mockRestore();

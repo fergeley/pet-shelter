@@ -823,10 +823,10 @@ export async function sendSponsorshipWelcomeEmail(
     paymentRail: PAYMENT_RAIL_LABELS[pledge.paymentMethod],
   };
 
-  const subject = `🐾 Thank you for sponsoring ${pledge.petName}!`;
+  const subject = `🐾 We recorded your pledge for ${pledge.petName}`;
 
   const plainText = `
-THANK YOU FOR SPONSORING ${pledge.petName.toUpperCase()}!
+SPONSORSHIP PLEDGE RECORDED FOR ${pledge.petName.toUpperCase()}
 ===================================================
 ${SHELTER_NAME}
 ${SHELTER_ADDRESS}
@@ -834,8 +834,8 @@ Phone: ${SHELTER_PHONE} | Email: ${SHELTER_EMAIL}
 
 Dear ${pledge.sponsorName},
 
-You are now a sponsor of ${pledge.petName}. Thank you for standing behind an
-animal who needed someone.
+We recorded your pledge for ${pledge.petName}. Thank you for standing behind an
+animal who needed someone while the shelter matches your transfer.
 
 YOUR SPONSORSHIP:
 - Sponsored Animal: ${pledge.petName}
@@ -859,7 +859,7 @@ The ${SHELTER_NAME} Team
 
   const html = wrapEmailHtml(`
     <div style="border-bottom: 2px solid ${EMAIL_BRAND.border}; padding-bottom: 16px; margin-bottom: 20px;">
-      <span class="badge" style="background:${tone.surface};color:${tone.text};">Sponsorship Confirmed</span>
+      <span class="badge" style="background:${tone.surface};color:${tone.text};">Sponsorship Pledge Recorded</span>
       <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: ${EMAIL_BRAND.foreground};">
         Thank you for sponsoring ${escapeHtml(pledge.petName)}!
       </h2>
@@ -870,8 +870,9 @@ The ${SHELTER_NAME} Team
 
     <p>Dear <strong>${escapeHtml(pledge.sponsorName)}</strong>,</p>
     <p>
-      You are now a sponsor of <strong>${escapeHtml(pledge.petName)}</strong>. Your support pays for
-      the care that gets a rescued animal from intake to a home.
+      We recorded your pledge for <strong>${escapeHtml(pledge.petName)}</strong>. Once the shelter
+      matches the transfer, your support pays for the care that gets a rescued animal from intake
+      to a home.
     </p>
 
     <div style="text-align:center; margin: 24px 0;">
