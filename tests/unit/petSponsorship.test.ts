@@ -119,7 +119,10 @@ describe("a pledge reference is not a receipt number", () => {
   });
 
   it("tells the supporter the receipt follows reconciliation", () => {
-    expect(reconciliationNotice("one_time", "duitnow_qr")).toMatch(/Section 44\(6\)/);
+    const notice = reconciliationNotice("one_time", "duitnow_qr");
+
+    expect(notice).toMatch(/official receipt.*coordinator matches/i);
+    expect(notice).not.toMatch(/Section 44\(6\)|tax-exempt/i);
     expect(reconciliationNotice("monthly", "duitnow_qr")).toMatch(/standing instruction/);
     expect(reconciliationNotice("one_time", "card")).toMatch(/not enabled/);
   });

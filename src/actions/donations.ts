@@ -12,6 +12,7 @@ import { sendDonationReceiptEmail } from "@/lib/email";
 import { findSponsorshipTier } from "@/lib/domain/sponsorshipTiers";
 import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
 import { ringgitFromSen, senFromRinggit } from "@/lib/domain/money";
+import { DONATION_RECORDING_FAILURE_MESSAGE } from "@/lib/domain/contributionFailure";
 import {
   DonationRecord,
   ReceiptIssuanceError,
@@ -164,9 +165,7 @@ export async function submitDonationPledgeAction(
       console.error("[Donation Ledger] Receipt issuance failed:", err.cause ?? err);
       return {
         success: false,
-        error:
-          "We could not record your donation just now, so no receipt was issued. " +
-          "Nothing has been charged — please try again in a moment.",
+        error: DONATION_RECORDING_FAILURE_MESSAGE,
       };
     }
 

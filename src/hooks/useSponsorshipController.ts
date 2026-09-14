@@ -5,7 +5,18 @@ import { Pet } from "@/types/pet";
 import { SponsorshipTier, DonationReceipt, SponsorshipTierId } from "@/types/sponsorship";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
+import { MIN_SPONSORSHIP_SEN } from "@/lib/domain/petSponsorship";
+import { ringgitFromSen } from "@/lib/domain/money";
+import {
+  DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+  SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE,
+  safeContributionFailureMessage,
+} from "@/lib/domain/contributionFailure";
 import { submitDonationPledgeAction } from "@/actions/donations";
+import {
+  createPetSponsorshipAction,
+  type SponsorshipPledgeDTO,
+} from "@/actions/sponsorships";
 
 export interface UseSponsorshipControllerProps {
   open: boolean;
@@ -13,6 +24,15 @@ export interface UseSponsorshipControllerProps {
   targetPet?: Pet | null;
   initialTierId?: SponsorshipTierId;
 }
+
+export type CheckoutOutcome =
+  | { type: "sponsorship_pledge"; data: SponsorshipPledgeDTO }
+  | { type: "donation_receipt"; data: DonationReceipt };
+
+type PaymentMethod = Exclude<DonationReceipt["paymentMethod"], "card">;
+
+const GENERAL_DONATION_MINIMUM_MYR = 5;
+const PET_SPONSORSHIP_MINIMUM_MYR = ringgitFromSen(MIN_SPONSORSHIP_SEN);
 
 export function useSponsorshipController({
   targetPet,
@@ -27,20 +47,29 @@ export function useSponsorshipController({
   const [isCustomTier, setIsCustomTier] = useState(false);
   const [customAmount, setCustomAmount] = useState<string>("50");
   const [frequency, setFrequency] = useState<"one_time" | "monthly">("one_time");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("duitnow_qr");
   const [donorName, setDonorName] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
   const [donorPhone, setDonorPhone] = useState("");
+  const [wantsTaxReceipt, setWantsTaxReceipt] = useState(false);
   const [taxIdOrIc, setTaxIdOrIc] = useState("");
   const [notes, setNotes] = useState("");
   const [copiedBank, setCopiedBank] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [completedReceipt, setCompletedReceipt] = useState<DonationReceipt | null>(null);
+  const [completedCheckout, setCompletedCheckout] = useState<CheckoutOutcome | null>(null);
+
+  const minimumAmount = targetPet
+    ? PET_SPONSORSHIP_MINIMUM_MYR
+    : GENERAL_DONATION_MINIMUM_MYR;
 
   // Tier prices differ by frequency, so the payable amount follows the toggle
   // rather than the one-time list price.
+  const parsedCustomAmount = Number(customAmount);
   const finalAmount = isCustomTier
-    ? Math.max(5, Number(customAmount) || 5)
+    ? Number.isFinite(parsedCustomAmount)
+      ? parsedCustomAmount
+      : 0
     : tierAmountFor(selectedTier, frequency);
 
   const handleCopyMaybank = () => {
@@ -65,19 +94,57 @@ export function useSponsorshipController({
     setErrorMessage(null);
 
     if (!donorName.trim() || !donorEmail.trim()) {
-      setErrorMessage("Please fill in your name and email for the official receipt.");
+      setErrorMessage("Please fill in your name and email so we can confirm your contribution.");
       return;
     }
 
-    if (finalAmount < 5) {
-      setErrorMessage("Minimum donation amount is RM 5.00.");
+    if (finalAmount < minimumAmount) {
+      setErrorMessage(
+        `Minimum ${targetPet ? "sponsorship" : "donation"} amount is RM ${minimumAmount.toFixed(2)}.`
+      );
+      return;
+    }
+
+    if (wantsTaxReceipt && !taxIdOrIc.trim()) {
+      setErrorMessage(
+        "Your NRIC, passport or SSM number is required for a tax-exemption receipt."
+      );
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      // Execute Server Action
+      if (targetPet) {
+        const result = await createPetSponsorshipAction({
+          petId: targetPet.id,
+          petName: targetPet.name,
+          sponsorName: donorName.trim(),
+          sponsorEmail: donorEmail.trim().toLowerCase(),
+          sponsorPhone: donorPhone.trim() || undefined,
+          tierId: isCustomTier ? "custom" : selectedTier.id,
+          tierName: isCustomTier ? "Custom Pet Sponsorship" : selectedTier.name,
+          amountMYR: finalAmount,
+          frequency,
+          paymentMethod,
+          taxIdOrIc: wantsTaxReceipt ? taxIdOrIc.trim() || undefined : undefined,
+          notes: notes.trim() || undefined,
+        });
+
+        if (result.success && result.data) {
+          setCompletedCheckout({ type: "sponsorship_pledge", data: result.data });
+        } else {
+          setErrorMessage(
+            safeContributionFailureMessage(
+              result.error,
+              SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE,
+            ),
+          );
+        }
+
+        return;
+      }
+
       const result = await submitDonationPledgeAction({
         donorName: donorName.trim(),
         donorEmail: donorEmail.trim().toLowerCase(),
@@ -86,39 +153,45 @@ export function useSponsorshipController({
         tierName: isCustomTier ? "Custom Rescue Donation" : selectedTier.name,
         amountMYR: finalAmount,
         frequency,
-        targetPetName: targetPet?.name,
-        taxIdOrIc: taxIdOrIc.trim() || undefined,
+        wantsTaxReceipt,
+        taxIdOrIc: wantsTaxReceipt ? taxIdOrIc.trim() || undefined : undefined,
         notes: notes.trim() || undefined,
-        paymentMethod: "duitnow_qr",
+        paymentMethod,
       });
 
       if (result.success && result.data) {
-        saveDonationReceipt(result.data as DonationReceipt);
-        setCompletedReceipt(result.data as DonationReceipt);
+        saveDonationReceipt(result.data);
+        setCompletedCheckout({ type: "donation_receipt", data: result.data });
       } else {
         // No local fallback, deliberately. A receipt number is allocated inside
         // the transaction that writes the Donation row, so one invented here
         // would name a receipt the shelter has no record of — and the donor
-        // would file it with LHDN. Say the gift did not go through instead.
+        // would file it with LHDN. Report only what this application knows.
         setErrorMessage(
-          result.error ||
-            "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+          safeContributionFailureMessage(
+            result.error,
+            DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+          ),
         );
       }
     } catch {
-      setErrorMessage(
-        "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
-      );
+      if (targetPet) {
+        setErrorMessage(SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE);
+        return;
+      }
+
+      setErrorMessage(DONATION_RECORDING_UNCONFIRMED_MESSAGE);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleReset = () => {
-    setCompletedReceipt(null);
+    setCompletedCheckout(null);
     setDonorName("");
     setDonorEmail("");
     setDonorPhone("");
+    setWantsTaxReceipt(false);
     setTaxIdOrIc("");
     setNotes("");
     setErrorMessage(null);
@@ -136,16 +209,19 @@ export function useSponsorshipController({
       isCustomTier,
       customAmount,
       frequency,
+      paymentMethod,
       donorName,
       donorEmail,
       donorPhone,
+      wantsTaxReceipt,
       taxIdOrIc,
       notes,
       copiedBank,
       isProcessing,
       errorMessage,
-      completedReceipt,
+      completedCheckout,
       finalAmount,
+      minimumAmount,
       tiers: SPONSORSHIP_TIERS,
     },
     handlers: {
@@ -153,9 +229,11 @@ export function useSponsorshipController({
       setIsCustomTier: handleSelectCustom,
       setCustomAmount,
       setFrequency,
+      setPaymentMethod,
       setDonorName,
       setDonorEmail,
       setDonorPhone,
+      setWantsTaxReceipt,
       setTaxIdOrIc,
       setNotes,
       handleCopyMaybank,

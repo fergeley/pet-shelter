@@ -26,6 +26,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
+import {
+  DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+  safeContributionFailureMessage,
+} from "@/lib/domain/contributionFailure";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { DonationQrPanel } from "@/components/features/donations/DonationQrPanel";
 import { getPublicPets } from "@/actions/pets";
@@ -221,14 +225,14 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         // See the note in useSponsorshipController: a receipt number that never
         // passed through the ledger is not a receipt.
         setErrorMessage(
-          result.error ||
-            "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+          safeContributionFailureMessage(
+            result.error,
+            DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+          ),
         );
       }
     } catch {
-      setErrorMessage(
-        "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
-      );
+      setErrorMessage(DONATION_RECORDING_UNCONFIRMED_MESSAGE);
     } finally {
       setIsProcessing(false);
     }

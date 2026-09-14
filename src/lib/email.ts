@@ -803,7 +803,7 @@ Thank you for your life-saving generosity and support of our shelter animals!
  *
  * Deliberately not a tax document. The commitment has not been reconciled
  * against the shelter's bank statement, so this acknowledges it, carries the
- * supporter's badge, and states plainly when the Section 44(6) receipt follows.
+ * supporter's badge, and states plainly when the official receipt follows.
  * Sending a numbered receipt here would hand someone a filing document for a
  * transfer that may never arrive — see `reconcilePetSponsorshipAction`.
  *
@@ -850,9 +850,8 @@ ${pledge.reconciliationNotice}
 Please quote ${pledge.pledgeRef} in your transfer description so our coordinator
 can match your payment quickly.
 
-IMPORTANT: This confirms your sponsorship pledge. It is NOT a tax receipt. Your
-official Section 44(6) tax-exempt receipt is issued separately once your payment
-has been reconciled.
+IMPORTANT: This confirms your sponsorship pledge; it is not a receipt. Your
+official receipt is issued separately once your payment has been reconciled.
 
 With gratitude,
 The ${SHELTER_NAME} Team
@@ -920,9 +919,8 @@ The ${SHELTER_NAME} Team
 
     <div style="background:${EMAIL_BRAND.muted}; padding: 14px; border-radius: 6px; font-size: 12px; color: ${EMAIL_BRAND.mutedForeground}; margin: 20px 0; line-height: 1.5;">
       <em>
-        This confirms your sponsorship pledge and is <strong>not</strong> a tax receipt. Your
-        official Section 44(6) tax-exempt receipt is issued separately once your payment has been
-        reconciled.
+        This confirms your sponsorship pledge and is <strong>not</strong> a receipt. Your official
+        receipt is issued separately once your payment has been reconciled.
       </em>
     </div>
 
