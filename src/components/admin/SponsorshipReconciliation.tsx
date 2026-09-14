@@ -1,19 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   BadgeCheck,
+  Ban,
   CheckCircle2,
   HandCoins,
   Inbox,
   Receipt,
   RotateCw,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   listPendingSponsorshipsAction,
   reconcilePetSponsorshipAction,
+  rejectPetSponsorshipAction,
   type PendingSponsorshipDTO,
 } from "@/actions/sponsorships";
 
@@ -36,6 +40,12 @@ interface QueueOutcome {
   error?: string;
 }
 
+/** The row the coordinator has opened for a second step, and which step. */
+interface RowIntent {
+  pledgeRef: string;
+  action: "confirm" | "dismiss";
+}
+
 /**
  * Module-level and state-free on purpose.
  *
@@ -48,20 +58,49 @@ async function fetchPending(): Promise<QueueOutcome> {
   try {
     const result = await listPendingSponsorshipsAction();
     if (result.success && result.data) return { rows: result.data };
+    // A denial lands here too, as the guard's own message: the action asserts the
+    // permission inside its try, so a STAFF account that typed the URL is told it
+    // may not reconcile payments rather than that the shelter is down.
     return { error: result.error ?? "Could not load the pending commitments." };
   } catch {
-    // Deliberately does not name a cause. `listPendingSponsorshipsAction` asserts the
-    // permission *outside* its try, so an unauthorised caller throws out of the Server
-    // Action and a production build masks it into an opaque digest — indistinguishable
-    // here from a network failure. Claiming "could not reach the shelter" would tell a
-    // STAFF account who typed the URL that the shelter is down, when the truth is that
-    // they may not see this. The nav hides the tab, but that is presentation, not
-    // enforcement, so this path is reachable.
+    // The call itself failed. Deliberately no cause: a stale action id after a deploy
+    // lands here too, and the server was reached fine in that case. A reload cures
+    // both; Refresh Queue cures only the outage.
     return {
       error:
-        "The pending commitments could not be loaded — either this account may not reconcile payments, or the shelter could not be reached. This is a read failure, not an empty queue.",
+        "The pending commitments could not be loaded. Reload the page and try again. This is a read failure, not an empty queue.",
     };
   }
+}
+
+/** Literal class strings, so the design-system guards can see every tone used. */
+const NOTICE_TONE = {
+  danger: "tone-soft tone-danger",
+  warning: "tone-soft tone-warning",
+  info: "tone-soft tone-info",
+} as const;
+
+/** One banner shape for the three things the queue has to say above the rows. */
+function Notice({
+  role,
+  tone,
+  icon: Icon,
+  children,
+}: {
+  role: "alert" | "status";
+  tone: keyof typeof NOTICE_TONE;
+  icon: LucideIcon;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role={role}
+      className={`${NOTICE_TONE[tone]} flex items-start gap-3 rounded-xl border p-4 text-sm`}
+    >
+      <Icon className="size-4 shrink-0 mt-0.5" />
+      <p>{children}</p>
+    </div>
+  );
 }
 
 /**
@@ -71,6 +110,10 @@ async function fetchPending(): Promise<QueueOutcome> {
  * number from the same gapless monthly series every other receipt uses and emails it
  * to the supporter. That is irreversible — `Donation` is append-only and a receipt
  * cannot be withdrawn, only offset — so the button asks once before firing.
+ *
+ * Dismissing a row is the other way out: a claim no transfer ever backed leaves the
+ * queue as `CANCELLED`, nothing is issued, and the reason goes to the audit log. It
+ * also asks once, because a dismissed pledge cannot be confirmed afterwards.
  */
 export function SponsorshipReconciliation() {
   const [rows, setRows] = useState<PendingSponsorshipDTO[]>([]);
@@ -79,8 +122,10 @@ export function SponsorshipReconciliation() {
   // Distinct from "no rows". A read failure must never render as an empty queue.
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
+  const [rowNotice, setRowNotice] = useState<string | null>(null);
   const [busyRef, setBusyRef] = useState<string | null>(null);
-  const [confirmingRef, setConfirmingRef] = useState<string | null>(null);
+  const [intent, setIntent] = useState<RowIntent | null>(null);
+  const [dismissReason, setDismissReason] = useState("");
 
   const apply = useCallback((outcome: QueueOutcome) => {
     if (outcome.rows) {
@@ -115,14 +160,22 @@ export function SponsorshipReconciliation() {
   const refresh = useCallback(async () => {
     setIsLoading(true);
     setRowError(null);
+    setRowNotice(null);
+    setIntent(null);
     apply(await fetchPending());
     setIsLoading(false);
   }, [apply]);
 
+  const openIntent = (pledgeRef: string, action: RowIntent["action"]) => {
+    setDismissReason("");
+    setIntent({ pledgeRef, action });
+  };
+
   const confirm = async (row: PendingSponsorshipDTO) => {
     setBusyRef(row.pledgeRef);
     setRowError(null);
-    setConfirmingRef(null);
+    setRowNotice(null);
+    setIntent(null);
 
     try {
       const result = await reconcilePetSponsorshipAction(row.pledgeRef);
@@ -149,6 +202,34 @@ export function SponsorshipReconciliation() {
     }
   };
 
+  const dismiss = async (row: PendingSponsorshipDTO) => {
+    const reason = dismissReason;
+    setBusyRef(row.pledgeRef);
+    setRowError(null);
+    setRowNotice(null);
+    setIntent(null);
+    setDismissReason("");
+
+    try {
+      const result = await rejectPetSponsorshipAction(row.pledgeRef, reason);
+
+      if (result.success) {
+        setRows((prev) => prev.filter((r) => r.pledgeRef !== row.pledgeRef));
+        setRowNotice(
+          `${row.pledgeRef} for ${row.sponsorName} was dismissed. No receipt was issued.`
+        );
+      } else {
+        setRowError(result.error ?? "The pledge could not be dismissed.");
+      }
+    } catch {
+      setRowError(
+        "We could not dismiss that pledge. It is still pending — please reload and try again."
+      );
+    } finally {
+      setBusyRef(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="border border-border bg-background p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -163,7 +244,8 @@ export function SponsorshipReconciliation() {
             <p className="text-xs text-muted-foreground">
               Confirm a transfer has landed to issue the supporter&apos;s LHDN Section 44(6)
               receipt. Match the <span className="font-mono font-semibold">HFS-PLG</span> reference
-              against your bank statement — a pledge reference is not a receipt number.
+              against your bank statement — a pledge reference is not a receipt number. Dismiss a
+              pledge that no transfer ever backed.
             </p>
           </div>
         </div>
@@ -181,23 +263,21 @@ export function SponsorshipReconciliation() {
       </div>
 
       {loadError && (
-        <div
-          role="alert"
-          className="tone-soft tone-danger flex items-start gap-3 rounded-xl border p-4 text-sm"
-        >
-          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-          <p>{loadError}</p>
-        </div>
+        <Notice role="alert" tone="danger" icon={AlertCircle}>
+          {loadError}
+        </Notice>
       )}
 
       {rowError && (
-        <div
-          role="alert"
-          className="tone-soft tone-warning flex items-start gap-3 rounded-xl border p-4 text-sm"
-        >
-          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-          <p>{rowError}</p>
-        </div>
+        <Notice role="alert" tone="warning" icon={AlertCircle}>
+          {rowError}
+        </Notice>
+      )}
+
+      {rowNotice && (
+        <Notice role="status" tone="info" icon={Ban}>
+          {rowNotice}
+        </Notice>
       )}
 
       {settled.length > 0 && (
@@ -239,7 +319,18 @@ export function SponsorshipReconciliation() {
         <div className="border border-border bg-background divide-y divide-border">
           {rows.map((row) => {
             const isBusy = busyRef === row.pledgeRef;
-            const isConfirming = confirmingRef === row.pledgeRef;
+            const rowIntent = intent?.pledgeRef === row.pledgeRef ? intent.action : null;
+            const cancelButton = (
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setIntent(null)}
+                disabled={isBusy}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+            );
 
             return (
               <div
@@ -270,12 +361,12 @@ export function SponsorshipReconciliation() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
                   <span className="text-base font-bold font-mono text-foreground">
                     {row.amountDisplay}
                   </span>
 
-                  {isConfirming ? (
+                  {rowIntent === "confirm" ? (
                     <div className="flex items-center gap-2">
                       <Button
                         size="xs"
@@ -286,29 +377,59 @@ export function SponsorshipReconciliation() {
                         <CheckCircle2 className="size-3.5" />
                         {isBusy ? "Issuing…" : "Issue receipt"}
                       </Button>
+                      {cancelButton}
+                    </div>
+                  ) : rowIntent === "dismiss" ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <Input
+                        value={dismissReason}
+                        onChange={(event) => setDismissReason(event.target.value)}
+                        placeholder="Reason (optional), e.g. no transfer after 30 days"
+                        aria-label={`Reason for dismissing ${row.pledgeRef}`}
+                        maxLength={500}
+                        disabled={isBusy}
+                        className="h-8 text-xs sm:w-64"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="xs"
+                        onClick={() => void dismiss(row)}
+                        disabled={isBusy}
+                        className="text-xs font-bold gap-1.5"
+                        // Two steps because a dismissed pledge cannot be confirmed afterwards.
+                        title="Remove this pledge from the queue. Nothing is issued."
+                      >
+                        <Ban className="size-3.5" />
+                        {isBusy ? "Dismissing…" : "Dismiss pledge"}
+                      </Button>
+                      {cancelButton}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
                         size="xs"
-                        onClick={() => setConfirmingRef(null)}
-                        disabled={isBusy}
-                        className="text-xs"
+                        onClick={() => openIntent(row.pledgeRef, "confirm")}
+                        disabled={isBusy || busyRef !== null}
+                        className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
+                        // Two steps because the receipt cannot be withdrawn once issued.
+                        title="Confirm this transfer has landed and issue the tax receipt"
                       >
-                        Cancel
+                        <CheckCircle2 className="size-3.5" />
+                        Confirm payment received
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => openIntent(row.pledgeRef, "dismiss")}
+                        disabled={isBusy || busyRef !== null}
+                        className="text-xs gap-1.5 text-muted-foreground"
+                        title="Dismiss a pledge that no transfer ever backed"
+                      >
+                        <Ban className="size-3.5" />
+                        Dismiss
                       </Button>
                     </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="xs"
-                      onClick={() => setConfirmingRef(row.pledgeRef)}
-                      disabled={isBusy || busyRef !== null}
-                      className="text-xs gap-1.5 font-semibold tone-soft tone-success hover:bg-success-surface"
-                      // Two steps because the receipt cannot be withdrawn once issued.
-                      title="Confirm this transfer has landed and issue the tax receipt"
-                    >
-                      <CheckCircle2 className="size-3.5" />
-                      Confirm payment received
-                    </Button>
                   )}
                 </div>
               </div>
