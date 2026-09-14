@@ -159,6 +159,8 @@ export async function createPet(
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
+      birthDate: validated.birthDate || undefined,
+      birthDateIsEstimate: validated.birthDateIsEstimate ?? true,
       customQrUrl: validated.customQrUrl || null,
       rehabStage: validated.rehabStage,
       rehabStageMs: validated.rehabStageMs,

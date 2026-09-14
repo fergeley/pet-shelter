@@ -22,7 +22,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, X, Loader2, Star, Eye, Send } from "lucide-react";
 import type { PhotoNotificationOptions } from "@/actions/pets";
-import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
+import {
+  AGE_BANDS,
+  formatAgeBandRange,
+  formatAgeString,
+  computeAgeCategory,
+  approximateBirthDate,
+  deriveBirthDate,
+} from "@/lib/domain/petAge";
 
 /** Admin UI is English-only; the year range beside each name comes from the domain (PS-114). */
 const ADMIN_AGE_BAND_NAMES: Record<(typeof AGE_BANDS)[number], string> = {
@@ -66,6 +73,8 @@ export function PetFormDialog({
       name: "",
       species: "dog",
       breed: "",
+      birthDate: "",
+      birthDateIsEstimate: true,
       age: "",
       ageCategory: "adult",
       gender: "Male",
@@ -106,6 +115,8 @@ export function PetFormDialog({
         name: editingPet.name,
         species: editingPet.species,
         breed: editingPet.breed,
+        birthDate: editingPet.birthDate || (editingPet.intakeDate ? deriveBirthDate(editingPet) : ""),
+        birthDateIsEstimate: editingPet.birthDateIsEstimate ?? true,
         age: editingPet.age,
         ageCategory: editingPet.ageCategory,
         gender: editingPet.gender,
@@ -152,6 +163,8 @@ export function PetFormDialog({
         name: "",
         species: "dog",
         breed: "",
+        birthDate: "",
+        birthDateIsEstimate: true,
         age: "",
         ageCategory: "adult",
         gender: "Male",
@@ -220,6 +233,32 @@ export function PetFormDialog({
       setValue("rehabStage", undefined, { shouldValidate: true });
       setValue("rehabStageMs", undefined, { shouldValidate: true });
       setValue("rehabProgressPercent", undefined, { shouldValidate: true });
+    }
+  };
+
+  const birthDateField = register("birthDate");
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    birthDateField.onChange(e);
+    const bDate = e.target.value;
+    if (bDate && !isNaN(Date.parse(bDate))) {
+      const derivedAge = formatAgeString(bDate).en;
+      const derivedCategory = computeAgeCategory(bDate);
+      setValue("age", derivedAge, { shouldValidate: true, shouldDirty: true });
+      setValue("ageCategory", derivedCategory, { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const ageField = register("age");
+  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    ageField.onChange(e);
+    const typedAge = e.target.value;
+    const currentBirthDate = watch("birthDate");
+    if (!currentBirthDate && typedAge) {
+      const intakeDate = watch("intakeDate") || new Date().toISOString().split("T")[0];
+      const approx = approximateBirthDate(typedAge, intakeDate);
+      setValue("birthDate", approx.birthDate, { shouldDirty: true });
+      setValue("birthDateIsEstimate", true, { shouldDirty: true });
+      setValue("ageCategory", computeAgeCategory(approx.birthDate), { shouldValidate: true, shouldDirty: true });
     }
   };
 
@@ -296,22 +335,41 @@ export function PetFormDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="gender" className="text-sm font-semibold">Gender *</Label>
-                <select
-                  id="gender"
-                  {...register("gender")}
-                  className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground"
-                >
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                </select>
+                <Label htmlFor="birthDate" className="text-sm font-semibold">Birth Date</Label>
+                <Input
+                  id="birthDate"
+                  type="date"
+                  className="text-sm py-2"
+                  {...birthDateField}
+                  onChange={handleBirthDateChange}
+                />
+                <div className="flex items-center gap-1.5 pt-0.5">
+                  <input
+                    type="checkbox"
+                    id="birthDateIsEstimate"
+                    {...register("birthDateIsEstimate")}
+                    className="size-3.5 accent-foreground rounded cursor-pointer"
+                  />
+                  <Label htmlFor="birthDateIsEstimate" className="text-2xs text-muted-foreground font-normal cursor-pointer">
+                    Estimated birthday
+                  </Label>
+                </div>
+                {errors.birthDate && <p className="text-xs text-destructive">{errors.birthDate.message}</p>}
               </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="age" className="text-sm font-semibold">Age (Text) *</Label>
-                <Input id="age" placeholder="e.g. 2 years" className="text-sm py-2" {...register("age")} />
+                <Input
+                  id="age"
+                  placeholder="e.g. 2 years"
+                  className="text-sm py-2"
+                  {...ageField}
+                  onChange={handleAgeChange}
+                />
+                <p className="text-2xs text-muted-foreground">Computed automatically from birth date</p>
+                {errors.age && <p className="text-xs text-destructive">{errors.age.message}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -327,6 +385,21 @@ export function PetFormDialog({
                     </option>
                   ))}
                 </select>
+                <p className="text-2xs text-muted-foreground">Derived from age band boundaries</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="gender" className="text-sm font-semibold">Gender *</Label>
+                <select
+                  id="gender"
+                  {...register("gender")}
+                  className="w-full bg-background border border-input px-3 py-2 text-sm text-foreground"
+                >
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -341,14 +414,19 @@ export function PetFormDialog({
                   <option value="Large">Large (25+ kg)</option>
                 </select>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="weight" className="text-sm font-semibold">Weight *</Label>
                 <Input id="weight" placeholder="e.g. 18 kg" className="text-sm py-2 font-mono" {...register("weight")} />
               </div>
 
+              <div className="space-y-1.5">
+                <Label htmlFor="adoptionFee" className="text-sm font-semibold">Adoption Fee *</Label>
+                <Input id="adoptionFee" placeholder="e.g. Free" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="status" className="text-sm font-semibold">Adoption Status *</Label>
                 <select
@@ -369,11 +447,6 @@ export function PetFormDialog({
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="adoptionFee" className="text-sm font-semibold">Adoption Fee *</Label>
-                <Input id="adoptionFee" placeholder="e.g. Free" className="text-sm py-2 font-mono" {...register("adoptionFee")} />
               </div>
             </div>
 
