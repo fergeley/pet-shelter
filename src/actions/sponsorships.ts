@@ -18,20 +18,21 @@ import {
 } from "@/lib/domain/petSponsorship";
 import {
   SponsorshipWriteError,
-  findSponsorshipByPledgeRef,
   listPendingSponsorships,
   recordSponsorshipPledge,
-  reconcileSponsorship,
+  rejectPendingSponsorship,
+  settleSponsorship,
   summarizeSponsorshipsForPet,
 } from "@/lib/server/sponsorshipLedger";
-import { ReceiptIssuanceError, issueDonationReceipt } from "@/lib/server/donationLedger";
+import { ReceiptIssuanceError } from "@/lib/server/donationLedger";
 import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/email";
-import { getCurrentSession } from "@/lib/security/session";
+import { getCurrentSession, type SessionUser } from "@/lib/security/session";
 import {
   PERMISSIONS,
+  ROLES,
   assertAuthorized,
   assertHasPermission,
-  ROLES,
+  isAuthorizationError,
 } from "@/lib/security/rbac";
 
 /** What the supporter sees the moment checkout completes. */
@@ -203,6 +204,11 @@ export interface PendingSponsorshipsResult {
   error?: string;
 }
 
+/** `PENDING_PAYMENT` → "pending payment", for a sentence a coordinator reads. */
+function statusLabel(status: string): string {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
 /**
  * Server Action: the commitments awaiting a coordinator's confirmation.
  *
@@ -217,15 +223,20 @@ export interface PendingSponsorshipsResult {
  * roles `reconcilePetSponsorshipAction`'s own `[ADMIN, COORDINATOR]` guard admits, so
  * this page never shows a button that the mutation behind it would reject.
  *
+ * The guard sits inside the `try`, as in `fetchAuditLogsAction`. A production build
+ * masks a thrown Server Action error into an opaque digest, so a thrown denial reached
+ * the page indistinguishable from an outage; returned, it arrives as the guard's own
+ * message and the page can say who may not do this.
+ *
  * `taxIdOrIc` is deliberately absent from the DTO: a coordinator confirming that a
  * bank transfer landed does not need the supporter's tax identifier to do it, and
  * projecting it here would put a statutory identifier on a screen for no purpose.
  */
 export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshipsResult> {
-  const session = await getCurrentSession();
-  assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
-
   try {
+    const session = await getCurrentSession();
+    assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
+
     const rows = await listPendingSponsorships();
     return {
       success: true,
@@ -242,6 +253,8 @@ export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshi
       })),
     };
   } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+
     // Surfaced, never swallowed into an empty list: an empty queue reads as "every
     // supporter has been settled", and a coordinator who believes that stops looking.
     console.error("[Sponsorship Reconciliation] Pending queue read failed:", err);
@@ -262,55 +275,35 @@ export interface ReconcileSponsorshipResult {
 /**
  * Server Action: a coordinator confirms the transfer for a pledge has landed.
  *
- * This is the only path that turns a commitment into a statutory document. It
- * allocates the receipt number through `issueDonationReceipt`, so a sponsorship
- * receipt is drawn from the same gapless per-month series as every other
- * receipt and appears in the LHDN export like any other.
+ * This is the only path that turns a commitment into a statutory document. The
+ * receipt is drawn through `settleSponsorship`, from the same gapless per-month
+ * series as every other receipt, *inside the transaction* that moves the pledge to
+ * `ACTIVE`. Two coordinators confirming at once therefore produce one receipt, and
+ * the one who lost is handed the number that exists. Until 2026-09-14 this action
+ * issued first and guarded second, so a lost race left a receipt attached to
+ * nothing and a log line asking for an offsetting correction; there is no spare
+ * outcome any more.
  *
- * Order is: confirm the pledge is still pending -> issue the `Donation` ->
- * attach its number to the commitment. Losing the final conditional update to a
- * concurrent coordinator would leave an issued receipt with no commitment
- * attached; that is logged as needing an offsetting correction rather than
- * papered over, because `Donation` is append-only by design and a receipt
- * cannot be withdrawn.
+ * The guard returns its denial for the reason `listPendingSponsorshipsAction`'s
+ * does; the rest of the action keeps its own error handling, because "the receipt
+ * could not be issued" and "you may not do this" are different sentences.
  */
 export async function reconcilePetSponsorshipAction(
   pledgeRef: string
 ): Promise<ReconcileSponsorshipResult> {
-  const session = await getCurrentSession();
-  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
-  const actorEmail = session?.email ?? "coordinator@hopeforstrays.org";
-
-  const existing = await findSponsorshipByPledgeRef(pledgeRef);
-  if (!existing) {
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
-  }
-  if (existing.status === "ACTIVE" && existing.receiptNumber) {
-    // Already settled. Return the number that exists rather than minting another
-    // for the same money.
-    return { success: true, receiptNumber: existing.receiptNumber };
-  }
-
-  const issuer = currentIssuerIdentity();
-
-  let donation;
+  let session: SessionUser;
   try {
-    donation = await issueDonationReceipt({
-      donorName: existing.sponsorName,
-      donorEmail: existing.sponsorEmail,
-      donorPhone: existing.sponsorPhone,
-      taxIdOrIc: existing.taxIdOrIc,
-      tierId: existing.tierId as Parameters<typeof issueDonationReceipt>[0]["tierId"],
-      tierName: existing.tierName,
-      amountSen: existing.amountSen,
-      currency: "MYR",
-      frequency: existing.frequency,
-      paymentMethod: existing.paymentMethod,
-      targetPetName: existing.petName,
-      notes: existing.notes,
-      taxDeductibleRef: issuer.taxDeductibleRef,
-      shelterRegistrationNo: issuer.shelterRegistrationNo,
-    });
+    const current = await getCurrentSession();
+    assertAuthorized(current, [ROLES.ADMIN, ROLES.COORDINATOR]);
+    session = current;
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+    throw err;
+  }
+
+  let outcome;
+  try {
+    outcome = await settleSponsorship(pledgeRef, currentIssuerIdentity(), session.email);
   } catch (err) {
     if (err instanceof ReceiptIssuanceError) {
       return {
@@ -322,36 +315,37 @@ export async function reconcilePetSponsorshipAction(
     throw err;
   }
 
-  const outcome = await reconcileSponsorship(pledgeRef, donation.receiptNumber, actorEmail);
-
+  if (outcome.status === "not_found") {
+    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
+  }
+  if (outcome.status === "not_pending") {
+    return {
+      success: false,
+      error: `Pledge ${pledgeRef} is ${statusLabel(outcome.currentStatus)} and cannot be reconciled`,
+    };
+  }
   if (outcome.status === "already_reconciled") {
-    console.error(
-      `[Sponsorship Reconciliation] Lost a race on ${pledgeRef}: receipt ${donation.receiptNumber} was issued but ${outcome.receiptNumber} is already attached. The spare needs an offsetting correction.`
-    );
+    // Settled already, by this coordinator a moment ago or by another. Return the
+    // number that exists rather than minting another for the same money.
     return { success: true, receiptNumber: outcome.receiptNumber };
   }
 
-  if (outcome.status === "not_found") {
-    console.error(
-      `[Sponsorship Reconciliation] ${pledgeRef} vanished after receipt ${donation.receiptNumber} was issued.`
-    );
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
-  }
+  const { record, donation } = outcome;
 
   recordAuditLog({
-    actorId: session?.id ?? "coordinator",
-    actorEmail,
-    actorRole: session?.role ?? ROLES.COORDINATOR,
+    actorId: session.id,
+    actorEmail: session.email,
+    actorRole: session.role,
     action: "SPONSORSHIP_RECONCILED",
     entity: "PetSponsorship",
     entityId: pledgeRef,
     details: {
       pledgeRef,
       receiptNumber: donation.receiptNumber,
-      petName: outcome.record.petName,
-      sponsorEmail: outcome.record.sponsorEmail,
-      amountSen: outcome.record.amountSen as number,
-      amountDisplay: formatMYR(outcome.record.amountSen),
+      petName: record.petName,
+      sponsorEmail: record.sponsorEmail,
+      amountSen: record.amountSen as number,
+      amountDisplay: formatMYR(record.amountSen),
     },
   });
 
@@ -381,6 +375,87 @@ export async function reconcilePetSponsorshipAction(
   }).catch((err) => console.error("[Sponsorship Receipt Email Dispatch Failed]", err));
 
   return { success: true, receiptNumber: donation.receiptNumber };
+}
+
+export interface RejectSponsorshipResult {
+  success: boolean;
+  error?: string;
+}
+
+/** Longest reason the audit row keeps: a coordinator's note, not an essay. */
+const REJECTION_REASON_MAX = 500;
+
+/**
+ * Server Action: a coordinator dismisses a pledge no transfer ever backed.
+ *
+ * The other exit from the queue. Without it an unpaid or bogus claim sat in
+ * `PENDING_PAYMENT` forever, in front of every coordinator, every day. Nothing is
+ * issued and nothing is emailed: a dismissed claim is not a gift and earns no
+ * receipt. The actor and the reason go to the audit log, which is the record of
+ * *why* a pledge left the queue; the row itself records only that it did.
+ *
+ * `reason` is normalised before the write. A Server Action's arguments arrive
+ * deserialised and unchecked, and a reason that is not a string must be rejected
+ * *before* the row flips — a TypeError after it would leave the pledge cancelled
+ * with no audit row and a message saying it is still pending.
+ */
+export async function rejectPetSponsorshipAction(
+  pledgeRef: string,
+  reason?: string
+): Promise<RejectSponsorshipResult> {
+  try {
+    const session = await getCurrentSession();
+    assertHasPermission(session, PERMISSIONS.RECONCILE_SPONSORSHIPS);
+
+    const note =
+      typeof reason === "string" ? reason.trim().slice(0, REJECTION_REASON_MAX) || null : null;
+
+    const outcome = await rejectPendingSponsorship(pledgeRef);
+    if (outcome.status === "not_found") {
+      return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
+    }
+    if (outcome.status === "already_reconciled") {
+      return {
+        success: false,
+        error: `Pledge ${pledgeRef} has already been reconciled as receipt ${outcome.receiptNumber} and cannot be dismissed`,
+      };
+    }
+    if (outcome.status === "not_pending") {
+      return {
+        success: false,
+        error: `Pledge ${pledgeRef} is already ${statusLabel(outcome.currentStatus)}`,
+      };
+    }
+
+    const { record } = outcome;
+    recordAuditLog({
+      actorId: session.id,
+      actorEmail: session.email,
+      actorRole: session.role,
+      action: "SPONSORSHIP_REJECTED",
+      entity: "PetSponsorship",
+      entityId: pledgeRef,
+      details: {
+        pledgeRef,
+        reason: note,
+        petName: record.petName,
+        sponsorEmail: record.sponsorEmail,
+        amountSen: record.amountSen as number,
+        amountDisplay: formatMYR(record.amountSen),
+      },
+    });
+
+    return { success: true };
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+
+    console.error("[Sponsorship Reconciliation] Dismiss failed:", err);
+    return {
+      success: false,
+      error:
+        "We could not dismiss that pledge, so it is still pending. Please reload and try again.",
+    };
+  }
 }
 
 /**

@@ -53,6 +53,20 @@ export class ForbiddenError extends Error {
   }
 }
 
+/**
+ * True for the two errors the guards below throw.
+ *
+ * A Server Action that catches these returns the denial as a result, carrying the
+ * guard's own message, instead of letting it escape — a production build masks a
+ * thrown action error into an opaque digest, and the page then cannot tell a
+ * denial from an outage.
+ */
+export function isAuthorizationError(
+  error: unknown
+): error is UnauthorizedError | ForbiddenError {
+  return error instanceof UnauthorizedError || error instanceof ForbiddenError;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Role checks (legacy surface, still used by existing call sites)           */
 /* -------------------------------------------------------------------------- */

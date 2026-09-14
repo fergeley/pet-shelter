@@ -1,5 +1,15 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
-import { isLedgerPersistent } from "@/lib/server/donationLedger";
+import {
+  drawAndInsert,
+  isLedgerPersistent,
+  issueReceiptInMemory,
+  withReceiptTransaction,
+  type DonationDraft,
+  type DonationRecord,
+} from "@/lib/server/donationLedger";
+import type { StatutoryIssuerIdentity } from "@/lib/domain/shelterIdentity";
+import type { SponsorshipTierId } from "@/types/sponsorship";
 import { Sen, senFromInteger } from "@/lib/domain/money";
 import {
   DEFAULT_SPONSORSHIP_GOAL_SEN,
@@ -159,17 +169,89 @@ export async function recordSponsorshipPledge(
 export type ReconcileOutcome =
   | { status: "reconciled"; record: SponsorshipRecord }
   | { status: "already_reconciled"; receiptNumber: string }
+  /** The row exists but left `PENDING_PAYMENT` without a receipt: dismissed or withdrawn. */
+  | { status: "not_pending"; currentStatus: SponsorshipStatus }
+  | { status: "not_found" };
+
+/** What a caller is told about a row that has already left `PENDING_PAYMENT`. */
+function settledOutcome(
+  record: SponsorshipRecord
+): Extract<ReconcileOutcome, { status: "already_reconciled" | "not_pending" }> {
+  return record.status === "ACTIVE" && record.receiptNumber
+    ? { status: "already_reconciled", receiptNumber: record.receiptNumber }
+    : { status: "not_pending", currentStatus: record.status };
+}
+
+/** What a `PENDING_PAYMENT` row becomes, in both storage modes. */
+interface PendingTransition {
+  /** The columns the Postgres branch writes. */
+  data: {
+    status: "ACTIVE" | "CANCELLED";
+    receiptNumber?: string;
+    reconciledAt?: Date;
+    reconciledBy?: string;
+    cancelledAt?: Date;
+  };
+  /** The same transition applied to a memory record. */
+  patch: Partial<SponsorshipRecord> & { status: SponsorshipStatus };
+}
+
+type TransitionOutcome =
+  | { status: "transitioned"; record: SponsorshipRecord }
+  | { status: "not_pending"; record: SponsorshipRecord }
   | { status: "not_found" };
 
 /**
- * Attaches an issued receipt number and moves the commitment to `ACTIVE`.
+ * Moves a commitment out of `PENDING_PAYMENT`, guarded on that source state.
  *
- * In Postgres this is a single conditional UPDATE guarded on
- * `status = PENDING_PAYMENT`. Two coordinators — or two serverless instances —
- * racing on the same pledge therefore produce exactly one winner, and the loser
- * is told the number that already exists rather than issuing a second receipt
- * for the same money. Guarding on an in-process value instead would be no guard
- * at all: that value is empty on every other instance.
+ * In Postgres this is a single conditional UPDATE. Two coordinators — or two
+ * serverless instances — racing on the same pledge therefore produce exactly one
+ * winner, and the loser is told what the row has become rather than writing over
+ * it. Guarding on an in-process value instead would be no guard at all: that value
+ * is empty on every other instance. The memory branch guards on the same status, so
+ * the two modes cannot disagree about a pledge that has already left the queue.
+ *
+ * `tx` runs the update inside a transaction somebody else opened: `settleSponsorship`
+ * guards here first and only then draws the receipt, in the same transaction.
+ */
+async function transitionPending(
+  pledgeRef: string,
+  transition: PendingTransition,
+  tx?: Prisma.TransactionClient
+): Promise<TransitionOutcome> {
+  if (!isLedgerPersistent()) {
+    const index = memorySponsorships.findIndex((row) => row.pledgeRef === pledgeRef);
+    if (index < 0) return { status: "not_found" };
+
+    const current = memorySponsorships[index];
+    if (current.status !== "PENDING_PAYMENT") return { status: "not_pending", record: current };
+
+    const record: SponsorshipRecord = { ...current, ...transition.patch };
+    memorySponsorships[index] = record;
+    return { status: "transitioned", record };
+  }
+
+  const db: Prisma.TransactionClient = tx ?? prisma;
+  const { count } = await db.petSponsorship.updateMany({
+    where: { pledgeRef, status: "PENDING_PAYMENT" },
+    data: transition.data,
+  });
+
+  const row = await db.petSponsorship.findUnique({ where: { pledgeRef } });
+  if (!row) return { status: "not_found" };
+
+  return count === 1
+    ? { status: "transitioned", record: toRecord(row) }
+    : { status: "not_pending", record: toRecord(row) };
+}
+
+/**
+ * Attaches an already-issued receipt number and moves the commitment to `ACTIVE`.
+ *
+ * For a number issued elsewhere — the offline demo seed. A coordinator's
+ * confirmation goes through `settleSponsorship`, which draws the number itself in
+ * the same transaction as the transition, so a lost race can never leave a receipt
+ * attached to nothing.
  */
 export async function reconcileSponsorship(
   pledgeRef: string,
@@ -179,35 +261,136 @@ export async function reconcileSponsorship(
 ): Promise<ReconcileOutcome> {
   const when = options?.now ?? new Date();
 
+  const outcome = await transitionPending(pledgeRef, {
+    data: { status: "ACTIVE", receiptNumber, reconciledAt: when, reconciledBy },
+    patch: { status: "ACTIVE", receiptNumber },
+  });
+
+  if (outcome.status === "transitioned") return { status: "reconciled", record: outcome.record };
+  if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+  return outcome;
+}
+
+export type SettleOutcome =
+  | { status: "reconciled"; record: SponsorshipRecord; donation: DonationRecord }
+  | Exclude<ReconcileOutcome, { status: "reconciled" }>;
+
+/**
+ * Confirms a pledge and issues its Section 44(6) receipt as one unit of work.
+ *
+ * Guard first, draw second, write third, all inside the transaction that draws the
+ * serial. The conditional `PENDING_PAYMENT → ACTIVE` update takes the row lock; a
+ * loser sees zero rows and has written nothing, so only the winner reaches the
+ * receipt series, which is the same gapless monthly series every other receipt is
+ * drawn from. Until 2026-09-14 the action issued first and guarded second, and a
+ * lost race left a statutory document nobody could withdraw.
+ *
+ * The receipt draft is built from the row *after* the guard, so what is printed is
+ * what was locked.
+ */
+export async function settleSponsorship(
+  pledgeRef: string,
+  issuer: StatutoryIssuerIdentity,
+  reconciledBy: string,
+  options?: { now?: Date }
+): Promise<SettleOutcome> {
+  const when = options?.now ?? new Date();
+
   if (!isLedgerPersistent()) {
     const index = memorySponsorships.findIndex((row) => row.pledgeRef === pledgeRef);
     if (index < 0) return { status: "not_found" };
 
     const current = memorySponsorships[index];
-    if (current.status === "ACTIVE" && current.receiptNumber) {
-      return { status: "already_reconciled", receiptNumber: current.receiptNumber };
-    }
+    if (current.status !== "PENDING_PAYMENT") return settledOutcome(current);
 
-    const record: SponsorshipRecord = { ...current, status: "ACTIVE", receiptNumber };
+    // The guard, the draw and the write with no await between them. In a
+    // single-threaded process that is the whole transaction, and it is why
+    // `issueReceiptInMemory` is synchronous.
+    const donation = issueReceiptInMemory(receiptDraftFor(current, issuer), when);
+    const record: SponsorshipRecord = {
+      ...current,
+      status: "ACTIVE",
+      receiptNumber: donation.receiptNumber,
+    };
     memorySponsorships[index] = record;
-    return { status: "reconciled", record };
+    return { status: "reconciled", record, donation };
   }
 
-  const { count } = await prisma.petSponsorship.updateMany({
-    where: { pledgeRef, status: "PENDING_PAYMENT" },
-    data: { status: "ACTIVE", receiptNumber, reconciledAt: when, reconciledBy },
+  return withReceiptTransaction(async (tx): Promise<SettleOutcome> => {
+    const guard = await transitionPending(
+      pledgeRef,
+      {
+        data: { status: "ACTIVE", reconciledAt: when, reconciledBy },
+        patch: { status: "ACTIVE" },
+      },
+      tx
+    );
+    if (guard.status === "not_found") return guard;
+    if (guard.status === "not_pending") return settledOutcome(guard.record);
+
+    const donation = await drawAndInsert(tx, receiptDraftFor(guard.record, issuer), when);
+    const row = await tx.petSponsorship.update({
+      where: { pledgeRef },
+      data: { receiptNumber: donation.receiptNumber },
+    });
+    return { status: "reconciled", record: toRecord(row), donation };
+  });
+}
+
+/** The receipt a commitment earns, snapshotting what the pledge recorded. */
+function receiptDraftFor(
+  record: SponsorshipRecord,
+  issuer: StatutoryIssuerIdentity
+): DonationDraft {
+  return {
+    donorName: record.sponsorName,
+    donorEmail: record.sponsorEmail,
+    donorPhone: record.sponsorPhone,
+    taxIdOrIc: record.taxIdOrIc,
+    tierId: record.tierId as SponsorshipTierId,
+    tierName: record.tierName,
+    amountSen: record.amountSen,
+    currency: "MYR",
+    frequency: record.frequency,
+    paymentMethod: record.paymentMethod,
+    targetPetName: record.petName,
+    notes: record.notes,
+    taxDeductibleRef: issuer.taxDeductibleRef,
+    shelterRegistrationNo: issuer.shelterRegistrationNo,
+  };
+}
+
+export type RejectOutcome =
+  | { status: "rejected"; record: SponsorshipRecord }
+  | Exclude<ReconcileOutcome, { status: "reconciled" }>;
+
+/**
+ * A coordinator dismisses a claim that no transfer ever backed.
+ *
+ * `PENDING_PAYMENT → CANCELLED`, through the same guard as reconciliation, so a
+ * pledge cannot be dismissed once its receipt exists, nor reconciled once it was
+ * dismissed. `CANCELLED` rather than a new state: the schema's terminal states are
+ * `CANCELLED` and `EXPIRED`, only `CANCELLED` has a timestamp column, and a dismissed
+ * claim is told apart from a withdrawn commitment by `receiptNumber`, which a
+ * dismissed one never had.
+ *
+ * Who dismissed it and why go to the audit log, not to `notes`: `notes` is the
+ * supporter's own checkout text, and it is copied onto the receipt.
+ */
+export async function rejectPendingSponsorship(
+  pledgeRef: string,
+  options?: { now?: Date }
+): Promise<RejectOutcome> {
+  const when = options?.now ?? new Date();
+
+  const outcome = await transitionPending(pledgeRef, {
+    data: { status: "CANCELLED", cancelledAt: when },
+    patch: { status: "CANCELLED" },
   });
 
-  const row = await prisma.petSponsorship.findUnique({ where: { pledgeRef } });
-  if (!row) return { status: "not_found" };
-
-  if (count === 1) {
-    return { status: "reconciled", record: toRecord(row) };
-  }
-
-  return row.receiptNumber
-    ? { status: "already_reconciled", receiptNumber: row.receiptNumber }
-    : { status: "not_found" };
+  if (outcome.status === "transitioned") return { status: "rejected", record: outcome.record };
+  if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+  return outcome;
 }
 
 // ---------------------------------------------------------------------- reads
@@ -319,23 +502,26 @@ export async function listPendingSponsorships(take = 200): Promise<SponsorshipRe
     return (
       memorySponsorships
         .filter((row) => row.status === "PENDING_PAYMENT")
-        // `memorySponsorships` is newest-first because `recordSponsorshipPledge`
-        // prepends. Reversing before the sort matters: two pledges recorded in the
-        // same millisecond compare equal, and `Array.sort` is stable, so without
-        // this the tie keeps the array's newest-first order and the queue comes out
-        // backwards. A unit test that records three pledges in a loop hits this
-        // every time; production rarely would, which is exactly why it needs pinning.
-        // ceiling: same-millisecond ties fall back to insertion order. Give
-        // PetSponsorship a monotonic sequence if the shelter ever needs a total order.
-        .reverse()
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        // The same order the Postgres branch asks for, and the `id` tiebreak is
+        // what makes it total. `memorySponsorships` is newest-first because
+        // `recordSponsorshipPledge` prepends, and two pledges recorded in the same
+        // millisecond compare equal on `createdAt`, so a stable sort on that alone
+        // kept the array's order and the queue came out backwards — a unit test
+        // recording three pledges in a loop hit it every time. Memory ids are
+        // zero-padded serials, so here the tiebreak is exactly insertion order.
+        .sort(
+          (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+        )
         .slice(0, take)
     );
   }
 
+  // ceiling: `id` is a cuid, so the tiebreak is deterministic but only roughly
+  // insertion order across processes. Give PetSponsorship a monotonic sequence if
+  // the shelter ever needs the queue exact within a millisecond.
   const rows = await prisma.petSponsorship.findMany({
     where: { status: "PENDING_PAYMENT" },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take,
   });
 

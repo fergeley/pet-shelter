@@ -110,6 +110,13 @@ export const PROBE_INSTANT = new Date("2999-01-15T04:00:00.000Z");
 export const PROBE_SCOPE_PREFIX = "HFS-DON-2999";
 
 /**
+ * Every pledge reference this tier is allowed to create, and therefore allowed to
+ * delete. Same year-2999 convention as the receipt scope, for the same reason: a
+ * real pledge reference is `HFS-PLG-<today>-…`, so nothing real can start with this.
+ */
+export const PROBE_PLEDGE_PREFIX = "HFS-PLG-2999";
+
+/**
  * Whether `assertDatabaseReachable()` has succeeded in this worker.
  *
  * Teardown consults this so that an unreachable database produces one clear error
@@ -135,6 +142,12 @@ export function isDatabaseReady(): boolean {
 export async function cleanProbeLedger(): Promise<void> {
   if (!databaseReady) return;
 
+  // Sponsorships first: a settled probe pledge carries a probe receipt number, and
+  // although that is a string rather than a foreign key, deleting in dependency
+  // order keeps the intent legible.
+  await prisma.petSponsorship.deleteMany({
+    where: { pledgeRef: { startsWith: PROBE_PLEDGE_PREFIX } },
+  });
   await prisma.donation.deleteMany({
     where: { sequenceScope: { startsWith: PROBE_SCOPE_PREFIX } },
   });
