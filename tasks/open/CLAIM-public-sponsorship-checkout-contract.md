@@ -6,16 +6,19 @@
 
 **Paths:** `src/hooks/useSponsorshipController.ts`,
 `src/components/features/pets/SponsorshipModal.tsx`,
-`src/actions/donations.ts`, `src/components/features/donations/DonationWidget.tsx`,
+`src/actions/donations.ts`, `src/actions/sponsorships.ts`,
+`src/components/features/donations/DonationWidget.tsx`,
 `src/lib/domain/contributionFailure.ts`, `src/lib/domain/petSponsorship.ts`, `src/lib/email.ts`,
 `tests/components/SponsorshipModal.test.tsx`, `tests/unit/petSponsorship.test.ts`,
-`tests/components/DonationReceiptIntegrity.test.tsx`, focused sponsorship-email coverage, and a close-out decision under
+`tests/components/DonationReceiptIntegrity.test.tsx`, focused sponsorship-email and
+sponsorship-action failure coverage, and a close-out decision under
 `tasks/decisions/2026-09-14-*.md`.
 
-The concurrent Claude claim `CLAIM-sponsorship-reconciliation-atomic.md` owns the receipt,
-reconciliation-action, repository, admin-queue, and database-test paths. Its owner has
-acknowledged this split and will preserve `createPetSponsorshipAction`'s input and creation-result
-contract. This claim will not edit that session's paths.
+The concurrent Claude claim `CLAIM-sponsorship-reconciliation-atomic.md` owned the receipt,
+reconciliation-action, repository, admin-queue, and database-test paths. Its owner acknowledged
+the split, preserved `createPetSponsorshipAction`'s input and creation-result contract, committed
+the backend work, and deleted its claim at `435b7ec`. Only after that release were its four
+commits integrated here and the missed failure-copy seam in `src/actions/sponsorships.ts` edited.
 
 ## Phase 0 - frame
 
@@ -76,7 +79,8 @@ and the merged reconciliation decision were inspected at `origin/master`.
 - **F4** No client-generated pledge or receipt fallback. Failed actions leave no success state.
 - **F5** No production database mutation, outbound email, migration command, or browser submission;
   validation uses mocked component boundaries only.
-- **F6** No path owned by the concurrent atomic-reconciliation claim is edited here.
+- **F6** No path owned by the concurrent atomic-reconciliation claim is edited while that claim
+  is live. Its action seam may be reconciled only after the owner commits and deletes the claim.
 
 ## Kill conditions - registered before the spike; immutable
 

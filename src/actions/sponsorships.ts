@@ -16,6 +16,7 @@ import {
   generatePledgeRef,
   reconciliationNotice,
 } from "@/lib/domain/petSponsorship";
+import { SPONSORSHIP_RECORDING_FAILURE_MESSAGE } from "@/lib/domain/contributionFailure";
 import {
   SponsorshipWriteError,
   listPendingSponsorships,
@@ -131,8 +132,7 @@ export async function createPetSponsorshipAction(
     if (err instanceof SponsorshipWriteError) {
       return {
         success: false,
-        error:
-          "We could not record your sponsorship just now. Nothing has been charged — please try again in a moment.",
+        error: SPONSORSHIP_RECORDING_FAILURE_MESSAGE,
       };
     }
     throw err;
