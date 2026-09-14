@@ -76,14 +76,19 @@ export const PET_UPDATE_CATEGORY_VALUES = [
 ] as const satisfies readonly NonNullable<PetUpdate["category"]>[];
 
 /**
- * A calendar day with no time component, stored as `YYYY-MM-DD`. The regex
- * pins the shape; `Date.parse` rejects impossible days such as `2026-02-30`,
- * which the regex alone would let through.
+ * Validates that a string is a real calendar day in YYYY-MM-DD format,
+ * rejecting impossible days like 2024-02-31 or rollover months.
  */
+export function isValidCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 const isoDateSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-  .refine((value) => !Number.isNaN(Date.parse(value)), "Date is not a real calendar day");
+  .refine(isValidCalendarDate, "Date must be a valid calendar day in YYYY-MM-DD format");
 
 /** One clinical event on a pet's medical history. */
 export const medicalTimelineEventSchema = z.object({
@@ -170,11 +175,26 @@ export const petBaseFormSchema = z.object({
   galleryImages: z.array(uploadedImageUrl).optional().default([]),
   tags: z.array(z.string()).min(1, "Please provide at least 1 characteristic tag"),
   featured: z.boolean().default(false),
-  intakeDate: z.string().min(4, "Intake date is required"),
+  intakeDate: isoDateSchema,
 
   /// Dedicated donation QR for this animal's medical fund drive.
   customQrUrl: optionalQrImageUrl,
-  birthDate: z.string().optional(),
+  birthDate: z
+    .string()
+    .refine((val) => !val || isValidCalendarDate(val), {
+      message: "Birth date must be a valid date in YYYY-MM-DD format",
+    })
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+        return val <= tomorrow;
+      },
+      {
+        message: "Birth date cannot be in the future",
+      }
+    )
+    .optional(),
   birthDateIsEstimate: z.boolean().optional().default(true),
   
   // Medical
@@ -223,6 +243,16 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
         code: "custom",
         path: [field],
         message: `Duplicate '${field}' id '${id}' — history event ids must be unique`,
+      });
+    }
+  }
+
+  if (data.birthDate && data.intakeDate && isValidCalendarDate(data.birthDate) && isValidCalendarDate(data.intakeDate)) {
+    if (data.birthDate > data.intakeDate) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["birthDate"],
+        message: "Birth date cannot be after intake date",
       });
     }
   }
