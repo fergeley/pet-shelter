@@ -26,6 +26,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SPONSORSHIP_TIERS, useSponsorshipStore } from "@/lib/client/sponsorshipStore";
 import { tierAmountFor } from "@/lib/domain/sponsorshipTiers";
+import {
+  DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+  safeContributionFailureMessage,
+} from "@/lib/domain/contributionFailure";
 import { submitDonationPledgeAction } from "@/actions/donations";
 import { DonationQrPanel } from "@/components/features/donations/DonationQrPanel";
 import { getPublicPets } from "@/actions/pets";
@@ -221,14 +225,14 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
         // See the note in useSponsorshipController: a receipt number that never
         // passed through the ledger is not a receipt.
         setErrorMessage(
-          result.error ||
-            "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
+          safeContributionFailureMessage(
+            result.error,
+            DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+          ),
         );
       }
     } catch {
-      setErrorMessage(
-        "We could not reach the shelter to record your gift, so no receipt was issued. Nothing has been charged — please try again in a moment."
-      );
+      setErrorMessage(DONATION_RECORDING_UNCONFIRMED_MESSAGE);
     } finally {
       setIsProcessing(false);
     }
@@ -270,11 +274,11 @@ export function DonationWidget({ initialPets = [] }: DonationWidgetProps) {
             <p className="text-sm text-muted-foreground mt-1">
               {isTaxClaimable(completedReceipt)
                 ? isMs
-                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 telah dijana dan dihantar ke ${completedReceipt.donorEmail}.`
-                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 has been generated and dispatched to ${completedReceipt.donorEmail}.`
+                  ? `e-Resit rasmi pengecualian cukai berjumlah RM ${completedReceipt.amountMYR}.00 sedia di bawah.`
+                  : `An official tax-exempt e-Receipt for RM ${completedReceipt.amountMYR}.00 is ready below.`
                 : isMs
-                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 telah dihantar ke ${completedReceipt.donorEmail}. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
-                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 has been dispatched to ${completedReceipt.donorEmail}. It carries no tax identifier, so it cannot be claimed against a return.`}
+                  ? `e-Resit rasmi berjumlah RM ${completedReceipt.amountMYR}.00 sedia di bawah. Ia tidak mengandungi nombor pengenalan cukai, jadi ia tidak boleh dituntut.`
+                  : `An official e-Receipt for RM ${completedReceipt.amountMYR}.00 is ready below. It carries no tax identifier, so it cannot be claimed against a return.`}
             </p>
           </div>
         </div>

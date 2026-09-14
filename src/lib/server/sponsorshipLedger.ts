@@ -1,6 +1,22 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
-import { isLedgerPersistent } from "@/lib/server/donationLedger";
-import { Sen, senFromInteger } from "@/lib/domain/money";
+import {
+  ReceiptIssuanceError,
+  drawAndInsert,
+  isLedgerPersistent,
+  issueReceiptInMemory,
+  withReceiptTransaction,
+  type DonationDraft,
+  type DonationRecord,
+} from "@/lib/server/donationLedger";
+import type { StatutoryIssuerIdentity } from "@/lib/domain/shelterIdentity";
+import type { SponsorshipTierId } from "@/types/sponsorship";
+import { formatMYR, Sen, senFromInteger } from "@/lib/domain/money";
+import {
+  persistAuditLog,
+  recordAuditLog,
+  type AuditEntryInput,
+} from "@/lib/domain/auditLog";
 import {
   DEFAULT_SPONSORSHIP_GOAL_SEN,
   PetSponsorshipSummary,
@@ -18,14 +34,14 @@ import {
  * imported from it rather than re-derived so the two can never disagree about
  * which mode the process is in:
  *
- * - `DATABASE_URL` set — Postgres is authoritative and a failed write
- *   propagates. A commitment that did not reach the database has not been made.
+ * - `DATABASE_URL` set — Postgres is authoritative and an unconfirmed write
+ *   propagates. No in-memory fallback can pretend it succeeded.
  * - `DATABASE_URL` unset — the in-memory ledger is authoritative. This is a
  *   deliberate configuration (local dev, unit tests), not a degraded database.
  *
- * The distinction matters here more than usual: reconciliation is what causes a
- * statutory receipt to be issued, so "the write may or may not have landed" is
- * not an acceptable third state.
+ * The distinction matters here more than usual: reconciliation issues a receipt.
+ * If a commit acknowledgement is lost, the caller must surface that uncertainty
+ * and read back before retrying; silently switching stores is never an answer.
  */
 
 export interface SponsorshipRecord {
@@ -66,7 +82,7 @@ export class SponsorshipWriteError extends Error {
   }
 }
 
-/** Postgres foreign key violation — the named pet has no row. */
+/** Postgres foreign key violation — an optional relation no longer has a row. */
 const FK_VIOLATION = "P2003";
 
 function isForeignKeyViolation(err: unknown): boolean {
@@ -128,6 +144,7 @@ export async function recordSponsorshipPledge(
     sponsorEmail: draft.sponsorEmail,
     sponsorPhone: draft.sponsorPhone ?? null,
     userId: draft.userId ?? null,
+    displayOnWall: draft.displayOnWall ?? false,
     tierId: draft.tierId,
     tierName: draft.tierName,
     frequency: draft.frequency,
@@ -143,14 +160,33 @@ export async function recordSponsorshipPledge(
   try {
     return toRecord(await prisma.petSponsorship.create({ data }));
   } catch (err) {
-    // A pet served from the JSON fixture has no row to point at. The commitment
-    // is still real and the snapshot still names the animal, so it is stored
-    // unlinked rather than refused.
-    if (isForeignKeyViolation(err) && draft.petId) {
-      const unlinked = await prisma.petSponsorship.create({
-        data: { ...data, petId: null },
-      });
-      return toRecord(unlinked);
+    if (isForeignKeyViolation(err) && (draft.petId || draft.userId)) {
+      try {
+        // Both relations are optional and can disappear independently. Read the
+        // referents after the failed insert instead of assuming every P2003 names
+        // the pet: an account can be deleted between checkout identity resolution
+        // and this write. Only the missing relation is cleared, so a fixture pet
+        // does not discard a valid sponsor link (or vice versa).
+        const [pet, sponsor] = await Promise.all([
+          draft.petId
+            ? prisma.pet.findUnique({ where: { id: draft.petId }, select: { id: true } })
+            : null,
+          draft.userId
+            ? prisma.sponsor.findUnique({ where: { id: draft.userId }, select: { id: true } })
+            : null,
+        ]);
+        const retryData = {
+          ...data,
+          petId: pet ? draft.petId : null,
+          userId: sponsor ? draft.userId : null,
+        };
+
+        if (retryData.petId !== data.petId || retryData.userId !== data.userId) {
+          return toRecord(await prisma.petSponsorship.create({ data: retryData }));
+        }
+      } catch (retryError) {
+        throw new SponsorshipWriteError("Could not record the sponsorship", retryError);
+      }
     }
     throw new SponsorshipWriteError("Could not record the sponsorship", err);
   }
@@ -159,17 +195,101 @@ export async function recordSponsorshipPledge(
 export type ReconcileOutcome =
   | { status: "reconciled"; record: SponsorshipRecord }
   | { status: "already_reconciled"; receiptNumber: string }
+  /** The row exists but left `PENDING_PAYMENT` without a receipt: dismissed or withdrawn. */
+  | { status: "not_pending"; currentStatus: SponsorshipStatus }
+  | { status: "not_found" };
+
+/** What a caller is told about a row that has already left `PENDING_PAYMENT`. */
+function settledOutcome(
+  record: SponsorshipRecord
+): Extract<ReconcileOutcome, { status: "already_reconciled" | "not_pending" }> {
+  // The receipt is the discriminator, not the status. A commitment that was settled
+  // and later withdrawn by its supporter (`cancelSponsorshipForUser`) is CANCELLED
+  // *with* a receipt, and that receipt is what a coordinator needs to be told about.
+  return record.receiptNumber
+    ? { status: "already_reconciled", receiptNumber: record.receiptNumber }
+    : { status: "not_pending", currentStatus: record.status };
+}
+
+/** The columns a transition out of `PENDING_PAYMENT` writes. */
+interface PendingTransition {
+  status: "ACTIVE" | "CANCELLED";
+  receiptNumber?: string;
+  reconciledAt?: Date;
+  reconciledBy?: string;
+  cancelledAt?: Date;
+}
+
+type TransitionOutcome =
+  | { status: "transitioned"; record: SponsorshipRecord }
+  | { status: "not_pending"; record: SponsorshipRecord }
   | { status: "not_found" };
 
 /**
- * Attaches an issued receipt number and moves the commitment to `ACTIVE`.
+ * Moves a commitment out of `PENDING_PAYMENT`, guarded on that source state.
  *
- * In Postgres this is a single conditional UPDATE guarded on
- * `status = PENDING_PAYMENT`. Two coordinators — or two serverless instances —
- * racing on the same pledge therefore produce exactly one winner, and the loser
- * is told the number that already exists rather than issuing a second receipt
- * for the same money. Guarding on an in-process value instead would be no guard
- * at all: that value is empty on every other instance.
+ * In Postgres this is a conditional UPDATE and the read-back of the row, in one
+ * transaction — `tx` when the caller already holds one, its own otherwise — so a
+ * caller is never told "still pending" about a row that has just flipped. Two
+ * coordinators, or two serverless instances, racing on the same pledge produce
+ * exactly one winner, and the loser is told what the row has become rather than
+ * writing over it. Guarding on an in-process value instead would be no guard at
+ * all: that value is empty on every other instance.
+ *
+ * The memory branch guards on the same status and projects the same columns onto
+ * the record — `SponsorshipRecord` carries `status` and `receiptNumber`; the
+ * timestamps and actor are Postgres-only — so the two modes cannot disagree about
+ * a pledge that has already left the queue.
+ *
+ * `pledgeRef` must already be a string. Prisma's `where` accepts a filter object
+ * too, and this is the one place every write to a pledge goes through.
+ */
+async function transitionPending(
+  pledgeRef: string,
+  data: PendingTransition,
+  tx?: Prisma.TransactionClient
+): Promise<TransitionOutcome> {
+  if (typeof pledgeRef !== "string") {
+    throw new TypeError("pledgeRef must be a string");
+  }
+
+  if (!isLedgerPersistent()) {
+    const index = memorySponsorships.findIndex((row) => row.pledgeRef === pledgeRef);
+    if (index < 0) return { status: "not_found" };
+
+    const current = memorySponsorships[index];
+    if (current.status !== "PENDING_PAYMENT") return { status: "not_pending", record: current };
+
+    const record: SponsorshipRecord = {
+      ...current,
+      status: data.status,
+      ...(data.receiptNumber !== undefined ? { receiptNumber: data.receiptNumber } : {}),
+    };
+    memorySponsorships[index] = record;
+    return { status: "transitioned", record };
+  }
+
+  const db: Prisma.TransactionClient = tx ?? prisma;
+  const [updated] = await db.petSponsorship.updateManyAndReturn({
+    where: { pledgeRef, status: "PENDING_PAYMENT" },
+    data,
+  });
+
+  if (updated) return { status: "transitioned", record: toRecord(updated) };
+
+  const row = await db.petSponsorship.findUnique({ where: { pledgeRef } });
+  if (!row) return { status: "not_found" };
+
+  return { status: "not_pending", record: toRecord(row) };
+}
+
+/**
+ * Attaches an already-issued receipt number and moves the commitment to `ACTIVE`.
+ *
+ * For a number issued elsewhere — the offline demo seed. A coordinator's
+ * confirmation goes through `settleSponsorship`, which draws the number itself in
+ * the same transaction as the transition, so a lost race can never leave a receipt
+ * attached to nothing.
  */
 export async function reconcileSponsorship(
   pledgeRef: string,
@@ -177,6 +297,49 @@ export async function reconcileSponsorship(
   reconciledBy: string,
   options?: { now?: Date }
 ): Promise<ReconcileOutcome> {
+  if (isLedgerPersistent()) {
+    throw new Error(
+      "reconcileSponsorship is an offline-only helper; persistent reconciliation must use settleSponsorship."
+    );
+  }
+
+  const when = options?.now ?? new Date();
+
+  const outcome = await transitionPending(pledgeRef, {
+    status: "ACTIVE",
+    receiptNumber,
+    reconciledAt: when,
+    reconciledBy,
+  });
+
+  if (outcome.status === "transitioned") return { status: "reconciled", record: outcome.record };
+  if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+  return outcome;
+}
+
+export type SettleOutcome =
+  | { status: "reconciled"; record: SponsorshipRecord; donation: DonationRecord }
+  | Exclude<ReconcileOutcome, { status: "reconciled" }>;
+
+/**
+ * Confirms a pledge and issues its Section 44(6) receipt as one unit of work.
+ *
+ * Guard first, draw second, write third, all inside the transaction that draws the
+ * serial. The conditional `PENDING_PAYMENT → ACTIVE` update takes the row lock; a
+ * loser sees zero rows and has written nothing, so only the winner reaches the
+ * receipt series, which is the same gapless monthly series every other receipt is
+ * drawn from. Until 2026-09-14 the action issued first and guarded second, and a
+ * lost race left a statutory document nobody could withdraw.
+ *
+ * The receipt draft is built from the row *after* the guard, so what is printed is
+ * what was locked.
+ */
+export async function settleSponsorship(
+  pledgeRef: string,
+  issuer: StatutoryIssuerIdentity,
+  reconciledBy: string,
+  options?: { now?: Date }
+): Promise<SettleOutcome> {
   const when = options?.now ?? new Date();
 
   if (!isLedgerPersistent()) {
@@ -184,30 +347,166 @@ export async function reconcileSponsorship(
     if (index < 0) return { status: "not_found" };
 
     const current = memorySponsorships[index];
-    if (current.status === "ACTIVE" && current.receiptNumber) {
-      return { status: "already_reconciled", receiptNumber: current.receiptNumber };
-    }
+    if (current.status !== "PENDING_PAYMENT") return settledOutcome(current);
 
-    const record: SponsorshipRecord = { ...current, status: "ACTIVE", receiptNumber };
+    // The guard, the draw and the write with no await between them. In a
+    // single-threaded process that is the whole transaction, and it is why
+    // `issueReceiptInMemory` is synchronous.
+    const donation = issueReceiptInMemory(receiptDraftFor(current, issuer), when);
+    const record: SponsorshipRecord = {
+      ...current,
+      status: "ACTIVE",
+      receiptNumber: donation.receiptNumber,
+    };
     memorySponsorships[index] = record;
-    return { status: "reconciled", record };
+    return { status: "reconciled", record, donation };
   }
 
-  const { count } = await prisma.petSponsorship.updateMany({
-    where: { pledgeRef, status: "PENDING_PAYMENT" },
-    data: { status: "ACTIVE", receiptNumber, reconciledAt: when, reconciledBy },
+  try {
+    return await withReceiptTransaction(async (tx): Promise<SettleOutcome> => {
+      const guard = await transitionPending(
+        pledgeRef,
+        { status: "ACTIVE", reconciledAt: when, reconciledBy },
+        tx
+      );
+      if (guard.status === "not_found") return guard;
+      if (guard.status === "not_pending") return settledOutcome(guard.record);
+
+      const donation = await drawAndInsert(tx, receiptDraftFor(guard.record, issuer), when);
+      const row = await tx.petSponsorship.update({
+        where: { pledgeRef },
+        data: { receiptNumber: donation.receiptNumber },
+      });
+      return { status: "reconciled", record: toRecord(row), donation };
+    });
+  } catch (err) {
+    // The loser of a slow race waits on the winner's row lock, and can wait past
+    // the transaction's own limit. It would then report an issuance failure for a
+    // pledge the winner has just settled. Read the row once more before saying so.
+    if (err instanceof ReceiptIssuanceError) {
+      const now = await prisma.petSponsorship
+        .findUnique({
+          where: { pledgeRef },
+          select: { receiptNumber: true, reconciledBy: true },
+        })
+        .catch(() => null);
+      // A different actor's receipt proves this attempt lost a race. The same
+      // actor could instead be observing its own commit after the acknowledgement
+      // was lost, which is not enough evidence to report a confirmed outcome.
+      // ceiling: an operation id stored with the row would distinguish same-actor
+      // retries; add one if reconciliation must recover automatically after lost ACKs.
+      if (now?.receiptNumber && now.reconciledBy !== reconciledBy) {
+        return { status: "already_reconciled", receiptNumber: now.receiptNumber };
+      }
+    }
+    throw err;
+  }
+}
+
+/** The receipt a commitment earns, snapshotting what the pledge recorded. */
+function receiptDraftFor(
+  record: SponsorshipRecord,
+  issuer: StatutoryIssuerIdentity
+): DonationDraft {
+  return {
+    donorName: record.sponsorName,
+    donorEmail: record.sponsorEmail,
+    donorPhone: record.sponsorPhone,
+    taxIdOrIc: record.taxIdOrIc,
+    tierId: record.tierId as SponsorshipTierId,
+    tierName: record.tierName,
+    amountSen: record.amountSen,
+    currency: "MYR",
+    frequency: record.frequency,
+    paymentMethod: record.paymentMethod,
+    targetPetName: record.petName,
+    notes: record.notes,
+    taxDeductibleRef: issuer.taxDeductibleRef,
+    shelterRegistrationNo: issuer.shelterRegistrationNo,
+  };
+}
+
+export type RejectOutcome =
+  | { status: "rejected"; record: SponsorshipRecord }
+  | Exclude<ReconcileOutcome, { status: "reconciled" }>;
+
+export interface RejectSponsorshipCommand {
+  actorId: string;
+  actorEmail: string;
+  actorRole: string;
+  reason: string | null;
+  now?: Date;
+}
+
+function rejectionAuditEntry(
+  record: SponsorshipRecord,
+  command: RejectSponsorshipCommand
+): AuditEntryInput {
+  return {
+    actorId: command.actorId,
+    actorEmail: command.actorEmail,
+    actorRole: command.actorRole,
+    action: "SPONSORSHIP_REJECTED",
+    entity: "PetSponsorship",
+    entityId: record.pledgeRef,
+    details: {
+      pledgeRef: record.pledgeRef,
+      reason: command.reason,
+      petName: record.petName,
+      sponsorEmail: record.sponsorEmail,
+      amountSen: record.amountSen as number,
+      amountDisplay: formatMYR(record.amountSen),
+    },
+  };
+}
+
+/**
+ * A coordinator dismisses a claim that no transfer ever backed.
+ *
+ * `PENDING_PAYMENT → CANCELLED`, through the same guard as reconciliation, so a
+ * pledge cannot be dismissed once its receipt exists, nor reconciled once it was
+ * dismissed. `CANCELLED` rather than a new state: the schema's terminal states are
+ * `CANCELLED` and `EXPIRED`, only `CANCELLED` has a timestamp column, and a dismissed
+ * claim is told apart from a withdrawn commitment by `receiptNumber`, which a
+ * dismissed one never had.
+ *
+ * Who dismissed it and why go to the audit log, not to `notes`: `notes` is the
+ * supporter's own checkout text, and it is copied onto the receipt.
+ */
+export async function rejectPendingSponsorship(
+  pledgeRef: string,
+  command: RejectSponsorshipCommand
+): Promise<RejectOutcome> {
+  const when = command.now ?? new Date();
+
+  if (!isLedgerPersistent()) {
+    const outcome = await transitionPending(pledgeRef, {
+      status: "CANCELLED",
+      cancelledAt: when,
+    });
+
+    if (outcome.status === "transitioned") {
+      recordAuditLog(rejectionAuditEntry(outcome.record, command));
+      return { status: "rejected", record: outcome.record };
+    }
+    if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+    return outcome;
+  }
+
+  return prisma.$transaction(async (tx): Promise<RejectOutcome> => {
+    const outcome = await transitionPending(
+      pledgeRef,
+      { status: "CANCELLED", cancelledAt: when },
+      tx
+    );
+
+    if (outcome.status === "transitioned") {
+      await persistAuditLog(tx, rejectionAuditEntry(outcome.record, command));
+      return { status: "rejected", record: outcome.record };
+    }
+    if (outcome.status === "not_pending") return settledOutcome(outcome.record);
+    return outcome;
   });
-
-  const row = await prisma.petSponsorship.findUnique({ where: { pledgeRef } });
-  if (!row) return { status: "not_found" };
-
-  if (count === 1) {
-    return { status: "reconciled", record: toRecord(row) };
-  }
-
-  return row.receiptNumber
-    ? { status: "already_reconciled", receiptNumber: row.receiptNumber }
-    : { status: "not_found" };
 }
 
 // ---------------------------------------------------------------------- reads
@@ -319,23 +618,26 @@ export async function listPendingSponsorships(take = 200): Promise<SponsorshipRe
     return (
       memorySponsorships
         .filter((row) => row.status === "PENDING_PAYMENT")
-        // `memorySponsorships` is newest-first because `recordSponsorshipPledge`
-        // prepends. Reversing before the sort matters: two pledges recorded in the
-        // same millisecond compare equal, and `Array.sort` is stable, so without
-        // this the tie keeps the array's newest-first order and the queue comes out
-        // backwards. A unit test that records three pledges in a loop hits this
-        // every time; production rarely would, which is exactly why it needs pinning.
-        // ceiling: same-millisecond ties fall back to insertion order. Give
-        // PetSponsorship a monotonic sequence if the shelter ever needs a total order.
-        .reverse()
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        // The same order the Postgres branch asks for, and the `id` tiebreak is
+        // what makes it total. `memorySponsorships` is newest-first because
+        // `recordSponsorshipPledge` prepends, and two pledges recorded in the same
+        // millisecond compare equal on `createdAt`, so a stable sort on that alone
+        // kept the array's order and the queue came out backwards — a unit test
+        // recording three pledges in a loop hit it every time. Memory ids are
+        // zero-padded serials, so here the tiebreak is exactly insertion order.
+        .sort(
+          (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+        )
         .slice(0, take)
     );
   }
 
+  // ceiling: `id` is a cuid, so the tiebreak is deterministic but only roughly
+  // insertion order across processes. Give PetSponsorship a monotonic sequence if
+  // the shelter ever needs the queue exact within a millisecond.
   const rows = await prisma.petSponsorship.findMany({
     where: { status: "PENDING_PAYMENT" },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take,
   });
 

@@ -139,11 +139,12 @@ export const ROLE_PERMISSIONS: Record<CanonicalRole, readonly Permission[]> = {
     PERMISSIONS.REVIEW_APPLICATIONS,
     PERMISSIONS.SEND_SHELTER_EMAIL,
     PERMISSIONS.VIEW_AUDIT_LOG,
-    // Mirrors `assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR])` on
-    // `reconcilePetSponsorshipAction`: ROLES.COORDINATOR normalises to this role and
-    // ROLES.ADMIN to SUPER_ADMIN, which holds every permission by derivation. The
-    // page gate and the action guard therefore admit the same two roles, which
-    // `tests/unit/sponsorshipReconciliation.test.ts` pins.
+    // The capability the queue's three actions require through `requirePermission`,
+    // so the page gate and the mutations behind it admit exactly the same roles;
+    // SUPER_ADMIN holds it by derivation. The grant was chosen to equal the
+    // `[ROLES.ADMIN, ROLES.COORDINATOR]` list `reconcilePetSponsorshipAction`
+    // enforced until 2026-09-14, which `tests/unit/sponsorshipReconciliation.test.ts`
+    // still pins so the migration changed nobody's access.
     PERMISSIONS.RECONCILE_SPONSORSHIPS,
   ],
 

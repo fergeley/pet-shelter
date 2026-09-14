@@ -14,6 +14,8 @@ import { after } from "next/server";
  * unit tests and scripts can exercise the same code paths.
  */
 export function scheduleAfterResponse(work: () => Promise<unknown>): void {
+  // ceiling: lifecycle ownership is not durable delivery. Use a transactional
+  // outbox if work must survive max-duration expiry or process loss and be retried.
   const guarded = () =>
     Promise.resolve()
       .then(work)

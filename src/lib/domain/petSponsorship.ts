@@ -129,9 +129,9 @@ export function reconciliationNotice(frequency: string, paymentMethod: string): 
   }
 
   const base =
-    "Your official Section 44(6) tax-exempt receipt is issued once our coordinator matches your transfer against the shelter's bank statement, usually within 2 working days.";
+    "Your official receipt is issued once our coordinator matches your transfer against the shelter's bank statement, usually within 2 working days.";
 
   return frequency === "monthly"
-    ? `${base} For a monthly sponsorship, set up a standing instruction in your banking app; a receipt is issued for each month we receive.`
+    ? `${base} This pledge and its receipt cover one transfer only. Contact the shelter before setting up a standing instruction for later monthly transfers.`
     : base;
 }

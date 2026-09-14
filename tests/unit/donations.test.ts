@@ -270,6 +270,17 @@ describe("Donation persistence (the ledger is the system of record)", () => {
     expect(result.success).toBe(false);
     expect(await listDonations()).toHaveLength(0);
   });
+
+  it("refuses the unsupported card rail without issuing a receipt", async () => {
+    const result = await submitDonationPledgeAction({
+      ...basePledge,
+      paymentMethod: "card",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/card payments are not available/i);
+    expect(await listDonations()).toHaveLength(0);
+  });
 });
 
 /**

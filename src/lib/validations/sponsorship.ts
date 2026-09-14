@@ -5,7 +5,7 @@ import {
   paymentMethodEnum,
 } from "@/lib/validations/donation";
 import { MIN_SPONSORSHIP_SEN, MAX_SPONSORSHIP_SEN } from "@/lib/domain/petSponsorship";
-import { formatMYR } from "@/lib/domain/money";
+import { formatMYR, senFromRinggit } from "@/lib/domain/money";
 
 /**
  * A supporter's commitment to fund one animal's care.
@@ -16,15 +16,22 @@ import { formatMYR } from "@/lib/domain/money";
  * not have to remember which one takes sen.
  */
 export const petSponsorshipSchema = z.object({
-  /// Optional: an animal served from the JSON fixture has no database row.
-  petId: z.string().max(64).optional(),
+  // Fixture animals still have stable ids even when they have no database row.
+  // Requiring one lets the server bind the submitted name to an authoritative pet.
+  petId: z
+    .string()
+    .trim()
+    .min(1, "Please choose the animal you would like to sponsor")
+    .max(64, "That is not an animal reference"),
   petName: z
     .string()
+    .trim()
     .min(1, "Please choose the animal you would like to sponsor")
     .max(100, "Pet name is too long"),
 
   sponsorName: z
     .string()
+    .trim()
     .min(2, "Sponsor name must be at least 2 characters")
     .max(100, "Sponsor name is too long"),
   sponsorEmail: z
@@ -45,7 +52,15 @@ export const petSponsorshipSchema = z.object({
     .max(
       MAX_SPONSORSHIP_SEN / 100,
       `Maximum single sponsorship amount is ${formatMYR(MAX_SPONSORSHIP_SEN)}`
-    ),
+    )
+    .refine((amount) => {
+      try {
+        senFromRinggit(amount);
+        return true;
+      } catch {
+        return false;
+      }
+    }, "Sponsorship amount must use at most two decimal places"),
 
   paymentMethod: paymentMethodEnum.default("duitnow_qr"),
   /**
@@ -59,9 +74,6 @@ export const petSponsorshipSchema = z.object({
 
   taxIdOrIc: z.string().max(30, "Tax ID / IC / SSM number is too long").optional().or(z.literal("")),
   notes: z.string().max(500, "Note to the shelter must be under 500 characters").optional().or(z.literal("")),
-
-  /// Reserved for a future supporter account; guest checkout never sets it.
-  userId: z.string().max(64).optional(),
 });
 
 /**
@@ -88,3 +100,31 @@ export const ENABLED_PAYMENT_METHODS = ["duitnow_qr", "online_banking"] as const
 export function isPaymentMethodEnabled(method: string): boolean {
   return (ENABLED_PAYMENT_METHODS as readonly string[]).includes(method);
 }
+
+/**
+ * The reference a supporter was handed at checkout, as a coordinator submits it back.
+ *
+ * Checked at the action boundary because Server Action arguments arrive deserialised
+ * and unchecked, and Prisma's `where: { pledgeRef }` accepts a filter *object* as
+ * well as a string — an unvalidated argument could match every row. A pledge
+ * reference is a plain string, and this makes it one before anything reads it.
+ */
+export const pledgeRefSchema = z
+  .string({ message: "A pledge reference must be text" })
+  .trim()
+  .min(1, "A pledge reference is required")
+  .max(64, "That is not a pledge reference");
+
+/** Longest reason the audit row keeps for a dismissed pledge: a note, not an essay. */
+export const REJECTION_REASON_MAX = 500;
+
+/**
+ * Why a coordinator dismissed a pledge. Optional, and refused rather than truncated
+ * when it is over length or not text, so the audit row never carries a note the
+ * coordinator did not write. The queue's input shares `REJECTION_REASON_MAX`.
+ */
+export const rejectionReasonSchema = z
+  .string({ message: "The reason must be text" })
+  .trim()
+  .max(REJECTION_REASON_MAX, `The reason must be ${REJECTION_REASON_MAX} characters or fewer`)
+  .nullish();
