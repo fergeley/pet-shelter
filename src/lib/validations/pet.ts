@@ -79,7 +79,7 @@ export const PET_UPDATE_CATEGORY_VALUES = [
  * Validates that a string is a real calendar day in YYYY-MM-DD format,
  * rejecting impossible days like 2024-02-31 or rollover months.
  */
-function isValidCalendarDate(value: string): boolean {
+export function isValidCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
@@ -184,6 +184,16 @@ export const petBaseFormSchema = z.object({
     .refine((val) => !val || isValidCalendarDate(val), {
       message: "Birth date must be a valid date in YYYY-MM-DD format",
     })
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+        return val <= tomorrow;
+      },
+      {
+        message: "Birth date cannot be in the future",
+      }
+    )
     .optional(),
   birthDateIsEstimate: z.boolean().optional().default(true),
   

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createPet, updatePet, getPetById } from "@/actions/pets";
 import { buildPetPersistencePayload } from "@/lib/server/petMappers";
-import { petFormSchema, PetFormInput } from "@/lib/validations/pet";
+import { petFormSchema, PetFormInput, isValidCalendarDate } from "@/lib/validations/pet";
 import { signInAsAdmin } from "../setup/authSession";
 
 describe("Pet Birth Date (PS-114)", () => {
@@ -61,6 +61,23 @@ describe("Pet Birth Date (PS-114)", () => {
       expect(parsed.success).toBe(false);
       if (!parsed.success) {
         expect(parsed.error.issues[0]?.message).toContain("YYYY-MM-DD");
+      }
+    });
+
+    it("correctly checks leap year calendar dates", () => {
+      expect(isValidCalendarDate("2024-02-29")).toBe(true);
+      expect(isValidCalendarDate("2023-02-29")).toBe(false);
+      expect(isValidCalendarDate("2024-04-31")).toBe(false);
+    });
+
+    it("rejects birth dates in the distant future", () => {
+      const parsed = petFormSchema.safeParse({
+        ...basePetInput,
+        birthDate: "2099-01-01",
+      });
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues[0]?.message).toContain("cannot be in the future");
       }
     });
 
@@ -154,6 +171,27 @@ describe("Pet Birth Date (PS-114)", () => {
       const stored = await getPetById(petId);
       expect(stored?.birthDate).toBe("2023-11-20");
       expect(stored?.birthDateIsEstimate).toBe(false);
+    });
+
+    it("safely updates when birthDate is cleared with an empty string", async () => {
+      const created = await createPet({
+        ...basePetInput,
+        name: "Mochi Clear",
+        birthDate: "2024-01-01",
+        birthDateIsEstimate: true,
+      });
+      expect(created.success).toBe(true);
+      const petId = created.data!.id;
+
+      const updated = await updatePet(petId, {
+        ...basePetInput,
+        name: "Mochi Clear",
+        birthDate: "",
+      });
+
+      expect(updated.success).toBe(true);
+      expect(updated.data?.birthDate).toBeDefined();
+      expect(updated.data?.birthDate).not.toBe("");
     });
   });
 });

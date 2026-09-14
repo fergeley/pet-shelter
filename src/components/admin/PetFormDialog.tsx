@@ -4,7 +4,12 @@ import React, { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pet, PetStatus } from "@/types/pet";
-import { petFormSchema, PetFormInput, isRehabilitationStatus } from "@/lib/validations/pet";
+import {
+  petFormSchema,
+  PetFormInput,
+  isRehabilitationStatus,
+  isValidCalendarDate,
+} from "@/lib/validations/pet";
 import { normalizePetStatus, getAllowedPetStatusTransitions } from "@/lib/domain/stateMachine";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { QrImageUpload } from "@/components/admin/QrImageUpload";
@@ -64,6 +69,7 @@ export function PetFormDialog({
     register,
     handleSubmit,
     setValue,
+    getValues,
     reset,
     watch,
     formState: { errors, isSubmitting },
@@ -240,7 +246,7 @@ export function PetFormDialog({
   const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     birthDateField.onChange(e);
     const bDate = e.target.value;
-    if (bDate && !isNaN(Date.parse(bDate))) {
+    if (bDate && isValidCalendarDate(bDate)) {
       const derivedAge = formatAgeString(bDate).en;
       const derivedCategory = computeAgeCategory(bDate);
       setValue("age", derivedAge, { shouldValidate: true, shouldDirty: true });
@@ -251,12 +257,16 @@ export function PetFormDialog({
   const ageField = register("age");
   const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     ageField.onChange(e);
-    const typedAge = e.target.value;
-    const currentBirthDate = watch("birthDate");
-    if (!currentBirthDate && typedAge) {
-      const intakeDate = watch("intakeDate") || new Date().toISOString().split("T")[0];
+    const typedAge = e.target.value.trim();
+    // Only derive approximate birth date when the user types an age expression with a unit
+    // (e.g. "2 years", "4 months", "1y", "3m") to avoid premature derivation on a single digit.
+    const hasUnit = /(\d+)\s*(y|m|year|month|yr|mo|thn|bulan)/i.test(typedAge);
+    const currentBirthDate = getValues("birthDate");
+    const isEstimate = getValues("birthDateIsEstimate");
+    if ((!currentBirthDate || isEstimate) && hasUnit) {
+      const intakeDate = getValues("intakeDate") || new Date().toISOString().split("T")[0];
       const approx = approximateBirthDate(typedAge, intakeDate);
-      setValue("birthDate", approx.birthDate, { shouldDirty: true });
+      setValue("birthDate", approx.birthDate, { shouldDirty: true, shouldValidate: true });
       setValue("birthDateIsEstimate", true, { shouldDirty: true });
       setValue("ageCategory", computeAgeCategory(approx.birthDate), { shouldValidate: true, shouldDirty: true });
     }
@@ -341,6 +351,7 @@ export function PetFormDialog({
                 <Input
                   id="birthDate"
                   type="date"
+                  max={new Date().toISOString().split("T")[0]}
                   className="text-sm py-2"
                   {...birthDateField}
                   onChange={handleBirthDateChange}

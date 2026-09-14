@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
 import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/security/rbac";
@@ -140,13 +141,12 @@ export async function createPet(
     const actor = await getAdminActorOrThrow();
     const validated = petFormSchema.parse(data);
 
-    const newPet: Pet = {
+    const newPet: Pet = withDerivedAge({
       id: `pet-${Date.now()}`,
       name: validated.name,
       species: validated.species,
       breed: validated.breed,
       age: validated.age,
-      ageCategory: validated.ageCategory,
       gender: validated.gender,
       size: validated.size,
       weight: validated.weight,
@@ -181,7 +181,7 @@ export async function createPet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await insertServerPet(newPet, actor);
 
@@ -247,9 +247,11 @@ export async function updatePet(
     const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
     const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
-    const updated: Pet = {
+    const updated: Pet = withDerivedAge({
       ...existing,
       ...validated,
+      birthDate: validated.birthDate || undefined,
+      birthDateIsEstimate: validated.birthDateIsEstimate ?? existing.birthDateIsEstimate ?? true,
       // The submitted form is authoritative for rehabilitation progress: omitting the
       // fields clears them, so a cleared animal cannot keep a stale progress bar.
       rehabStage: validated.rehabStage,
@@ -276,7 +278,7 @@ export async function updatePet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await updateServerPet(id, updated, actor);
 
