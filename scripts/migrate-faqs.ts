@@ -18,14 +18,18 @@ import fs from "node:fs";
 import { Pool } from "pg";
 
 import { resolveDatabaseUrl, LOCAL_DATABASE_URL } from "../prisma/env";
+import { resolveDatabaseSsl } from "../src/lib/server/databaseSsl";
 import faqsData from "../src/data/faqs.json";
 
 const MIGRATION = "prisma/migrations/manual/20260903_faq_knowledge_base/migration.sql";
 
 async function main() {
   const connectionString = resolveDatabaseUrl();
-  const isSsl =
-    connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+  // The app's policy, not a copy of the old sniff. This script exists to reach a hosted
+  // branch, and the sniff left a Neon URL without `sslmode` unverified and a non-Neon host
+  // without it in plaintext; with `sslmode=require` it verified only because `pg` currently
+  // reads `require` as `verify-full`, which it warns will change.
+  const sslPolicy = resolveDatabaseSsl(connectionString);
 
   console.log(
     "Target:",
@@ -34,8 +38,8 @@ async function main() {
   );
 
   const pool = new Pool({
-    connectionString,
-    ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+    connectionString: sslPolicy.connectionString,
+    ssl: sslPolicy.ssl,
     connectionTimeoutMillis: 20000,
   });
 
