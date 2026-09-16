@@ -629,16 +629,47 @@ export async function listPendingSponsorships(take = 200): Promise<SponsorshipRe
           (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
         )
         .slice(0, take)
+        // The same shape as the Postgres branch, whose `select` leaves the tax
+        // identifier out. A copy, never a delete: the stored pledge still needs it
+        // for the receipt `settleSponsorship` prints.
+        .map((row) => ({ ...row, taxIdOrIc: undefined }))
     );
   }
 
   // ceiling: `id` is a cuid, so the tiebreak is deterministic but only roughly
   // insertion order across processes. Give PetSponsorship a monotonic sequence if
   // the shelter ever needs the queue exact within a millisecond.
+  //
+  // An explicit projection, because this is the one read that handles every pending
+  // supporter at once and `taxIdOrIc` is an NRIC nothing downstream of it wants.
+  // `listPendingSponsorshipsAction` drops it from its DTO, but dropping it there
+  // still pulls it out of Postgres into server memory, where a query log or an
+  // error dump can carry it. An allow-list rather than `omit`, so a sensitive column
+  // added to the table later stays unread here until someone selects it on purpose.
   const rows = await prisma.petSponsorship.findMany({
     where: { status: "PENDING_PAYMENT" },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     take,
+    select: {
+      id: true,
+      petId: true,
+      petName: true,
+      sponsorName: true,
+      sponsorEmail: true,
+      sponsorPhone: true,
+      userId: true,
+      displayOnWall: true,
+      tierId: true,
+      tierName: true,
+      frequency: true,
+      amountSen: true,
+      paymentMethod: true,
+      status: true,
+      pledgeRef: true,
+      receiptNumber: true,
+      notes: true,
+      createdAt: true,
+    },
   });
 
   return rows.map(toRecord);
@@ -784,7 +815,12 @@ interface SponsorshipRow {
   status: string;
   pledgeRef: string;
   receiptNumber: string | null;
-  taxIdOrIc: string | null;
+  /**
+   * Optional so a read may leave it out of its `select`, as the coordinator queue
+   * does — see `listPendingSponsorships`. The receipt path must not: `settleSponsorship`
+   * copies it onto the statutory receipt from the row it locks.
+   */
+  taxIdOrIc?: string | null;
   notes: string | null;
   createdAt: Date;
 }
