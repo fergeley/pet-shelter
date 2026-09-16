@@ -112,16 +112,26 @@ not discriminate either: `listDonationsOrThrow` falls back to memory when no dat
   5b2672a added coordinator-issued ones. No production receipt row has been observed. Filed as
   `tasks/open/donation-append-only-trigger-not-observed-on-production.md`.
 
-## Not established
+## Not established when written
 
 - **That Vercel production has a `DATABASE_URL`, and that it names `ep-broad-band-b36iq50r`.**
   Every object above is measured on the `.env.local` branch only. No public page found here tells a
-  database-backed production from one with none. Settled by one look at the Vercel project's
-  Production `DATABASE_URL`: present, and its endpoint id.
+  database-backed production from one with none. *Settled later the same day; see below.*
 - **The chain end to end.** No receipt was issued through `/admin/donations` on production by
   anything observed here. That is still step 6 of the brief, a separate human decision.
 - **That `pet-shelter-phi.vercel.app` serves the newest Production deployment** (`5b2672a`,
   2026-09-14T16:51:07Z per GitHub's deployment record) rather than an older alias.
+
+## Settled after writing, 2026-09-16
+
+**Vercel production reads this database.** The human opened the Vercel project (team
+`isaiahs-projects-8abdd4ed`) → Settings → Environment Variables and reported, in chat: `DATABASE_URL`
+present, ticked for Production, naming the `ep-broad-band-…` endpoint. So the inventory above is
+an inventory of the database live visitors use, and "production" in this entry means that.
+
+Still unreported: the variable's "Updated" date against the running deployment (2026-09-15
+00:51 +08), since a change after a deploy is not in it, and whether the URL carries
+`sslmode=disable`. Neither changes the decision to apply nothing.
 
 ## What would reverse this
 

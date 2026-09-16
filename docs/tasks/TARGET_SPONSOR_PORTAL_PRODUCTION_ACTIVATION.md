@@ -6,14 +6,14 @@
 ## Status — 2026-09-16
 
 **Steps 0–5 and 7 are closed. Nothing was applied, because production already had every object.**
-What remains is one human check (§A) and step 6, the end-to-end proof, which was always a
-separate human decision.
+§A, which database Vercel serves, was answered by the human the same day. What remains is step 6,
+the end-to-end proof, which was always a separate human decision.
 
 - Inventory, raw drift output, and why absence from the diff is presence:
   `tasks/decisions/2026-09-16-sponsor-portal-activation-applies-nothing-to-production.md`
 - `/sponsors` and `/sponsor/login` return 200 on production, where this brief predicted a 500.
-  That rules out production reading a database without `sponsors`. It does not show production
-  reads a database at all, which is why §A is left.
+  That rules out production reading a database without `sponsors`. It could not show production
+  reads a database at all; §A did.
   §2 of `tasks/open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md` is resolved.
 
 ---
@@ -54,10 +54,18 @@ Kept because each one will recur in the next brief written the same way.
 
 ---
 
-## A. The one human check left — which database Vercel serves
+## A. Which database Vercel serves — answered 2026-09-16
 
-The inventory measured the branch `.env.local` names, `ep-broad-band-b36iq50r`. **Nothing observed
-shows that Vercel production uses a database at all.** A production build with no `DATABASE_URL`
+**Result, from the human in the Vercel dashboard:** `DATABASE_URL` is present, ticked for
+Production, and names the `ep-broad-band-…` endpoint, the branch step 1 measured. Two sub-checks
+were not reported. First, the variable's "Updated" date against the running deployment
+(2026-09-15 00:51 +08): a change made after a deploy is not in it. Second, whether the URL carries
+`sslmode=disable`. The Vercel project sits under the team `isaiahs-projects-8abdd4ed` (read from
+its deployment URL), which is why it was hard to find.
+
+The check, kept for re-use. The inventory measured the branch `.env.local` names,
+`ep-broad-band-b36iq50r`. **A public GET cannot show that Vercel production uses a database at
+all.** A production build with no `DATABASE_URL`
 serves the same 200 and the same empty sponsor wall: `SEEDING_ENABLED` in
 `src/lib/server/sponsorRepository.ts` is false under `NODE_ENV=production`, and the ledgers fall
 back to memory. Open the Vercel project → Settings → Environment Variables → Production →
@@ -84,7 +92,8 @@ Since 5b2672a there are two ways to get it:
 - **A small real pet sponsorship from a staff member.** The floor is **RM 10**
   (`MIN_SPONSORSHIP_SEN` in `src/lib/domain/petSponsorship.ts`), not the RM 5 on `/donate`.
 
-Do §A first. Without a database, a confirmation "succeeds" in memory and proves nothing.
+§A is answered: production has a database. Provided the variable predates the running deployment,
+a confirmation writes a real receipt row.
 
 ---
 

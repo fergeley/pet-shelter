@@ -57,14 +57,19 @@ the UI needs to render that outcome rather than treat it as an error.
 > The 500 this section predicted is absent on the live site: `GET /sponsors` and
 > `GET /sponsor/login` on `https://pet-shelter-phi.vercel.app` return 200, and the route has no
 > error or loading boundary to hide a thrown query. That rules out production reading a database
-> without `sponsors`. It does **not** show production reads a database at all: a production build
+> without `sponsors`. On its own it does not show production reads a database: a production build
 > seeds no demo sponsors (`SEEDING_ENABLED` in `src/lib/server/sponsorRepository.ts`), so it
 > renders the same empty wall with no `DATABASE_URL`.
 >
-> **Still open, and why this entry stays open:** §3–§5 below. Whether Vercel production has a
-> `DATABASE_URL` naming `ep-broad-band-b36iq50r` is unobserved; one look at the Vercel project
-> settles it (§A of the brief). No receipt has yet been observed travelling pledge → confirm →
-> `HFS-DON-…` → claimed account on production; that is step 6 of
+> **Which database production reads — checked by the human, 2026-09-16.** In the Vercel dashboard,
+> Settings → Environment Variables: `DATABASE_URL` is present, ticked for Production, and names the
+> `ep-broad-band-…` endpoint. That is the branch the drift check measured, so the inventory above
+> describes the database live visitors use. Reported in chat, not screenshotted. **Not reported:**
+> the variable's "Updated" date against the running deployment (2026-09-15 00:51 +08), since a
+> variable changed after a deploy is not in it, and whether the URL carries `sslmode=disable`.
+>
+> **Still open, and why this entry stays open:** §3–§5 below. No receipt has yet been observed
+> travelling pledge → confirm → `HFS-DON-…` → claimed account on production; that is step 6 of
 > `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`.
 
 The original text, unedited:

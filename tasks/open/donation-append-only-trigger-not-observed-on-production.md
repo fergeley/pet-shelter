@@ -10,8 +10,8 @@ Whenever `DATABASE_URL` is set, `/donate` writes a real `HFS-DON-…` receipt ro
 before 5b2672a: `src/actions/donations.ts` calls `issueDonationReceipt` at `a2f7cf1`, which
 `general-donations-issue-receipts-before-payment-is-reconciled.md` calls the pre-existing
 contract. 5b2672a (deployed 2026-09-14T16:51Z) added coordinator-issued receipts from
-`/admin/donations`. So if production has a database, and whether it does is itself unobserved
-(§A of `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`), the gap predates this week.
+`/admin/donations`. Vercel production's `DATABASE_URL` names this Neon branch (checked in the
+Vercel dashboard by the human, 2026-09-16), so the gap, if it is one, predates this week.
 No production receipt row has been observed.
 
 Whether the trigger exists there is **unknown**, and the usual instrument cannot say.
