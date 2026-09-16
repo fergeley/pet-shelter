@@ -11,6 +11,10 @@
 > What remains is the half this note always said needed a human: the
 > `ApplicationStatus` conversion and the `pets.age` → `birthDate` migration.
 > Both still destroy data. **`db push` remains unguarded and still destructive.**
+>
+> **2026-09-16: the drift is losing data already.** Without the two enum types, every
+> application insert and every status write or filter fails in production, silently. See
+> "The missing types are losing writes now" below.
 
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:
@@ -112,6 +116,44 @@ The sponsorship feature needed three additive objects. Rather than push:
 The destructive statements were left pending on purpose, and the two that remain are still
 pending for the same reason: each needs someone who knows whether the object is wanted, and the
 status conversion needs a `USING` cast rather than a drop-and-recreate.
+
+## The missing types are losing writes now, not only blocking a push (established 2026-09-16)
+
+The two additive `CREATE TYPE` statements above were treated as safe-to-apply-later. They are not
+optional: master's generated client already depends on them.
+
+- **What Prisma sends, captured with no database.** Prisma 7.9.1, generated from master's schema,
+  over a `pg` pool whose `query` records the SQL and throws:
+
+  | Operation | Enum cast sent |
+  |---|---|
+  | `adoptionApplication.create` | `CAST($12::text AS "public"."ApplicationStatus")` |
+  | `adoptionApplication.update` setting `status` | `CAST($1::text AS "public"."ApplicationStatus")` |
+  | `adoptionApplication.findMany` filtered by `status` | `CAST($1::text AS "public"."ApplicationStatus")` |
+  | `pet.update` setting `status` | `CAST($1::text AS "public"."PetStatus")` |
+  | notes-only update, unfiltered `findMany`, pet archive/restore | none |
+
+  Production lacks both types, so every row in the first four fails there.
+- **Swallowed.** `insertServerApplication` (`src/lib/server/applicationRepository.ts:202-247`)
+  catches the failure and calls `handlePersistenceError(…, "write")`, which rethrows only a unique
+  violation or under `STRICT_PERSISTENCE=true` — set only by the integration tiers. Otherwise it
+  `console.warn`s, keeps the application in the process's memory, writes the
+  `APPLICATION_SUBMITTED` audit row (which casts nothing), and the applicant sees success and gets
+  both confirmation emails.
+- **Observed in production data.** A masked summary of the 2026-09-16 export: the four
+  applications local e2e submitted on 2026-09-14 (13:34–16:01 UTC; `app-1789392875319`,
+  `app-1789392933730`, `app-1789400500650`, `app-1789401656866`) each have an
+  `APPLICATION_SUBMITTED` audit row, none is in `adoption_applications`, and no deletion of any of
+  them was audited. Donations and pet archive/restore from the same runs did persist.
+
+So if the Vercel deployment uses this branch, real adoption applications, approve/reject decisions,
+status filters in the admin list, and pet status changes are failing behind a success screen. If it
+has no `DATABASE_URL`, they live only in serverless memory, which is lost too. Only the Vercel
+dashboard says which.
+
+**Do not fix this with `db push`.** The conversion still needs the reviewed migration described
+above: create the two types, then convert each column with a data-preserving `USING` cast. That is
+a production change for a human to apply, and it was deliberately not applied here.
 
 ## Settles when
 
