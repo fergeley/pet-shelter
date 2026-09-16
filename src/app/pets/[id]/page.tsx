@@ -1,9 +1,25 @@
-import { Suspense } from "react";
+import { cache, Suspense } from "react";
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPets, getPetById } from "@/actions/pets";
 import { PetDetailView } from "@/components/features/pets/PetDetailView";
 import { PetExclusiveMediaPanel } from "@/components/features/sponsors";
+import { serializeJsonLd } from "@/lib/presentation/jsonLd";
+
+/**
+ * One profile read per request, shared by `generateMetadata` and the page.
+ *
+ * `getPetById` is a database query with the animal's updates, medical timeline and vet joined
+ * in, and both functions below need it. It used to be a synchronous lookup in an in-memory
+ * mirror, where calling it twice cost nothing; since it became a real query, every render ran it
+ * twice. React's `cache` memoises it for the lifetime of one request, which is the pattern the
+ * Next 16 getting-started guide "Metadata and OG images", section "Memoizing data requests"
+ * (bundled under `node_modules/next/dist/docs/01-app/`), gives for exactly this pair. Named
+ * rather than linked: `tests/unit/docReferences.test.ts` resolves every docs path in code
+ * against this repo's own `docs/`. Wrapped here, not in `actions/pets.ts`: a `"use server"`
+ * module may export only async functions.
+ */
+const loadPublicPet = cache((id: string) => getPetById(id));
 
 interface PetPageProps {
   params: Promise<{ id: string }>;
@@ -18,7 +34,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: PetPageProps): Promise<Metadata> {
   const { id } = await params;
-  const pet = await getPetById(id);
+  const pet = await loadPublicPet(id);
 
   if (!pet) {
     return {
@@ -59,7 +75,7 @@ export async function generateMetadata({ params }: PetPageProps): Promise<Metada
 
 export default async function PetProfilePage({ params }: PetPageProps) {
   const { id } = await params;
-  const pet = await getPetById(id);
+  const pet = await loadPublicPet(id);
 
   if (!pet) {
     notFound();
@@ -96,7 +112,7 @@ export default async function PetProfilePage({ params }: PetPageProps) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <Suspense fallback={<div className="min-h-screen bg-card" />}>
         <PetDetailView initialPet={pet} />

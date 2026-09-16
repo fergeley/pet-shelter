@@ -9,7 +9,20 @@ import {
   getServerFaqCategoriesAsync,
 } from "@/lib/server/faqRepository";
 import { Loader2 } from "lucide-react";
-import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";
+
+/**
+ * Kept dynamic explicitly.
+ *
+ * This page was dynamic by accident of reading `searchParams`, and dropping that prop below
+ * would otherwise have made it statically prerendered — a silent rendering-mode change, made in
+ * a worktree where `next build` cannot run to observe it. Two things make that worth pinning
+ * rather than discovering later: a build that cannot reach the database bakes the `pets.json`
+ * fixtures into the page until the next revalidation
+ * (`tasks/open/pets-json-fallback-empty-means-outage.md`), and the catalogue is the surface
+ * where a stale animal is most visible. `/faq`, `/get-involved` and `/sponsors` already say this
+ * the same way.
+ */
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Adoptable Dogs & Cats | Hope for Strays (Petaling Jaya)",
@@ -17,26 +30,19 @@ export const metadata: Metadata = {
     "Browse rescue dogs and cats currently available for adoption at Hope for Strays shelter in Petaling Jaya, Selangor.",
 };
 
-interface PetsDirectoryPageProps {
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-}
-
-export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
-  const searchParams = props.searchParams ? await props.searchParams : {};
-
-  const species = typeof searchParams.species === "string" ? (searchParams.species as Species) : undefined;
-  const size = typeof searchParams.size === "string" ? (searchParams.size as PetSize) : undefined;
-  const ageCategory = typeof searchParams.ageCategory === "string" ? (searchParams.ageCategory as AgeCategory) : undefined;
-  const status = typeof searchParams.status === "string" ? (searchParams.status as PetStatus) : undefined;
-  const search = typeof searchParams.search === "string" ? searchParams.search : undefined;
-
-  const initialPets = await getPublicPets({
-    species,
-    size,
-    ageCategory,
-    status,
-    search,
-  });
+export default async function PetsDirectoryPage() {
+  // The whole public population, deliberately unfiltered.
+  //
+  // This page used to read the filter search params and narrow the query before handing the
+  // result to the gallery, which then narrowed it again from the same URL. The second pass is
+  // the one that matters — it is what re-runs when a visitor touches a control — and the first
+  // now actively breaks the tab strip: track tabs and status options are counted from the
+  // population the gallery receives, so pre-narrowing to `?status=Pending` would report every
+  // other track as empty and hide the tabs that lead out of it.
+  //
+  // ceiling: sends every non-archived animal in one payload. Fine at shelter scale (tens to low
+  // hundreds); page it, or move faceting to the server, if the catalogue outgrows ~500.
+  const initialPets = await getPublicPets();
 
   // Only the categories the published data actually populates, so the tab strip
   // cannot offer a filter that matches nothing. Both reads hit the same source

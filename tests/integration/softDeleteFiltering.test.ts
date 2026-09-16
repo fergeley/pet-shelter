@@ -124,6 +124,95 @@ describe("soft-delete filtering under strict persistence", () => {
     });
   });
 
+  describe("public profile read", () => {
+    /** Arranges the single row `findServerPetByIdAsync` will read. */
+    function givenPersistedPet(row: ReturnType<typeof makeDbPet> | null) {
+      prismaDouble.pet.findUnique.mockResolvedValue(row);
+    }
+
+    it("serves a persisted animal rather than the bundled fixture", async () => {
+      givenPersistedPet(ACTIVE);
+      const { getPetById } = await import("@/actions/pets");
+
+      const pet = await getPetById("itest-active");
+
+      // `pets.json` holds no animal by this name, so matching it proves the read reached the
+      // database rather than the in-memory mirror.
+      expect(pet).toMatchObject({ id: "itest-active", name: "Active Rescue" });
+      expect(prismaDouble.pet.findUnique).toHaveBeenCalled();
+    });
+
+    it("returns null for an animal archived in the database", async () => {
+      // The id is deliberately `pet-001` — a real row in `src/data/pets.json`, present in the
+      // fallback mirror and *not* archived there.
+      //
+      // That is the whole regression. The action used to read the synchronous repository
+      // helper, which only searches that mirror; a cold process initialises it from the
+      // fixture, so an archive performed anywhere else was invisible and the profile page
+      // served the fixture animal. With an `itest-` id this test passes against the broken
+      // reader too — the mirror has no such row, so it returns null for the wrong reason —
+      // which is exactly the shape of assertion that makes a suite look green over a live bug.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", isArchived: true }));
+      const { getPetById } = await import("@/actions/pets");
+
+      expect(await getPetById("pet-001")).toBeNull();
+    });
+
+    it("finds an animal that exists only in the database", async () => {
+      // The converse of the same defect: a pet absent from the fixture mirror used to 404 on
+      // any instance that had not already loaded the catalogue.
+      givenPersistedPet(makeDbPet({ id: "itest-db-only", name: "Database Only" }));
+      const { getPetById } = await import("@/actions/pets");
+
+      expect(await getPetById("itest-db-only")).toMatchObject({ id: "itest-db-only" });
+    });
+
+    it("returns null for an id that neither the database nor the fallback knows", async () => {
+      // Scope stated honestly: this is the trivial path. `itest-no-such-animal` is in no row and
+      // no fixture, so *every* reader returns null for it and this test cannot tell a correct
+      // action from a broken one. It used to be named "returns null when the row does not
+      // exist", which read as coverage of the fallback case below. It is not.
+      givenPersistedPet(null);
+      const { getPetById } = await import("@/actions/pets");
+
+      expect(await getPetById("itest-no-such-animal")).toBeNull();
+    });
+
+    it("does not serve an archived animal through a case-variant of its id", async () => {
+      // The bypass. `findUnique` is case-sensitive and finds no `PET-001`; the repository then
+      // falls through to the in-memory mirror, whose lookup lowercases — and the mirror, seeded
+      // from `src/data/pets.json`, holds `pet-001` unarchived. So the database's archive was
+      // visible at `/pets/pet-001` and invisible at `/pets/PET-001`.
+      //
+      // `pet-001` is used deliberately, not an `itest-` id: an id absent from the fixture makes
+      // the mirror return null too, and the test would pass against the broken reader for the
+      // wrong reason — exactly what the test above does.
+      //
+      // The database is modelled as Postgres behaves: it *holds* the archived row, and returns it
+      // only for the exact id. An earlier version mocked `null` for every id, which pinned "a
+      // case-variant URL 404s" without ever arranging an archive to hide.
+      const archived = makeDbPet({ id: "pet-001", name: "Bella", isArchived: true });
+      prismaDouble.pet.findUnique.mockImplementation(async (args?: { where?: { id?: string } }) =>
+        args?.where?.id === "pet-001" ? archived : null
+      );
+      const { getPetById } = await import("@/actions/pets");
+
+      // Variants first. Reading `pet-001` syncs the archived row into the mirror, after which the
+      // mirror would hide the animal on its own and the variants would pass without the guard.
+      expect(await getPetById("PET-001")).toBeNull();
+      expect(await getPetById("Pet-001")).toBeNull();
+      expect(await getPetById("pet-001")).toBeNull();
+    });
+
+    it("still serves the animal at its exact id", async () => {
+      // The guard is an exact-id match, so it must not have cost the canonical URL anything.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", isArchived: false }));
+      const { getPetById } = await import("@/actions/pets");
+
+      expect(await getPetById("pet-001")).toMatchObject({ id: "pet-001", name: "Bella" });
+    });
+  });
+
   describe("admin catalogue", () => {
     // getAdminPets() is authorization-guarded: /admin/pets is a Server
     // Component that calls it directly, so an unguarded read shipped the whole
