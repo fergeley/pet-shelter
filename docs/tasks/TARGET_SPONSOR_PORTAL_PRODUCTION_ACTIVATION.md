@@ -94,9 +94,12 @@ The procedure as revised. It was not exercised on 2026-09-16, because the apply 
 
 ### 0. Claim, base, and fences
 
-- In a new worktree, `git status -sb` first. `.claude/settings.json` pins `worktree.baseRef: head`,
-  so the worktree starts at the main checkout's HEAD, which may be a feature branch behind origin.
-  See `tasks/lessons/2026-09-14-a-worktree-cut-from-head-starts-behind-origin.md`.
+- In a new worktree, `git fetch`, then `git merge-base --is-ancestor HEAD origin/master` must
+  succeed and `git rev-parse HEAD origin/master` should print one hash twice.
+  `.claude/settings.json` pins `worktree.baseRef: head`, so the worktree starts at the main
+  checkout's HEAD, which on 2026-09-16 was a feature branch beside master, and `git status -sb`
+  cannot see that. See
+  `tasks/lessons/2026-09-16-a-worktree-cut-from-a-feature-branch-is-not-behind-master-it-is-beside-it.md`.
 - `ls tasks/open/CLAIM-*.md`, then write `tasks/open/CLAIM-<task>.md` with kill conditions **before
   step 1**, and commit it so the registration time is in history.
 
