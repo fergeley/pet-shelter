@@ -87,7 +87,7 @@ describe("loginAction in production", () => {
     vi.unstubAllEnvs();
   });
 
-  it("refuses the seeded Super Admin password when the in-memory seed answers for the account", async () => {
+  it("refuses the seeded Super Admin password with no database, where the in-memory seed would admit it", async () => {
     const res = await loginAction({ email: "admin@hopeforstrays.org", password: "admin123" });
 
     expect(res.success).toBe(false);
