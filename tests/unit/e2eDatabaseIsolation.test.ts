@@ -84,6 +84,13 @@ describe("playwright.config.ts web server", () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("E2E_ALLOW_REMOTE_DATABASE"));
   });
 
+  it("fails in CI rather than quietly running a database job without its database", async () => {
+    process.env.CI = "true";
+    process.env.DATABASE_URL = REMOTE_URL;
+
+    await expect(loadConfig("")).rejects.toThrow(/not a local database/);
+  });
+
   it("hands CI's local database to the server unchanged", async () => {
     process.env.CI = "true";
     process.env.DATABASE_URL = CI_URL;

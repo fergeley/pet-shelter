@@ -24,7 +24,9 @@ in memory, which is where it failed.
 - **Run offline rather than refuse to run.** Throwing on a remote URL would make the default local
   command fail every time on the one machine that has `.env.local`, and train the operator to
   reach for the opt-in. Every spec already passes offline (23/23), so the safe mode loses nothing.
-  The config warns once per process that it did so.
+  The config warns once per process that it did so. **Except in CI**, where it throws: that job
+  provisions Postgres because the database is what it tests, and an offline run there would be a
+  green job that checked less. Raised by code review on the pull request.
 - **`""`, not deleting the variable.** `next dev` loads `.env.local` itself and fills any variable
   that is absent; a present empty value survives
   (`tasks/decisions/2026-09-08-a-receipt-asserts-relief-only-when-it-can-back-it.md`).
@@ -56,3 +58,6 @@ in memory, which is where it failed.
   through unchanged; the pull request's CI run is the check.
 - A developer who runs `next dev` by hand on `.env.local` and clicks through a mutation still
   writes to production. That is `triage-rules.md` §1, and no config here reaches it.
+- `isLocalDatabaseUrl` reads the URL's hostname only. A `localhost` port forwarded to a hosted
+  database, or a `?host=` query parameter that `pg` would honour over the hostname, passes as
+  local. Both take deliberate setup; the seed guard shares the same limit.

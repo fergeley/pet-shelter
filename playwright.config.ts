@@ -33,10 +33,13 @@ const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
  */
 const DATABASE_URL = resolveE2eDatabaseUrl();
 if (process.env.DATABASE_URL && !DATABASE_URL) {
-  console.warn(
+  const message =
     "[e2e] DATABASE_URL is not a local database, so the web server runs without one. " +
-      "Set E2E_ALLOW_REMOTE_DATABASE=true to run against it."
-  );
+    "Set E2E_ALLOW_REMOTE_DATABASE=true to run against it.";
+  // CI's e2e job provisions Postgres because the database is what it tests. Offline, every
+  // spec still passes, so a warning there would be a green job that checked less.
+  if (process.env.CI) throw new Error(message);
+  console.warn(message);
 }
 
 export default defineConfig({
