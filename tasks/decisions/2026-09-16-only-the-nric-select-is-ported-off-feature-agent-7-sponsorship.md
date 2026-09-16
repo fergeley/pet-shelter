@@ -71,8 +71,11 @@ double now honours `select` as Prisma does.
   14 warnings, none in changed files); `test:all` `1617 passed (1617)` in 103 files;
   `npm run build` exit 0 with throwaway secrets inline and no env file.
 
-**Not verified:** Postgres 17, which CI runs; the run here was 18.4. A column projection is not
-version-sensitive, and CI runs 17 on the pull request.
+- **CI on PR #44:** all seven checks passed, including "Strict persistence against Postgres",
+  which runs `test:db` on Postgres 17. The local run above was 18.4.
+
+**Not verified:** nothing this change claims. Production, Neon, was not exercised and does not
+need to be for a column projection.
 
 ## Not done, deliberately
 
