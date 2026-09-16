@@ -120,3 +120,26 @@ export function assertSeedTargetIsLocal(url: string): void {
     ].join("\n")
   );
 }
+
+/**
+ * The `DATABASE_URL` the Playwright web server is started with.
+ *
+ * The configured URL survives only when it is local, or when the caller has opted in with
+ * `E2E_ALLOW_REMOTE_DATABASE=true`. Anything else becomes `""`, which runs the app on its
+ * in-memory fallback — the mode every spec already passes in.
+ *
+ * `playwright.config.ts` loads `.env.local`, which points at the Neon production branch on
+ * the one machine that has it, and the specs submit applications, issue donation receipts,
+ * and archive pets. On 2026-09-14 three ordinary local runs wrote 27 rows to production that
+ * way and spent receipt numbers `HFS-DON-202609-0001` to `0003`.
+ *
+ * `""` rather than `undefined` on purpose: `next dev` reads `.env.local` for itself and fills
+ * any variable that is *absent*, but leaves one that is present and empty alone.
+ */
+export function resolveE2eDatabaseUrl(env: Record<string, string | undefined> = process.env): string {
+  const url = env.DATABASE_URL ?? "";
+  if (url === "" || isLocalDatabaseUrl(url) || env.E2E_ALLOW_REMOTE_DATABASE === "true") {
+    return url;
+  }
+  return "";
+}
