@@ -71,3 +71,132 @@ so a failed statement on production could leave a partial apply. → Stop.
 
 **K6 — wrong target.** Any rehearsal-phase command prints a `Target:` that is not `localhost`, or
 reports `(remote)`. → Stop at once and report it as a possible production write.
+
+---
+
+## Phase 2 — evidence (appended 2026-09-16; nothing above this line was edited)
+
+### Step 1 — `npm run db:check-drift` from the main checkout, read-only. Raw, exit 1
+
+The main checkout was on `feat/pet-form-birth-date`, so its schema was checked rather than assumed:
+`sha256sum` of `prisma/schema.prisma`, `scripts/check-drift.ts` and `scripts/lib/sqlSafety.ts` is
+identical there and at `origin/master` 5b2672a (`a424c75f…`, `a3d57686…`, `7cf98bd1…`).
+
+    ◇ injected env (8) from .env.local
+    ◇ injected env (0) from .env
+    Target: postgresql://neondb_owner:***@ep-broad-band-b36iq50r-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require (remote)
+    ========================================================================
+    Drift: live database  vs  prisma/schema.prisma
+    ========================================================================
+
+    !! 3 DESTRUCTIVE statement(s). `prisma db push` WOULD DESTROY DATA:
+
+       ALTER TABLE "adoption_applications" DROP COLUMN "status", ADD COLUMN "status" "ApplicationStatus" NOT NULL DEFAULT 'SUBMITTED'
+       ALTER TABLE "notification_preferences" ALTER COLUMN "updatedAt" DROP DEFAULT
+       ALTER TABLE "pets" DROP COLUMN "age", DROP COLUMN "ageCategory", ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01', ADD COLUMN "birthDateIsEstimate" BOO
+
+    6 additive statement(s) — things this branch's schema has that the database lacks:
+
+       CREATE TYPE "PetStatus" AS ENUM ('Available', 'Pending', 'Adopted', 'In Rehabilitation')
+       CREATE TYPE "ApplicationStatus" AS ENUM ('SUBMITTED', 'UNDER_REVIEW', 'APPROVED', 'REJECTED')
+       ALTER TABLE "shelter_settings" ADD COLUMN "cloudinaryCloudName" TEXT, ADD COLUMN "emailFrom" TEXT DEFAULT 'Hope for Strays <onboarding@resend.dev>', ADD COLUMN 
+       CREATE INDEX "adoption_applications_petId_status_idx" ON "adoption_applications"("petId", "status")
+       CREATE INDEX "pets_species_status_isArchived_idx" ON "pets"("species", "status", "isArchived")
+       CREATE INDEX "pets_isArchived_status_idx" ON "pets"("isArchived", "status")
+
+(The script's explanatory prose lines are omitted here; every SQL line is verbatim.)
+
+**Inventory, by absence.** Prisma emits one `ALTER TABLE` per table for column changes and separate
+statements for tables, indexes and foreign keys. So a missing object would appear as its own
+`CREATE TABLE` / `CREATE [UNIQUE] INDEX` / `ADD CONSTRAINT`, or as a clause of its table's single
+`ALTER TABLE`. The only `adoption_applications` ALTER is printed whole (124 characters, under the
+160 truncation) and holds nothing but the `status` conversion. Both truncated statements belong to
+`pets` and `shelter_settings`, outside this inventory.
+
+| Object | Production (`ep-broad-band-b36iq50r`) |
+|---|---|
+| `sponsors` + `sponsors_email_key`, `sponsors_displayOnWall_idx` | present |
+| `pet_sponsorships` + `displayOnWall`, `userId` index, `pet_sponsorships_userId_fkey` | present |
+| `donations` + its four indexes, `receipt_sequences` | present |
+| `audit_logs` | present |
+| #39's nine `adoption_applications` columns + `adoption_applications_referenceCode_key` | present |
+| `donations_no_mutation` trigger (`donation_append_only.sql`) | **not measurable by this diff** |
+
+**Apply list: empty.** Byte-identical to the 2026-09-09 measurement in
+`production-schema-has-drifted-ahead-of-master.md`, which already showed these objects present two
+days before the brief was written.
+
+### Step 5 — GET-only against the live site
+
+GitHub records the production deployment of `5b2672a` at 2026-09-14T16:51:07Z. Its deployment URL
+is behind Vercel SSO (302 to `vercel.com/sso-api`); the repository's homepage URL
+`https://pet-shelter-phi.vercel.app` is public.
+
+    GET /sponsors      -> 200 text/html; charset=utf-8 bytes=53294
+    GET /sponsor/login -> 200 text/html; charset=utf-8 bytes=52999
+    /sponsors headers:  Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+                        X-Vercel-Cache: MISS
+    "Nurul Aisyah" / "Jason Lim" / "Datin Sofia Rahman" in /sponsors: 0 / 0 / 0
+    "No sponsors have opted in to the wall yet" in /sponsors: 2
+    digest / __next_error__ / NEXT_HTTP_ERROR in /sponsors: 0 / 0 / 0
+
+    npx vitest run --project unit tests/unit/sponsorAccess.test.ts -t "groups opted-in sponsors"
+    Tests  1 passed | 21 skipped (22)
+
+## Kill condition verdicts
+
+- **K1 — did not fire.** Every object it names is present (table above).
+- **K2–K6 — n/a.** Their antecedent is a non-empty apply list or a rehearsal. The list is empty,
+  so nothing was classified for apply, rehearsed, or double-applied.
+
+---
+
+## Build Gate — sponsor portal production activation  ·  lane: GRAVE  ·  branch: worktree-sponsor-portal-production-activation
+
+The "build" is the ledger close and the brief revision. No product code, no SQL, and no production write.
+
+### Phase 0 — frame
+- [x] `Problem:` see Phase 0 above.
+- [x] `Claim:` see Phase 0 above. Outcome: measurement made the apply list empty.
+- [x] `frame-confidence:` high — the brief's steps 1–4.
+
+### Phase 1 — stack + fences
+- [x] Stack above, 5 entries.
+- [x] Memory searched first: `production-schema-has-drifted-ahead-of-master.md` (its 2026-09-09
+      re-measure), `sponsor-portal-is-inert-until-reconciliation-is-reachable.md`, the 2026-09-14
+      decisions, and the 2026-09-11 and 2026-09-14 lessons.
+- [x] Fence sweep: `n/a — nothing removed`. The `.claude/settings.json` deny on
+      `npx prisma db execute*` / `npx prisma migrate*` was found and **respected, not routed
+      around**. See `tasks/decisions/2026-09-05-first-party-permissions-replace-the-hand-rolled-fence.md`.
+
+### Phase 2 — falsification
+- [x] A1 is now MEASURED — step 1 raw output above.
+- [x] **Raw evidence for the highest non-MEASURED entry, A2** (that production uses the database
+      `.env.local` names). Step 5 output above.
+      **Would have shown instead, if false:** a Vercel production with no `DATABASE_URL` renders
+      the three demo names (the unit test above proves the offline wall carries them). A database
+      without `sponsors` throws out of `prisma.sponsor.findMany`: no catch, no `loading.tsx`, no
+      `error.tsx` on the route, so a 500 rather than a streamed 200.
+      **What it does not show:** that Vercel's database *is* `ep-broad-band-b36iq50r`. It shows
+      that Vercel's database has a readable `sponsors` table. `donations`, `receipt_sequences`
+      and the #39 columns on *that* database remain inferred.
+- [x] A3, A4, A5 — n/a: no apply list, no rehearsal, no statement against rows.
+- [x] Kill conditions registered in commit `3c14176` (2026-09-16T19:43:28+08:00), before step 1
+      ran. Not edited. K1 did not fire; K2–K6 n/a.
+- [x] **Failure Truth** — this task writes nothing to production. If the inventory were wrong for
+      Vercel's database, the first coordinator confirmation would fail and roll back whole (one
+      `$transaction`), with no partial receipt.
+- [x] **Reversibility** — branch commits of ledger and docs only. `git revert`.
+
+### Hygiene
+- [ ] **No ride-alongs** — declined as stated. The same `/sponsors` observation meets the settle
+      condition of `neon-certificate-chain-not-observed.md`, and that entry is moved to
+      `decisions/` in its own commit so it can be reverted alone.
+- [x] **Ledger** — decision entry, two open-entry updates, one new open entry, one lesson; this
+      gate appended here.
+
+**Not verified:** A2 — that Vercel production's `DATABASE_URL` names `ep-broad-band-b36iq50r`
+(only that its database has `sponsors`). Whether `donations_no_mutation` exists on production.
+That `pet-shelter-phi.vercel.app` serves the latest Production deployment rather than an older
+alias. The end-to-end chain (step 6) — nothing this session observed issued a receipt through
+reconciliation on production.
