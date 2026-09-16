@@ -12,13 +12,8 @@ import {
   matchesTrackFilter,
   type PetTrack,
 } from "@/lib/presentation/petStatusPresentation";
-import {
-  PET_STATUS_VALUES,
-  SIZE_VALUES,
-  SPECIES_VALUES,
-  genderLabelArgs,
-  petFilterSchema,
-} from "@/lib/validations/pet";
+import { PET_STATUS_VALUES, SIZE_VALUES, SPECIES_VALUES, petFilterSchema } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { AGE_BANDS } from "@/lib/domain/petAge";
 import { matchesPetSearch } from "@/lib/domain/petSearch";
 import { insertServerPet } from "@/lib/server/petRepository";
@@ -304,12 +299,18 @@ describe("genderLabelArgs", () => {
   it("returns a real dictionary key for any string the column might hold", () => {
     // The column is free text. The lookup this replaced returned `undefined` for anything outside
     // the two canonical values, and `t()` calls `.split` on its key — so one row stored as "male"
-    // crashed the whole catalogue. Every input must come back with a string key.
+    // crashed the whole catalogue. Every input must come back with one of the two real keys.
+    //
+    // Deliberately *not* asserted: which of the two. A stored "male" currently labels as Female,
+    // which is wrong for that row and kept only so the four components agree; pinning it here
+    // would turn a known inaccuracy into a requirement.
+    // Checked as a pair: a key and fallback that disagree would render "Jantan" in Malay and
+    // "Female" wherever the fallback is used, and checking each half on its own lets that through.
     for (const stored of ["male", "MALE", "Unknown", "", " Male"]) {
-      const [key, fallback] = genderLabelArgs(stored);
-      expect(typeof key).toBe("string");
-      expect(key).toBe("common.female");
-      expect(fallback).toBe("Female");
+      expect([
+        ["common.male", "Male"],
+        ["common.female", "Female"],
+      ]).toContainEqual(genderLabelArgs(stored));
     }
   });
 });

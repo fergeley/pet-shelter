@@ -258,8 +258,13 @@ export function getPetTrack(status: PetStatus): PetTrack {
 }
 
 /**
- * Build the track tab strip over a supplied population, omitting tracks nobody is in — so the
+ * The populated tracks over a supplied population, omitting tracks nobody is in — so the
  * catalogue cannot show an "Adopted" tab at a shelter that has not rehomed anyone yet.
+ *
+ * The no-selection form of `buildVisibleTrackOptions`, which is what the gallery actually calls:
+ * the strip must also keep a selected track that other filters have emptied. Kept as the name for
+ * "which tracks exist here", which the counting-invariant tests in
+ * `tests/unit/pets/petCatalog.test.ts` are written against. It has no production caller.
  *
  * Counts sum to `pets.length` by construction, for the same reason the status counts do: every
  * status resolves to exactly one presentation, and every presentation names exactly one track.

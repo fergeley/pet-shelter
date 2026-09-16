@@ -32,6 +32,20 @@ right rule for gaps 2 and 3 is a product decision (should Pending accept a secon
 `PetDetailView` renders Pending's button disabled, which suggests no), and a change to a public
 write path deserves its own review rather than riding in a catalogue PR.
 
+**The client half of the same flow**, added from the fifth review of PR #38.
+`resolveDefaultPet` in `src/hooks/useAdoptionFormController.ts` is
+`selectedPet || allPets.find((p) => p.status === "Available") || allPets[0] || null`:
+
+- its last fallback, `allPets[0]`, is taken whatever that animal's status, so a shelter with no
+  Available animal opens the form pre-filled for one that cannot be adopted — and gap 3 above means
+  the server accepts it;
+- it defines "adoptable" as a raw `=== "Available"`, while the gallery's preselect uses
+  `getPetStatusPresentation(status).isAdoptable`. They agree today only because `isAdoptable` is true
+  for exactly that one status; a new alias or an adoptable Pending would split them silently.
+
+Both belong to #39's adoption work. The fix is `isAdoptable` in `resolveDefaultPet` and no status-
+blind last resort — which then needs the form to handle having no animal to headline.
+
 **Settles when:** the action resolves the pet through `findServerPetByIdAsync` with an exact-id
 match (as `getPetById` now does), rejects a pet that is not found, and rejects any pet whose
 `getPetStatusPresentation(status).isAdoptable` is false — with a strict-persistence integration

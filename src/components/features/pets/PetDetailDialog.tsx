@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Pet } from "@/types/pet";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
-import { genderLabelArgs } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { PetStatusIcon } from "./PetStatusIcon";
 import {
   Dialog,

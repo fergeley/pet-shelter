@@ -88,7 +88,10 @@ const SCHEMA_KEYS = ["species", "gender", "ageCategory", "size", "status"] as co
  *   option that actually exists.
  *
  * Accepted values come from `petFilterSchema` and `PET_TRACK_SEQUENCE` rather than a list here,
- * so this cannot drift from what the server and the tab strip accept.
+ * so this cannot drift from the schema or the tab strip. It does not make the server agree:
+ * `getPublicPets` has its own equality checks, does not resolve its input through this schema, and
+ * treats an unrecognised value as "match nothing" where the gallery treats it as "all". No
+ * production caller passes it filters today; `tasks/open/get-public-pets-trusts-its-filter-input.md`.
  */
 function resolveFilters(raw: FilterValues): FilterValues {
   const resolved = { ...raw };
@@ -161,8 +164,10 @@ export function usePetGalleryController({
       }
       if (!router || !pathname) return;
 
-      // URL mode has no live equivalent to read: `searchParams` is the snapshot this render
-      // received, which is the same-tick hazard the comment above describes. Documented in
+      // ceiling: URL mode has no live state to read — `searchParams` is the snapshot this render
+      // received, so two updates in the same tick build from the same base and the second drops
+      // the first. That is the hazard the comment above describes. The upgrade path is a ref
+      // holding the last written query, or `window.history.replaceState`; recorded in
       // `tasks/open/gallery-url-round-trip-is-never-exercised.md`, not solved here.
       const updates = typeof update === "function" ? update(filters) : update;
       const params = new URLSearchParams(searchParams ? searchParams.toString() : "");

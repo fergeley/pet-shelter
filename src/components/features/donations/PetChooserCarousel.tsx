@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
-import { genderLabelArgs } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { PetStatusIcon } from "@/components/features/pets/PetStatusIcon";
 
 interface PetChooserCarouselProps {

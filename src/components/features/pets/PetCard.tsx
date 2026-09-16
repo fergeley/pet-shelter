@@ -12,7 +12,7 @@ import {
   getRehabStageLabel,
   getRehabProgressPercent,
 } from "@/lib/presentation/petStatusPresentation";
-import { genderLabelArgs } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { PetStatusIcon } from "./PetStatusIcon";
 
 interface PetCardProps {

@@ -33,7 +33,7 @@ import {
   Clock,
 } from "lucide-react";
 import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
-import { genderLabelArgs } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { PetStatusIcon } from "./PetStatusIcon";
 import { usePetDetailViewController, PetDetailTab } from "@/hooks/usePetDetailViewController";
 import { formatMYR } from "@/lib/domain/money";

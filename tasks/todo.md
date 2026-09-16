@@ -375,3 +375,88 @@ Also fixed, each shown red on revert:
 Where the loop stops: review rounds keep producing findings, and past this point most are
 cleanups. A further round blocks the merge only for a correctness defect, a security gap, or a
 claim this PR makes that is false; anything else is recorded, not chased.
+
+## Fourth code review — of rounds two and three (`/code-review xhigh`, 2026-09-16)
+
+Rounds two and three were committed as `03accc5` once this review had covered them, so what
+follows is its own small diff. Thirteen candidates, triaged against the bar above.
+
+**The one that met it: a stored XSS on every pet profile.** The JSON-LD block on `/pets/[id]` was
+`dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}`. `JSON.stringify` leaves `<` alone,
+and the HTML parser ends a script element at the first `</script>` whatever its `type`, so a pet
+named `</script><script>…</script>` — 38 characters, inside the form's 60 — ran as script for every
+visitor to that profile, staff included. Anyone with `MANAGE_PETS` could plant it. Pre-existing on
+master, not introduced here; fixed here because this PR edits that function and it is the only
+JSON-LD block in the codebase. `serializeJsonLd` replaces every `<` with its six-character JSON
+unicode escape (backslash, u, 003c), which is what the Next 16 JSON-LD guide prescribes and which
+`JSON.parse` reads back unchanged. *(This line first printed that escape literally, and the file
+tool decoded it to `<` — "escapes `<` as `<`". The fifth review caught it in three files; the
+code itself was checked byte-for-byte and by running it, and was never affected.)* Its test fails on the raw
+payload when the escape is disabled. (Getting that mutation to apply took three tries: `sed` and
+Windows argv both mangle a backslash beside a quote, and Git Bash rewrote the argument `/</g` into a
+Windows path. A mutation that silently does not apply proves nothing, so the script used refuses
+unless its pattern occurs exactly once.)
+
+**Corrected, all small and all mine from the previous round:**
+
+- `genderLabelArgs` moved from `validations/pet.ts` to `src/lib/presentation/petLabels.ts`. It
+  builds display arguments; living in the validation module pulled zod schemas into four display
+  components for a one-line label.
+- The Adoption Form preselect's second fallback, `pets.find(isAdoptable)`, was dead:
+  `resolveDefaultPet` already picks the first Available animal from the same array, and
+  `isAdoptable` is true for exactly that status. Removed.
+- `SPECIES_VALUES` and `SIZE_VALUES` now `satisfies` their domain types, and their docstrings — and
+  the filter schema's — stop claiming the gallery renders from them. It does not: the species toggle
+  and size select still hand-list.
+- The `resolveFilters` comment said the schema "cannot drift from what the server … accept". The
+  server never resolves its input through that schema; the comment now says so.
+- `buildPetTrackOptions` is documented as the no-selection form the gallery no longer calls directly.
+- Two knowingly-shipped limits gained the `ceiling:` marker AGENTS.md asks for.
+- The gender tests stopped asserting that a stored `"male"` should display as Female. It does, and
+  that is wrong for such a row; it is kept only so four components agree, and a test should not make
+  it a requirement. They now pin what matters — a real key, no crash — and both still go red on the
+  crash-shaped lookup.
+
+**Not fixed — below the bar.** Each is an open question, so each lives in `tasks/open/`, not here
+(this section first held them inline, which `tasks/README.md` forbids; the fifth review caught it):
+
+- Tab counts vs the grid, a stale track-plus-status link, junk values left in the URL —
+  `tasks/open/gallery-filter-url-state-edge-cases.md`.
+- Non-canonical `gender` rows label wrongly and escape the filter —
+  `tasks/open/pet-gender-column-accepts-values-the-labels-cannot-show.md`.
+- `getPublicPets` does not validate its public input and disagrees with the gallery about bad
+  values — `tasks/open/get-public-pets-trusts-its-filter-input.md`.
+
+Accepted rather than open: `matchesPetSearch` re-normalises its query per pet, and in local mode
+the setters change identity on each filter change. Neither is measurable at shelter scale.
+
+## Fifth code review — of round four (`/code-review xhigh`, 2026-09-16)
+
+Twelve candidates, same bar. **No security gap and no defect in the XSS fix itself** — but the one
+that mattered most was about it.
+
+**The comments on the security fix described a no-op.** Every place this round wrote the escape
+sequence literally — `jsonLd.ts`, its test, and this file — the file-writing tool decoded it back
+into `<`, so the comment read "escape `<` as `<`". The code was checked byte-for-byte and by running
+the serialiser on `</script>` — it emits the six-character escape and no raw `<` — and was never
+affected. But a comment on a security fix that describes a no-op invites someone to delete the fix.
+Rewritten to spell the escape out in words, with a warning not to tidy it back.
+
+**A preselect fix removed on one review's word was load-bearing.** The fourth review called the
+gallery's second fallback, `pets.find(isAdoptable)`, dead because `resolveDefaultPet` picks the same
+animal when handed `null`. It does — but the form copies a selection into its fields only when it
+receives an actual pet (`if (selectedPet && open)`). Handed `null`, its title follows
+`resolveDefaultPet` while `petId` keeps the last opening's value. Two reviews contradicted each
+other, and the effect was not read before acting on the first. Restored, with a comment saying why.
+
+Also corrected: the gender test checked key and fallback separately, so a mismatched pair would
+pass — now checked as a pair; `serializeJsonLd` took `unknown`, and `JSON.stringify(undefined)`
+returns `undefined`, not a string — now typed `object`; and four claims of mine that did not hold
+(the label helper making every surface agree, moving it keeping zod out of components, `satisfies`
+implying the lists are exhaustive, and a "tests below" pointer into another file).
+
+Recorded, pre-existing: `resolveDefaultPet` falls back to `allPets[0]` whatever its status and
+defines "adoptable" separately from `getPetStatusPresentation` — added to
+`tasks/open/submit-application-checks-a-fixture-and-no-status.md`, the same adoption-flow thread;
+and the JSON-LD price is built by deleting every non-digit from free text —
+`tasks/open/pet-profile-json-ld-price-fuses-digits.md`, latent since every fixture fee is "Free".

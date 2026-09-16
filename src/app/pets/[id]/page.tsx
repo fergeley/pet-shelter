@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getPets, getPetById } from "@/actions/pets";
 import { PetDetailView } from "@/components/features/pets/PetDetailView";
 import { PetExclusiveMediaPanel } from "@/components/features/sponsors";
+import { serializeJsonLd } from "@/lib/presentation/jsonLd";
 
 /**
  * One profile read per request, shared by `generateMetadata` and the page.
@@ -111,7 +112,7 @@ export default async function PetProfilePage({ params }: PetPageProps) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
       <Suspense fallback={<div className="min-h-screen bg-card" />}>
         <PetDetailView initialPet={pet} />

@@ -25,7 +25,14 @@ export const photoNotificationSchema = z.object({
 
 export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
 
-import { Gender, MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
+import {
+  Gender,
+  MedicalTimelineCategory,
+  PetSize,
+  PetStatus,
+  PetUpdate,
+  Species,
+} from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
 import { AGE_BANDS } from "@/lib/domain/petAge";
 
@@ -53,25 +60,23 @@ export const GENDER_VALUES = ["Male", "Female"] as const satisfies readonly Gend
 export const GENDER_FILTER_VALUES = ["all", ...GENDER_VALUES] as const;
 
 /**
- * The `t()` arguments for a pet's sex — spread them: `t(...genderLabelArgs(pet.gender))`.
- *
- * **Total over any string**, deliberately, not just over `Gender`. The column is free text
- * (`gender String` in the schema, only cast by the mapper), so the type promises more than the
- * data does. The version before this was a `Record<Gender, string>` lookup: a row stored as
- * `"male"` produced an `undefined` key, `t()` called `.split` on it, and the whole catalogue
- * crashed for one mistyped row. Anything that is not exactly `"Male"` labels as female — what
- * every card, dialog and carousel in this app rendered before this helper existed — so the four
- * places that show a sex now agree through one function instead of four copies of a ternary.
+ * The species a pet can be filed under. Shared by the form and filter schemas — **not** yet by the
+ * gallery, whose species toggle still hand-lists dog and cat. Adding a species here reaches both
+ * schemas; it does not add a button.
  */
-export function genderLabelArgs(gender: string): [key: string, fallback: string] {
-  return gender === "Male" ? ["common.male", "Male"] : ["common.female", "Female"];
-}
+export const SPECIES_VALUES = ["dog", "cat", "other"] as const satisfies readonly Species[];
 
-/** The species a pet can be filed under. Shared by the form and filter schemas. */
-export const SPECIES_VALUES = ["dog", "cat", "other"] as const;
+/**
+ * Size bands. Shared by the form and filter schemas — **not** yet by the gallery's size select,
+ * whose options carry hand-written bilingual weight ranges. Adding a band here reaches both
+ * schemas; it does not add an option.
+ */
+export const SIZE_VALUES = ["Small", "Medium", "Large"] as const satisfies readonly PetSize[];
 
-/** Size bands. Shared by the form and filter schemas. */
-export const SIZE_VALUES = ["Small", "Medium", "Large"] as const;
+// On both lists above, `satisfies readonly Species[]` / `PetSize[]` proves only that each value
+// listed is a real one. It does not prove every real one is listed: add "rabbit" to `Species` and
+// this still compiles, while both schemas reject it and `resolveFilters` silently resets
+// `?species=rabbit` to "all". Keep them in step by hand until something checks exhaustiveness.
 
 /** Statuses that denote an animal still under clinical or behavioural care. */
 export const REHABILITATION_STATUSES: readonly PetStatus[] = ["In Rehabilitation", "Rehabilitation"];
@@ -274,7 +279,9 @@ export type PetFormInput = z.input<typeof petBaseFormSchema>;
 export type PetFormOutput = z.output<typeof petBaseFormSchema>;
 
 /**
- * Every enum here is built from the list the form schema and the UI already use, not re-typed.
+ * Every enum here is built from a shared list rather than re-typed: `AGE_BANDS` (which the age
+ * select also renders from), `SPECIES_VALUES`, `SIZE_VALUES`, `GENDER_VALUES`. The species toggle
+ * and size select in the gallery still hand-list their options — see those constants.
  *
  * That stopped being cosmetic when the gallery began resolving URL values against this schema
  * (`resolveFilters` in `usePetGalleryController`): a value missing from here is now silently

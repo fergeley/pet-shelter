@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
-import { GENDER_VALUES, genderLabelArgs } from "@/lib/validations/pet";
+import { GENDER_VALUES } from "@/lib/validations/pet";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 
 /**
@@ -364,15 +365,25 @@ export function PetGallery({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  // An adoptable animal: the first on screen, else the first in the shelter. This
-                  // used to take `filteredPets[0]`, which the Adopted and In Rehabilitation tabs
-                  // make non-adoptable by construction — open the Adopted tab, click here, and the
-                  // form came up pre-filled for an animal who had already gone home.
+                  // A concrete adoptable animal: the first on screen, else the first in the shelter.
+                  // This used to take `filteredPets[0]`, which the Adopted and In Rehabilitation
+                  // tabs make non-adoptable by construction — open the Adopted tab, click here, and
+                  // the form came up pre-filled for an animal who had already gone home.
                   //
-                  // Not a guarantee. When *no* animal in the shelter is adoptable this passes `null`,
-                  // and `resolveDefaultPet` then falls back to `allPets[0]`, whatever its status.
-                  // The boundary that must refuse that is the server, and `submitApplication`
-                  // checks no status yet: `tasks/open/submit-application-checks-a-fixture-and-no-status.md`.
+                  // The second fallback looks redundant with `resolveDefaultPet`, which also picks
+                  // the first Available animal when handed `null`. **It is not; do not remove it.**
+                  // The form copies the selection into its fields only when it receives an actual
+                  // pet (`if (selectedPet && open)` in `useAdoptionFormController`). Handed `null`,
+                  // its title follows `resolveDefaultPet` while `petId` keeps whatever the last
+                  // opening left there — reopen within the close animation and the form names one
+                  // animal and would submit for another. It was removed once as dead code, on a
+                  // review's word, and the next review found this.
+                  //
+                  // ceiling: still `null` when *no* animal in the shelter is adoptable, which
+                  // reopens that stale-field path and lets `resolveDefaultPet` fall back to
+                  // `allPets[0]` whatever its status. The boundary that must refuse the result is
+                  // the server, and `submitApplication` checks no status yet:
+                  // `tasks/open/submit-application-checks-a-fixture-and-no-status.md`.
                   const isAdoptable = (pet: (typeof pets)[number]) =>
                     getPetStatusPresentation(pet.status).isAdoptable;
                   setActivePetForAdoption(

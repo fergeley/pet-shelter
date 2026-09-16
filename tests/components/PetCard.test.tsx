@@ -26,11 +26,14 @@ describe("PetCard", () => {
         // `gender` is a free-text column, only cast by the mapper, so the type promises more than
         // the data does. An earlier version looked the label key up in a `Record<Gender, string>`:
         // any other value produced an `undefined` key, `t()` called `.split` on it, and the render
-        // threw — one mistyped row crashing every card on the page. It now falls back to the label
-        // the detail dialog, detail page and carousel have always shown for a non-"Male" value.
+        // threw — one mistyped row crashing every card on the page.
+        //
+        // What is asserted is that the card renders a label, not which one: a stored "male" shows
+        // as Female today, which is wrong for that row and kept only so this card agrees with the
+        // dialog, detail page and carousel. Pinning the wording would make that a requirement.
         renderCard({ gender: stored as Pet["gender"], age: "1 year" });
 
-        expect(screen.getByText(/Female • 1 year/)).toBeTruthy();
+        expect(screen.getByText(/(Male|Female) • 1 year/)).toBeTruthy();
       }
     );
   });
