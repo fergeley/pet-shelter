@@ -148,6 +148,26 @@ describe("sponsorship ledger against real PostgreSQL", () => {
     ]);
   });
 
+  it("lists a pending commitment without reading the supporter's tax identifier", async () => {
+    const record = await recordSponsorshipPledge(draft({ taxIdOrIc: "880101-14-5523" }), {
+      now: PROBE_INSTANT,
+    });
+
+    // The control: the column holds a value, so a queue read that fetched it would
+    // hand it back. Without this the assertion below could not fail.
+    const stored = await prisma.petSponsorship.findUnique({
+      where: { pledgeRef: record.pledgeRef },
+      select: { taxIdOrIc: true },
+    });
+    expect(stored?.taxIdOrIc).toBe("880101-14-5523");
+
+    const queued = (await listPendingSponsorships(500)).find(
+      (r) => r.pledgeRef === record.pledgeRef
+    );
+    expect(queued).toBeDefined();
+    expect(queued?.taxIdOrIc).toBeUndefined();
+  });
+
   it("settles a pledge as one unit: the receipt and the ACTIVE row commit together", async () => {
     const record = await recordSponsorshipPledge(
       draft({ taxIdOrIc: "880101-14-5523", notes: "For Tuah, with love" }),
