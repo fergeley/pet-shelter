@@ -141,7 +141,7 @@ derived. Candidate check: a GRAVE-labelled turn must have written a `tasks/decis
 
 This is the clearest remaining instance of the spec's own thesis applied to itself.
 
-**Read `tasks/lessons.md` 2026-08-31 before building it.** A `SubagentStop` hook was built, tested
+**Read the `tasks/lessons/2026-08-31-*` entries before building it.** A `SubagentStop` hook was built, tested
 to 31 cases, and deleted the same day — it could not be proven to fire in the session that wired it,
 and it mitigated a hazard T2 dissolves. A Stop hook here lives in `settings.json`, which the docs say
 a file watcher picks up live, so it does not inherit that specific trap — but it does bind every

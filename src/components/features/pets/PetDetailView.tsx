@@ -33,6 +33,7 @@ import {
   Clock,
 } from "lucide-react";
 import { getRehabStageLabel, getRehabProgressPercent } from "@/lib/presentation/petStatusPresentation";
+import { genderLabelArgs } from "@/lib/presentation/petLabels";
 import { PetStatusIcon } from "./PetStatusIcon";
 import { usePetDetailViewController, PetDetailTab } from "@/hooks/usePetDetailViewController";
 import { formatMYR } from "@/lib/domain/money";
@@ -162,7 +163,7 @@ export function PetDetailView(props: PetDetailViewProps) {
                 )}
               </div>
               <div className="absolute bottom-4 right-4 bg-black/85 px-3 py-1 text-xs font-semibold text-white rounded-md backdrop-blur-xs">
-                {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
+                {t(...genderLabelArgs(pet.gender))} • {pet.age}
               </div>
             </div>
 

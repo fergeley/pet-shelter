@@ -225,6 +225,13 @@ type TransitionOutcome =
   | { status: "not_pending"; record: SponsorshipRecord }
   | { status: "not_found" };
 
+/** Prisma accepts string filter objects at runtime, so types alone cannot protect this boundary. */
+function assertPledgeRefString(value: unknown): asserts value is string {
+  if (typeof value !== "string") {
+    throw new TypeError("pledgeRef must be a string");
+  }
+}
+
 /**
  * Moves a commitment out of `PENDING_PAYMENT`, guarded on that source state.
  *
@@ -241,17 +248,15 @@ type TransitionOutcome =
  * timestamps and actor are Postgres-only — so the two modes cannot disagree about
  * a pledge that has already left the queue.
  *
- * `pledgeRef` must already be a string. Prisma's `where` accepts a filter object
- * too, and this is the one place every write to a pledge goes through.
+ * Assert the runtime value before it reaches Prisma: its `where` input also accepts
+ * filter objects, which are broader than the exact-reference semantics promised here.
  */
 async function transitionPending(
   pledgeRef: string,
   data: PendingTransition,
   tx?: Prisma.TransactionClient
 ): Promise<TransitionOutcome> {
-  if (typeof pledgeRef !== "string") {
-    throw new TypeError("pledgeRef must be a string");
-  }
+  assertPledgeRefString(pledgeRef);
 
   if (!isLedgerPersistent()) {
     const index = memorySponsorships.findIndex((row) => row.pledgeRef === pledgeRef);
@@ -770,6 +775,7 @@ export async function cancelSponsorshipForUser(
   pledgeRef: string,
   options?: { now?: Date }
 ): Promise<SponsorshipRecord | null> {
+  assertPledgeRefString(pledgeRef);
   const when = options?.now ?? new Date();
 
   if (!isLedgerPersistent()) {
