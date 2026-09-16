@@ -71,7 +71,7 @@ Blueprint **Tenet 3** ("fail-fast boundaries — validate all external inputs at
 | **Owns** | Physical schema, connection pooling, seeding |
 | **May import** | Nothing in `src/` |
 
-PostgreSQL through Prisma 7's `@prisma/adapter-pg` driver adapter over a `pg.Pool` (`max: 10`, 30 s idle). The client **and** the pool are cached on `globalThis` so Turbopack hot reloads do not exhaust connections. SSL auto-enables when the connection string contains `sslmode=require` or `neon.tech`.
+PostgreSQL through Prisma 7's `@prisma/adapter-pg` driver adapter over a `pg.Pool` (`max: 10`, 30 s idle). The client **and** the pool are cached on `globalThis` so Turbopack hot reloads do not exhaust connections. TLS is decided from the host by `resolveDatabaseSsl` (`src/lib/server/databaseSsl.ts`), which every pool in the repo uses: a verified certificate for a public host, `pg`'s own behaviour for loopback and private ones.
 
 Models: `User`, `Pet`, `AdoptionApplication`, `AuditLog`, `ShelterSettings`, plus the `Role` enum.
 

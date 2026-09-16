@@ -98,18 +98,20 @@ In this project, Prisma 7 uses `@prisma/adapter-pg` combined with the Node.js `p
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { resolveDatabaseSsl } from "./databaseSsl";
 
 function createPrismaClient(): PrismaClient {
   const connectionString =
     process.env.DATABASE_URL ||
     "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
 
-  const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+  // Verified TLS for a public host such as Neon; see src/lib/server/databaseSsl.ts
+  const sslPolicy = resolveDatabaseSsl(connectionString);
   
   // Reusable pool to prevent socket exhaustion during serverless reloads
   const pool = new Pool({
-    connectionString,
-    ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+    connectionString: sslPolicy.connectionString,
+    ssl: sslPolicy.ssl,
     max: 10,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
@@ -214,4 +216,4 @@ Try Prisma Query (against Neon)
 | `Invalid prisma.pet.findMany() invocation: Table 'pets' does not exist` | Tables have not been created in Neon yet. | Run `npm run db:push` with your `DATABASE_URL`. |
 | `Connection terminated unexpectedly` / `timeout` | Neon compute was suspended (scale-to-zero) and pool timeout was too short. | Handled automatically by `connectionTimeoutMillis: 10000` in [`src/lib/prisma.ts`](file:///c:/Users/User/pet-shelter/src/lib/prisma.ts). |
 | `Max client connections reached` | Creating multiple unpooled Prisma instances. | Use the pooled Neon connection string (`-pooler`) and singleton pattern in `prisma.ts`. |
-| `Self-signed certificate in certificate chain` | Neon SSL handshake requires valid SSL settings. | Ensure `?sslmode=require` is in the URL and `rejectUnauthorized: false` is configured in `src/lib/prisma.ts`. |
+| `Self-signed certificate in certificate chain` | Neon SSL handshake requires valid SSL settings. | Do **not** turn verification off: Neon's chain verifies (`tasks/decisions/2026-09-16-neon-verifies-under-strict-tls.md`). This error means something between you and the host is presenting another certificate, such as an intercepting proxy; pin that CA with `ssl.ca` instead. |
