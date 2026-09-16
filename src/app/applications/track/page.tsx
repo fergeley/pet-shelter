@@ -26,7 +26,62 @@ import {
   ChevronRight,
   ShieldCheck,
   Building,
+  Home,
+  type LucideIcon,
 } from "lucide-react";
+import {
+  APPLICATION_MILESTONES,
+  type ApplicationMilestone,
+} from "@/lib/domain/applicationWorkflow";
+
+/**
+ * Presentation for each milestone, keyed by the domain's own list.
+ *
+ * A total `Record` over `ApplicationMilestone`, so adding a milestone to the
+ * workflow without giving it a card is a compile error rather than a silently
+ * missing step. The rail's numbering comes from the array position, which is
+ * why the labels themselves carry no numbers.
+ */
+const MILESTONE_CARDS: Record<
+  ApplicationMilestone,
+  { icon: LucideIcon; titleKey: string; titleFallback: string; subKey: string; subFallback: string }
+> = {
+  RECEIVED: {
+    icon: CheckCircle2,
+    titleKey: "tracking.step1",
+    titleFallback: "Received",
+    subKey: "tracking.step1Sub",
+    subFallback: "In Queue",
+  },
+  REVIEW: {
+    icon: Clock,
+    titleKey: "tracking.step2",
+    titleFallback: "Review",
+    subKey: "tracking.step2Sub",
+    subFallback: "Coordinator Screen",
+  },
+  INTERVIEW: {
+    icon: Calendar,
+    titleKey: "tracking.step3",
+    titleFallback: "Meet & Greet",
+    subKey: "tracking.step3Sub",
+    subFallback: "Interaction",
+  },
+  HOME_VISIT: {
+    icon: Home,
+    titleKey: "tracking.step4",
+    titleFallback: "Home Visit",
+    subKey: "tracking.step4Sub",
+    subFallback: "Safety Check",
+  },
+  DECISION: {
+    icon: Heart,
+    titleKey: "tracking.step5",
+    titleFallback: "Decision",
+    subKey: "tracking.step5Sub",
+    subFallback: "Homebound",
+  },
+};
 
 function ApplicationTrackerContent() {
   const searchParams = useSearchParams();
@@ -99,17 +154,10 @@ function ApplicationTrackerContent() {
     handleLookup(referenceId, email);
   };
 
-  // Determine active step index (0 to 3)
-  const getStepIndex = (status: string, hasInterview?: boolean) => {
-    if (status === "APPROVED") return 3;
-    if (hasInterview) return 2;
-    if (status === "UNDER_REVIEW") return 1;
-    return 0;
-  };
-
-  const currentStep = result
-    ? getStepIndex(result.status, Boolean(result.interviewDetails))
-    : 0;
+  // Milestone progress is derived server-side by `deriveApplicationProgress`,
+  // so the portal shows the same answer as the shelter's own tooling rather
+  // than re-deriving it here from a status string.
+  const currentStep = result?.milestoneIndex ?? 0;
 
   return (
     <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8">
@@ -138,7 +186,7 @@ function ApplicationTrackerContent() {
                 </Label>
                 <Input
                   id="referenceId"
-                  placeholder={t("tracking.refPlaceholder", "e.g. app-1723738192000")}
+                  placeholder={t("tracking.refPlaceholder", "e.g. HFS-APP-202609-K7QM")}
                   value={referenceId}
                   onChange={(e) => setReferenceId(e.target.value)}
                   className="font-mono text-sm rounded-lg"
@@ -252,71 +300,43 @@ function ApplicationTrackerContent() {
                   {t("tracking.timelineTitle", "Adoption Review Timeline")}
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 relative">
-                  
-                  {/* Step 1 */}
-                  <div
-                    className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
-                      currentStep >= 0
-                        ? "bg-primary/5 border-primary/40 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground"
-                    }`}
-                  >
-                    <CheckCircle2 className="size-5 mx-auto text-primary" />
-                    <p className="text-xs font-bold uppercase">{t("tracking.step1", "1. Received")}</p>
-                    <p className="text-2xs text-muted-foreground">{t("tracking.step1Sub", "In Queue")}</p>
-                  </div>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 relative">
+                  {APPLICATION_MILESTONES.map((milestone, index) => {
+                    const card = MILESTONE_CARDS[milestone];
+                    const Icon = card.icon;
+                    const reached = currentStep >= index;
+                    const isDecision = milestone === "DECISION";
 
-                  {/* Step 2 */}
-                  <div
-                    className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
-                      currentStep >= 1
-                        ? "bg-primary/5 border-primary/40 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground"
-                    }`}
-                  >
-                    <Clock
-                      className={`size-5 mx-auto ${
-                        currentStep >= 1 ? "text-primary" : "text-muted-foreground"
-                      }`}
-                    />
-                    <p className="text-xs font-bold uppercase">{t("tracking.step2", "2. Review")}</p>
-                    <p className="text-2xs text-muted-foreground">{t("tracking.step2Sub", "Coordinator Screen")}</p>
-                  </div>
-
-                  {/* Step 3 */}
-                  <div
-                    className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
-                      currentStep >= 2
-                        ? "bg-primary/5 border-primary/40 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground"
-                    }`}
-                  >
-                    <Calendar
-                      className={`size-5 mx-auto ${
-                        currentStep >= 2 ? "text-primary" : "text-muted-foreground"
-                      }`}
-                    />
-                    <p className="text-xs font-bold uppercase">{t("tracking.step3", "3. Meet & Greet")}</p>
-                    <p className="text-2xs text-muted-foreground">{t("tracking.step3Sub", "Interaction")}</p>
-                  </div>
-
-                  {/* Step 4 */}
-                  <div
-                    className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
-                      currentStep >= 3
-                        ? "tone-soft tone-success"
-                        : "bg-muted/30 border-border text-muted-foreground"
-                    }`}
-                  >
-                    <Heart
-                      className={`size-5 mx-auto ${
-                        currentStep >= 3 ? "text-success-accent" : "text-muted-foreground"
-                      }`}
-                    />
-                    <p className="text-xs font-bold uppercase">{t("tracking.step4", "4. Approved")}</p>
-                    <p className="text-2xs text-muted-foreground">{t("tracking.step4Sub", "Homebound")}</p>
-                  </div>
+                    return (
+                      <div
+                        key={milestone}
+                        aria-current={currentStep === index ? "step" : undefined}
+                        className={`p-4 rounded-xl border text-center space-y-1.5 transition-colors ${
+                          reached
+                            ? isDecision
+                              ? "tone-soft tone-success"
+                              : "bg-primary/5 border-primary/40 text-primary"
+                            : "bg-muted/30 border-border text-muted-foreground"
+                        }`}
+                      >
+                        <Icon
+                          className={`size-5 mx-auto ${
+                            reached
+                              ? isDecision
+                                ? "text-success-accent"
+                                : "text-primary"
+                              : "text-muted-foreground"
+                          }`}
+                        />
+                        <p className="text-xs font-bold uppercase">
+                          {index + 1}. {t(card.titleKey, card.titleFallback)}
+                        </p>
+                        <p className="text-2xs text-muted-foreground">
+                          {t(card.subKey, card.subFallback)}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Scheduled Interview Card */}

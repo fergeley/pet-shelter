@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/server/prisma";
 import { handlePersistenceError, isStrictPersistence } from "@/lib/persistenceMode";
 
@@ -25,6 +26,8 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
   createdAt: string;
 }
+
+export type AuditEntryInput = Omit<AuditEntry, "id" | "createdAt">;
 
 // In-memory persistent array for demonstration, testing, and offline fallback
 const auditLogsStore: AuditEntry[] = [];
@@ -82,10 +85,37 @@ export function resetAuditLogs(): void {
   lastAuditWriteError = null;
 }
 
+function auditLogCreateData(entry: AuditEntryInput) {
+  return {
+    action: entry.action,
+    actorId: entry.actorId,
+    actorEmail: entry.actorEmail,
+    actorRole: entry.actorRole,
+    targetEntity: entry.entity,
+    targetId: entry.entityId,
+    details: JSON.stringify(entry.details || {}),
+    metadata: entry.details ? (entry.details as object) : undefined,
+  };
+}
+
+/**
+ * Persists an audit entry through the supplied client and propagates failures.
+ *
+ * Transactional mutations use this seam so their state transition and audit
+ * record commit or roll back together. The synchronous `recordAuditLog` API
+ * remains the non-blocking contract for existing callers.
+ */
+export async function persistAuditLog(
+  client: Pick<Prisma.TransactionClient, "auditLog">,
+  entry: AuditEntryInput
+): Promise<void> {
+  await client.auditLog.create({ data: auditLogCreateData(entry) });
+}
+
 /**
  * Records an immutable audit log entry in memory and persists to PostgreSQL via Prisma.
  */
-export function recordAuditLog(entry: Omit<AuditEntry, "id" | "createdAt">): AuditEntry {
+export function recordAuditLog(entry: AuditEntryInput): AuditEntry {
   const newEntry: AuditEntry = {
     ...entry,
     id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -102,19 +132,7 @@ export function recordAuditLog(entry: Omit<AuditEntry, "id" | "createdAt">): Aud
   // Asynchronously persist to PostgreSQL without blocking execution. The catch
   // never rethrows — see `pendingAuditWrites` — it records, and
   // `flushAuditLogWrites()` decides whether that record becomes a throw.
-  const write: Promise<void> = prisma.auditLog
-    .create({
-      data: {
-        action: entry.action,
-        actorId: entry.actorId,
-        actorEmail: entry.actorEmail,
-        actorRole: entry.actorRole,
-        targetEntity: entry.entity,
-        targetId: entry.entityId,
-        details: JSON.stringify(entry.details || {}),
-        metadata: entry.details ? (entry.details as object) : undefined,
-      },
-    })
+  const write: Promise<void> = persistAuditLog(prisma, entry)
     .then(
       () => undefined,
       (err: unknown) => {

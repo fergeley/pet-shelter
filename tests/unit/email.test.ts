@@ -187,6 +187,18 @@ describe("Sec 44(6) donation receipt — the two halves must agree", () => {
       expect(body).toContain("RM 250.00");
     }
   });
+
+  it("keeps an identifier-free HTML receipt non-claimable without promising reissue", async () => {
+    const mail = await renderReceipt({ taxIdOrIc: undefined });
+
+    expect(mail.html).not.toContain("Official Tax-Exempt e-Receipt");
+    expect(mail.html).not.toMatch(/valid for .*tax filing.*Section 44\(6\)/i);
+    expect(mail.html).toMatch(/cannot be filed against a tax return/i);
+    expect(mail.html).toMatch(
+      /cannot be filed against a tax return[\s\S]*contact (?:us|the shelter)/i
+    );
+    expect(mail.html).not.toMatch(/we (?:will|'ll) reissue/i);
+  });
 });
 
 /**
@@ -332,7 +344,7 @@ describe("rendered email colour parity", () => {
  * omitted `applicantNotes` entirely — the most decision-relevant free-text field on the form — and
  * dropped the pet ID from the pet row. A coordinator reading the HTML half saw neither.
  *
- * Background: docs/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
+ * Background: docs/archives/tasks/URGENT_RECEIPT_EMAIL_CORRECTNESS.md.
  */
 describe("staff application alert — the two halves must agree", () => {
   const baseApplication: AdoptionApplicationRecord = {

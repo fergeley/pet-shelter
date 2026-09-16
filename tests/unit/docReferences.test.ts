@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
  * fails: the comment keeps naming a path that no longer exists, and the next
  * reader concludes the reference is stale rather than the path.
  *
- * That is not hypothetical here. `docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`
+ * That is not hypothetical here. `docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`
  * §7.2 reported two comments as dangling after an archive reorganisation. Both
  * were in fact correct; the two that were genuinely broken were somewhere else
  * entirely, and had been read past for long enough to be re-derived wrongly. A

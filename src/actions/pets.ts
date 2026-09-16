@@ -153,7 +153,7 @@ async function getAdminActorOrThrow(): Promise<AdminPrincipal> {
   // ADMIN principal and let all five mutations below proceed. The typed
   // error is what the rest of the RBAC layer raises; the message is kept
   // verbatim because it reaches the admin UI through each action's catch.
-  // See docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
+  // See docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md.
   throw new UnauthorizedError("Unauthorized: Admin authorization required");
 }
 

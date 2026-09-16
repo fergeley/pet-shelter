@@ -26,6 +26,7 @@ class TransitionError extends Error {}
 
 interface DbApplicationRecord {
   id: string;
+  referenceCode: string | null;
   petId: string | null;
   petName: string;
   petBreed: string | null;
@@ -33,16 +34,30 @@ interface DbApplicationRecord {
   email: string;
   phone: string;
   address: string;
+  identification: string | null;
   housingType: string;
   hasFencedYard: string;
+  landlordApproval: string | null;
   currentPets: string;
   currentPetDetails: string | null;
   householdExperience: string;
+  vetClinic: string | null;
+  dailyAloneHours: string | null;
   applicantNotes: string | null;
   status: string;
   adminReviewNotes: string | null;
+  interviewAt: Date | string | null;
+  interviewLocation: string | null;
+  interviewMeetingType: string | null;
+  homeVisitAt: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+/** Milestone timestamps keep full precision; only createdAt/updatedAt are days. */
+function toIsoStringOrNull(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  return value instanceof Date ? value.toISOString() : value;
 }
 
 // Deep-cloned for the same reason as the pet cache — see `./petRepository`.
@@ -74,6 +89,7 @@ function toDayString(value: Date | string): string {
 function mapDbApplicationToRecord(a: DbApplicationRecord): AdoptionApplicationRecord {
   return {
     id: a.id,
+    referenceCode: a.referenceCode || undefined,
     petId: a.petId || "",
     petName: a.petName,
     petBreed: a.petBreed || undefined,
@@ -81,14 +97,22 @@ function mapDbApplicationToRecord(a: DbApplicationRecord): AdoptionApplicationRe
     email: a.email,
     phone: a.phone,
     address: a.address,
+    identification: a.identification || undefined,
     housingType: a.housingType,
     hasFencedYard: a.hasFencedYard,
+    landlordApproval: a.landlordApproval || undefined,
     currentPets: a.currentPets,
     currentPetDetails: a.currentPetDetails || undefined,
     householdExperience: a.householdExperience,
+    vetClinic: a.vetClinic || undefined,
+    dailyAloneHours: a.dailyAloneHours || undefined,
     applicantNotes: a.applicantNotes || undefined,
     status: a.status as ApplicationStatus,
     adminReviewNotes: a.adminReviewNotes || undefined,
+    interviewAt: toIsoStringOrNull(a.interviewAt),
+    interviewLocation: a.interviewLocation || null,
+    interviewMeetingType: a.interviewMeetingType || null,
+    homeVisitAt: toIsoStringOrNull(a.homeVisitAt),
     createdAt: toDayString(a.createdAt),
     updatedAt: toDayString(a.updatedAt),
   };
@@ -132,12 +156,56 @@ export async function findServerApplicationByIdAsync(id: string): Promise<Adopti
   return findServerApplicationById(id);
 }
 
+/**
+ * Mirror lookup accepting either the public reference code or the raw id.
+ * The reference code is tried first: it is the value an applicant is given and
+ * the only one they are asked to quote, so it must not be shadowed by an id
+ * that happens to collide with it.
+ */
+export function findServerApplicationByReference(reference: string): AdoptionApplicationRecord | null {
+  const norm = reference.trim().toLowerCase();
+  return (
+    serverApplications.find((a) => (a.referenceCode || "").toLowerCase() === norm) ||
+    serverApplications.find((a) => a.id.toLowerCase() === norm) ||
+    null
+  );
+}
+
+/**
+ * Public tracking lookup. Accepts the reference code an applicant was issued,
+ * and still accepts a bare application id so that every application submitted
+ * before reference codes existed remains trackable.
+ *
+ * This resolves the applicant's *claim* only. It performs no authorization —
+ * the caller must still match the record's email before returning anything, as
+ * `lookupApplicationStatusAction` does.
+ */
+export async function findServerApplicationByReferenceAsync(
+  reference: string
+): Promise<AdoptionApplicationRecord | null> {
+  const trimmed = reference.trim();
+
+  if (isDatabasePersistent()) {
+    try {
+      const dbApp = await prisma.adoptionApplication.findFirst({
+        where: { OR: [{ referenceCode: trimmed }, { id: trimmed }] },
+      });
+      if (dbApp) return mapDbApplicationToRecord(dbApp as unknown as DbApplicationRecord);
+    } catch (err) {
+      handlePersistenceError("Prisma find application by reference", err, "read");
+      return findServerApplicationByReference(trimmed); // DB unreachable: fall back to the mirror.
+    }
+  }
+  return findServerApplicationByReference(trimmed);
+}
+
 export async function insertServerApplication(newApp: AdoptionApplicationRecord): Promise<void> {
   if (isDatabasePersistent()) {
     try {
       await prisma.adoptionApplication.create({
         data: {
           id: newApp.id,
+          referenceCode: newApp.referenceCode || null,
           petId: newApp.petId,
           petName: newApp.petName,
           petBreed: newApp.petBreed || null,
@@ -145,11 +213,15 @@ export async function insertServerApplication(newApp: AdoptionApplicationRecord)
           email: newApp.email,
           phone: newApp.phone,
           address: newApp.address,
+          identification: newApp.identification || null,
           housingType: newApp.housingType,
           hasFencedYard: newApp.hasFencedYard,
+          landlordApproval: newApp.landlordApproval || null,
           currentPets: newApp.currentPets,
           currentPetDetails: newApp.currentPetDetails || null,
           householdExperience: newApp.householdExperience,
+          vetClinic: newApp.vetClinic || null,
+          dailyAloneHours: newApp.dailyAloneHours || null,
           applicantNotes: newApp.applicantNotes || null,
           status: newApp.status,
           adminReviewNotes: newApp.adminReviewNotes || null,
@@ -172,6 +244,57 @@ export async function insertServerApplication(newApp: AdoptionApplicationRecord)
     entityId: newApp.id,
     details: { petId: newApp.petId, petName: newApp.petName, applicantName: newApp.applicantName },
   });
+}
+
+export interface ApplicationMilestoneInput {
+  interviewAt?: string | null;
+  interviewLocation?: string | null;
+  interviewMeetingType?: string | null;
+  homeVisitAt?: string | null;
+}
+
+/**
+ * Records workflow milestones against an application.
+ *
+ * Separate from `atomicUpdateApplicationStatus` on purpose: a milestone is not
+ * a status transition and must not be run through the FSM. Scheduling an
+ * interview does not decide anything, so it has no legal-transition question to
+ * answer and cannot be refused by the transition graph.
+ *
+ * Only the keys present are written; passing `null` clears a milestone.
+ */
+export async function recordApplicationMilestones(
+  applicationId: string,
+  milestones: ApplicationMilestoneInput
+): Promise<boolean> {
+  const data: Record<string, Date | string | null> = {};
+  if ("interviewAt" in milestones) {
+    data.interviewAt = milestones.interviewAt ? new Date(milestones.interviewAt) : null;
+  }
+  if ("interviewLocation" in milestones) data.interviewLocation = milestones.interviewLocation ?? null;
+  if ("interviewMeetingType" in milestones) {
+    data.interviewMeetingType = milestones.interviewMeetingType ?? null;
+  }
+  if ("homeVisitAt" in milestones) {
+    data.homeVisitAt = milestones.homeVisitAt ? new Date(milestones.homeVisitAt) : null;
+  }
+
+  if (Object.keys(data).length === 0) return true;
+
+  if (isDatabasePersistent()) {
+    try {
+      await prisma.adoptionApplication.update({ where: { id: applicationId }, data });
+    } catch (err) {
+      handlePersistenceError("Prisma application milestone update", err, "write");
+      return false;
+    }
+  }
+
+  serverApplications = serverApplications.map((a) =>
+    a.id === applicationId ? { ...a, ...milestones } : a
+  );
+
+  return true;
 }
 
 /**

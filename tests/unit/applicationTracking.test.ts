@@ -71,6 +71,10 @@ describe("Public Adoption Application Tracking Portal", () => {
       hasFencedYard: "yes",
       currentPets: "dogs",
       householdExperience: "experienced",
+      identification: "880101-14-5678",
+      landlordApproval: "owner_occupied",
+      vetClinic: "Klinik Haiwan SS2",
+      dailyAloneHours: "4_to_8",
       applicantNotes: "We love golden retrievers!",
     });
 
@@ -104,6 +108,10 @@ describe("Public Adoption Application Tracking Portal", () => {
       hasFencedYard: "no",
       currentPets: "none",
       householdExperience: "first_time",
+      identification: "880101-14-5678",
+      landlordApproval: "owner_occupied",
+      vetClinic: "Klinik Haiwan SS2",
+      dailyAloneHours: "4_to_8",
     });
 
     expect(submitResult.success).toBe(true);
@@ -132,6 +140,10 @@ describe("Public Adoption Application Tracking Portal", () => {
       hasFencedYard: "yes",
       currentPets: "none",
       householdExperience: "experienced",
+      identification: "880101-14-5678",
+      landlordApproval: "owner_occupied",
+      vetClinic: "Klinik Haiwan SS2",
+      dailyAloneHours: "4_to_8",
     });
 
     expect(submitResult.success).toBe(true);
@@ -144,7 +156,7 @@ describe("Public Adoption Application Tracking Portal", () => {
     });
 
     expect(lookup.success).toBe(false);
-    expect(lookup.error).toContain("No application matching this Reference ID");
+    expect(lookup.error).toContain("No application matching this reference code");
   });
 
   it("should reject non-existent reference ID", async () => {
@@ -154,6 +166,6 @@ describe("Public Adoption Application Tracking Portal", () => {
     });
 
     expect(lookup.success).toBe(false);
-    expect(lookup.error).toContain("No application matching this Reference ID");
+    expect(lookup.error).toContain("No application matching this reference code");
   });
 });

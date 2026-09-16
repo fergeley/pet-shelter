@@ -167,6 +167,10 @@ model Pet {
 /// as one pattern.
 model AdoptionApplication {
   id                    String            @id @default(cuid())
+  /// Public reference code (`HFS-APP-YYYYMM-XXXX`) quoted by the applicant to
+  /// the tracking portal. Nullable because rows created before it existed are
+  /// still addressed by `id`; unique because the portal looks up by it.
+  referenceCode         String?           @unique
   petId                 String?
   pet                   Pet?              @relation(fields: [petId], references: [id], onDelete: SetNull)
   /// Snapshot of the pet's name at application time. Deliberately not a join —
@@ -178,16 +182,35 @@ model AdoptionApplication {
   email                 String
   phone                 String
   address               String
+  /// NRIC or passport number. Restricted: excluded from the public tracking
+  /// DTO and from every notification email. Treat as sensitive PII.
+  identification        String?
   housingType           String
   livingSituation       String?
   hasFencedYard         String            @default("yes")
+  /// Whether a tenant has their landlord's consent to keep an animal.
+  landlordApproval      String?
   currentPets           String            @default("none")
   currentPetDetails     String?
   householdExperience   String            @default("experienced")
   experienceDescription String?           @db.Text
+  /// Clinic the applicant intends to register the animal with.
+  vetClinic             String?
+  /// Bucketed hours the animal would be alone on a normal weekday.
+  dailyAloneHours       String?
   applicantNotes        String?           @db.Text
   message               String?           @db.Text
   status                ApplicationStatus @default(SUBMITTED)
+
+  /// Workflow milestones, kept as timestamps rather than `ApplicationStatus`
+  /// values. An application can be at the home-visit stage while still being
+  /// UNDER_REVIEW, so progress and decision are independent axes. Setting one
+  /// of these is what lights a step in the public tracking portal — which
+  /// previously had to recover the same facts by regex from `adminReviewNotes`.
+  interviewAt           DateTime?
+  interviewLocation     String?
+  interviewMeetingType  String?
+  homeVisitAt           DateTime?
   adminNotes            String?           @db.Text
   adminReviewNotes      String?           @db.Text
   reviewedBy            String?

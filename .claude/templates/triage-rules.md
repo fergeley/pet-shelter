@@ -103,6 +103,13 @@ Consequence for Phase 2: for anything touching persistence there is **no pre-pai
 spend. Climb to the walking skeleton; do not let a missing rung 1 drop you silently to
 reasoning-only. *(Verified 2026-08-30 — unit tiers are unaffected, they run in memory.)*
 
+**The rung has a second ladder** *(verified 2026-09-14)*: `npm install embedded-postgres` in the
+session scratchpad, start it on port 5432 with the `docker-compose.yml` credentials (user
+`postgres`, password `postgrespassword`, database `pet_shelter`), then `npm run db:push:local` and
+`npm run test:db` run as written. Both database suites went green this way; see
+`tasks/lessons/2026-09-14-a-missing-docker-is-not-a-missing-database-tier.md`. Stop it before the
+offline suites, or every "no database" branch finds one.
+
 ## The working tree is shared with a live writer
 
 The rules are §5 above; this is the evidence for why they are not theoretical.

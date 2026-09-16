@@ -97,6 +97,16 @@ export const PERMISSIONS = {
   SEND_SHELTER_EMAIL: "SEND_SHELTER_EMAIL",
   /** Read the immutable audit trail. */
   VIEW_AUDIT_LOG: "VIEW_AUDIT_LOG",
+  /**
+   * Confirm that a supporter's transfer has landed, which issues their receipt.
+   *
+   * Its own permission rather than a reuse of `MANAGE_CONTENT` or
+   * `REVIEW_APPLICATIONS`: this is the only capability in the catalogue that mints
+   * a statutory document from a gapless series, and folding it into an editorial
+   * permission would hand that to every content editor. The grant below matches
+   * the role list `reconcilePetSponsorshipAction` already enforces.
+   */
+  RECONCILE_SPONSORSHIPS: "RECONCILE_SPONSORSHIPS",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -129,6 +139,13 @@ export const ROLE_PERMISSIONS: Record<CanonicalRole, readonly Permission[]> = {
     PERMISSIONS.REVIEW_APPLICATIONS,
     PERMISSIONS.SEND_SHELTER_EMAIL,
     PERMISSIONS.VIEW_AUDIT_LOG,
+    // The capability the queue's three actions require through `requirePermission`,
+    // so the page gate and the mutations behind it admit exactly the same roles;
+    // SUPER_ADMIN holds it by derivation. The grant was chosen to equal the
+    // `[ROLES.ADMIN, ROLES.COORDINATOR]` list `reconcilePetSponsorshipAction`
+    // enforced until 2026-09-14, which `tests/unit/sponsorshipReconciliation.test.ts`
+    // still pins so the migration changed nobody's access.
+    PERMISSIONS.RECONCILE_SPONSORSHIPS,
   ],
 
   [ROLES.STAFF]: [PERMISSIONS.VIEW_APPLICATIONS],

@@ -254,6 +254,8 @@ export interface TranslationDictionary {
     step3Sub: string;
     step4: string;
     step4Sub: string;
+    step5: string;
+    step5Sub: string;
     meetGreetTitle: string;
     dateTimeLabel: string;
     formatLabel: string;
@@ -592,7 +594,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       submitButton: "Submit 100% Free Adoption Application",
       successTitle: "Adoption Application Submitted!",
       successMessage: "Thank you for opening your heart to a shelter rescue! Your reference ID is:",
-      referenceIdLabel: "Application Reference ID",
+      referenceIdLabel: "Application Reference Code",
       nextStepsTitle: "What happens next?",
       nextStep1: "Our adoption team will review your application within 24–48 hours.",
       nextStep2: "We will contact you via WhatsApp to arrange an in-person Meet & Greet at our sanctuary.",
@@ -611,14 +613,18 @@ export const translations: Record<Language, TranslationDictionary> = {
       button: "Check Application Status",
       loadingButton: "Querying Records...",
       timelineTitle: "Adoption Review Timeline",
-      step1: "1. Received",
+      // Unnumbered: the tracking rail renders the position from the milestone
+      // list, so inserting a step cannot leave these labels counting wrongly.
+      step1: "Received",
       step1Sub: "In Queue",
-      step2: "2. Review",
+      step2: "Review",
       step2Sub: "Coordinator Screen",
-      step3: "3. Meet & Greet",
+      step3: "Meet & Greet",
       step3Sub: "Interaction",
-      step4: "4. Approved",
-      step4Sub: "Homebound",
+      step4: "Home Visit",
+      step4Sub: "Safety Check",
+      step5: "Decision",
+      step5Sub: "Homebound",
       meetGreetTitle: "Scheduled Meet & Greet Appointment",
       dateTimeLabel: "Date & Time:",
       formatLabel: "Format:",
@@ -663,7 +669,9 @@ export const translations: Record<Language, TranslationDictionary> = {
       donorNameLabel: "Donor Full Name (for tax receipt) *",
       donorEmailLabel: "Email Address (to receive e-Receipt) *",
       donorPhoneLabel: "Phone Number (WhatsApp receipt updates)",
-      donorIcLabel: "Malaysian IC / Passport / SSM Company No. *",
+      // No baked-in "*": this field is required only when the donor asks for a
+      // Section 44(6) receipt, so the marker is rendered from that state instead.
+      donorIcLabel: "Malaysian IC / Passport / SSM Company No.",
       donorNotesLabel: "Special Message / Donor Wishes (Optional)",
       bankTransferTitle: "Direct Bank Transfer (Maybank)",
       bankName: "Maybank Berhad",
@@ -974,14 +982,16 @@ export const translations: Record<Language, TranslationDictionary> = {
       button: "Semak Status Permohonan",
       loadingButton: "Menyemak Rekod...",
       timelineTitle: "Garis Masa Semakan Adopsi",
-      step1: "1. Diterima",
+      step1: "Diterima",
       step1Sub: "Dalam Giliran",
-      step2: "2. Semakan",
+      step2: "Semakan",
       step2Sub: "Saringan Penyelaras",
-      step3: "3. Suai Kenal",
+      step3: "Suai Kenal",
       step3Sub: "Interaksi",
-      step4: "4. Diluluskan",
-      step4Sub: "Ke Rumah Baharu",
+      step4: "Lawatan Rumah",
+      step4Sub: "Pemeriksaan Keselamatan",
+      step5: "Keputusan",
+      step5Sub: "Ke Rumah Baharu",
       meetGreetTitle: "Temu Janji Sesi Suai Kenal",
       dateTimeLabel: "Tarikh & Masa:",
       formatLabel: "Format:",
@@ -1026,7 +1036,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       donorNameLabel: "Nama Penuh Penderma (untuk resit cukai) *",
       donorEmailLabel: "Alamat E-mel (untuk penerimaan e-Resit) *",
       donorPhoneLabel: "Nombor Telefon (makluman WhatsApp)",
-      donorIcLabel: "No. Kad Pengenalan / Pasport / No. SSM Syarikat *",
+      donorIcLabel: "No. Kad Pengenalan / Pasport / No. SSM Syarikat",
       donorNotesLabel: "Mesej Khas / Harapan Penderma (Pilihan)",
       bankTransferTitle: "Pindahan Bank Terus (Maybank)",
       bankName: "Maybank Berhad",

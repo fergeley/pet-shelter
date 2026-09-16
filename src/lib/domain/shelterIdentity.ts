@@ -10,7 +10,7 @@
  * apart across those copies, and the variant that reaches **LHDN Section 44(6) tax
  * e-receipts and ROS CSV exports** is not the one shown to the public.
  *
- * That is P2 in `docs/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md`, and it is
+ * That is P2 in `docs/archives/tasks/HANDOFF_SECURITY_REHAB_AND_HISTORY.md`, and it is
  * explicitly **blocked on a stakeholder checking the physical ROS certificate**.
  * This module therefore does *not* resolve which value is correct — guessing on a
  * statutory identifier is worse than leaving it visibly unresolved. What it does is
@@ -81,6 +81,23 @@ export interface StatutoryIssuerIdentity {
 }
 
 /** Captures the issuer identity in force right now. */
+/**
+ * Whether an issued receipt can actually back a Section 44(6) claim.
+ *
+ * Every gift is receipted — the ledger records money received, not claims made —
+ * but only a receipt carrying a donor identifier can be filed against a return.
+ * A document that asserts deductibility while carrying nothing to deduct against
+ * is a receipt the donor cannot use and the shelter cannot reconcile, so every
+ * surface that renders one asks this first: the on-screen dossier, the printed
+ * copy, and the emailed receipt. Keeping the predicate here rather than repeating
+ * the truthiness test at each site is what stops the three drifting apart.
+ *
+ * See `tasks/decisions/2026-09-08-lhdn-relief-is-opt-in-not-a-column.md`.
+ */
+export function isTaxClaimable(receipt: { taxIdOrIc?: string | null }): boolean {
+  return Boolean(receipt.taxIdOrIc?.trim());
+}
+
 export function currentIssuerIdentity(): StatutoryIssuerIdentity {
   return {
     taxDeductibleRef: LHDN_TAX_DEDUCTIBLE_REF,

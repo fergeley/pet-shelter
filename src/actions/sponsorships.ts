@@ -1,9 +1,12 @@
 "use server";
 
+import { ZodError } from "zod";
 import {
   petSponsorshipSchema,
   PetSponsorshipInput,
   isPaymentMethodEnabled,
+  pledgeRefSchema,
+  rejectionReasonSchema,
 } from "@/lib/validations/sponsorship";
 import { checkRateLimit } from "@/lib/security/rateLimit";
 import { recordAuditLog } from "@/lib/domain/auditLog";
@@ -16,17 +19,24 @@ import {
   generatePledgeRef,
   reconciliationNotice,
 } from "@/lib/domain/petSponsorship";
+import { SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE } from "@/lib/domain/contributionFailure";
 import {
   SponsorshipWriteError,
-  findSponsorshipByPledgeRef,
+  listPendingSponsorships,
   recordSponsorshipPledge,
-  reconcileSponsorship,
+  rejectPendingSponsorship,
+  settleSponsorship,
   summarizeSponsorshipsForPet,
 } from "@/lib/server/sponsorshipLedger";
-import { ReceiptIssuanceError, issueDonationReceipt } from "@/lib/server/donationLedger";
+import { ReceiptIssuanceError } from "@/lib/server/donationLedger";
 import { sendSponsorshipWelcomeEmail, sendDonationReceiptEmail } from "@/lib/email";
-import { getCurrentSession } from "@/lib/security/session";
-import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import type { SessionUser } from "@/lib/security/session";
+import { requirePermission } from "@/lib/security/dal";
+import { PERMISSIONS, isAuthorizationError } from "@/lib/security/rbac";
+import { getCurrentSponsorSession } from "@/lib/security/sponsorSession";
+import { findSponsorById } from "@/lib/server/sponsorRepository";
+import { findServerPetByIdAsync } from "@/lib/server/petRepository";
+import { scheduleAfterResponse } from "@/lib/scheduleAfterResponse";
 
 /** What the supporter sees the moment checkout completes. */
 export interface SponsorshipPledgeDTO {
@@ -44,18 +54,33 @@ export interface SponsorshipPledgeDTO {
   reconciliationNotice: string;
 }
 
-export interface CreateSponsorshipResult {
-  success: boolean;
-  data?: SponsorshipPledgeDTO;
-  error?: string;
+export type CreateSponsorshipResult =
+  | { success: true; data: SponsorshipPledgeDTO; error?: never }
+  | { success: false; error: string; data?: never };
+
+/**
+ * Links checkout only when the signed token, live account and submitted address
+ * all identify the same sponsor. Runtime extras such as a forged `userId` never
+ * cross this boundary.
+ */
+async function resolveCheckoutSponsorId(sponsorEmail: string): Promise<string | null> {
+  const session = await getCurrentSponsorSession();
+  if (!session) return null;
+
+  const sponsor = await findSponsorById(session.sponsorId);
+  if (!sponsor) return null;
+
+  const sessionEmail = session.email.trim().toLowerCase();
+  const accountEmail = sponsor.email.trim().toLowerCase();
+  return sessionEmail === accountEmail && accountEmail === sponsorEmail ? sponsor.id : null;
 }
 
 /**
  * Server Action: records a supporter's commitment to fund one animal's care.
  *
  * Ordering mirrors `submitDonationPledgeAction`: validate -> rate-limit ->
- * persist -> audit -> email. A failed write means the audit entry and the email
- * never happen and the supporter is told to retry.
+ * persist -> audit -> email. If persistence does not return a confirmed outcome,
+ * audit and email do not start and the supporter is told to verify before retrying.
  *
  * The one deliberate difference is what comes out the other end. The donation
  * form issues a receipt because that flow treats submission as the gift; a
@@ -74,7 +99,12 @@ export async function createPetSponsorshipAction(
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Please check the sponsorship details",
+      error:
+        err instanceof ZodError
+          ? (err.issues[0]?.message ?? "Please check the sponsorship details")
+          : err instanceof Error
+            ? err.message
+            : "Please check the sponsorship details",
     };
   }
 
@@ -101,15 +131,30 @@ export async function createPetSponsorshipAction(
   const amountSen = senFromRinggit(validated.amountMYR);
   const pledgeRef = generatePledgeRef();
 
+  let pet;
+  let sponsorUserId: string | null;
+  try {
+    [pet, sponsorUserId] = await Promise.all([
+      findServerPetByIdAsync(validated.petId),
+      resolveCheckoutSponsorId(sponsorEmail),
+    ]);
+  } catch (err) {
+    console.error("[Sponsorship Checkout] Identity lookup failed:", err);
+    return { success: false, error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE };
+  }
+  if (!pet) {
+    return { success: false, error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE };
+  }
+
   let record;
   try {
     record = await recordSponsorshipPledge({
-      petId: validated.petId?.trim() || null,
-      petName: validated.petName.trim(),
+      petId: pet.id,
+      petName: pet.name,
       sponsorName: validated.sponsorName.trim(),
       sponsorEmail,
       sponsorPhone: validated.sponsorPhone?.trim() || undefined,
-      userId: validated.userId?.trim() || null,
+      userId: sponsorUserId,
       tierId: validated.tierId,
       tierName,
       frequency: validated.frequency,
@@ -124,8 +169,7 @@ export async function createPetSponsorshipAction(
     if (err instanceof SponsorshipWriteError) {
       return {
         success: false,
-        error:
-          "We could not record your sponsorship just now. Nothing has been charged — please try again in a moment.",
+        error: SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE,
       };
     }
     throw err;
@@ -167,118 +211,196 @@ export async function createPetSponsorshipAction(
     reconciliationNotice: reconciliationNotice(record.frequency, record.paymentMethod),
   };
 
-  // Fire-and-forget, as the donation receipt is: a mail outage must not cost the
-  // supporter their commitment.
-  sendSponsorshipWelcomeEmail(dto).catch((err) =>
-    console.error("[Sponsorship Welcome Email Dispatch Failed]", err)
-  );
+  // The pledge is already durable, so mail failure cannot undo it. Register the
+  // promise with the request lifecycle so a serverless instance is not frozen
+  // while the acknowledgement is still in flight.
+  scheduleAfterResponse(() => sendSponsorshipWelcomeEmail(dto));
 
   return { success: true, data: dto };
 }
 
-export interface ReconcileSponsorshipResult {
-  success: boolean;
-  receiptNumber?: string;
-  error?: string;
+/** One row of the coordinator's reconciliation queue. */
+export interface PendingSponsorshipDTO {
+  pledgeRef: string;
+  petName: string;
+  sponsorName: string;
+  sponsorEmail: string;
+  tierName: string;
+  /** Preformatted in MYR here so the client never re-derives money from sen. */
+  amountDisplay: string;
+  frequency: "one_time" | "monthly";
+  paymentMethod: "duitnow_qr" | "online_banking" | "card";
+  /** ISO-8601 UTC, as stored. Rendered in Asia/Kuala_Lumpur at the edge. */
+  createdAt: string;
 }
+
+export type PendingSponsorshipsResult =
+  | { success: true; data: PendingSponsorshipDTO[]; hasMore: boolean; error?: never }
+  | { success: false; error: string; data?: never; hasMore?: never };
+
+const PENDING_SPONSORSHIP_PAGE_SIZE = 200;
+
+/** `PENDING_PAYMENT` → "pending payment", for a sentence a coordinator reads. */
+function statusLabel(status: string): string {
+  return status.toLowerCase().replace(/_/g, " ");
+}
+
+/** The one message for a reference that names nothing, whatever shape it arrived in. */
+const NO_SUCH_PLEDGE = "No sponsorship found for that pledge reference";
+
+/**
+ * Server Action: the commitments awaiting a coordinator's confirmation.
+ *
+ * The read half of reconciliation. `reconcilePetSponsorshipAction` has existed and
+ * been guarded since PR #6 but nothing called it, so every commitment stayed
+ * `PENDING_PAYMENT`, no `receiptNumber` was ever assigned, and the portal's
+ * account-claim challenge — which requires one — could never be satisfied by
+ * anybody. See `tasks/open/sponsor-portal-is-inert-until-reconciliation-is-reachable.md`.
+ *
+ * Guarded through `requirePermission`, which re-reads the member's live role and
+ * status: a coordinator suspended in /admin/members loses this screen on their
+ * next request, not when their cookie expires. `RECONCILE_SPONSORSHIPS` rather
+ * than a role list because a capability question survives a role being renamed.
+ *
+ * The guard sits inside the `try`, as in `fetchAuditLogsAction`. A production build
+ * masks a thrown Server Action error into an opaque digest, so a thrown denial reached
+ * the page indistinguishable from an outage; returned, it arrives as the guard's own
+ * message and the page can say who may not do this.
+ *
+ * `taxIdOrIc` is deliberately absent from the DTO: a coordinator confirming that a
+ * bank transfer landed does not need the supporter's tax identifier to do it, and
+ * projecting it here would put a statutory identifier on a screen for no purpose.
+ */
+export async function listPendingSponsorshipsAction(): Promise<PendingSponsorshipsResult> {
+  try {
+    await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
+
+    const rows = await listPendingSponsorships(PENDING_SPONSORSHIP_PAGE_SIZE + 1);
+    return {
+      success: true,
+      hasMore: rows.length > PENDING_SPONSORSHIP_PAGE_SIZE,
+      data: rows.slice(0, PENDING_SPONSORSHIP_PAGE_SIZE).map((row) => ({
+        pledgeRef: row.pledgeRef,
+        petName: row.petName,
+        sponsorName: row.sponsorName,
+        sponsorEmail: row.sponsorEmail,
+        tierName: row.tierName,
+        amountDisplay: formatMYR(row.amountSen),
+        frequency: row.frequency,
+        paymentMethod: row.paymentMethod,
+        createdAt: row.createdAt,
+      })),
+    };
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+
+    // Surfaced, never swallowed into an empty list: an empty queue reads as "every
+    // supporter has been settled", and a coordinator who believes that stops looking.
+    console.error("[Sponsorship Reconciliation] Pending queue read failed:", err);
+    return {
+      success: false,
+      error:
+        "We could not load the pending commitments. This is a read failure, not an empty queue — do not treat it as nothing to do.",
+    };
+  }
+}
+
+export type ReconcileSponsorshipResult =
+  | {
+      success: true;
+      outcome: "reconciled" | "already_reconciled";
+      receiptNumber: string;
+      error?: never;
+    }
+  | { success: false; error: string; outcome?: never; receiptNumber?: never };
 
 /**
  * Server Action: a coordinator confirms the transfer for a pledge has landed.
  *
- * This is the only path that turns a commitment into a statutory document. It
- * allocates the receipt number through `issueDonationReceipt`, so a sponsorship
- * receipt is drawn from the same gapless per-month series as every other
- * receipt and appears in the LHDN export like any other.
+ * This is the only path that turns a commitment into a statutory document. The
+ * receipt is drawn through `settleSponsorship`, from the same gapless per-month
+ * series as every other receipt, *inside the transaction* that moves the pledge to
+ * `ACTIVE`. Two coordinators confirming at once therefore produce one receipt, and
+ * the one who lost is handed the number that exists. Until 2026-09-14 this action
+ * issued first and guarded second, so a lost race left a receipt attached to
+ * nothing and a log line asking for an offsetting correction; there is no spare
+ * outcome any more.
  *
- * Order is: confirm the pledge is still pending -> issue the `Donation` ->
- * attach its number to the commitment. Losing the final conditional update to a
- * concurrent coordinator would leave an issued receipt with no commitment
- * attached; that is logged as needing an offsetting correction rather than
- * papered over, because `Donation` is append-only by design and a receipt
- * cannot be withdrawn.
+ * The guard returns its denial for the reason `listPendingSponsorshipsAction`'s
+ * does; the rest of the action keeps its own error handling, because "the receipt
+ * could not be issued" and "you may not do this" are different sentences.
  */
 export async function reconcilePetSponsorshipAction(
   pledgeRef: string
 ): Promise<ReconcileSponsorshipResult> {
-  const session = await getCurrentSession();
-  assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
-  const actorEmail = session?.email ?? "coordinator@hopeforstrays.org";
-
-  const existing = await findSponsorshipByPledgeRef(pledgeRef);
-  if (!existing) {
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
-  }
-  if (existing.status === "ACTIVE" && existing.receiptNumber) {
-    // Already settled. Return the number that exists rather than minting another
-    // for the same money.
-    return { success: true, receiptNumber: existing.receiptNumber };
-  }
-
-  const issuer = currentIssuerIdentity();
-
-  let donation;
+  let session: SessionUser;
   try {
-    donation = await issueDonationReceipt({
-      donorName: existing.sponsorName,
-      donorEmail: existing.sponsorEmail,
-      donorPhone: existing.sponsorPhone,
-      taxIdOrIc: existing.taxIdOrIc,
-      tierId: existing.tierId as Parameters<typeof issueDonationReceipt>[0]["tierId"],
-      tierName: existing.tierName,
-      amountSen: existing.amountSen,
-      currency: "MYR",
-      frequency: existing.frequency,
-      paymentMethod: existing.paymentMethod,
-      targetPetName: existing.petName,
-      notes: existing.notes,
-      taxDeductibleRef: issuer.taxDeductibleRef,
-      shelterRegistrationNo: issuer.shelterRegistrationNo,
-    });
+    session = await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+    throw err;
+  }
+
+  const ref = pledgeRefSchema.safeParse(pledgeRef);
+  if (!ref.success) return { success: false, error: NO_SUCH_PLEDGE };
+
+  let outcome;
+  try {
+    outcome = await settleSponsorship(ref.data, currentIssuerIdentity(), session.email);
   } catch (err) {
     if (err instanceof ReceiptIssuanceError) {
+      // The ledger folds every failure inside the transaction into this one error,
+      // and an outage that only ever reaches a coordinator as "try again" is an
+      // outage nobody investigates.
+      console.error("[Sponsorship Reconciliation] Settle failed:", err.cause ?? err);
       return {
         success: false,
         error:
-          "We could not issue the receipt just now, so the sponsorship is still pending. Please try again in a moment.",
+          "We could not confirm whether reconciliation completed. Reload the queue before trying again.",
       };
     }
     throw err;
   }
 
-  const outcome = await reconcileSponsorship(pledgeRef, donation.receiptNumber, actorEmail);
-
-  if (outcome.status === "already_reconciled") {
-    console.error(
-      `[Sponsorship Reconciliation] Lost a race on ${pledgeRef}: receipt ${donation.receiptNumber} was issued but ${outcome.receiptNumber} is already attached. The spare needs an offsetting correction.`
-    );
-    return { success: true, receiptNumber: outcome.receiptNumber };
-  }
-
   if (outcome.status === "not_found") {
-    console.error(
-      `[Sponsorship Reconciliation] ${pledgeRef} vanished after receipt ${donation.receiptNumber} was issued.`
-    );
-    return { success: false, error: `No sponsorship found for pledge ${pledgeRef}` };
+    return { success: false, error: NO_SUCH_PLEDGE };
   }
+  if (outcome.status === "not_pending") {
+    return {
+      success: false,
+      error: `Pledge ${ref.data} is ${statusLabel(outcome.currentStatus)} and cannot be reconciled`,
+    };
+  }
+  if (outcome.status === "already_reconciled") {
+    // Settled already, by this coordinator a moment ago or by another. Return the
+    // number that exists rather than minting another for the same money.
+    return {
+      success: true,
+      outcome: "already_reconciled",
+      receiptNumber: outcome.receiptNumber,
+    };
+  }
+
+  const { record, donation } = outcome;
 
   recordAuditLog({
-    actorId: session?.id ?? "coordinator",
-    actorEmail,
-    actorRole: session?.role ?? ROLES.COORDINATOR,
+    actorId: session.id,
+    actorEmail: session.email,
+    actorRole: session.role,
     action: "SPONSORSHIP_RECONCILED",
     entity: "PetSponsorship",
-    entityId: pledgeRef,
+    entityId: ref.data,
     details: {
-      pledgeRef,
+      pledgeRef: ref.data,
       receiptNumber: donation.receiptNumber,
-      petName: outcome.record.petName,
-      sponsorEmail: outcome.record.sponsorEmail,
-      amountSen: outcome.record.amountSen as number,
-      amountDisplay: formatMYR(outcome.record.amountSen),
+      petName: record.petName,
+      sponsorEmail: record.sponsorEmail,
+      amountSen: record.amountSen as number,
+      amountDisplay: formatMYR(record.amountSen),
     },
   });
 
-  sendDonationReceiptEmail({
+  const receipt = {
     receiptNumber: donation.receiptNumber,
     date: new Date(donation.issuedAt).toLocaleDateString("en-MY", {
       timeZone: "Asia/Kuala_Lumpur",
@@ -301,9 +423,94 @@ export async function reconcilePetSponsorshipAction(
     notes: donation.notes,
     taxDeductibleRef: donation.taxDeductibleRef,
     shelterRegistrationNo: donation.shelterRegistrationNo,
-  }).catch((err) => console.error("[Sponsorship Receipt Email Dispatch Failed]", err));
+  };
+  scheduleAfterResponse(() => sendDonationReceiptEmail(receipt));
 
-  return { success: true, receiptNumber: donation.receiptNumber };
+  return {
+    success: true,
+    outcome: "reconciled",
+    receiptNumber: donation.receiptNumber,
+  };
+}
+
+export type RejectSponsorshipResult =
+  | { success: true; error?: never }
+  | { success: false; error: string };
+
+/**
+ * Server Action: a coordinator dismisses a pledge no transfer ever backed.
+ *
+ * The other exit from the queue. Without it an unpaid or bogus claim sat in
+ * `PENDING_PAYMENT` forever, in front of every coordinator, every day. Nothing is
+ * issued and nothing is emailed: a dismissed claim is not a gift and earns no
+ * receipt. The actor and the reason go to the audit log, which is the record of
+ * *why* a pledge left the queue; the row itself records only that it did.
+ *
+ * Both arguments are validated before anything is written. They arrive
+ * deserialised and unchecked, and a bad one has to fail *before* the row flips:
+ * an error after it would leave the pledge cancelled with no audit row. The
+ * ledger therefore writes the transition and audit row in the same transaction;
+ * this action reports uncertainty if it cannot confirm that transaction's outcome.
+ */
+export async function rejectPetSponsorshipAction(
+  pledgeRef: string,
+  reason?: string | null
+): Promise<RejectSponsorshipResult> {
+  let session: SessionUser;
+  try {
+    session = await requirePermission(PERMISSIONS.RECONCILE_SPONSORSHIPS);
+  } catch (err) {
+    if (isAuthorizationError(err)) return { success: false, error: err.message };
+    throw err;
+  }
+
+  const ref = pledgeRefSchema.safeParse(pledgeRef);
+  if (!ref.success) return { success: false, error: NO_SUCH_PLEDGE };
+
+  const note = rejectionReasonSchema.safeParse(reason);
+  if (!note.success) {
+    return {
+      success: false,
+      error: note.error.issues[0]?.message ?? "Please check the reason and try again",
+    };
+  }
+
+  let outcome;
+  try {
+    outcome = await rejectPendingSponsorship(ref.data, {
+      actorId: session.id,
+      actorEmail: session.email,
+      actorRole: session.role,
+      reason: note.data || null,
+    });
+  } catch (err) {
+    // The transition and its audit share a transaction, but a lost commit
+    // acknowledgement cannot prove whether that transaction committed.
+    console.error("[Sponsorship Reconciliation] Dismiss failed:", err);
+    return {
+      success: false,
+      error:
+        "We could not complete or verify that dismissal. Reload the queue before trying again.",
+    };
+  }
+
+  if (outcome.status === "not_found") {
+    return { success: false, error: NO_SUCH_PLEDGE };
+  }
+  if (outcome.status === "already_reconciled") {
+    return {
+      success: false,
+      error: `Pledge ${ref.data} has already been reconciled as receipt ${outcome.receiptNumber} and cannot be dismissed`,
+    };
+  }
+  if (outcome.status === "not_pending") {
+    return {
+      success: false,
+      error: `Pledge ${ref.data} is already ${statusLabel(outcome.currentStatus)}`,
+    };
+  }
+
+  return { success: true };
 }
 
 /**

@@ -77,7 +77,10 @@ what each returned — announcing "done" without them is not a close.
    opening one. **A clean result is not the end of the check:** git detects conflicts per *path*,
    so if master restructured something your branch also restructured under different names, both
    copies merge silently. Read `git log HEAD..origin/master` for anything that overlaps your
-   work. Messages checked with `node scripts/commit-msg.mjs`.
+   work. **If you then merge, and the merge touched `prisma/`, run `npm run db:generate` before
+   re-running step 1** — the generated client is untracked, so a schema change arrives without its
+   types and `typecheck` fails in files you never opened. Messages checked with
+   `node scripts/commit-msg.mjs`.
 7. **Say plainly whether the session can be closed**, what remains open, and the single next
    command if there is one.
 

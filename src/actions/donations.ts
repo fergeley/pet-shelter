@@ -1,5 +1,6 @@
 "use server";
 
+import { ZodError } from "zod";
 import {
   donationPledgeSchema,
   DonationPledgeInput,
@@ -11,14 +12,16 @@ import { sendDonationReceiptEmail } from "@/lib/email";
 import { findSponsorshipTier } from "@/lib/domain/sponsorshipTiers";
 import { currentIssuerIdentity } from "@/lib/domain/shelterIdentity";
 import { ringgitFromSen, senFromRinggit } from "@/lib/domain/money";
+import { DONATION_RECORDING_UNCONFIRMED_MESSAGE } from "@/lib/domain/contributionFailure";
 import {
   DonationRecord,
   ReceiptIssuanceError,
   issueDonationReceipt,
   listDonationsOrThrow,
 } from "@/lib/server/donationLedger";
-import { getCurrentSession } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
+import { scheduleAfterResponse } from "@/lib/scheduleAfterResponse";
 
 /**
  * Renders an issued receipt for the donor-facing confirmation and the emailed PDF.
@@ -73,17 +76,24 @@ function optionalText(value: string | undefined): string | undefined {
  *
  *   1. validate → 2. rate-limit → 3. persist + allocate number → 4. audit → 5. email
  *
- * Step 3 throwing means steps 4 and 5 never run and the donor is told to retry,
- * which is the correct outcome. This is a deliberate departure from the
- * fire-and-forget style used elsewhere in `src/actions` — see the module comment in
- * `src/lib/server/donationLedger.ts` for why donation records do not get the dual-layer
- * store's forgiving fallback.
+ * If step 3 does not return a confirmed outcome, steps 4 and 5 never start. A lost
+ * commit acknowledgement cannot prove rollback, so the donor is told the outcome
+ * is unconfirmed and to check with the shelter before retrying. Donation records
+ * never fall back to memory when Postgres is configured.
  */
 export async function submitDonationPledgeAction(
   input: DonationPledgeInput
 ): Promise<{ success: boolean; data?: DonationReceiptDTO; error?: string }> {
   try {
     const validated = donationPledgeSchema.parse(input);
+
+    if (validated.paymentMethod === "card") {
+      return {
+        success: false,
+        error:
+          "Card payments are not available yet. Please choose DuitNow QR or a direct bank transfer.",
+      };
+    }
 
     // 1. Rate limiting: max 20 donation submissions per 5 minutes per donor email.
     const rateLimit = checkRateLimit(
@@ -153,9 +163,7 @@ export async function submitDonationPledgeAction(
 
     // 5. Email dispatch stays non-blocking: the receipt is already durable, so a
     //    Resend outage must not fail a donation that genuinely succeeded.
-    sendDonationReceiptEmail(receipt).catch((err) =>
-      console.error("[Donation Receipt Email Dispatch Failed]", err)
-    );
+    scheduleAfterResponse(() => sendDonationReceiptEmail(receipt));
 
     return { success: true, data: receipt };
   } catch (err: unknown) {
@@ -163,9 +171,20 @@ export async function submitDonationPledgeAction(
       console.error("[Donation Ledger] Receipt issuance failed:", err.cause ?? err);
       return {
         success: false,
-        error:
-          "We could not record your donation just now, so no receipt was issued. " +
-          "Nothing has been charged — please try again in a moment.",
+        error: DONATION_RECORDING_UNCONFIRMED_MESSAGE,
+      };
+    }
+
+    // A ZodError's `.message` is `JSON.stringify(issues)`. Returning it put a JSON
+    // array in front of the donor, which was survivable only because every rule the
+    // form could break was already blocked by a `required` attribute. The
+    // `wantsTaxReceipt` rule is conditional, so the browser cannot express it and
+    // this path became reachable in ordinary use. Surface the first issue's message,
+    // which is written for the donor, rather than the serialised error.
+    if (err instanceof ZodError) {
+      return {
+        success: false,
+        error: err.issues[0]?.message ?? "Please check the donation details and try again.",
       };
     }
 
@@ -223,7 +242,7 @@ export async function fetchDonationReceiptsAction(
   error?: string;
 }> {
   try {
-    const session = await getCurrentSession();
+    const session = await getVerifiedSession();
     assertAuthorized(session, [ROLES.ADMIN, ROLES.COORDINATOR]);
 
     // A non-finite limit crosses the RPC boundary as easily as a good one, and

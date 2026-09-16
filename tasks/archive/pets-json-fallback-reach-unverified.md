@@ -1,6 +1,6 @@
 # Fallback-path reach is unverified
 
-**Status:** ASSERTED · opened 2026-08-30 · from PS-114
+**Status:** OBSOLETE · settled 2026-08-28 · archived 2026-09-10 · verified that production Neon DB runs populated with live pets
 
 The stale-age fix matters only where `getServerPetsAsync` falls back to the `pets.json` fixture.
 That the fixture data *was* stale is measured; that production ever serves it is not.

@@ -294,6 +294,10 @@ describe("Soft Deletes & Query Filtering", () => {
       hasFencedYard: "yes",
       currentPets: "none",
       householdExperience: "experienced",
+      identification: "880101-14-5678",
+      landlordApproval: "owner_occupied",
+      vetClinic: "Klinik Haiwan SS2",
+      dailyAloneHours: "4_to_8",
     });
 
     expect(submitResult.success).toBe(false);
@@ -302,7 +306,7 @@ describe("Soft Deletes & Query Filtering", () => {
 });
 
 /**
- * The regression guard for `docs/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
+ * The regression guard for `docs/archives/tasks/URGENT_NONPRODUCTION_ADMIN_BYPASS.md`.
  *
  * `getAdminActorOrThrow()` used to throw only when `NODE_ENV === "production"`
  * and hand every other build an ADMIN principal, so an unauthenticated caller
