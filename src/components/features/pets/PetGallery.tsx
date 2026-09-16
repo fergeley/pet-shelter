@@ -20,7 +20,8 @@ import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
-import { GENDER_VALUES, GENDER_LABEL_KEYS } from "@/lib/validations/pet";
+import { GENDER_VALUES, genderLabelArgs } from "@/lib/validations/pet";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 
 /**
  * i18n keys for the lifecycle band names. The year range printed beside each name is derived
@@ -141,8 +142,10 @@ export function PetGallery({
 
       {/* Track strip. Rendered from the population, so a shelter that has never rehomed an
           animal shows no "Adopted" tab, and a track that empties under the active filters stops
-          being offered rather than leading to a blank grid. "All" is always present because it
-          is the way back out of a track. */}
+          being offered — *unless it is the selected one*, which stays at a count of 0 so the tab
+          that explains an empty grid remains on screen and marked active
+          (`buildVisibleTrackOptions`). "All" is always present because it is the way back out of
+          a track. */}
       {showFilters && (trackOptions.length > 1 || selectedTrack !== "all") && (
         <div
           className="mb-5 flex flex-wrap gap-2 border-b border-border pb-3"
@@ -288,7 +291,7 @@ export function PetGallery({
                 <option value="all">{isMs ? "Semua Jantina" : "All Genders"}</option>
                 {GENDER_VALUES.map((gender) => (
                   <option key={gender} value={gender}>
-                    {t(GENDER_LABEL_KEYS[gender], gender)}
+                    {t(...genderLabelArgs(gender))}
                   </option>
                 ))}
               </select>
@@ -361,7 +364,20 @@ export function PetGallery({
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setActivePetForAdoption(filteredPets[0] || pets[0]);
+                  // An adoptable animal: the first on screen, else the first in the shelter. This
+                  // used to take `filteredPets[0]`, which the Adopted and In Rehabilitation tabs
+                  // make non-adoptable by construction — open the Adopted tab, click here, and the
+                  // form came up pre-filled for an animal who had already gone home.
+                  //
+                  // Not a guarantee. When *no* animal in the shelter is adoptable this passes `null`,
+                  // and `resolveDefaultPet` then falls back to `allPets[0]`, whatever its status.
+                  // The boundary that must refuse that is the server, and `submitApplication`
+                  // checks no status yet: `tasks/open/submit-application-checks-a-fixture-and-no-status.md`.
+                  const isAdoptable = (pet: (typeof pets)[number]) =>
+                    getPetStatusPresentation(pet.status).isAdoptable;
+                  setActivePetForAdoption(
+                    filteredPets.find(isAdoptable) ?? pets.find(isAdoptable) ?? null
+                  );
                   setIsAdoptionOpen(true);
                 }}
                 className="w-full min-w-0 whitespace-nowrap text-2xs sm:text-xs font-semibold px-3 py-2 focus-visible:ring-2 cursor-pointer"

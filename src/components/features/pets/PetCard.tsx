@@ -12,6 +12,7 @@ import {
   getRehabStageLabel,
   getRehabProgressPercent,
 } from "@/lib/presentation/petStatusPresentation";
+import { genderLabelArgs } from "@/lib/validations/pet";
 import { PetStatusIcon } from "./PetStatusIcon";
 
 interface PetCardProps {
@@ -68,7 +69,7 @@ export function PetCard({ pet, onSelectPet, onAdoptPet, onSponsorPet }: PetCardP
 
           {/* Gender & Age Pill */}
           <div className="absolute top-3 right-3 bg-black/85 px-3 py-1 text-xs font-semibold text-white">
-            {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
+            {t(...genderLabelArgs(pet.gender))} • {pet.age}
           </div>
         </div>
 

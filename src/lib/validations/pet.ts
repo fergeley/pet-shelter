@@ -27,6 +27,7 @@ export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
 
 import { Gender, MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { AGE_BANDS } from "@/lib/domain/petAge";
 
 /**
  * Canonical pet lifecycle statuses. "Rehabilitation" is a legacy alias of
@@ -51,11 +52,26 @@ export const GENDER_VALUES = ["Male", "Female"] as const satisfies readonly Gend
 
 export const GENDER_FILTER_VALUES = ["all", ...GENDER_VALUES] as const;
 
-/** Dictionary keys for the sexes, so a caller never re-derives `common.male` from the value. */
-export const GENDER_LABEL_KEYS: Record<Gender, string> = {
-  Male: "common.male",
-  Female: "common.female",
-};
+/**
+ * The `t()` arguments for a pet's sex — spread them: `t(...genderLabelArgs(pet.gender))`.
+ *
+ * **Total over any string**, deliberately, not just over `Gender`. The column is free text
+ * (`gender String` in the schema, only cast by the mapper), so the type promises more than the
+ * data does. The version before this was a `Record<Gender, string>` lookup: a row stored as
+ * `"male"` produced an `undefined` key, `t()` called `.split` on it, and the whole catalogue
+ * crashed for one mistyped row. Anything that is not exactly `"Male"` labels as female — what
+ * every card, dialog and carousel in this app rendered before this helper existed — so the four
+ * places that show a sex now agree through one function instead of four copies of a ternary.
+ */
+export function genderLabelArgs(gender: string): [key: string, fallback: string] {
+  return gender === "Male" ? ["common.male", "Male"] : ["common.female", "Female"];
+}
+
+/** The species a pet can be filed under. Shared by the form and filter schemas. */
+export const SPECIES_VALUES = ["dog", "cat", "other"] as const;
+
+/** Size bands. Shared by the form and filter schemas. */
+export const SIZE_VALUES = ["Small", "Medium", "Large"] as const;
 
 /** Statuses that denote an animal still under clinical or behavioural care. */
 export const REHABILITATION_STATUSES: readonly PetStatus[] = ["In Rehabilitation", "Rehabilitation"];
@@ -170,12 +186,12 @@ function duplicateIds(events: readonly { id: string }[] | undefined): string[] {
 
 export const petBaseFormSchema = z.object({
   name: z.string().min(1, "Pet name is required").max(60, "Name is too long"),
-  species: z.enum(["dog", "cat", "other"]),
+  species: z.enum(SPECIES_VALUES),
   breed: z.string().min(1, "Breed is required"),
   age: z.string().min(1, "Age description is required (e.g. '2 years')"),
-  ageCategory: z.enum(["puppy_kitten", "young", "adult", "senior"]),
+  ageCategory: z.enum(AGE_BANDS),
   gender: z.enum(GENDER_VALUES),
-  size: z.enum(["Small", "Medium", "Large"]),
+  size: z.enum(SIZE_VALUES),
   weight: z.string().min(1, "Weight is required (e.g. '18 kg')"),
   status: z.enum(PET_STATUS_VALUES),
   adoptionFee: z.string().min(1, "Adoption fee is required (e.g. 'Free')"),
@@ -257,22 +273,31 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
 export type PetFormInput = z.input<typeof petBaseFormSchema>;
 export type PetFormOutput = z.output<typeof petBaseFormSchema>;
 
+/**
+ * Every enum here is built from the list the form schema and the UI already use, not re-typed.
+ *
+ * That stopped being cosmetic when the gallery began resolving URL values against this schema
+ * (`resolveFilters` in `usePetGalleryController`): a value missing from here is now silently
+ * reset to "all". So a band added to `AGE_BANDS` but not re-typed here would have rendered in the
+ * age select, and choosing it would have snapped the select back with the grid unchanged and no
+ * error anywhere.
+ */
 export const petFilterSchema = z.object({
-  species: z.enum(["all", "dog", "cat", "other"]).optional().default("all"),
+  species: z.enum(["all", ...SPECIES_VALUES]).optional().default("all"),
   gender: z.enum(GENDER_FILTER_VALUES).optional().default("all"),
   status: z.enum(PET_STATUS_FILTER_VALUES).optional().default("all"),
-  ageCategory: z.enum(["all", "puppy_kitten", "young", "adult", "senior"]).optional().default("all"),
-  size: z.enum(["all", "Small", "Medium", "Large"]).optional().default("all"),
+  ageCategory: z.enum(["all", ...AGE_BANDS]).optional().default("all"),
+  size: z.enum(["all", ...SIZE_VALUES]).optional().default("all"),
   search: z.string().optional().default(""),
   isArchived: z.boolean().optional(),
 });
 
 export type PetFilterInput = {
-  species?: "all" | "dog" | "cat" | "other";
+  species?: "all" | (typeof SPECIES_VALUES)[number];
   gender?: "all" | Gender;
   status?: PetStatus | "all";
-  ageCategory?: "all" | "puppy_kitten" | "young" | "adult" | "senior";
-  size?: "all" | "Small" | "Medium" | "Large";
+  ageCategory?: "all" | (typeof AGE_BANDS)[number];
+  size?: "all" | (typeof SIZE_VALUES)[number];
   search?: string;
   isArchived?: boolean;
 };

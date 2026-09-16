@@ -61,6 +61,20 @@ function replacedQuery(call = 0): URLSearchParams {
 
 const idsOf = (pets: readonly Pet[]) => pets.map((pet) => pet.id);
 
+/** Every animal the public grid may show, in fixture order — what "not filtering" looks like. */
+const PUBLIC_IDS = idsOf(GALLERY_PETS).filter((id) => id !== ARCHIVED_PET_ID);
+
+/** The seven filter fields as the hook reports them when nothing is being filtered. */
+const NEUTRAL_FILTER_STATE = {
+  searchQuery: "",
+  selectedSpecies: "all",
+  selectedGender: "all",
+  selectedAge: "all",
+  selectedSize: "all",
+  selectedStatus: "all",
+  selectedTrack: "all",
+} as const;
+
 describe("usePetGalleryController", () => {
   describe("population source", () => {
     it("prefers the supplied pets over the client store", () => {
@@ -101,15 +115,7 @@ describe("usePetGalleryController", () => {
     it("falls back to the neutral default for every filter the URL omits", () => {
       const { result } = renderController();
 
-      expect(result.current.state).toMatchObject({
-        searchQuery: "",
-        selectedSpecies: "all",
-        selectedGender: "all",
-        selectedAge: "all",
-        selectedSize: "all",
-        selectedStatus: "all",
-        selectedTrack: "all",
-      });
+      expect(result.current.state).toMatchObject(NEUTRAL_FILTER_STATE);
     });
 
     it("writes a filter change to the URL without scrolling the page", () => {
@@ -135,15 +141,34 @@ describe("usePetGalleryController", () => {
   });
 
   describe("local state (syncUrl: false)", () => {
-    it("seeds the initial filters from the URL so a shared link still lands filtered", () => {
-      const { result } = renderController({
-        syncUrl: false,
-        search: "species=cat&search=Milo&track=rehabilitation",
+    it("judges a track switch against a status set earlier in the same batch", () => {
+      // `setSelectedTrack` keeps the status only where that status lives. It used to decide from
+      // the render's `filters`, so a status and a track change applied together judged the track
+      // change against the status from *before* the batch: "Pending" survived the switch to
+      // Rehabilitation, leaving an empty grid holding a status that track cannot contain.
+      const { result } = renderController({ syncUrl: false });
+
+      act(() => {
+        result.current.handlers.setSelectedStatus("Pending");
+        result.current.handlers.setSelectedTrack("rehabilitation");
       });
 
-      expect(result.current.state.selectedSpecies).toBe("cat");
-      expect(result.current.state.searchQuery).toBe("Milo");
       expect(result.current.state.selectedTrack).toBe("rehabilitation");
+      expect(result.current.state.selectedStatus).toBe("all");
+    });
+
+    it("ignores the URL entirely, starting every filter at its default", () => {
+      // The only `syncUrl: false` caller is the home page's featured strip, which renders no
+      // filter controls. Seeding from the URL meant `/?track=alumni` narrowed that strip with
+      // nothing on screen able to show or undo it — so a filtered link must land unfiltered.
+      const { result } = renderController({
+        syncUrl: false,
+        search: "species=cat&search=Milo&track=rehabilitation&status=In+Rehabilitation",
+      });
+
+      expect(result.current.state).toMatchObject(NEUTRAL_FILTER_STATE);
+      expect(result.current.state.hasActiveFilters).toBe(false);
+      expect(idsOf(result.current.state.filteredPets)).toEqual(PUBLIC_IDS);
     });
 
     it("never touches the address bar, for any handler", () => {
@@ -175,14 +200,25 @@ describe("usePetGalleryController", () => {
       expect(idsOf(result.current.state.filteredPets)).toEqual(["gallery-milo", "gallery-nala"]);
     });
 
-    it("returns local state to the defaults on reset, not to the seeded URL values", () => {
-      const { result } = renderController({ syncUrl: false, search: "species=cat&search=Milo" });
+    it("returns local state to the defaults on reset", () => {
+      const { result } = renderController({ syncUrl: false });
+
+      // Arranged through the handlers, not the URL: local mode no longer reads the URL, so a
+      // URL-arranged start would already sit at the defaults and a reset that did nothing
+      // would still pass. The precondition below is what makes the reset observable.
+      act(() => {
+        result.current.handlers.setSelectedSpecies("cat");
+        result.current.handlers.setSearchQuery("Milo");
+        result.current.handlers.setSelectedTrack("rehabilitation");
+      });
+      expect(result.current.state.hasActiveFilters).toBe(true);
+      expect(idsOf(result.current.state.filteredPets)).toEqual(["gallery-milo"]);
 
       act(() => result.current.handlers.handleResetFilters());
 
-      expect(result.current.state.selectedSpecies).toBe("all");
-      expect(result.current.state.searchQuery).toBe("");
+      expect(result.current.state).toMatchObject(NEUTRAL_FILTER_STATE);
       expect(result.current.state.hasActiveFilters).toBe(false);
+      expect(idsOf(result.current.state.filteredPets)).toEqual(PUBLIC_IDS);
     });
   });
 
@@ -213,6 +249,32 @@ describe("usePetGalleryController", () => {
 
       expect(replacedHref()).toBe("/pets?track=alumni");
     });
+
+    it("keeps the status when widening to all tracks", () => {
+      // "Pending" still exists under All. Clearing it here turned "show me every track" into
+      // "and throw away the status I picked" — the widening control silently narrowed nothing
+      // and forgot a choice instead.
+      const { result } = renderController({ search: "track=adoptable&status=Pending&species=dog" });
+
+      act(() => result.current.handlers.setSelectedTrack("all"));
+
+      expect(routerMock.replace).toHaveBeenCalledTimes(1);
+      expect(replacedQuery().has("track")).toBe(false);
+      expect(replacedQuery().get("status")).toBe("Pending");
+      expect(replacedQuery().get("species")).toBe("dog");
+    });
+
+    it("keeps the status when switching to the track it belongs to", () => {
+      // Arriving from All onto Pending's own track leaves the grid exactly as filtered as
+      // before; the status is still one of that tab's options, so there is nothing to clear.
+      const { result } = renderController({ search: "status=Pending" });
+
+      act(() => result.current.handlers.setSelectedTrack("adoptable"));
+
+      expect(routerMock.replace).toHaveBeenCalledTimes(1);
+      expect(replacedQuery().get("track")).toBe("adoptable");
+      expect(replacedQuery().get("status")).toBe("Pending");
+    });
   });
 
   describe("query-string hygiene", () => {
@@ -235,14 +297,28 @@ describe("usePetGalleryController", () => {
       expect(replacedHref()).toBe("/pets");
     });
 
-    it("trims the search before writing it", () => {
+    it.each([
+      ["golden ", "/pets?search=golden+"],
+      ["  Luna  ", "/pets?search=++Luna++"],
+    ])("writes the search %j as typed, spaces included", (typed, href) => {
       const { result } = renderController();
 
-      act(() => result.current.handlers.setSearchQuery("  Luna  "));
+      act(() => result.current.handlers.setSearchQuery(typed));
 
-      // Untrimmed, the value round-trips as `search=++Luna++` and every shared link carries
-      // whitespace the visitor never typed.
-      expect(replacedHref()).toBe("/pets?search=Luna");
+      // The search box reads its value back from the URL. Trimmed on write, the space just
+      // typed vanished on the next render, so "golden retriever" could not be entered at all.
+      expect(replacedHref()).toBe(href);
+    });
+
+    it("reads a typed space back unchanged while matching on the trimmed query", () => {
+      const { result } = renderController({ search: "search=luna+" });
+
+      // The round trip is the point: the box must show the space the visitor typed. Writing
+      // untrimmed is only safe because matching and `hasActiveFilters` trim, so `luna ` still
+      // finds Luna rather than nobody.
+      expect(result.current.state.searchQuery).toBe("luna ");
+      expect(idsOf(result.current.state.filteredPets)).toEqual(["gallery-luna"]);
+      expect(result.current.state.hasActiveFilters).toBe(true);
     });
 
     it("treats an all-whitespace search as no search at all", () => {
@@ -251,6 +327,68 @@ describe("usePetGalleryController", () => {
       act(() => result.current.handlers.setSearchQuery("   "));
 
       expect(replacedHref()).toBe("/pets");
+    });
+  });
+
+  /**
+   * A filter value arrives as an arbitrary string — a mistyped link, a stale bookmark, an older
+   * spelling. Raw, such a value filtered the grid while the control bound to it could show
+   * nothing: `?status=available` emptied the grid under a blank select, and `?track=Adoptable`
+   * lit no tab yet offered a Reset that reset nothing. Each case below pins the value the
+   * controls read *and* the grid, because the defect was the two disagreeing.
+   */
+  describe("URL values no control can display", () => {
+    it("reports the legacy rehabilitation alias as the canonical status the select offers", () => {
+      const { result } = renderController({ search: "status=Rehabilitation" });
+      const { state } = result.current;
+
+      // The select's options are canonical. Reported raw, `Rehabilitation` matches no
+      // `<option>` and the select renders blank while the grid is visibly filtered.
+      expect(state.selectedStatus).toBe("In Rehabilitation");
+      expect(state.statusOptions.map((option) => option.value)).toContain(state.selectedStatus);
+      expect(idsOf(state.filteredPets)).toEqual(["gallery-milo", "gallery-nala"]);
+      expect(state.hasActiveFilters).toBe(true);
+    });
+
+    it.each([["available"], ["Fostered"]])(
+      "treats the unrecognised status %j as no status filter",
+      (status) => {
+        const { result } = renderController({ search: `status=${status}` });
+        const { state } = result.current;
+
+        // Unrecognised means "not filtering", never "match nothing": a bad link widens the grid
+        // instead of emptying it behind a select that cannot say why.
+        expect(state.selectedStatus).toBe("all");
+        expect(idsOf(state.filteredPets)).toEqual(PUBLIC_IDS);
+        expect(state.hasActiveFilters).toBe(false);
+      }
+    );
+
+    it.each([["Adoptable"], ["xyz"]])("treats the unrecognised track %j as no track filter", (track) => {
+      const { result } = renderController({ search: `track=${track}` });
+      const { state } = result.current;
+
+      // The grid already ignored an unknown track; what broke was the rest of the screen still
+      // believing one was applied — no tab lit, and a Reset button with nothing to reset.
+      expect(state.selectedTrack).toBe("all");
+      expect(state.hasActiveFilters).toBe(false);
+      expect(idsOf(state.filteredPets)).toEqual(PUBLIC_IDS);
+    });
+
+    it.each([
+      ["species", "Dog", "selectedSpecies"],
+      ["gender", "male", "selectedGender"],
+      ["ageCategory", "Puppy", "selectedAge"],
+      ["size", "small", "selectedSize"],
+    ] as const)("treats the unrecognised %s value %j as no filter", (key, value, field) => {
+      const { result } = renderController({ search: `${key}=${value}` });
+      const { state } = result.current;
+
+      // Wrong case is the realistic typo. Every base matcher is plain equality, so a raw value
+      // here matched no animal and emptied the grid under a select showing nothing selected.
+      expect(state[field]).toBe("all");
+      expect(idsOf(state.filteredPets)).toEqual(PUBLIC_IDS);
+      expect(state.hasActiveFilters).toBe(false);
     });
   });
 
@@ -264,8 +402,8 @@ describe("usePetGalleryController", () => {
     it("is false for a whitespace-only search, which filters nothing", () => {
       // `BASE_MATCHERS.search` trims before matching, so `?search=%20%20` narrows the grid by
       // nothing while the raw value differs from "" — the flag used to read that as an active
-      // filter and offer a Reset button with nothing to reset. The setter trims on write, so
-      // only a hand-made or stale link gets here.
+      // filter and offer a Reset button with nothing to reset. The setter deletes an
+      // all-whitespace search rather than writing it, so only a hand-made or stale link gets here.
       const { result } = renderController({ search: "search=%20%20" });
 
       expect(result.current.state.hasActiveFilters).toBe(false);
@@ -410,6 +548,36 @@ describe("usePetGalleryController", () => {
       const { result } = renderController({ featuredOnly: true });
 
       expect(countsOf(result.current.state.trackOptions)).toEqual({ adoptable: 1, rehabilitation: 1 });
+    });
+
+    /** Value and count in order, because the tab strip renders them in exactly this order. */
+    const tabsOf = (options: readonly { value: string; count: number }[]) =>
+      options.map((option) => [option.value, option.count]);
+
+    it("keeps the selected track as a zero-count tab when other filters empty it", () => {
+      // No male animal is alumni. Dropping the empty track here — as for any other empty track —
+      // took away the one tab that could be marked active, leaving an empty grid with nothing
+      // on screen admitting a track was still applied.
+      const { result } = renderController({ search: "track=alumni&gender=Male" });
+
+      expect(result.current.state.filteredPets).toEqual([]);
+      expect(tabsOf(result.current.state.trackOptions)).toEqual([
+        ["adoptable", 1],
+        ["rehabilitation", 1],
+        ["alumni", 0],
+      ]);
+    });
+
+    it("puts a kept empty tab in catalogue order rather than at the end", () => {
+      // Alumni is last in the sequence anyway, so the case above cannot tell a sorted strip from
+      // an appended one. Adoptable kept at zero would otherwise jump behind Rehabilitation and
+      // the tabs would reorder under the visitor's cursor.
+      const { result } = renderController({ search: "track=adoptable&species=cat" });
+
+      expect(tabsOf(result.current.state.trackOptions)).toEqual([
+        ["adoptable", 0],
+        ["rehabilitation", 2],
+      ]);
     });
   });
 

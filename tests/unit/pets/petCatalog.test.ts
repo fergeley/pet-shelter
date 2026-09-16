@@ -6,12 +6,21 @@ import {
   buildPetTrackOptions,
   buildPopulatedStatusFilterOptions,
   buildVisibleStatusFilterOptions,
+  buildVisibleTrackOptions,
   getPetTrack,
   isPetTrack,
   matchesTrackFilter,
   type PetTrack,
 } from "@/lib/presentation/petStatusPresentation";
-import { PET_STATUS_VALUES } from "@/lib/validations/pet";
+import {
+  PET_STATUS_VALUES,
+  SIZE_VALUES,
+  SPECIES_VALUES,
+  genderLabelArgs,
+  petFilterSchema,
+} from "@/lib/validations/pet";
+import { AGE_BANDS } from "@/lib/domain/petAge";
+import { matchesPetSearch } from "@/lib/domain/petSearch";
 import { insertServerPet } from "@/lib/server/petRepository";
 import { getPublicPets, getPetById } from "@/actions/pets";
 import { TEST_ADMIN_ACTOR } from "../../setup/authSession";
@@ -245,12 +254,123 @@ describe("buildVisibleStatusFilterOptions", () => {
   });
 });
 
-// No `signInAsAdmin()` in these two describes, deliberately. `insertServerPet` is handed
+describe("buildVisibleTrackOptions", () => {
+  it("keeps the selected track at zero once other filters empty it", () => {
+    // Picking Cats while on the Adopted track can leave no adopted animal in view.
+    // `buildPetTrackOptions` drops empty tracks, so the selected tab used to vanish: no tab
+    // active, an empty grid, and nothing on screen admitting a track was still applied.
+    const options = buildVisibleTrackOptions(population("Available", "In Rehabilitation"), "alumni");
+
+    const alumni = options.find((option) => option.value === "alumni");
+    expect(alumni).toBeDefined();
+    expect(alumni?.count).toBe(0);
+  });
+
+  it("slots the kept track into sequence order rather than appending it", () => {
+    const options = buildVisibleTrackOptions(population("Adopted"), "adoptable");
+
+    expect(options.map((option) => option.value)).toEqual(["adoptable", "alumni"]);
+  });
+
+  it("adds nothing when the selected track is populated, or is all, or is not a track", () => {
+    const pets = population("Available", "Adopted");
+    const populated = buildPetTrackOptions(pets);
+
+    expect(buildVisibleTrackOptions(pets, "adoptable")).toEqual(populated);
+    expect(buildVisibleTrackOptions(pets, "all")).toEqual(populated);
+    // An unrecognised track resolves to "all" upstream; it must not conjure a tab here either.
+    expect(buildVisibleTrackOptions(pets, "Adoptable")).toEqual(populated);
+  });
+
+  it("keeps the counts summing to the population", () => {
+    const pets = population("Available", "Pending");
+
+    const total = buildVisibleTrackOptions(pets, "rehabilitation").reduce(
+      (sum, option) => sum + option.count,
+      0
+    );
+
+    // The kept track carries zero, so the "All" tab — summed from these — stays honest.
+    expect(total).toBe(pets.length);
+  });
+});
+
+describe("genderLabelArgs", () => {
+  it("labels the two recorded sexes", () => {
+    expect(genderLabelArgs("Male")).toEqual(["common.male", "Male"]);
+    expect(genderLabelArgs("Female")).toEqual(["common.female", "Female"]);
+  });
+
+  it("returns a real dictionary key for any string the column might hold", () => {
+    // The column is free text. The lookup this replaced returned `undefined` for anything outside
+    // the two canonical values, and `t()` calls `.split` on its key — so one row stored as "male"
+    // crashed the whole catalogue. Every input must come back with a string key.
+    for (const stored of ["male", "MALE", "Unknown", "", " Male"]) {
+      const [key, fallback] = genderLabelArgs(stored);
+      expect(typeof key).toBe("string");
+      expect(key).toBe("common.female");
+      expect(fallback).toBe("Female");
+    }
+  });
+});
+
+describe("petFilterSchema", () => {
+  it("accepts every value the form schema and the UI offer", () => {
+    // `resolveFilters` resets any value this schema rejects to "all", silently. So a value the age
+    // select renders but this schema does not list would snap the select back with the grid
+    // unchanged. The enums are built from the shared lists; this pins that they still are.
+    for (const band of AGE_BANDS) {
+      expect(petFilterSchema.shape.ageCategory.safeParse(band).success).toBe(true);
+    }
+    for (const species of SPECIES_VALUES) {
+      expect(petFilterSchema.shape.species.safeParse(species).success).toBe(true);
+    }
+    for (const size of SIZE_VALUES) {
+      expect(petFilterSchema.shape.size.safeParse(size).success).toBe(true);
+    }
+  });
+});
+
+describe("matchesPetSearch", () => {
+  const pet = { name: "Luna", breed: "Local Mixed", description: "Shy at first.", tags: ["Gentle"] };
+
+  it("matches name, breed, description and tags, ignoring case", () => {
+    for (const query of ["luna", "MIXED", "shy", "gentle"]) {
+      expect(matchesPetSearch(pet, query)).toBe(true);
+    }
+    expect(matchesPetSearch(pet, "retriever")).toBe(false);
+  });
+
+  it("ignores surrounding whitespace, so a typed trailing space does not empty the grid", () => {
+    expect(matchesPetSearch(pet, "  luna ")).toBe(true);
+  });
+
+  it("treats an empty or all-whitespace query as no search", () => {
+    expect(matchesPetSearch(pet, "")).toBe(true);
+    expect(matchesPetSearch(pet, "   ")).toBe(true);
+  });
+});
+
+// No `signInAsAdmin()` in the two describes below, deliberately. `insertServerPet` is handed
 // `TEST_ADMIN_ACTOR` directly, so arranging a fixture needs no session — and both reads under
 // test are classified INTENTIONALLY_PUBLIC in `tests/unit/serverActionAuth.test.ts`. With an
 // admin session in the jar these would keep passing if either read grew an authorization gate,
 // which is the one thing they exist to notice. They run as a stranger.
 describe("public catalogue reads", () => {
+  it("matches a search with surrounding whitespace, as the gallery does", async () => {
+    // The server and the gallery once carried separate copies of the search rule, and they drifted:
+    // the client trimmed, the server did not, so `" Luna"` found Luna in the gallery and nothing
+    // here. Both now call `matchesPetSearch`; this pins the action end of that.
+    await insertServerPet(
+      makeCatalogPet({ id: "pet-catalog-search-trim", name: "Kopitiam" }),
+      TEST_ADMIN_ACTOR
+    );
+
+    const results = await getPublicPets({ search: "  kopitiam  " });
+
+    expect(results.some((p) => p.id === "pet-catalog-search-trim")).toBe(true);
+  });
+
   it("filters by gender", async () => {
     await insertServerPet(
       makeCatalogPet({ id: "pet-catalog-gender-f", name: "Comel", gender: "Female" }),

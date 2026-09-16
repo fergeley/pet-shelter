@@ -265,17 +265,35 @@ export function getPetTrack(status: PetStatus): PetTrack {
  * status resolves to exactly one presentation, and every presentation names exactly one track.
  */
 export function buildPetTrackOptions(pets: readonly Pick<Pet, "status">[]): PetTrackOption[] {
+  // "all" names no track, so nothing is kept beyond the populated ones.
+  return buildVisibleTrackOptions(pets, "all");
+}
+
+/**
+ * The populated tracks, plus the selected one even when nothing is left in it.
+ *
+ * The track half of `buildVisibleStatusFilterOptions`, for the same reason. Narrowing a
+ * *different* filter — picking Cats while on the Adopted track, say — can empty the selected
+ * track, and `buildPetTrackOptions` drops empty tracks, so the selected tab vanished: no tab
+ * marked active, an empty grid, and nothing on screen admitting that a track was still applied.
+ * Order follows `PET_TRACK_SEQUENCE`, so the kept tab sits where it always does.
+ */
+export function buildVisibleTrackOptions(
+  pets: readonly Pick<Pet, "status">[],
+  selectedTrack: string
+): PetTrackOption[] {
   const counts = new Map<PetTrack, number>();
   for (const pet of pets) {
     const track = getPetTrack(pet.status);
     counts.set(track, (counts.get(track) ?? 0) + 1);
   }
 
-  return PET_TRACK_SEQUENCE.filter((track) => (counts.get(track) ?? 0) > 0).map((value) => ({
-    value,
-    ...TRACK_LABELS[value],
-    count: counts.get(value) ?? 0,
-  }));
+  // One pass over the fixed sequence, so order comes free and there is no second option to build
+  // or sort. `track === selectedTrack` can only hold for a real track, so an unrecognised selection
+  // keeps nothing extra.
+  return PET_TRACK_SEQUENCE.filter(
+    (track) => (counts.get(track) ?? 0) > 0 || track === selectedTrack
+  ).map((value) => ({ value, ...TRACK_LABELS[value], count: counts.get(value) ?? 0 }));
 }
 
 /**

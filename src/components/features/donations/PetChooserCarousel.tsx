@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
+import { genderLabelArgs } from "@/lib/validations/pet";
 import { PetStatusIcon } from "@/components/features/pets/PetStatusIcon";
 
 interface PetChooserCarouselProps {
@@ -182,7 +183,7 @@ export function PetChooserCarousel({
                   )}
 
                   <div className="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 text-3xs font-semibold text-white rounded-md">
-                    {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
+                    {t(...genderLabelArgs(pet.gender))} • {pet.age}
                   </div>
                 </div>
 

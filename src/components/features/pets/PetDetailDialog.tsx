@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Pet } from "@/types/pet";
 import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
+import { genderLabelArgs } from "@/lib/validations/pet";
 import { PetStatusIcon } from "./PetStatusIcon";
 import {
   Dialog,
@@ -77,7 +78,7 @@ export function PetDetailDialog({
                   {t(status.labelKey, status.labelFallback)}
                 </span>
                 <span className="bg-black/85 px-3 py-1 text-xs font-semibold text-white">
-                  {pet.gender === "Male" ? t("common.male", "Male") : t("common.female", "Female")} • {pet.age}
+                  {t(...genderLabelArgs(pet.gender))} • {pet.age}
                 </span>
               </div>
               <h2 className="font-heading text-3xl sm:text-4xl font-bold text-white tracking-tight">

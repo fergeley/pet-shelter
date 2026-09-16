@@ -221,8 +221,8 @@ things came out of it that the conflicts alone would not have shown:
 
 `CLAUDE.md`'s close-out procedure now sits on master's version of the file (the drift-log rule it
 cited moved to `AGENTS.md`, and gained a session-id filter). Step 5 now says to prepend to this
-file and never rewrite it; step 6 now says to dry-run the merge and check for overlapping work
-before opening a PR. Both are written from this round. Lesson:
+file and never rewrite it; the merge-check step now says to dry-run the merge and check for
+overlapping work before opening a PR. Both are written from this round. Lesson:
 `tasks/lessons/2026-09-11-a-clean-merge-says-nothing-about-duplicated-work.md`.
 
 Re-verified on the merged tree: `typecheck` clean · `test:all` **95 files / 1555 pass** · `lint`
@@ -248,7 +248,130 @@ sponsorship controllers, which `PetGallery` renders; they type-check against it 
 opened, on a `referenceCode` field. Master had added it to the schema, and the worktree's generated
 client predated the merge. `npm run db:generate` cleared it with no code change. Written up as
 `tasks/lessons/2026-09-16-after-a-merge-a-type-error-in-a-file-you-never-touched-is-a-stale-client.md`,
-and step 6 of `CLAUDE.md`'s close now says to regenerate after a merge that touched `prisma/`.
+and the merge-check step of `CLAUDE.md`'s close ("Merge-check against current `origin/master`")
+now says to regenerate after a merge that touched `prisma/`. Cited by name, not number: a step was
+inserted above it on 2026-09-16 and the number this line first gave pointed at the wrong one.
 
 Re-verified on the merged tree: `typecheck` clean · `test:all` **104 files / 1688 pass** · `lint`
 0 errors · `docs:check` OK · `build` passes, `/pets` still dynamic, `/pets/[id]` still SSG.
+
+## Second code review (`/code-review xhigh 38`, 2026-09-16)
+
+Asked for by the user before merging, and they were right to ask: the commit that fixed the first
+review's fifteen findings had never been reviewed itself. Fourteen candidates, each checked
+against the code before acting. **Eleven real, three pre-existing.**
+
+**The one that stopped the merge.** The archived-profile fix could be bypassed by changing the case
+of the URL. `findServerPetByIdAsync` falls back to the in-memory mirror not only when the database
+fails but also when it *succeeds* with no row, and the mirror matches ids case-insensitively where
+Postgres does not. `/pets/PET-001` missed the database, found fixture `pet-001` unarchived, and
+served it. `getPetById` now requires an exact id match. And the test named "returns null when the
+row does not exist" used an id absent from the mirror too — passing for the wrong reason, the exact
+shape of this branch's own lesson from six days earlier. Renamed to say what it covers; the real
+case is a new test against fixture `pet-001`.
+
+Fixed. **Not every one has a test** — this line first said "each with a test shown to go red
+when its fix is reverted", and the review of this round caught that three did not. Proven red on
+revert: the case-variant guard, `buildVisibleTrackOptions`, `resolveFilters` (status, track and
+base filters separately), the track-switch status rule, `syncUrl: false` ignoring the URL, search
+written as typed, and the server search trim. **Untested:** the Adoption Form preselect (it lives
+in `PetGallery`'s markup, and no suite renders the gallery), and the `React.cache` wrapper
+(nothing observes a second query that does not happen). The gender label gained a test in the
+round below.
+
+- The gallery's "Adoption Form" button preselected `filteredPets[0]`, which the new Adopted and
+  Rehabilitation tabs make non-adoptable by construction. It now passes the first adoptable animal
+  or `null`, and `resolveDefaultPet`'s existing fallback picks the rest. *(Corrected in the round
+  below: `null` does not guarantee an adoptable animal.)*
+- A selected track vanished from the strip when other filters emptied it — the defect
+  `buildVisibleStatusFilterOptions` was added to fix for status, left open for tracks.
+  `buildVisibleTrackOptions` now does the same.
+- Filter values from the URL are resolved once, in `resolveFilters`, against `petFilterSchema` and
+  `PET_TRACK_SEQUENCE`: an unrecognised value means "not filtering", never "match nothing", and a
+  legacy `?status=Rehabilitation` resolves to the canonical option the select actually has. That
+  one change closed three findings, which had each described a different symptom of raw values.
+- Switching track kept the status only when switching to a track that did not contain it; it now
+  keeps it for "All" and for the status's own track.
+- The home page's featured strip seeded filters from the URL with no controls to show them.
+  `syncUrl: false` now means the URL plays no part in either direction.
+- Search was trimmed before being written to a URL the box reads back from, so a space could not be
+  typed. Pre-existing, but this branch's own test had pinned it; now written as typed, compared
+  trimmed.
+- `getPetById` became a real query in this branch and was called twice per render.
+  `React.cache` in the page, per the Next 16 docs on metadata.
+- The server search did not trim where the client did; `GENDER_LABEL_KEYS`' docstring claimed a
+  coverage it did not have.
+
+**Deliberately not fixed here**, each written up with what would settle it:
+
+- `submitApplication` — reading the code to write up the preselect finding showed it checks
+  archiving against the fixture mirror, accepts an unknown pet id, and checks no status at all.
+  Pre-existing, belongs to #39's adoption work, and a public write path deserves its own review.
+  `tasks/open/submit-application-checks-a-fixture-and-no-status.md`.
+- The repository still falls back to the fixture after a *successful* "no such row", so a
+  fixture-only id is served at its exact URL. That is the open fallback-policy question, not this
+  branch's to decide. `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`.
+- Every filter change is a server navigation on a dynamic page. Pre-existing and unmeasured.
+  `tasks/open/gallery-filters-navigate-the-server-on-every-change.md`.
+
+The process gap is recorded where it will fire: `CLAUDE.md`'s close now has a step to review the
+whole diff — fix commits included — before opening or merging a PR. The lesson itself already
+existed (`tasks/lessons/2026-09-08-a-security-fix-needs-an-adversarial-pass-of-its-own…`); it was
+in `tasks/lessons/` and not in the list I follow at close, so it did not run.
+
+## Third code review — of the uncommitted fix round (`/code-review xhigh`, 2026-09-16)
+
+Run on the fix round *before* committing it, by the step added above. Fourteen candidates; **ten
+real**, one of them a crash this round had introduced.
+
+**The crash.** `PetCard` had switched from a ternary to `t(GENDER_LABEL_KEYS[pet.gender], …)`.
+`gender` is a free-text column, only cast by the mapper, so any stored value other than exactly
+`Male`/`Female` gave an `undefined` key — and `t()` calls `.split` on its key. One mistyped row
+would have taken down the whole catalogue and the home page's featured strip. Replaced by
+`genderLabelArgs`, total over any string; the three other places that label a sex (detail dialog,
+detail page, donation carousel) now call it too, with identical output, so the four cannot
+disagree. A render test reproduces the crash on revert:
+`TypeError: Cannot read properties of undefined (reading 'split')`.
+
+Also fixed, each shown red on revert:
+
+- **The case-variant test arranged no archive.** It mocked `findUnique` to return `null` for every
+  id, pinning "a variant URL 404s" rather than "an archive stays hidden". It now models Postgres —
+  the archived row exists and is returned only for the exact id — and reads the variants *first*,
+  because reading `pet-001` syncs the archived row into the mirror and would hide the bypass on its
+  own.
+- **`resolveFilters` made the filter schema load-bearing, and the schema hand-copied its enums.** A
+  band added to `AGE_BANDS` but not re-typed there would have rendered in the select and been
+  silently reset to "all". The filter and form schemas now build their enums from `AGE_BANDS`,
+  `SPECIES_VALUES` and `SIZE_VALUES`.
+- **The search rule was two copies that had already drifted once**; fixing the drift by editing one
+  copy only reset the clock. Both now call `matchesPetSearch` in `src/lib/domain/petSearch.ts`.
+- **A status and a track change in one batch** judged the track against the pre-batch status, so
+  "Pending" could survive a switch to Rehabilitation. `updateFilters` now takes a function of the
+  live filters in local mode.
+- The Adoption Form preselect now tries the first adoptable animal in the shelter when none is on
+  screen, and its comment no longer promises what `resolveDefaultPet`'s `allPets[0]` fallback
+  cannot keep. Still untested — see above.
+- `buildVisibleTrackOptions` and `buildPetTrackOptions` are one loop over the track sequence instead
+  of a build, a rebuild and a sort.
+- Two stale "step 6" citations in this stream now name the step; a misplaced `describe` separated
+  a comment from the blocks it described.
+
+**Not fixed here, recorded:**
+
+- Sponsorship checkout (`src/actions/sponsorships.ts`) reads `findServerPetByIdAsync` too, so a
+  posted `PET-001` pledges against fixture `pet-001`. Same repository fallback as the profile, so it
+  went into `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`, whose settling
+  fix — return `null` after a successful read that finds no row — closes every caller at once
+  instead of guarding each.
+- `useSearchParams()` still runs on the home page even though `syncUrl: false` no longer reads it,
+  which client-renders the featured strip up to its Suspense boundary. Pre-existing; the fix is
+  splitting the URL and local controllers. Added to
+  `tasks/open/gallery-filters-navigate-the-server-on-every-change.md`.
+- A case-variant URL for a *live* animal now 404s rather than redirecting to its canonical id.
+  Accepted: every id this app generates is canonical, and a redirect is a routing change, not a
+  read fix.
+
+Where the loop stops: review rounds keep producing findings, and past this point most are
+cleanups. A further round blocks the merge only for a correctness defect, a security gap, or a
+claim this PR makes that is false; anything else is recorded, not chased.

@@ -167,11 +167,49 @@ describe("soft-delete filtering under strict persistence", () => {
       expect(await getPetById("itest-db-only")).toMatchObject({ id: "itest-db-only" });
     });
 
-    it("returns null when the row does not exist", async () => {
+    it("returns null for an id that neither the database nor the fallback knows", async () => {
+      // Scope stated honestly: this is the trivial path. `itest-no-such-animal` is in no row and
+      // no fixture, so *every* reader returns null for it and this test cannot tell a correct
+      // action from a broken one. It used to be named "returns null when the row does not
+      // exist", which read as coverage of the fallback case below. It is not.
       givenPersistedPet(null);
       const { getPetById } = await import("@/actions/pets");
 
       expect(await getPetById("itest-no-such-animal")).toBeNull();
+    });
+
+    it("does not serve an archived animal through a case-variant of its id", async () => {
+      // The bypass. `findUnique` is case-sensitive and finds no `PET-001`; the repository then
+      // falls through to the in-memory mirror, whose lookup lowercases — and the mirror, seeded
+      // from `src/data/pets.json`, holds `pet-001` unarchived. So the database's archive was
+      // visible at `/pets/pet-001` and invisible at `/pets/PET-001`.
+      //
+      // `pet-001` is used deliberately, not an `itest-` id: an id absent from the fixture makes
+      // the mirror return null too, and the test would pass against the broken reader for the
+      // wrong reason — exactly what the test above does.
+      //
+      // The database is modelled as Postgres behaves: it *holds* the archived row, and returns it
+      // only for the exact id. An earlier version mocked `null` for every id, which pinned "a
+      // case-variant URL 404s" without ever arranging an archive to hide.
+      const archived = makeDbPet({ id: "pet-001", name: "Bella", isArchived: true });
+      prismaDouble.pet.findUnique.mockImplementation(async (args?: { where?: { id?: string } }) =>
+        args?.where?.id === "pet-001" ? archived : null
+      );
+      const { getPetById } = await import("@/actions/pets");
+
+      // Variants first. Reading `pet-001` syncs the archived row into the mirror, after which the
+      // mirror would hide the animal on its own and the variants would pass without the guard.
+      expect(await getPetById("PET-001")).toBeNull();
+      expect(await getPetById("Pet-001")).toBeNull();
+      expect(await getPetById("pet-001")).toBeNull();
+    });
+
+    it("still serves the animal at its exact id", async () => {
+      // The guard is an exact-id match, so it must not have cost the canonical URL anything.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", isArchived: false }));
+      const { getPetById } = await import("@/actions/pets");
+
+      expect(await getPetById("pet-001")).toMatchObject({ id: "pet-001", name: "Bella" });
     });
   });
 

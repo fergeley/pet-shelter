@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { matchesPetSearch } from "@/lib/domain/petSearch";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
 import { assertHasPermission, PERMISSIONS, UnauthorizedError } from "@/lib/security/rbac";
@@ -58,15 +59,10 @@ export async function getPublicPets(filters?: PetFilterInput): Promise<Pet[]> {
     filtered = filtered.filter((p) => p.size === filters.size);
   }
 
-  if (filters?.search && filters.search.trim() !== "") {
-    const q = filters.search.toLowerCase();
-    filtered = filtered.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.breed.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q))
-    );
+  if (filters?.search) {
+    // The same rule the gallery filters with, not a copy of it — see `matchesPetSearch`.
+    const query = filters.search;
+    filtered = filtered.filter((p) => matchesPetSearch(p, query));
   }
 
   return filtered;
@@ -126,8 +122,20 @@ export async function getPetById(id: string): Promise<Pet | null> {
   // a fixture. The same read also 404'd any animal that exists only in the database. The
   // catalogue beside it has always gone through the async path (`getServerPetsAsync`); this is
   // the single-animal read catching up with it.
-  const pet = await findServerPetByIdAsync(id);
-  if (!pet || pet.isArchived) return null;
+  //
+  // And an exact id match, not just a found one. The database lookup is case-sensitive; the
+  // in-memory fallback it drops to when that lookup finds nothing is not. So `/pets/PET-001`
+  // missed Postgres, fell through to the mirror, matched fixture `pet-001` — unarchived there —
+  // and served an animal the database had archived. Refusing any result whose id is not exactly
+  // the one requested makes both readers agree without assuming anything about id casing.
+  //
+  // What this does not close: a database that answers "no such row" for an id that *is* in
+  // `pets.json` still falls through to the fixture. That is the repository's fallback policy,
+  // shared with the catalogue and still an open question —
+  // `tasks/open/pets-json-fallback-empty-means-outage.md`.
+  const requested = id.trim();
+  const pet = await findServerPetByIdAsync(requested);
+  if (!pet || pet.id !== requested || pet.isArchived) return null;
   return pet;
 }
 
