@@ -41,29 +41,43 @@ issued**. Three things still honour it:
   closes this one. Merge it as soon as §4 or §5 is done.
 
 Rotating `SESSION_SECRET` invalidates every cookie at once, closing the first two immediately;
-everyone signs in again. Change it in **both** places the production value lives, to the same new
-value: Vercel's Production environment variables, and the committed `.env.production.enc`
-(`npm run secrets:edit:prod`, per `docs/runbooks/RUNBOOK_SOPS_SECRETS_MANAGEMENT.md` §7). Changing
-only Vercel leaves the old key in the encrypted file, ready to be restored the next time Vercel is
-filled from it. Then redeploy. It loses no data: `SESSION_SECRET` only signs
+everyone signs in again. **What closes the window is Vercel:** set the new value in the Production
+environment variables, then redeploy. Nothing in the repo copies Vercel's values from anywhere else.
+
+The production value also lives in the committed `.env.production.enc`
+(`docs/runbooks/RUNBOOK_SOPS_SECRETS_MANAGEMENT.md` §7), but **do not edit that file now**: it
+currently cannot be decrypted, and `tasks/open/sops-encrypted-env-timestamp-crlf-breaks-decryption.md`
+says not to re-encrypt the only copy while that is diagnosed. After rotating, it holds a stale
+`SESSION_SECRET`. Note that in the SOPS entry, and update the file once the entry settles, so that
+nobody later restores the old key from it. It loses no data: `SESSION_SECRET` only signs
 staff sessions, sponsor sessions and notification-preference links (`signPayload` in
 `src/lib/security/crypto.ts`), and `encryptField`, the one thing that could encrypt data with it,
 has no callers. Links in emails already sent would stop working, and with email unset none were
 sent. Use at least 32 random characters; production refuses a weak or default value at boot. Not rotating leaves them open until 24 hours
-after the last sign-in to a seeded account. Every successful sign-in writes an `AUTH_LOGIN_SUCCESS`
-audit row, so you can see when that was — except for sign-ins made during a database outage, whose
-rows fail to save:
+after the last sign-in to a seeded account. Two records of sign-ins exist, and **both are
+best-effort**:
+
+- The `AUTH_LOGIN_SUCCESS` audit row is written fire-and-forget. A failed insert is silent in
+  production (`recordAuditLog`, `src/lib/domain/auditLog.ts`).
+- `users."lastLoginAt"` is awaited, but `recordLogin` (`src/lib/server/memberStore.ts`) swallows its
+  own failure.
+- Neither records a sign-in made during a database outage, which is exactly when `admin123` still
+  works through the in-memory seed until PR #46 deploys.
 
 ```sql
-SELECT "actorId", max("createdAt") AS last_sign_in_utc FROM "public"."audit_logs"
+SELECT "actorId", max("createdAt") AS last_recorded_sign_in_utc FROM "public"."audit_logs"
  WHERE "action" = 'AUTH_LOGIN_SUCCESS'
    AND "actorId" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
  GROUP BY 1 ORDER BY 2 DESC;
+
+SELECT "id", "lastLoginAt" FROM "public"."users"
+ WHERE "id" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+ ORDER BY "lastLoginAt" DESC NULLS LAST;
 ```
 
-Once the latest of those is more than 24 hours in the past, every cookie from them has expired and
-the window is closed. Procedure A's step 3 is itself a seeded sign-in, so after §4 the window runs
-until 24 hours after that step.
+Treat the latest time across both as a lower bound, not proof. An empty result does not mean
+nobody signed in. Procedure A's step 3 is itself a seeded sign-in, so after §4 the window runs at
+least until 24 hours after that step. If you cannot rule out an unrecorded sign-in, rotate.
 
 ## 2. Email is not configured
 

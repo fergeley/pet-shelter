@@ -53,7 +53,8 @@ which authorize from the cookie alone.
   tests — `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
 - `pets.age` → `birthDate`, the other half of the schema drift: needs a backfill decision, and
   PR #42 is in flight in that area.
-- The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`.
+- The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`,
+  which arrives with PR #47.
 - Merging either PR: not permitted to this session.
 
 # Dual-track pet catalogue — plan
