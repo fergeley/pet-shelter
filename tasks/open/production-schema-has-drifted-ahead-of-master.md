@@ -155,6 +155,15 @@ dashboard says which.
 above: create the two types, then convert each column with a data-preserving `USING` cast. That is
 a production change for a human to apply, and it was deliberately not applied here.
 
+**2026-09-17: that migration now exists, rehearsed, not applied.**
+`prisma/migrations/manual/20260917_status_enums/migration.sql` (with `rollback.sql`) converts both
+columns in one transaction, aborts naming any value the types lack, and is safe to re-run. It was
+rehearsed on a throwaway local PostgreSQL shaped like production, and passed all twenty checks,
+including Prisma's own casting statements failing before and succeeding after. It has not touched
+production: the session that wrote it was refused access to the production database. The owner
+applies it in the Neon SQL editor, following the file's header. Once applied, the
+`ApplicationStatus` half of "Settles when" below is met; the `pets.age` → `birthDate` half is not.
+
 ## Settles when
 
 Either a single reviewed migration reconciles the two remaining conversions with data preserved
