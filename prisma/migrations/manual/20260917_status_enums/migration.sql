@@ -45,13 +45,15 @@
 --
 -- If a statement errors part-way, nothing is kept: the transaction is aborted, and the
 -- COMMIT at the end of an aborted transaction rolls it back. Even if an editor ran the
--- statements one at a time, each column's value check and its conversion share one DO block,
--- so a column is either converted with every value kept or left exactly as it was.
+-- statements one at a time, each column's value check, lock timeout and conversion share one
+-- DO block, so a column is either converted with every value kept or left exactly as it was,
+-- and neither waits on a lock for more than 5 seconds. Only the advisory lock stops
+-- serialising in that mode.
 --
 -- Rehearsed 2026-09-17 on a throwaway local PostgreSQL 18.4, with production's shape where it
 -- matters (text `status` columns carrying a default and a composite index, neither type
--- present), not against production. Re-rehearsed after code review with the schema
--- qualification and lock timeout; twenty-four checks, all passed:
+-- present), not against production. Re-rehearsed after two rounds of code review, with the
+-- schema qualification and the per-block lock timeout; twenty-nine checks, all passed:
 --   * Before: Prisma's own insert fails with `type "public.ApplicationStatus" does not exist`.
 --   * After: every status value and count kept; both defaults restored; Prisma's application
 --     insert, status update and status filter, and pet status update, all succeed; an
@@ -66,16 +68,16 @@
 --     other schema, the columns converted, and Prisma's insert still failed.
 --   * With another transaction holding `pets`, it gives up after the 5-second lock timeout
 --     and commits nothing, not even the table it had already converted.
+--   * Run one statement per transaction, as an editor might, under the same held lock: it
+--     gives up in about 6 seconds with `pets` untouched, and re-running once the lock is free
+--     finishes the job. The previous version, with SET LOCAL at the top, was still waiting at
+--     20 seconds. rollback.sql run the same way also gives up without changing either column.
 -- Not rehearsed: production's actual values and any constraint or view there that references
 -- `status`. Either would abort the transaction rather than damage anything.
 
 BEGIN;
 
 SELECT pg_advisory_xact_lock(4210771001);
-
--- Give up rather than queue. An ALTER waiting behind a long-open transaction holds every later
--- read of the table behind it, the live site's included. Failing here changes nothing; re-run.
-SET LOCAL lock_timeout = '5s';
 
 -- Every type and table is schema-qualified: Prisma casts to "public"."ApplicationStatus", so a
 -- type created wherever search_path pointed would convert the columns and leave writes failing.
@@ -107,6 +109,11 @@ DECLARE
   current_type text;
   unknown_values text;
 BEGIN
+  -- Give up rather than queue: an ALTER waiting behind a long-open transaction holds every
+  -- later read of the table behind it, the live site's included. Set here, not with SET LOCAL
+  -- at the top, so it holds even if an editor runs each statement in its own transaction.
+  PERFORM set_config('lock_timeout', '5s', true);
+
   SELECT udt_schema || '.' || udt_name INTO current_type FROM information_schema.columns
    WHERE table_schema = 'public' AND table_name = 'adoption_applications' AND column_name = 'status';
   IF current_type IS NULL THEN
@@ -135,6 +142,11 @@ DECLARE
   current_type text;
   unknown_values text;
 BEGIN
+  -- Give up rather than queue: an ALTER waiting behind a long-open transaction holds every
+  -- later read of the table behind it, the live site's included. Set here, not with SET LOCAL
+  -- at the top, so it holds even if an editor runs each statement in its own transaction.
+  PERFORM set_config('lock_timeout', '5s', true);
+
   SELECT udt_schema || '.' || udt_name INTO current_type FROM information_schema.columns
    WHERE table_schema = 'public' AND table_name = 'pets' AND column_name = 'status';
   IF current_type IS NULL THEN

@@ -7,18 +7,24 @@
 -- NOT NULL stays, because it was there before: both columns were declared
 -- `String @default(...)`, which is required, from the first schema production was built from
 -- (e0884e9). migration.sql re-asserts it rather than introducing it.
+--
+-- One DO block, so both columns change together and the 5-second lock timeout holds even if
+-- an editor runs each statement in its own transaction.
 
 BEGIN;
 
 SELECT pg_advisory_xact_lock(4210771001);
-SET LOCAL lock_timeout = '5s';
 
-ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" TYPE text USING "status"::text;
-ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" SET DEFAULT 'SUBMITTED';
+DO $$ BEGIN
+  PERFORM set_config('lock_timeout', '5s', true);
 
-ALTER TABLE "public"."pets" ALTER COLUMN "status" DROP DEFAULT;
-ALTER TABLE "public"."pets" ALTER COLUMN "status" TYPE text USING "status"::text;
-ALTER TABLE "public"."pets" ALTER COLUMN "status" SET DEFAULT 'Available';
+  ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" DROP DEFAULT;
+  ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" TYPE text USING "status"::text;
+  ALTER TABLE "public"."adoption_applications" ALTER COLUMN "status" SET DEFAULT 'SUBMITTED';
+
+  ALTER TABLE "public"."pets" ALTER COLUMN "status" DROP DEFAULT;
+  ALTER TABLE "public"."pets" ALTER COLUMN "status" TYPE text USING "status"::text;
+  ALTER TABLE "public"."pets" ALTER COLUMN "status" SET DEFAULT 'Available';
+END $$;
 
 COMMIT;

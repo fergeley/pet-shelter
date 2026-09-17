@@ -158,9 +158,10 @@ a production change for a human to apply, and it was deliberately not applied he
 **2026-09-17: that migration now exists, rehearsed, not applied.**
 `prisma/migrations/manual/20260917_status_enums/migration.sql` (with `rollback.sql`) converts both
 columns in one transaction, aborts naming any value the types lack, and is safe to re-run. It was
-rehearsed on a throwaway local PostgreSQL shaped like production, and after code review, which
-added schema qualification and a lock timeout, it passed all twenty-four checks. They include
-Prisma's own casting statements failing before and succeeding after. It has not touched
+rehearsed on a throwaway local PostgreSQL shaped like production. After two rounds of code review,
+which added schema qualification and a lock timeout that holds however the editor runs it, it
+passed all twenty-nine checks. They include Prisma's own casting statements failing before and
+succeeding after. It has not touched
 production: the session that wrote it was refused access to the production database. The owner
 applies it in the Neon SQL editor, following the file's header. Once applied, the
 `ApplicationStatus` half of "Settles when" below is met; the `pets.age` → `birthDate` half is not.
