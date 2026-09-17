@@ -40,13 +40,30 @@ issued**. Three things still honour it:
   where `admin@hopeforstrays.org` / `admin123` is an active Super Admin. The code fix (PR #46)
   closes this one. Merge it as soon as §4 or §5 is done.
 
-Rotating `SESSION_SECRET` in Vercel (then redeploying) invalidates every cookie at once, closing
-the first two immediately; everyone signs in again. It loses no data: `SESSION_SECRET` only signs
+Rotating `SESSION_SECRET` invalidates every cookie at once, closing the first two immediately;
+everyone signs in again. Change it in **both** places the production value lives, to the same new
+value: Vercel's Production environment variables, and the committed `.env.production.enc`
+(`npm run secrets:edit:prod`, per `docs/runbooks/RUNBOOK_SOPS_SECRETS_MANAGEMENT.md` §7). Changing
+only Vercel leaves the old key in the encrypted file, ready to be restored the next time Vercel is
+filled from it. Then redeploy. It loses no data: `SESSION_SECRET` only signs
 staff sessions, sponsor sessions and notification-preference links (`signPayload` in
 `src/lib/security/crypto.ts`), and `encryptField`, the one thing that could encrypt data with it,
 has no callers. Links in emails already sent would stop working, and with email unset none were
 sent. Use at least 32 random characters; production refuses a weak or default value at boot. Not rotating leaves them open until 24 hours
-after the last sign-in to a seeded account — and nobody can see from the app when that was.
+after the last sign-in to a seeded account. Every successful sign-in writes an `AUTH_LOGIN_SUCCESS`
+audit row, so you can see when that was — except for sign-ins made during a database outage, whose
+rows fail to save:
+
+```sql
+SELECT "actorId", max("createdAt") AS last_sign_in_utc FROM "public"."audit_logs"
+ WHERE "action" = 'AUTH_LOGIN_SUCCESS'
+   AND "actorId" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+ GROUP BY 1 ORDER BY 2 DESC;
+```
+
+Once the latest of those is more than 24 hours in the past, every cookie from them has expired and
+the window is closed. Procedure A's step 3 is itself a seeded sign-in, so after §4 the window runs
+until 24 hours after that step.
 
 ## 2. Email is not configured
 
