@@ -15,6 +15,47 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Public staff credentials and production data safety — PRs #46 and #47
+
+**Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
+· opened 2026-09-16 · both drafts, CI green, unmerged
+
+- [x] #46: `loginAction` refuses repo-published staff passwords in production; register and invite
+      acceptance refuse them everywhere; `/admin/login` drops the pre-fill and, in production, the
+      demo block. Proven on an offline `next build` + `next start`.
+- [x] #46: `docs/runbooks/RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md` — create a real Super Admin
+      without email, then suspend the seeded accounts; SQL rehearsed locally, 16 checks.
+- [x] #47: local e2e cannot reach a non-local database or send mail; `seed.ts` and `migrate-faqs.ts`
+      use `resolveDatabaseSsl`; Neon TLS entry closed.
+- [x] #47: `prisma/migrations/manual/20260917_status_enums/` — rehearsed locally, 29 checks.
+- [ ] Owner: runbook §4 or §5 in production, then merge #46.
+- [ ] Owner: apply the enum migration in the Neon SQL editor (needs no merge).
+- [ ] Owner: decide on `SESSION_SECRET` rotation, now that the cookie-only actions are known.
+- [ ] Owner: decide how to correct the three 2026-09-14 test receipts (offsetting record).
+
+## Review
+
+**Done without production access.** The owner asked on 2026-09-17 for the production steps to be
+done for them. The auto-mode classifier refused even a read-only query against production, and
+refused `prisma db push` / `migrate diff` against a local throwaway database. So everything that
+touches production is prepared, rehearsed on an embedded PostgreSQL shaped like production, and
+handed to the owner; nothing has run there.
+
+**Four review rounds, each on the previous round's fixes, each found something real:** an
+unqualified enum type that would convert the columns yet leave Prisma failing (confirmed against
+the old file); a lock timeout that did nothing when an editor runs one statement per transaction
+(the old file was still waiting at 20 s); a hash command that would have created an unusable Super
+Admin from a published password; and suspension not reaching the transparency and FAQ actions,
+which authorize from the cookie alone.
+
+**Deliberately not done:**
+- Fixing those cookie-only actions: an authorization change in two other modules with its own
+  tests — `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
+- `pets.age` → `birthDate`, the other half of the schema drift: needs a backfill decision, and
+  PR #42 is in flight in that area.
+- The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`.
+- Merging either PR: not permitted to this session.
+
 # Dual-track pet catalogue — plan
 
 **Branch:** `worktree-agent-4-animals` · opened 2026-09-08
