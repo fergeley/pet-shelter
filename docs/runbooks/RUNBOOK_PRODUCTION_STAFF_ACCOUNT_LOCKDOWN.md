@@ -1,0 +1,159 @@
+# Production Staff Account Lockdown Runbook
+
+How to take the seeded staff accounts out of production and replace them with a real Super Admin,
+without locking the owner out of `/admin` on the way.
+
+**The governing fact:** every seeded account's password is published in this public repository and
+its git history. Anyone can sign in as them — including `admin@hopeforstrays.org`, a Super Admin —
+until the rows are suspended. The code fix (`loginAction` refusing published passwords in
+production, `src/lib/security/publishedPasswords.ts`) closes the sign-in, but **no action in the app
+changes an ACTIVE account's password**, so once that fix deploys, nobody can sign in as a seeded
+account to do the steps below. Create the real Super Admin first.
+
+---
+
+## 1. Production state this runbook was written against (2026-09-17)
+
+Confirmed by the owner, not observed from the repo:
+
+| Setting | State | Consequence here |
+|---|---|---|
+| `DATABASE_URL` | Set; the Neon production branch (`ep-broad-band-…`); working | Suspending a row takes effect on the account's **next request**: `getVerifiedSession()` re-reads status, so live sessions end too |
+| `RESEND_API_KEY` | **Not set** | Every email is simulated and delivered to nobody — see §2 |
+| `STAFF_INVITE_SECRET` | Set (production refuses to boot without it) | "Create Account" on `/admin/login` works for anyone holding the value |
+| `SESSION_SECRET` | Not rotated — **owner's decision** | Not needed: with the database reachable, suspension revokes existing sessions. Rotate it only if the database is ever unreachable while a seeded session might be live, because then the DAL trusts the cookie |
+
+## 2. Email is not configured
+
+With no `RESEND_API_KEY`, `src/lib/email.ts` writes an `EMAIL_SENT` audit row with
+`simulated: true` and sends nothing. The simulated send logs the template, recipient and subject —
+**not the body, so no link can be recovered from logs**. In production that means:
+
+- **Staff invitations cannot be delivered.** "Invite" in Staff & Permissions creates a pending
+  account whose link nobody receives. Do not use it to create the Super Admin.
+- Applicants get no confirmation, staff get no new-application alert, donors get no e-receipt email,
+  and sponsors get no welcome or photo updates. The records themselves are still written.
+
+Enabling email is `docs/runbooks/EMAIL_DELIVERABILITY_BEST_PRACTICES.md`. Until then, use §4.
+
+## 3. Which seeded accounts to expect
+
+Production was seeded once: one `DATABASE_SEEDED` audit row, 2026-08-15 10:58 UTC, sixteen minutes
+after `e0884e9` committed the seed. That version of `prisma/seed.ts` wrote four accounts; the two
+marked "later seed" exist only if it was run again. Check the roster in Staff & Permissions.
+
+| Id | Email | Published password | Seeded by |
+|---|---|---|---|
+| `usr-admin-01` | `admin@hopeforstrays.org` | `admin123` | `e0884e9` (role ADMIN, shown as Super Admin) |
+| `usr-coord-01` | `coordinator@hopeforstrays.org` | `coord123` | `e0884e9` |
+| `usr-staff-01` | `staff@hopeforstrays.org` | `staff123` | `e0884e9` |
+| `usr-vol-01` | `volunteer@hopeforstrays.org` | `vol123` | `e0884e9`, removed from the seed 2026-09-02 |
+| `usr-animal-01` | `animals@hopeforstrays.org` | `animal123` | later seed only |
+| `usr-editor-01` | `content@hopeforstrays.org` | `content123` | later seed only |
+
+## 4. Procedure A — in the app (recommended; every step is audited)
+
+Do this **before** the published-password fix deploys.
+
+1. **Get the invite code.** Vercel → the project (team `isaiahs-projects-8abdd4ed`) → Settings →
+   Environment Variables → `STAFF_INVITE_SECRET` (Production). If Vercel shows it as a sensitive
+   value that cannot be revealed, use Procedure B instead.
+2. **Create your account.** `https://pet-shelter-phi.vercel.app/admin/login` → **Create Account**.
+   Your name, your own email, a long password you use nowhere else, and the invite code. You are
+   signed in as STAFF. Sign out.
+3. **Promote it.** Sign in as `admin@hopeforstrays.org` (the seeded account — this is the last time).
+   **Staff & Permissions** → your account → role **Super Admin**. Sign out.
+4. **Suspend the seeded accounts.** Sign in as **your** account. **Staff & Permissions** → set every
+   account from §3 that appears to **Suspended**. The app refuses to suspend yourself or the last
+   active Super Admin, which is why step 3 comes first.
+5. **Verify.**
+   - Signing in as `admin@hopeforstrays.org` now answers "This staff account has been suspended"
+     (or "Invalid staff email or password" once the code fix is deployed).
+   - Your own sign-in still works.
+   - The audit log shows one `MEMBER_SUSPENDED` row per account, with you as the actor.
+6. **Merge the code fix** (PR #46), then confirm the deployed `/admin/login` shows no pre-filled
+   email and no "Quick Demo" block.
+
+## 5. Procedure B — SQL in the Neon console (when the invite code is unavailable)
+
+Run in the Neon SQL editor against the production branch. Rehearsed 2026-09-17 on a throwaway local
+PostgreSQL with production's `users` and `audit_logs` shape: nine checks passed, including the
+lockout guard refusing to run first, the hash verifying with the app's own `verifyPassword`, one
+audit row per suspension, and a re-run changing nothing. Not run against production.
+
+**B1. Hash your password on your own machine** (Git Bash, from anywhere with Node). The password is
+read without echo and never leaves the machine; only the hash is printed.
+
+```bash
+read -rs -p "New password: " PW && echo && PW="$PW" node -e 'const c=require("crypto");const s=c.randomBytes(16).toString("hex");process.stdout.write(s+":"+c.scryptSync(process.env.PW,s,64).toString("hex")+"\n")'; unset PW
+```
+
+**B2. Create your Super Admin.** Replace the three placeholders; paste the hash from B1.
+
+```sql
+INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "updatedAt")
+VALUES ('usr-owner-' || substr(md5(random()::text), 1, 12), lower('YOU@EXAMPLE.ORG'), 'Your Name',
+        'PASTE-THE-HASH-FROM-B1', 'SUPER_ADMIN', 'ACTIVE', now());
+```
+
+Sign in with it at `/admin/login` before going on. If the insert fails on `role`, stop: the
+production `Role` type is not what this runbook assumes.
+
+**B3. Suspend the seeded accounts.** Refuses to run unless another active Super Admin exists, and
+writes one `MEMBER_SUSPENDED` audit row per account it suspends. Safe to re-run.
+
+```sql
+BEGIN;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "users"
+     WHERE "status" = 'ACTIVE' AND "role" IN ('SUPER_ADMIN', 'ADMIN')
+       AND "id" NOT IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+  ) THEN
+    RAISE EXCEPTION 'No other active Super Admin exists. Create yours first, or this locks everyone out of /admin.';
+  END IF;
+END $$;
+
+WITH suspended AS (
+  UPDATE "users" SET "status" = 'SUSPENDED', "updatedAt" = now()
+   WHERE "id" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+     AND "status" <> 'SUSPENDED'
+  RETURNING "id", "email", "role"::text AS "role"
+)
+INSERT INTO "audit_logs" ("id", "action", "actorId", "actorEmail", "actorRole", "targetEntity", "targetId", "details", "metadata")
+SELECT 'aud-lockdown-' || "id" || '-' || to_char(now(), 'YYYYMMDDHH24MISS'),
+       'MEMBER_SUSPENDED', NULL, 'operator@direct-sql', 'SYSTEM', 'User', "id",
+       'Suspended by direct SQL: a seeded account whose password is published in the public repository.',
+       jsonb_build_object('memberEmail', "email", 'memberRole', "role", 'runbook', 'RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md')
+  FROM suspended;
+
+COMMIT;
+
+SELECT "id", "email", "role"::text, "status"::text FROM "users"
+ WHERE "id" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+ ORDER BY "id";
+```
+
+Then §4 steps 5 and 6.
+
+## 6. Undo
+
+Reactivating a seeded account re-opens the hole for as long as the code fix is not deployed, and
+achieves nothing once it is (its password is refused). If it is ever needed for a single account:
+
+```sql
+UPDATE "users" SET "status" = 'ACTIVE', "updatedAt" = now() WHERE "id" = 'usr-…';
+```
+
+## 7. Related production work
+
+- **Status enum migration.** Adoption applications and status changes are being lost in production
+  because the `ApplicationStatus`/`PetStatus` types are missing. The rehearsed fix is
+  `prisma/migrations/manual/20260917_status_enums/migration.sql`, shipped with PR #47; its header is
+  the procedure.
+- **The 2026-09-14 test rows.** Local e2e wrote three RM30 donations holding receipts
+  `HFS-DON-202609-0001` to `0003`. Receipts are append-only statutory records
+  (`prisma/schema.prisma`, model `Donation`): correct them with an offsetting record, never by
+  deleting or renumbering. That decision is the owner's; see
+  `docs/runbooks/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md`.

@@ -78,6 +78,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 - **[Codex, VS Code, and the Windows Developer Drive](runbooks/RUNBOOK_CODEX_DEVELOPER_DRIVE.md)**: Repository migration inventory, recovery steps, native Windows/WSL boundary, Claude import, Codex configuration, verification evidence, and follow-up findings.
 - **[TNRM, Rehabilitation & Sponsorship Operations](runbooks/RUNBOOK_TNRM_AND_SPONSORSHIP_OPERATIONS.md)**: Campus TNRM tracking, Rehabilitation House updates, RM30 sponsor photo/video dispatches, and wishlist management.
 - **[Operational Runbook & Disaster Recovery](runbooks/OPERATIONAL_RUNBOOK.md)**: Day-to-day operations, health checks, rate limiting, audit inspection, and troubleshooting.
+- **[Production Staff Account Lockdown](runbooks/RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md)**: Replacing the seeded staff accounts, whose passwords are public, with a real Super Admin while email is unconfigured — in the app or by rehearsed SQL — without locking the owner out.
 - **[Donations & LHDN Tax e-Receipts](runbooks/RUNBOOK_DONATION_AND_LHDN_TAX_RECEIPTS.md)**: DuitNow QR, bank transfer verification, statutory LHDN Subsection 44(6) tax receipts, and ROS reporting.
 - **[Prisma Database Setup & Migrations](runbooks/RUNBOOK_PRISMA_DATABASE_SETUP.md)**: Step-by-step PostgreSQL schema migrations, fallback mechanisms, and seed automation.
 - **[Production Media & Pet Image Storage](runbooks/RUNBOOK_PRODUCTION_MEDIA_STORAGE.md)**: Image pipeline, local uploads, AWS S3 / Supabase storage adapters, and Sharp optimization.
