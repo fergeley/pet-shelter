@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+/**
+ * Mirror `tasks/open/` into GitHub issues, one issue per entry.
+ *
+ * One-way. The file is the source of truth and the issue is a rendered copy: an issue edited on
+ * GitHub is overwritten on the next run, an issue whose entry left `tasks/open/` is closed, and a
+ * closed issue whose entry is still open is reopened. Comments are never touched, so discussion
+ * belongs there — and a conclusion reached in a comment settles nothing until it reaches the file.
+ * Rationale: `tasks/decisions/2026-09-18-ledger-issues-are-a-one-way-mirror.md`.
+ *
+ * Usage:
+ *   node scripts/ledger-issues.mjs                    # dry run: print the plan, publish nothing
+ *   node scripts/ledger-issues.mjs --apply            # publish the plan
+ *   node scripts/ledger-issues.mjs --branch <name>    # mirror a branch other than the default
+ *
+ * Entries are read from `origin/<branch>` after a fetch, never from the working tree. Run from a
+ * feature branch, a working-tree read would publish unmerged entries and close the issues of
+ * entries that branch has not merged yet.
+ *
+ * Dependency-free on purpose, like `commit-msg.mjs`: it needs `git` and an authenticated `gh`,
+ * nothing from `node_modules`.
+ */
+
+import { execFileSync } from "node:child_process";
+
+export const LEDGER_DIR = "tasks/open/";
+export const LABEL = "ledger";
+
+const MARKER = /<!--\s*ledger-mirror:\s*(\S+?)\s*-->/;
+
+/** Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. */
+export function isMirroredPath(path) {
+  if (!path.startsWith(LEDGER_DIR) || !path.endsWith(".md")) return false;
+  const name = path.slice(LEDGER_DIR.length);
+  return !name.includes("/") && !name.startsWith("CLAIM-");
+}
+
+export function markerFor(path) {
+  return `<!-- ledger-mirror: ${path} -->`;
+}
+
+export function pathFromMarker(body) {
+  const match = MARKER.exec(String(body ?? ""));
+  return match ? match[1] : null;
+}
+
+const normalise = (text) => String(text ?? "").replace(/\r\n/g, "\n").trim();
+
+/** Title is the first H1; the body is the file without that one line. */
+export function parseEntry(path, text) {
+  const lines = normalise(text).split("\n");
+  const h1 = lines.findIndex((line) => /^#\s+\S/.test(line));
+  const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+  if (h1 === -1) return { path, title: slug, body: lines.join("\n").trim() };
+  const title = lines[h1].replace(/^#\s+/, "").trim();
+  const body = [...lines.slice(0, h1), ...lines.slice(h1 + 1)].join("\n").trim();
+  return { path, title, body };
+}
+
+export function renderIssue(entry, { repo, branch }) {
+  const url = `https://github.com/${repo}/blob/${branch}/${entry.path}`;
+  const header =
+    `> Mirrored from [\`${entry.path}\`](${url}) by \`scripts/ledger-issues.mjs\`. ` +
+    "The file is the source of truth: edits to this description are overwritten on the next " +
+    "sync. Discuss in comments; settle it by changing the file.";
+  return {
+    path: entry.path,
+    title: entry.title,
+    body: `${markerFor(entry.path)}\n${header}\n\n${entry.body}`,
+  };
+}
+
+/**
+ * The actions that make GitHub match the ledger. Pure, so the whole policy is testable without
+ * publishing anything. Issues without a marker were filed by people and are never touched.
+ */
+export function planSync(rendered, issues) {
+  const byPath = new Map();
+  for (const issue of issues) {
+    const path = pathFromMarker(issue.body);
+    if (!path) continue;
+    if (byPath.has(path)) {
+      // Picking one would silently orphan the other; which is canonical is a human call.
+      throw new Error(`issues #${byPath.get(path).number} and #${issue.number} both mirror ${path}`);
+    }
+    byPath.set(path, issue);
+  }
+
+  const actions = [];
+  const wanted = [...rendered].sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of wanted) {
+    const issue = byPath.get(entry.path);
+    if (!issue) {
+      actions.push({ type: "create", ...entry });
+      continue;
+    }
+    if (issue.state === "CLOSED") actions.push({ type: "reopen", number: issue.number, path: entry.path });
+    if (normalise(issue.title) !== entry.title || normalise(issue.body) !== normalise(entry.body)) {
+      actions.push({ type: "update", number: issue.number, ...entry });
+    }
+  }
+
+  const live = new Set(wanted.map((entry) => entry.path));
+  const orphans = [...byPath].filter(([path, issue]) => !live.has(path) && issue.state !== "CLOSED");
+  for (const [path, issue] of orphans.sort(([a], [b]) => a.localeCompare(b))) {
+    actions.push({ type: "close", number: issue.number, path });
+  }
+  return actions;
+}
+
+function formatAction(action) {
+  const target = action.number ? `#${action.number}` : "new";
+  return `  ${action.type.padEnd(6)} ${target.padEnd(6)} ${action.path}`;
+}
+
+const run = (command, args, input) =>
+  execFileSync(command, args, { encoding: "utf8", input, maxBuffer: 64 * 1024 * 1024 }).trim();
+
+const USAGE =
+  "usage: node scripts/ledger-issues.mjs [--apply] [--branch <name>]\n" +
+  "  Mirrors tasks/open/*.md on origin/<branch> into GitHub issues labelled `ledger`.\n" +
+  "  Without --apply it prints the plan and publishes nothing.\n";
+
+async function main(argv) {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write(USAGE);
+    return;
+  }
+  const unknown = argv.filter((arg, i) => !["--apply", "--branch"].includes(arg) && argv[i - 1] !== "--branch");
+  if (unknown.length > 0) {
+    process.stderr.write(`unknown argument: ${unknown.join(" ")}\n${USAGE}`);
+    process.exitCode = 1;
+    return;
+  }
+  const apply = argv.includes("--apply");
+
+  const repoInfo = JSON.parse(run("gh", ["repo", "view", "--json", "nameWithOwner,defaultBranchRef"]));
+  const repo = repoInfo.nameWithOwner;
+  const branchFlag = argv.indexOf("--branch");
+  const branch = branchFlag === -1 ? repoInfo.defaultBranchRef.name : argv[branchFlag + 1];
+  if (!branch) throw new Error("--branch needs a name");
+
+  // A stale remote-tracking ref would close the issues of entries added upstream since the last fetch.
+  run("git", ["fetch", "--quiet", "origin", branch]);
+  const sha = run("git", ["rev-parse", `origin/${branch}`]);
+
+  const paths = run("git", ["ls-tree", "--name-only", sha, "--", LEDGER_DIR])
+    .split("\n")
+    .filter((path) => path && isMirroredPath(path));
+  const rendered = paths.map((path) => renderIssue(parseEntry(path, run("git", ["show", `${sha}:${path}`])), { repo, branch }));
+
+  // ceiling: one page of 1000 issues. Past that, paginate `gh api` or the planner will re-create
+  // entries whose issues fell off the page.
+  const issues = JSON.parse(
+    run("gh", ["issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title,body,state"]),
+  );
+
+  const actions = planSync(rendered, issues);
+  process.stdout.write(
+    `ledger-issues: ${rendered.length} entries on origin/${branch} (${sha.slice(0, 7)}), ` +
+      `${issues.length} issues in ${repo}\n`,
+  );
+  if (actions.length === 0) {
+    process.stdout.write("  in sync, nothing to do\n");
+    return;
+  }
+  process.stdout.write(`${actions.map(formatAction).join("\n")}\n`);
+  if (!apply) {
+    process.stdout.write(`\nDry run: ${actions.length} actions, nothing published. Re-run with --apply to publish.\n`);
+    return;
+  }
+
+  const labels = JSON.parse(run("gh", ["label", "list", "--repo", repo, "--limit", "1000", "--json", "name"]));
+  if (!labels.some((label) => label.name === LABEL)) {
+    run("gh", ["label", "create", LABEL, "--repo", repo, "--color", "5319e7", "--description", "Mirrored from tasks/open/"]);
+  }
+
+  for (const action of actions) {
+    if (action.type === "create") {
+      const url = run("gh", ["issue", "create", "--repo", repo, "--title", action.title, "--label", LABEL, "--body-file", "-"], action.body);
+      process.stdout.write(`  created ${url}\n`);
+    } else if (action.type === "update") {
+      run("gh", ["issue", "edit", String(action.number), "--repo", repo, "--title", action.title, "--body-file", "-"], action.body);
+      process.stdout.write(`  updated #${action.number}\n`);
+    } else if (action.type === "reopen") {
+      run("gh", ["issue", "reopen", String(action.number), "--repo", repo]);
+      process.stdout.write(`  reopened #${action.number}\n`);
+    } else if (action.type === "close") {
+      const comment =
+        `\`${action.path}\` left \`tasks/open/\` as of ${sha.slice(0, 7)}. ` +
+        "An entry closes by moving to `tasks/decisions/` or by being deleted; " +
+        `\`git log --diff-filter=D -- ${action.path}\` shows which commit settled it.`;
+      run("gh", ["issue", "close", String(action.number), "--repo", repo, "--comment", comment]);
+      process.stdout.write(`  closed #${action.number}\n`);
+    }
+  }
+}
+
+// Only run the CLI when executed directly, so the module stays importable by tests.
+const invokedDirectly =
+  process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("scripts/ledger-issues.mjs");
+if (invokedDirectly) {
+  main(process.argv.slice(2)).catch((error) => {
+    process.stderr.write(`ledger-issues: ${error.message}\n`);
+    process.exit(1);
+  });
+}

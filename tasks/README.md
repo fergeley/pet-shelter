@@ -62,6 +62,10 @@ same path, and git merges the directories without a merge driver, a lock, or a p
   written, because it was true when written.
 - **Live kill conditions go in `open/` before the spike runs and are immutable.** A post-hoc edit
   is an automatic DIED.
+- **`open/` is mirrored to GitHub issues** by `npm run ledger:issues` (dry run; `-- --apply`
+  publishes). The file is the source: an issue's description is overwritten from it, deleting an
+  entry closes its issue, and `CLAIM-*` files are never mirrored. Why:
+  `decisions/2026-09-18-ledger-issues-are-a-one-way-mirror.md`.
 - **A claim is just an open entry.** A session starting a GRAVE task writes
   `open/CLAIM-<task>.md` and deletes it at close. Reading `open/` at session start therefore shows
   what every other session is working on — no lock, no new concept. For live back-and-forth, use

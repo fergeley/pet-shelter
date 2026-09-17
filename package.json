@@ -15,6 +15,7 @@
     "commit:check": "node scripts/commit-msg.mjs",
     "commit:audit": "node scripts/commit-msg.mjs --audit",
     "commit:hook": "node scripts/install-git-hooks.mjs commit-msg",
+    "ledger:issues": "node scripts/ledger-issues.mjs",
     "pretest": "npm run db:generate",
     "test": "vitest run --project unit tests/unit",
     "pretest:watch": "npm run db:generate",
