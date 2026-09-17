@@ -91,6 +91,11 @@ describe("rendering an issue", () => {
     expect(pathFromMarker("Something is broken on the donate page")).toBeNull();
     expect(pathFromMarker(null)).toBeNull();
   });
+
+  it("ignores a marker quoted anywhere but the top of the body", () => {
+    const quoted = `The mirror keys issues on this line:\n\n${markerFor("tasks/open/x.md")}\n`;
+    expect(pathFromMarker(quoted)).toBeNull();
+  });
 });
 
 describe("planning a sync", () => {
@@ -134,8 +139,20 @@ describe("planning a sync", () => {
   });
 
   it("closes an open issue whose entry has left tasks/open, and leaves a closed one alone", () => {
-    const actions = planSync([], [issue(7, "tasks/open/settled.md"), issue(8, "tasks/open/old.md", { state: "CLOSED" })]);
+    const actions = planSync(
+      [rendered("tasks/open/live.md")],
+      [issue(6, "tasks/open/live.md"), issue(7, "tasks/open/settled.md"), issue(8, "tasks/open/old.md", { state: "CLOSED" })],
+    );
     expect(actions).toEqual([expect.objectContaining({ type: "close", number: 7, path: "tasks/open/settled.md" })]);
+  });
+
+  it("refuses to close every mirrored issue when it read no entries at all", () => {
+    // Zero entries beside open mirrored issues is a broken read, not a settled ledger.
+    expect(() => planSync([], [issue(7, "tasks/open/a.md")])).toThrow(/no entries/);
+  });
+
+  it("plans nothing, and does not throw, when there are neither entries nor mirrored issues", () => {
+    expect(planSync([], [{ number: 3, state: "OPEN", title: "filed by hand", body: "text" }])).toEqual([]);
   });
 
   it("never touches an issue without a marker, even one sharing an entry's title", () => {
@@ -144,10 +161,24 @@ describe("planning a sync", () => {
     expect(planSync([entry], [human])).toEqual([expect.objectContaining({ type: "create", path: "tasks/open/a.md" })]);
   });
 
-  it("refuses to plan when two issues claim the same entry, rather than picking one", () => {
+  it("refuses to plan when two open issues claim the same entry, rather than picking one", () => {
     expect(() => planSync([rendered("tasks/open/a.md")], [issue(7, "tasks/open/a.md"), issue(9, "tasks/open/a.md")])).toThrow(
       /#7.*#9|#9.*#7/,
     );
+  });
+
+  it("lets an open issue win over a closed duplicate, so closing a duplicate unblocks the sync", () => {
+    for (const issues of [
+      [issue(7, "tasks/open/a.md", { state: "CLOSED" }), issue(9, "tasks/open/a.md")],
+      [issue(9, "tasks/open/a.md"), issue(7, "tasks/open/a.md", { state: "CLOSED" })],
+    ]) {
+      expect(planSync([rendered("tasks/open/a.md")], issues)).toEqual([]);
+    }
+  });
+
+  it("reopens the oldest when every duplicate is closed", () => {
+    const issues = [issue(9, "tasks/open/a.md", { state: "CLOSED" }), issue(7, "tasks/open/a.md", { state: "CLOSED" })];
+    expect(planSync([rendered("tasks/open/a.md")], issues)).toEqual([expect.objectContaining({ type: "reopen", number: 7 })]);
   });
 });
 

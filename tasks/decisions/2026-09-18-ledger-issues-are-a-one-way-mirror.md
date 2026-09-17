@@ -13,10 +13,22 @@ comment settles nothing until someone writes it into the file — the rendered h
 conflict rules nobody has designed, and it turns an issue edit into a ledger write that skipped
 review.
 
-**Identity is a hidden `<!-- ledger-mirror: <path> -->` marker, not the title or a label.** Titles
-get edited and labels get removed; the `ledger` label is presentation only. Issues without a marker
-were filed by people and are never touched. Two issues carrying one marker stop the run rather than
-letting it pick one. A renamed entry is a new identity: its old issue closes and a new one opens.
+**Identity is a hidden `<!-- ledger-mirror: <path> -->` marker at the top of the body, not the title
+or a label.** Titles get edited and labels get removed; the `ledger` label is presentation only. The
+marker counts only as the body's first line, so an issue that quotes it is not taken for a mirror.
+Issues without one were filed by people and are never touched. A renamed entry is a new identity:
+its old issue closes and a new one opens.
+
+**Duplicates: an open issue beats a closed one; two open ones stop the run.** Picking between two
+open issues would silently orphan one, so that stays a human call — but closing the wrong one is
+all it takes, because a closed duplicate never displaces an open issue. If every duplicate is
+closed, the oldest is the one reopened.
+
+**A read that finds no entries may not close anything.** Zero entries beside open mirrored issues
+stops the run. A ledger that empties in one step is far less likely than a broken read, and the
+first review of this script found exactly one: `git ls-tree` without `--full-tree` resolved the
+path against the caller's directory, so a run from `tasks/` read nothing and planned to close every
+issue.
 
 **Entries are read from `origin/<default branch>` after a fetch, never from the working tree.** Run
 from a feature branch, a working-tree read would publish unmerged entries and close the issues of

@@ -26,7 +26,9 @@ import { execFileSync } from "node:child_process";
 export const LEDGER_DIR = "tasks/open/";
 export const LABEL = "ledger";
 
-const MARKER = /<!--\s*ledger-mirror:\s*(\S+?)\s*-->/;
+// Anchored to the top of the body, where `renderIssue` puts it, so an issue that merely quotes the
+// marker (a bug report about this script, say) is not mistaken for a mirror and closed.
+const MARKER = /^\s*<!--\s*ledger-mirror:\s*(\S+?)\s*-->/;
 
 /** Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. */
 export function isMirroredPath(path) {
@@ -75,15 +77,27 @@ export function renderIssue(entry, { repo, branch }) {
  * publishing anything. Issues without a marker were filed by people and are never touched.
  */
 export function planSync(rendered, issues) {
+  // Open before closed, then oldest first. So a closed duplicate never displaces an open issue, and
+  // closing the wrong one of two open duplicates is enough to unblock the sync.
+  const isClosed = (issue) => issue.state === "CLOSED";
+  const ordered = [...issues].sort((a, b) => Number(isClosed(a)) - Number(isClosed(b)) || a.number - b.number);
   const byPath = new Map();
-  for (const issue of issues) {
+  for (const issue of ordered) {
     const path = pathFromMarker(issue.body);
     if (!path) continue;
-    if (byPath.has(path)) {
-      // Picking one would silently orphan the other; which is canonical is a human call.
-      throw new Error(`issues #${byPath.get(path).number} and #${issue.number} both mirror ${path}`);
+    const held = byPath.get(path);
+    if (!held) {
+      byPath.set(path, issue);
+      continue;
     }
-    byPath.set(path, issue);
+    if (!isClosed(issue)) {
+      // Two open issues: picking one would silently orphan the other, and which is canonical is a
+      // human call.
+      throw new Error(
+        `issues #${held.number} and #${issue.number} are both open and both mirror ${path}; ` +
+          "close the one that is not canonical",
+      );
+    }
   }
 
   const actions = [];
@@ -94,14 +108,23 @@ export function planSync(rendered, issues) {
       actions.push({ type: "create", ...entry });
       continue;
     }
-    if (issue.state === "CLOSED") actions.push({ type: "reopen", number: issue.number, path: entry.path });
+    if (isClosed(issue)) actions.push({ type: "reopen", number: issue.number, path: entry.path });
     if (normalise(issue.title) !== entry.title || normalise(issue.body) !== normalise(entry.body)) {
       actions.push({ type: "update", number: issue.number, ...entry });
     }
   }
 
   const live = new Set(wanted.map((entry) => entry.path));
-  const orphans = [...byPath].filter(([path, issue]) => !live.has(path) && issue.state !== "CLOSED");
+  const orphans = [...byPath].filter(([path, issue]) => !live.has(path) && !isClosed(issue));
+  if (wanted.length === 0 && orphans.length > 0) {
+    // A ledger that empties in one step is far less likely than a read that found nothing: a wrong
+    // directory, a bad ref, a renamed folder. Closing every issue on that evidence is the one
+    // outcome worth refusing outright.
+    throw new Error(
+      `read no entries from ${LEDGER_DIR} but ${orphans.length} mirrored issues are open; ` +
+        "refusing to close them all. Check the read, or close them by hand if the ledger really is empty",
+    );
+  }
   for (const [path, issue] of orphans.sort(([a], [b]) => a.localeCompare(b))) {
     actions.push({ type: "close", number: issue.number, path });
   }
@@ -144,7 +167,9 @@ async function main(argv) {
   run("git", ["fetch", "--quiet", "origin", branch]);
   const sha = run("git", ["rev-parse", `origin/${branch}`]);
 
-  const paths = run("git", ["ls-tree", "--name-only", sha, "--", LEDGER_DIR])
+  // --full-tree: without it the pathspec is relative to the caller's directory, and a run from
+  // `tasks/` reads no entries at all.
+  const paths = run("git", ["ls-tree", "--full-tree", "--name-only", sha, "--", LEDGER_DIR])
     .split("\n")
     .filter((path) => path && isMirroredPath(path));
   const rendered = paths.map((path) => renderIssue(parseEntry(path, run("git", ["show", `${sha}:${path}`])), { repo, branch }));
