@@ -15,6 +15,59 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Sponsor portal production activation — audit, run, close
+
+**Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
+**Brief:** `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`
+
+## Items
+
+- [x] Audit the brief against `origin/master` 5b2672a: #39's columns, 5b2672a's checkout, the
+      local-rehearsal lesson, #41.
+- [x] Claim and six kill conditions committed before the production read (`3c14176`).
+- [x] Step 1: `npm run db:check-drift` from the main checkout, read-only. Every planned object is
+      already present, so the apply list is empty. K1 did not fire; K2–K6 n/a.
+- [x] Step 5, GET-only: `/sponsors` and `/sponsor/login` return 200. That proves less than first
+      claimed; see Review.
+- [x] Revise the brief; resolve §2 of the sponsor portal entry; re-measure note on the drift entry;
+      decision entry with the raw output.
+- [x] §A, answered by the human in Vercel: Production `DATABASE_URL` names `ep-broad-band-…`.
+- [x] Trigger probe, run by the human (agents are refused production reads): no append-only
+      trigger, 3 receipts, 0 pledges. Filed `tasks/open/production-receipts-are-not-append-only.md`.
+- [ ] Step 6, the end-to-end receipt test: human decision. No real pledge exists, so it needs a
+      staff sponsorship with a real transfer.
+- [ ] Decide the 3 receipts (test or real?), then whether to apply `donation_append_only.sql`:
+      human.
+
+## Explicitly NOT done
+
+- **No production write of any kind.** Nothing was missing, and the trigger is a separate decision.
+- **No local rehearsal.** The apply list was empty. The `db pull --print` route stays a candidate
+  in the brief, unexercised.
+- **`neon-certificate-chain-not-observed.md` left alone.** PR #47 moves it to `decisions/`. This
+  session's evidence was first overclaimed, then reverted.
+- **No lesson file.** The patterns (a public GET cannot show production has a database; agents
+  cannot read production; K2 needs keyword and classifier) are in the brief and the decision
+  entry. None came from a human correcting this session's work, which `tasks/lessons/README.md`
+  requires.
+- **No PR.** The branch is docs and ledger only, and `AGENTS.md` forbids a docs-only PR. It rides
+  the next code branch.
+
+## Review
+
+- **Independent review earned its keep twice.** Round one found 8 defects in this session's own
+  writing: a K2 claim the classifier does not support, a dropped production-target warning, a
+  false brief-author timeline, and "receipts real since 5b2672a". Round two found the serious one.
+  `/sponsors` rendering no demo names does not show a database: `SEEDING_ENABLED` is off under
+  `NODE_ENV=production`, so a production build with no database renders the same page. Only the
+  Vercel dashboard could answer it, and it did.
+- **The two commits recording the Vercel answer and the probe results were not independently
+  reviewed.** They record human-reported facts only. Whoever opens the PR this rides on runs
+  `/code-review` over the whole diff.
+- **Related live incident, not this stream's:** PR #47 documents that production lacks the
+  `ApplicationStatus`/`PetStatus` types, so application inserts and status writes fail silently.
+  Its ledger hedged on which database Vercel uses; §A answered that: this one.
+
 # Dual-track pet catalogue — plan
 
 **Branch:** `worktree-agent-4-animals` · opened 2026-09-08

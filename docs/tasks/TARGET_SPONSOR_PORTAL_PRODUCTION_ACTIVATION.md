@@ -40,7 +40,9 @@ Kept because each one will recur in the next brief written the same way.
    - step 6 no longer needs a staff test pledge (below).
 4. **Its rehearsal and apply commands are denied to agents.** `.claude/settings.json` has denied
    `npx prisma db execute*` and `npx prisma migrate*` since 2026-09-05. An agent prepares, measures
-   and verifies; **a human types every `prisma db execute`, rehearsal included.**
+   and verifies; **a human types every `prisma db execute`, rehearsal included.** Ad hoc production
+   SQL is a human's too, reads included: on 2026-09-17 the auto-mode classifier refused an agent's
+   `BEGIN TRANSACTION READ ONLY` probe as `[Production Reads]`. `npm run db:check-drift` was allowed.
 5. **Its K2 was a text match, and neither obvious fix works.** A plain-text `DROP` fires on a
    comment in the milestones file. `isDestructiveStatement` alone passes every file in
    `prisma/sql/`, `UPDATE`s and `DROP TRIGGER` included. A bare keyword list fires on every
@@ -48,7 +50,8 @@ Kept because each one will recur in the next brief written the same way.
 6. **Its inventory had a blind spot.** Prisma's diff cannot see triggers, so it cannot say whether
    `donation_append_only.sql` guards the receipt rows `/donate` writes whenever a database is set,
    as it has since before 5b2672a. Filed as
-   `tasks/open/donation-append-only-trigger-not-observed-on-production.md`.
+   `tasks/open/production-receipts-are-not-append-only.md`. A human-run probe on 2026-09-17 found
+   no trigger and 3 receipts.
 7. **Its "master is red" prerequisite** was closed by #41, and step 7 named a "Still outstanding"
    block that the drift entry does not have.
 
@@ -81,16 +84,18 @@ back to memory. Open the Vercel project → Settings → Environment Variables �
 ## Step 6 — end to end, a second human decision
 
 The only real proof is one pledge travelling the whole chain: pledge → confirm in `/admin/donations`
-→ a real `HFS-DON-…` number → a portal account claimed with it. On production that **writes an
-append-only receipt and sends real email**, so it needs its own yes. Do not fake it with a test
+→ a real `HFS-DON-…` number → a portal account claimed with it. On production that **writes a
+statutory receipt and sends real email**, so it needs its own yes. The receipt is not append-only
+there yet (`tasks/open/production-receipts-are-not-append-only.md`). Do not fake it with a test
 row — a receipt is a statutory document.
 
 Since 5b2672a there are two ways to get it:
 
 - **Wait for a real supporter.** A genuine pending pledge confirmed by a coordinator once the
   transfer shows on the bank statement proves the chain, with no synthetic receipt at all.
-- **A small real pet sponsorship from a staff member.** The floor is **RM 10**
-  (`MIN_SPONSORSHIP_SEN` in `src/lib/domain/petSponsorship.ts`), not the RM 5 on `/donate`.
+  **As of 2026-09-17 there is none:** `pet_sponsorships` has no rows (human-run probe).
+- **A small real pet sponsorship from a staff member,** transferred for real. The floor is
+  **RM 10** (`MIN_SPONSORSHIP_SEN` in `src/lib/domain/petSponsorship.ts`), not the RM 5 on `/donate`.
 
 §A is answered: production has a database. Provided the variable predates the running deployment,
 a confirmation writes a real receipt row.

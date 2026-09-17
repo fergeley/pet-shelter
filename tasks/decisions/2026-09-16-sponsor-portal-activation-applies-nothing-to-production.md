@@ -110,7 +110,7 @@ not discriminate either: `listDonationsOrThrow` falls back to memory when no dat
   trigger. Whenever `DATABASE_URL` is set, `/donate` writes a real receipt row, and has done so
   since before 5b2672a (`src/actions/donations.ts` calls `issueDonationReceipt` at `a2f7cf1`).
   5b2672a added coordinator-issued ones. No production receipt row has been observed. Filed as
-  `tasks/open/donation-append-only-trigger-not-observed-on-production.md`.
+  `tasks/open/production-receipts-are-not-append-only.md`.
 
 ## Not established when written
 

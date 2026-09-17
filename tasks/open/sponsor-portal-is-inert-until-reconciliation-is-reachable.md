@@ -68,6 +68,11 @@ the UI needs to render that outcome rather than treat it as an error.
 > the variable's "Updated" date against the running deployment (2026-09-15 00:51 +08), since a
 > variable changed after a deploy is not in it, and whether the URL carries `sslmode=disable`.
 >
+> **2026-09-17, human-run read-only probe:** `pet_sponsorships` has no rows on production, so no
+> supporter has pledged through a pet's checkout since 5b2672a, and nothing awaits reconciliation.
+> `donations` has 3 rows and no append-only trigger:
+> `tasks/open/production-receipts-are-not-append-only.md`.
+>
 > **Still open, and why this entry stays open:** §3–§5 below. No receipt has yet been observed
 > travelling pledge → confirm → `HFS-DON-…` → claimed account on production; that is step 6 of
 > `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`.
