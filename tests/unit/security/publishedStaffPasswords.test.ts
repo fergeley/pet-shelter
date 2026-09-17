@@ -6,7 +6,7 @@ import { acceptInvitation } from "@/actions/members";
 import { hashPassword } from "@/lib/security/crypto";
 import { getCurrentSession } from "@/lib/security/session";
 import { findUserByEmail, type UserRecord } from "@/lib/server/userStore";
-import { isPublishedStaffPassword } from "@/lib/security/publishedPasswords";
+import { isPublishedStaffPassword, PUBLISHED_STAFF_PASSWORDS } from "@/lib/security/publishedPasswords";
 
 /**
  * A password this public repository has published for a staff account is not a
@@ -67,6 +67,18 @@ describe("isPublishedStaffPassword", () => {
     // prisma/seed.ts seeded volunteer@hopeforstrays.org / vol123 from e0884e9 (2026-08-15)
     // until fb61945 (2026-09-02). Deleting it from the seed unpublished nothing.
     expect(isPublishedStaffPassword("vol123")).toBe(true);
+  });
+
+  it("matches the copy the lockdown runbook's password-hash command refuses", () => {
+    // The runbook's command must run before this module is deployed, so it carries its own
+    // list. A password added here and not there would let an operator create a Super Admin
+    // that production then refuses at sign-in.
+    const runbook = readFileSync(join(ROOT, "docs/runbooks/RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md"), "utf8");
+    const literal = runbook.match(/\[((?:"[^"]+",?)+)\]\.includes\(p\)/);
+
+    expect(literal, "the hash command's refusal list was not found").not.toBeNull();
+    const copy = [...(literal?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+    expect([...copy].sort()).toEqual([...PUBLISHED_STAFF_PASSWORDS].sort());
   });
 
   it("does not refuse an ordinary password", () => {

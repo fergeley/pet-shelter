@@ -21,13 +21,22 @@ Confirmed by the owner, not observed from the repo:
 | `DATABASE_URL` | Set; the Neon production branch (`ep-broad-band-…`); working | Suspending a row takes effect on the account's **next request**: `getVerifiedSession()` re-reads status, so live sessions end too |
 | `RESEND_API_KEY` | **Not set** | Every email is simulated and delivered to nobody — see §2 |
 | `STAFF_INVITE_SECRET` | Set (production refuses to boot without it) | "Create Account" on `/admin/login` works for anyone holding the value |
-| `SESSION_SECRET` | Not rotated — **owner's decision** | Not needed: with the database reachable, suspension revokes existing sessions. Rotate it only if the database is ever unreachable while a seeded session might be live, because then the DAL trusts the cookie |
+| `SESSION_SECRET` | Not rotated — **owner's decision** | Accepts the 24-hour window described below |
 
-**Suspension alone does not close the hole until the code fix is deployed.** If a database lookup
-fails — an outage, a cold-start timeout — `userStore` falls back to its in-memory copy of the seed,
-where `admin@hopeforstrays.org` / `admin123` is an active Super Admin, and the session check then
-trusts the cookie for as long as the database stays unreachable. Only the published-password
-refusal closes that path. Merge PR #46 as soon as §4 or §5 is done.
+**What suspension and the code fix do not close.** When a database lookup fails — an outage, a
+cold-start timeout — two fallbacks apply:
+
+- **Sign-in** falls back to `userStore`'s in-memory copy of the seed, where
+  `admin@hopeforstrays.org` / `admin123` is an active Super Admin. The code fix (PR #46) closes
+  this. Merge it as soon as §4 or §5 is done.
+- **The session check** (`readVerifiedSession` in `src/lib/security/dal.ts`) trusts whatever a
+  validly signed cookie claims. Nothing but rotating `SESSION_SECRET` closes this. A seeded-account
+  cookie issued before suspension — an attacker's, or the one §4 step 3 gives you, which signing
+  out deletes from your browser but does not revoke — keeps its full access during any outage
+  until it expires, **24 hours after it was issued**.
+
+Not rotating accepts that second window. It ends 24 hours after the last sign-in to a seeded
+account. Rotating ends it at once and signs everyone out.
 
 ## 2. Email is not configured
 

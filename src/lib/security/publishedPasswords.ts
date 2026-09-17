@@ -14,10 +14,14 @@
  * `tests/unit/security/publishedStaffPasswords.test.ts` fails if a seed publishes one
  * this list does not name.
  *
+ * **One copy lives outside this file:** the password-hash command in
+ * `docs/runbooks/RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md` refuses the same passwords, and
+ * has to work in a checkout that predates this module. The same test fails if the two differ.
+ *
  * Refusing the password rather than the seeded account ids is deliberate — see
  * `tasks/decisions/2026-09-16-a-published-password-is-refused-not-the-account.md`.
  */
-const PUBLISHED_STAFF_PASSWORDS: ReadonlySet<string> = new Set([
+export const PUBLISHED_STAFF_PASSWORDS: ReadonlySet<string> = new Set([
   "admin123",
   "coord123",
   "animal123",
