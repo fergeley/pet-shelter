@@ -23,6 +23,12 @@ Confirmed by the owner, not observed from the repo:
 | `STAFF_INVITE_SECRET` | Set (production refuses to boot without it) | "Create Account" on `/admin/login` works for anyone holding the value |
 | `SESSION_SECRET` | Not rotated — **owner's decision** | Not needed: with the database reachable, suspension revokes existing sessions. Rotate it only if the database is ever unreachable while a seeded session might be live, because then the DAL trusts the cookie |
 
+**Suspension alone does not close the hole until the code fix is deployed.** If a database lookup
+fails — an outage, a cold-start timeout — `userStore` falls back to its in-memory copy of the seed,
+where `admin@hopeforstrays.org` / `admin123` is an active Super Admin, and the session check then
+trusts the cookie for as long as the database stays unreachable. Only the published-password
+refusal closes that path. Merge PR #46 as soon as §4 or §5 is done.
+
 ## 2. Email is not configured
 
 With no `RESEND_API_KEY`, `src/lib/email.ts` writes an `EMAIL_SENT` audit row with
@@ -59,8 +65,10 @@ Do this **before** the published-password fix deploys.
    Environment Variables → `STAFF_INVITE_SECRET` (Production). If Vercel shows it as a sensitive
    value that cannot be revealed, use Procedure B instead.
 2. **Create your account.** `https://pet-shelter-phi.vercel.app/admin/login` → **Create Account**.
-   Your name, your own email, a long password you use nowhere else, and the invite code. You are
-   signed in as STAFF. Sign out.
+   Your name, your own email, a password of 12+ characters you use nowhere else, and the invite
+   code. **Not one of the passwords in §3:** production accepts them until the code fix deploys,
+   and refuses them at sign-in forever after, which would lock this account out. You are signed in
+   as STAFF. Sign out.
 3. **Promote it.** Sign in as `admin@hopeforstrays.org` (the seeded account — this is the last time).
    **Staff & Permissions** → your account → role **Super Admin**. Sign out.
 4. **Suspend the seeded accounts.** Sign in as **your** account. **Staff & Permissions** → set every
@@ -77,21 +85,27 @@ Do this **before** the published-password fix deploys.
 ## 5. Procedure B — SQL in the Neon console (when the invite code is unavailable)
 
 Run in the Neon SQL editor against the production branch. Rehearsed 2026-09-17 on a throwaway local
-PostgreSQL with production's `users` and `audit_logs` shape: nine checks passed, including the
-lockout guard refusing to run first, the hash verifying with the app's own `verifyPassword`, one
-audit row per suspension, and a re-run changing nothing. Not run against production.
+PostgreSQL with production's `users` and `audit_logs` shape, then again after code review: sixteen
+checks passed. B3 refuses to run while your account is missing, even when some other Super Admin
+exists, and its suspension statement run on its own suspends nothing. B1's hash verifies with the
+app's own `verifyPassword`, keeps leading and trailing spaces, and refuses published and short
+passwords. Each suspension writes one audit row, and a re-run changes nothing. None of this has
+been run against production.
 
 **B1. Hash your password on your own machine** (Git Bash, from anywhere with Node). The password is
-read without echo and never leaves the machine; only the hash is printed.
+read without echo and never leaves the machine; only the hash is printed. It refuses a password
+shorter than 12 characters or one of the published ones (the list in
+`src/lib/security/publishedPasswords.ts`): once the code fix deploys, a published password can never
+sign in, so a Super Admin created with one is a lockout.
 
 ```bash
-read -rs -p "New password: " PW && echo && PW="$PW" node -e 'const c=require("crypto");const s=c.randomBytes(16).toString("hex");process.stdout.write(s+":"+c.scryptSync(process.env.PW,s,64).toString("hex")+"\n")'; unset PW
+IFS= read -rs -p "New password: " PW && echo && PW="$PW" node -e 'const p=process.env.PW,c=require("crypto");if(p.length<12||["admin123","coord123","animal123","content123","staff123","vol123"].includes(p)){console.error("Refused: use 12+ characters, and not a password published in this repository.");process.exit(1)}const s=c.randomBytes(16).toString("hex");process.stdout.write(s+":"+c.scryptSync(p,s,64).toString("hex")+"\n")'; unset PW
 ```
 
 **B2. Create your Super Admin.** Replace the three placeholders; paste the hash from B1.
 
 ```sql
-INSERT INTO "users" ("id", "email", "name", "passwordHash", "role", "status", "updatedAt")
+INSERT INTO "public"."users" ("id", "email", "name", "passwordHash", "role", "status", "updatedAt")
 VALUES ('usr-owner-' || substr(md5(random()::text), 1, 12), lower('YOU@EXAMPLE.ORG'), 'Your Name',
         'PASTE-THE-HASH-FROM-B1', 'SUPER_ADMIN', 'ACTIVE', now());
 ```
@@ -99,29 +113,34 @@ VALUES ('usr-owner-' || substr(md5(random()::text), 1, 12), lower('YOU@EXAMPLE.O
 Sign in with it at `/admin/login` before going on. If the insert fails on `role`, stop: the
 production `Role` type is not what this runbook assumes.
 
-**B3. Suspend the seeded accounts.** Refuses to run unless another active Super Admin exists, and
-writes one `MEMBER_SUSPENDED` audit row per account it suspends. Safe to re-run.
+**B3. Suspend the seeded accounts.** Replace every `YOU@EXAMPLE.ORG` with the email from B2. It
+refuses to run unless that account is an active Super Admin, and the suspension itself repeats the
+check, so it cannot suspend anything without your account even if an editor runs the statements one
+at a time. Writes one `MEMBER_SUSPENDED` audit row per account it suspends. Safe to re-run.
 
 ```sql
 BEGIN;
 
 DO $$ BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM "users"
-     WHERE "status" = 'ACTIVE' AND "role" IN ('SUPER_ADMIN', 'ADMIN')
-       AND "id" NOT IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
+    SELECT 1 FROM "public"."users"
+     WHERE lower("email") = lower('YOU@EXAMPLE.ORG') AND "status" = 'ACTIVE' AND "role" = 'SUPER_ADMIN'
   ) THEN
-    RAISE EXCEPTION 'No other active Super Admin exists. Create yours first, or this locks everyone out of /admin.';
+    RAISE EXCEPTION 'YOU@EXAMPLE.ORG is not an active Super Admin. Create it and sign in with it first.';
   END IF;
 END $$;
 
 WITH suspended AS (
-  UPDATE "users" SET "status" = 'SUSPENDED', "updatedAt" = now()
+  UPDATE "public"."users" SET "status" = 'SUSPENDED', "updatedAt" = now()
    WHERE "id" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
      AND "status" <> 'SUSPENDED'
+     AND EXISTS (
+       SELECT 1 FROM "public"."users" AS owner
+        WHERE lower(owner."email") = lower('YOU@EXAMPLE.ORG') AND owner."status" = 'ACTIVE' AND owner."role" = 'SUPER_ADMIN'
+     )
   RETURNING "id", "email", "role"::text AS "role"
 )
-INSERT INTO "audit_logs" ("id", "action", "actorId", "actorEmail", "actorRole", "targetEntity", "targetId", "details", "metadata")
+INSERT INTO "public"."audit_logs" ("id", "action", "actorId", "actorEmail", "actorRole", "targetEntity", "targetId", "details", "metadata")
 SELECT 'aud-lockdown-' || "id" || '-' || to_char(now(), 'YYYYMMDDHH24MISS'),
        'MEMBER_SUSPENDED', NULL, 'operator@direct-sql', 'SYSTEM', 'User', "id",
        'Suspended by direct SQL: a seeded account whose password is published in the public repository.',
@@ -130,12 +149,19 @@ SELECT 'aud-lockdown-' || "id" || '-' || to_char(now(), 'YYYYMMDDHH24MISS'),
 
 COMMIT;
 
-SELECT "id", "email", "role"::text, "status"::text FROM "users"
+SELECT "id", "email", "role"::text, "status"::text FROM "public"."users"
  WHERE "id" IN ('usr-admin-01', 'usr-coord-01', 'usr-animal-01', 'usr-editor-01', 'usr-staff-01', 'usr-vol-01')
  ORDER BY "id";
 ```
 
-Then §4 steps 5 and 6.
+**B4. Verify.**
+
+- Signing in as `admin@hopeforstrays.org` answers "This staff account has been suspended" (or
+  "Invalid staff email or password" once the code fix is deployed). Your own sign-in still works.
+- The audit log shows one `MEMBER_SUSPENDED` row per suspended account, with actor
+  `operator@direct-sql` rather than your account, because the change did not go through the app.
+
+Then merge the code fix, as in §4 step 6.
 
 ## 6. Undo
 
@@ -143,7 +169,7 @@ Reactivating a seeded account re-opens the hole for as long as the code fix is n
 achieves nothing once it is (its password is refused). If it is ever needed for a single account:
 
 ```sql
-UPDATE "users" SET "status" = 'ACTIVE', "updatedAt" = now() WHERE "id" = 'usr-…';
+UPDATE "public"."users" SET "status" = 'ACTIVE', "updatedAt" = now() WHERE "id" = 'usr-…';
 ```
 
 ## 7. Related production work
@@ -151,7 +177,8 @@ UPDATE "users" SET "status" = 'ACTIVE', "updatedAt" = now() WHERE "id" = 'usr-�
 - **Status enum migration.** Adoption applications and status changes are being lost in production
   because the `ApplicationStatus`/`PetStatus` types are missing. The rehearsed fix is
   `prisma/migrations/manual/20260917_status_enums/migration.sql`, shipped with PR #47; its header is
-  the procedure.
+  the procedure. It changes only the database, so it can be applied before that PR merges, and
+  every day it waits loses whatever applications arrive.
 - **The 2026-09-14 test rows.** Local e2e wrote three RM30 donations holding receipts
   `HFS-DON-202609-0001` to `0003`. Receipts are append-only statutory records
   (`prisma/schema.prisma`, model `Donation`): correct them with an offsetting record, never by
