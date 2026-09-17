@@ -18,25 +18,35 @@ Confirmed by the owner, not observed from the repo:
 
 | Setting | State | Consequence here |
 |---|---|---|
-| `DATABASE_URL` | Set; the Neon production branch (`ep-broad-band-…`); working | Suspending a row takes effect on the account's **next request**: `getVerifiedSession()` re-reads status, so live sessions end too |
+| `DATABASE_URL` | Set; the Neon production branch (`ep-broad-band-…`); working | Suspending a row ends a live session on its **next request** wherever the app checks through `getVerifiedSession()`, which re-reads status. Not everywhere — see below |
 | `RESEND_API_KEY` | **Not set** | Every email is simulated and delivered to nobody — see §2 |
 | `STAFF_INVITE_SECRET` | Set (production refuses to boot without it) | "Create Account" on `/admin/login` works for anyone holding the value |
-| `SESSION_SECRET` | Not rotated — **owner's decision** | Accepts the 24-hour window described below |
+| `SESSION_SECRET` | Not rotated — **owner's decision of 2026-09-17**, made before the gap below was known | Accepts the 24-hour window described below. **Reconsider:** rotating is the only thing that closes it |
 
-**What suspension and the code fix do not close.** When a database lookup fails — an outage, a
-cold-start timeout — two fallbacks apply:
+**What suspension and the code fix do not close.** A seeded-account cookie issued before
+suspension — an attacker's, or the one §4 step 3 gives you, which signing out deletes from your
+browser but does not revoke — stays validly signed until it expires, **24 hours after it was
+issued**. Three things still honour it:
 
-- **Sign-in** falls back to `userStore`'s in-memory copy of the seed, where
-  `admin@hopeforstrays.org` / `admin123` is an active Super Admin. The code fix (PR #46) closes
-  this. Merge it as soon as §4 or §5 is done.
-- **The session check** (`readVerifiedSession` in `src/lib/security/dal.ts`) trusts whatever a
-  validly signed cookie claims. Nothing but rotating `SESSION_SECRET` closes this. A seeded-account
-  cookie issued before suspension — an attacker's, or the one §4 step 3 gives you, which signing
-  out deletes from your browser but does not revoke — keeps its full access during any outage
-  until it expires, **24 hours after it was issued**.
+- **Cookie-only checks, all the time.** The transparency actions in `src/actions/transparency.ts`
+  (expense entries, impact stats, financial reports, and the unpublished-draft snapshot), FAQ
+  editing (`requireFaqEditor` in `src/actions/faqs.ts`) and the `/admin/faqs` page authorize from
+  `getCurrentSession()` alone and never re-read the account's status. **With the database working,
+  a suspended Super Admin's cookie can still write the public financial ledger and edit FAQs.**
+  Tracked in `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
+- **Every check, during a database outage.** `readVerifiedSession` in `src/lib/security/dal.ts`
+  returns the cookie's own claims when the lookup throws.
+- **Sign-in, during a database outage,** falls back to `userStore`'s in-memory copy of the seed,
+  where `admin@hopeforstrays.org` / `admin123` is an active Super Admin. The code fix (PR #46)
+  closes this one. Merge it as soon as §4 or §5 is done.
 
-Not rotating accepts that second window. It ends 24 hours after the last sign-in to a seeded
-account. Rotating ends it at once and signs everyone out.
+Rotating `SESSION_SECRET` in Vercel (then redeploying) invalidates every cookie at once, closing
+the first two immediately; everyone signs in again. It loses no data: `SESSION_SECRET` only signs
+staff sessions, sponsor sessions and notification-preference links (`signPayload` in
+`src/lib/security/crypto.ts`), and `encryptField`, the one thing that could encrypt data with it,
+has no callers. Links in emails already sent would stop working, and with email unset none were
+sent. Use at least 32 random characters; production refuses a weak or default value at boot. Not rotating leaves them open until 24 hours
+after the last sign-in to a seeded account — and nobody can see from the app when that was.
 
 ## 2. Email is not configured
 
