@@ -15,6 +15,54 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Home page loose ends, and the ledger mirrored into GitHub issues — review
+
+**Branch:** `worktree-ledger-issues-mirror` · opened 2026-09-18 · base `85ee351`
+
+## What shipped
+
+- [x] Four home page defects no open entry held, each checked at `85ee351` (most by a throwaway
+      component test): `bulletins-are-a-per-browser-demo-anyone-can-edit`,
+      `home-page-text-stays-english-on-the-malay-site`,
+      `hero-mounts-a-quiz-and-sponsor-dialog-nothing-can-open`,
+      `nav-links-point-at-home-sections-the-page-no-longer-renders`.
+- [x] `scripts/ledger-issues.mjs` (`npm run ledger:issues`): a one-way mirror of `tasks/open/` into
+      public issues labelled `ledger`. Rules and why: `tasks/decisions/2026-09-18-ledger-issues-are-a-one-way-mirror.md`.
+- [x] `.github/workflows/ledger-issues.yml` runs it with `--apply` on push to `master`.
+- [x] Published 2026-09-18 from `master`: #48–#71, one per entry. The home page entries and the
+      workflow's own open entry publish when this branch merges and the workflow runs.
+
+## Review
+
+- Six `/code-review` rounds, each on the previous fix round, plus one probe found by running the
+  script the way CI will. Every round found real defects, and the fix rounds made some of their own:
+  running from `tasks/` would have closed every issue; a depth-1 clone could not resolve
+  `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
+  then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
+  four separate file-name shapes broke the marker until it was percent-encoded instead.
+- Final state: 30 tests, 20 of 20 planner mutations killed, dry runs from the root, from `tasks/`,
+  in a depth-1 clone, and paging five issues at a time.
+- Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
+  first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
+
+## Deliberately not done
+
+- **None of the four home page defects is fixed.** The ask was to write them up, and each needs an
+  owner's decision first: bulletin persistence (P-D in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md`),
+  FE-02's hero buttons against the undocumented "sitemap" in `home.test.tsx`, where the dead anchors
+  should point.
+- **PR #34's three unreproduced local failures were not filed.** They match the load-timeout pattern
+  in two lessons and in `tasks/decisions/2026-09-08-admin-sponsorship-reconciliation.md`, and CI's
+  test job passed on all eleven failed runs since 2026-09-08.
+- **PR #34's "dedicated table" ceiling for the impact counters stays untracked**, as its author chose.
+- **Four open entries lack the required `**Settles when:**` line** (`donation-form-and-admin-denials-have-loose-ends`,
+  `matcherless-hook-wiring-unverified`, `production-schema-has-drifted-ahead-of-master`,
+  `sponsor-portal-is-inert-until-reconciliation-is-reachable`), and one has two H1s. Noticed while
+  building the mirror, which copes with both; not rewritten, because they belong to other sessions.
+- **No two-way sync, and no run on `pull_request`.** Both are recorded as rejected in the decision.
+- **The workflow has never run** — it cannot before it is on `master`. Open entry
+  `ledger-issues-workflow-has-never-run`, with an agent-checkable settle condition.
+
 # Dual-track pet catalogue — plan
 
 **Branch:** `worktree-agent-4-animals` · opened 2026-09-08

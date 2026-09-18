@@ -64,5 +64,12 @@ Never on `pull_request`: a branch's entries are unmerged, and publishing them wo
 one-way door. Runs queue in one concurrency group and never overlap, because two planning at once
 would each create the same new issue — and that duplicate stops every later run.
 
-Unobserved when this was written: that GitHub returns the marker byte-for-byte. That is a live
-kill condition, in `tasks/open/ledger-issue-marker-round-trip-is-unobserved.md`.
+**The marker round-trips through GitHub — observed, not assumed.** It was registered as a kill
+condition before the first publish: the dry run straight after `--apply` must print
+`in sync, nothing to do`, and any `create` would kill the design. On 2026-09-18 the first
+`--apply` created #48–#71 from `master`'s 24 entries, and the next run printed
+`24 entries on origin/master (85ee351), 24 issues in fergeley/pet-shelter` / `in sync, nothing to
+do`. A copy paging five issues at a time read the same. SURVIVED.
+
+The workflow's first run on GitHub is still unobserved:
+`tasks/open/ledger-issues-workflow-has-never-run.md`.
