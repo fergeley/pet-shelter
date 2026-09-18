@@ -314,7 +314,7 @@ describe("applying a plan", () => {
     // A close sorted after a failed create would retire a renamed entry's only issue, and a run-wide
     // failure (auth, network, rate limit) only worsens by pressing on.
     const { calls, exec } = fakeGh((args) => args.includes("A".repeat(300)));
-    expect(() => applyActions(plan, { ...target, exec })).toThrow(/create tasks\/open\/a\.md.*title is too long/s);
+    expect(() => applyActions(plan, { ...target, exec })).toThrow(/create tasks\/open\/a\.md.*title is too long/);
     expect(calls).toHaveLength(1);
   });
 

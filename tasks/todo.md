@@ -34,8 +34,9 @@ Record active multi-step work streams below.
 
 ## Review
 
-- Six `/code-review` rounds, each on the previous fix round, plus one probe found by running the
-  script the way CI will. Every round found real defects, and the fix rounds made some of their own:
+- Twelve `/code-review` passes — the branch, every fix round on its own, and the whole branch before
+  the pull request — plus one probe found by running the script the way CI will. Until the last,
+  every pass found real defects, and the fix rounds made some of their own:
   running from `tasks/` would have closed every issue; a depth-1 clone could not resolve
   `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
   then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
@@ -47,6 +48,11 @@ Record active multi-step work streams below.
   found that retired renamed entries and hammered rate limits, so it was reverted to stopping, and
   the entry-shaped refusals (a blank, long or control-character title, an oversized body) are
   prevented in the core instead.
+- Two slips the per-round loop missed and the close-out gates caught. The per-round check ran
+  vitest and eslint but not `tsc`, and vitest strips types without checking them, so a regex `s`
+  flag this repo's ES2017 target rejects passed every round and failed only the final typecheck.
+  And the edit tool stored `\u0000`-style escapes as raw bytes, turning the test file binary for
+  every diff; see `tasks/lessons/2026-09-18-a-raw-nul-in-a-test-turns-it-binary-and-hides-it-from-review.md`.
 - Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
   first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
 
