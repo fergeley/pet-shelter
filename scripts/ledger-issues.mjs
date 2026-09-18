@@ -30,11 +30,16 @@ export const LABEL = "ledger";
 // marker (a bug report about this script, say) is not mistaken for a mirror and closed.
 const MARKER = /^\s*<!--\s*ledger-mirror:\s*(.+?)\s*-->/;
 
-/** Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. */
+/**
+ * Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. A name the marker
+ * cannot carry — one containing `-->` or a control character — is skipped rather than mirrored,
+ * because it would never be read back and would gain a fresh issue on every run.
+ */
 export function isMirroredPath(path) {
   if (!path.startsWith(LEDGER_DIR) || !path.endsWith(".md")) return false;
   const name = path.slice(LEDGER_DIR.length);
-  return !name.includes("/") && !name.startsWith("CLAIM-");
+  const unmarkable = name.includes("-->") || [...name].some((char) => char.charCodeAt(0) < 0x20);
+  return !name.includes("/") && !name.startsWith("CLAIM-") && !unmarkable;
 }
 
 export function markerFor(path) {
@@ -181,10 +186,15 @@ async function main(argv) {
     .filter((path) => path && isMirroredPath(path));
   const rendered = paths.map((path) => renderIssue(parseEntry(path, run("git", ["show", `${sha}:${path}`])), { repo, branch }));
 
-  // ceiling: one page of 1000 issues. Past that, paginate `gh api` or the planner will re-create
-  // entries whose issues fell off the page.
+  // Filtered by label on the server as well as in `planSync`: unfiltered, anyone could file enough
+  // issues on this public repository to push the mirrors off the page, and each run would then
+  // re-create every entry. ceiling: one page of 1000 *labelled* issues, open and closed; past that,
+  // paginate `gh api`.
   const issues = JSON.parse(
-    run("gh", ["issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title,body,state,labels"]),
+    run("gh", [
+      "issue", "list", "--repo", repo, "--label", LABEL, "--state", "all", "--limit", "1000",
+      "--json", "number,title,body,state,labels",
+    ]),
   );
 
   const actions = planSync(rendered, issues);

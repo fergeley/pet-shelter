@@ -47,6 +47,11 @@ describe("which files are mirrored", () => {
     expect(isMirroredPath("tasks/open/CLAIM-home-bulletins.md")).toBe(false);
   });
 
+  it("skips a name the marker cannot carry, which would otherwise gain an issue on every run", () => {
+    expect(isMirroredPath("tasks/open/a-->b.md")).toBe(false);
+    expect(isMirroredPath("tasks/open/a\nb.md")).toBe(false);
+  });
+
   it("skips anything outside tasks/open, nested, or not markdown", () => {
     expect(isMirroredPath("tasks/decisions/2026-09-08-x.md")).toBe(false);
     expect(isMirroredPath("tasks/open/archive/old.md")).toBe(false);
