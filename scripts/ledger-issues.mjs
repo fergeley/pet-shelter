@@ -65,7 +65,8 @@ const normalise = (text) => String(text ?? "").replace(/\r\n/g, "\n").trim();
 export function parseEntry(path, text) {
   const lines = normalise(text).split("\n");
   const h1 = lines.findIndex((line) => /^#\s+\S/.test(line));
-  const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "");
+  // Collapsed because a title is one line: a name GitHub would store differently would never match.
+  const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "").replace(/\s+/g, " ").trim();
   if (h1 === -1) return { path, title: slug, body: lines.join("\n").trim() };
   const title = lines[h1].replace(/^#\s+/, "").trim();
   const body = [...lines.slice(0, h1), ...lines.slice(h1 + 1)].join("\n").trim();

@@ -83,6 +83,11 @@ describe("parsing an entry", () => {
   it("falls back to the slug when an entry has no H1", () => {
     expect(parseEntry("tasks/open/no-heading.md", "just a body\n").title).toBe("no-heading");
   });
+
+  it("collapses whitespace in a slug title, so an odd file name cannot re-edit its issue every run", () => {
+    expect(parseEntry("tasks/open/a\r\nb.md", "no heading").title).toBe("a b");
+    expect(parseEntry("tasks/open/foo .md", "no heading").title).toBe("foo");
+  });
 });
 
 describe("rendering an issue", () => {
