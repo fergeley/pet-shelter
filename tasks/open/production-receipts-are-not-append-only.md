@@ -1,6 +1,7 @@
 # Production's issued receipts are not append-only below the ORM
 
-**Status:** open · opened 2026-09-16 · measured 2026-09-17 · awaiting a human decision
+**Status:** open · opened 2026-09-16 · measured 2026-09-17 · decided 2026-09-18 · awaiting the
+owner's two applies
 
 `prisma/sql/donation_append_only.sql` installs `donations_no_mutation`, a `BEFORE UPDATE OR DELETE`
 trigger that makes an issued receipt immutable to psql sessions, admin tools and future code, not
@@ -28,39 +29,35 @@ A read-only probe, run by the human with `!` in the session. Every query ran ins
 `npm run db:check-drift` could never have found this. Prisma's diff does not see triggers or
 functions.
 
-## Decide the 3 rows before installing the guard
+## The 3 rows are e2e test receipts — decided 2026-09-18
 
-PR #47's ledger (`production-schema-has-drifted-ahead-of-master.md`, unmerged as of writing)
-reports that local e2e runs on 2026-09-14 wrote donations that **persisted to this branch**. If any
-of the 3 is a test receipt, what happens to it comes first. Once the trigger is on, `DELETE` is
-refused and the guard must be lifted to remove a row. Receipt numbering is gapless per month
-(`ReceiptSequence`, `schema.prisma`), so deleting one leaves a hole in a statutory series. An
-offsetting record, as the trigger file recommends, keeps the series whole. That is a bookkeeping
-call, not an engineering one.
+The owner's read-only query in the Neon SQL editor returned `HFS-DON-202609-0001`, `0002` and
+`0003`, all `is_e2e = true`. They are the local Playwright runs of 2026-09-14. The decision to
+delete them and **keep the counter at 3** is
+`tasks/decisions/2026-09-18-e2e-test-receipts-removed-counter-kept.md`. The first real September
+receipt will be `0004`.
 
-A human can tell without exporting personal data: e2e runs use `@example.test` addresses.
+## What the owner applies, in this order
 
-    SELECT "receiptNumber", "issuedAt", "donorEmail" LIKE '%@example.test' AS is_e2e
-      FROM donations ORDER BY "issuedAt";
+A human types both: `.claude/settings.json` denies agents `npx prisma db execute*`, and on
+2026-09-17 the auto-mode classifier refused even an agent's `BEGIN TRANSACTION READ ONLY` probe as
+`[Production Reads]`. Paste each file into the Neon SQL editor on the production branch.
 
-## Applying it, when decided
+1. `prisma/migrations/manual/20260918_remove_e2e_test_receipts/cleanup.sql`. It aborts, deleting
+   nothing, unless the ledger is exactly the three test rows and the counter reads 3. It must run
+   before step 2, because the trigger refuses the delete.
+2. `prisma/sql/donation_append_only.sql`. It is idempotent re-creation (`DROP TRIGGER IF EXISTS`,
+   then `CREATE TRIGGER`), not additive, so it takes this yes of its own.
 
-The file is idempotent re-creation, not additive: it runs `DROP TRIGGER IF EXISTS` before
-`CREATE TRIGGER`. So it takes its own yes, and a human types it. `.claude/settings.json` denies
-agents `npx prisma db execute*`. Either paste it into the Neon SQL Editor on the production branch,
-or run it from the main checkout, where `.env.local` resolves to production as intended here:
+Both were rehearsed together on a throwaway local PostgreSQL 18.4 on 2026-09-18. Results are in
+the cleanup file's header and the decision entry.
 
-    npx prisma db execute --file prisma/sql/donation_append_only.sql
+## After, read-only
 
-Then re-run the trigger query. Expected: one row, `donations_no_mutation`, `O`.
-
+    SELECT count(*) FROM donations;                                  -- expect 0
+    SELECT scope, "lastValue" FROM receipt_sequences;               -- expect HFS-DON-202609 | 3
     SELECT tgname, tgenabled FROM pg_trigger
-     WHERE tgrelid = '"donations"'::regclass AND NOT tgisinternal;
+     WHERE tgrelid = '"donations"'::regclass AND NOT tgisinternal;  -- expect donations_no_mutation | O
 
-No agent can run either query. On 2026-09-17 the auto-mode classifier refused an agent's
-read-only probe as `[Production Reads]`, `BEGIN TRANSACTION READ ONLY` notwithstanding. Production
-reads go through a human: the Neon SQL Editor, or `!` in the session.
-
-**Settles when:** a human has decided what happens to any test receipts among the 3, and whether to
-apply `donation_append_only.sql`. The decision is recorded in `tasks/decisions/`. If applied, the
-trigger query's result is pasted there.
+**Settles when:** the three results above are pasted here. Then this entry moves to `decisions/`,
+naming the date both files were applied.
