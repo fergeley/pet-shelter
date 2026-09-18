@@ -164,7 +164,10 @@ async function main(argv) {
   if (!branch) throw new Error("--branch needs a name");
 
   // A stale remote-tracking ref would close the issues of entries added upstream since the last fetch.
-  run("git", ["fetch", "--quiet", "origin", branch]);
+  // The explicit refspec is what updates it: a single-branch or shallow clone (`git clone --depth 1`)
+  // configures no mapping for other branches, and a bare `git fetch origin <branch>` there moves only
+  // FETCH_HEAD. No `--depth` here — on a full clone that would make the repository shallow.
+  run("git", ["fetch", "--quiet", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`]);
   const sha = run("git", ["rev-parse", `origin/${branch}`]);
 
   // --full-tree: without it the pathspec is relative to the caller's directory, and a run from
