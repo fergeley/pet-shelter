@@ -28,7 +28,7 @@ export const LABEL = "ledger";
 
 // Anchored to the top of the body, where `renderIssue` puts it, so an issue that merely quotes the
 // marker (a bug report about this script, say) is not mistaken for a mirror and closed.
-const MARKER = /^\s*<!--\s*ledger-mirror:\s*(\S+?)\s*-->/;
+const MARKER = /^\s*<!--\s*ledger-mirror:\s*(.+?)\s*-->/;
 
 /** Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. */
 export function isMirroredPath(path) {
@@ -60,7 +60,7 @@ export function parseEntry(path, text) {
 }
 
 export function renderIssue(entry, { repo, branch }) {
-  const url = `https://github.com/${repo}/blob/${branch}/${entry.path}`;
+  const url = `https://github.com/${repo}/blob/${branch}/${entry.path.split("/").map(encodeURIComponent).join("/")}`;
   const header =
     `> Mirrored from [\`${entry.path}\`](${url}) by \`scripts/ledger-issues.mjs\`. ` +
     "The file is the source of truth: edits to this description are overwritten on the next " +
@@ -74,9 +74,12 @@ export function renderIssue(entry, { repo, branch }) {
 
 /**
  * The actions that make GitHub match the ledger. Pure, so the whole policy is testable without
- * publishing anything. Issues without a marker were filed by people and are never touched.
+ * publishing anything. An issue is a mirror only if it carries both the marker and the label: the
+ * repository is public, anyone can open an issue whose body starts with a copied marker, and only
+ * someone with triage rights can label one. Everything else is never touched.
  */
 export function planSync(rendered, issues) {
+  const isLabelled = (issue) => (issue.labels ?? []).some((label) => label.name === LABEL);
   // Open before closed, then oldest first. So a closed duplicate never displaces an open issue, and
   // closing the wrong one of two open duplicates is enough to unblock the sync.
   const isClosed = (issue) => issue.state === "CLOSED";
@@ -84,7 +87,7 @@ export function planSync(rendered, issues) {
   const byPath = new Map();
   for (const issue of ordered) {
     const path = pathFromMarker(issue.body);
-    if (!path) continue;
+    if (!path || !isLabelled(issue)) continue;
     const held = byPath.get(path);
     if (!held) {
       byPath.set(path, issue);
@@ -172,15 +175,16 @@ async function main(argv) {
 
   // --full-tree: without it the pathspec is relative to the caller's directory, and a run from
   // `tasks/` reads no entries at all.
-  const paths = run("git", ["ls-tree", "--full-tree", "--name-only", sha, "--", LEDGER_DIR])
-    .split("\n")
+  // -z: otherwise git quotes a non-ASCII name ("tasks/open/caf\303\251.md") and it fails the prefix test.
+  const paths = run("git", ["ls-tree", "-z", "--full-tree", "--name-only", sha, "--", LEDGER_DIR])
+    .split("\0")
     .filter((path) => path && isMirroredPath(path));
   const rendered = paths.map((path) => renderIssue(parseEntry(path, run("git", ["show", `${sha}:${path}`])), { repo, branch }));
 
   // ceiling: one page of 1000 issues. Past that, paginate `gh api` or the planner will re-create
   // entries whose issues fell off the page.
   const issues = JSON.parse(
-    run("gh", ["issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title,body,state"]),
+    run("gh", ["issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title,body,state,labels"]),
   );
 
   const actions = planSync(rendered, issues);

@@ -92,6 +92,13 @@ describe("rendering an issue", () => {
     expect(pathFromMarker(null)).toBeNull();
   });
 
+  it("round-trips a path with a space or non-ASCII characters, and encodes it in the link", () => {
+    for (const path of ["tasks/open/foo bar.md", "tasks/open/café.md"]) {
+      expect(pathFromMarker(rendered(path).body)).toBe(path);
+    }
+    expect(rendered("tasks/open/foo bar.md").body).toContain("/blob/master/tasks/open/foo%20bar.md)");
+  });
+
   it("ignores a marker quoted anywhere but the top of the body", () => {
     const quoted = `The mirror keys issues on this line:\n\n${markerFor("tasks/open/x.md")}\n`;
     expect(pathFromMarker(quoted)).toBeNull();
@@ -99,11 +106,12 @@ describe("rendering an issue", () => {
 });
 
 describe("planning a sync", () => {
+  // Labelled by default, as the script creates them.
   const issue = (
     number: number,
     path: string,
-    overrides: Partial<{ title: string; body: string; state: string }> = {},
-  ) => ({ number, state: "OPEN", ...rendered(path), ...overrides });
+    overrides: Partial<{ title: string; body: string; state: string; labels: { name: string }[] }> = {},
+  ) => ({ number, state: "OPEN", labels: [{ name: "ledger" }], ...rendered(path), ...overrides });
 
   it("creates an issue for an entry that has none", () => {
     const actions = planSync([rendered("tasks/open/a.md")], []);
@@ -157,8 +165,24 @@ describe("planning a sync", () => {
 
   it("never touches an issue without a marker, even one sharing an entry's title", () => {
     const entry = rendered("tasks/open/a.md");
-    const human = { number: 3, state: "OPEN", title: entry.title, body: "filed by hand" };
+    // Labelled by mistake: the label alone does not make it a mirror.
+    const human = { number: 3, state: "OPEN", title: entry.title, body: "filed by hand", labels: [{ name: "ledger" }] };
     expect(planSync([entry], [human])).toEqual([expect.objectContaining({ type: "create", path: "tasks/open/a.md" })]);
+  });
+
+  it("ignores a planted marker on an issue without the label, which outsiders cannot set", () => {
+    const planted = issue(9, "tasks/open/a.md", { labels: [] });
+    // Beside the real mirror it must not stop the run as a duplicate...
+    expect(planSync([rendered("tasks/open/a.md")], [issue(7, "tasks/open/a.md"), planted])).toEqual([]);
+    // ...and on its own it must not be adopted as the mirror.
+    expect(planSync([rendered("tasks/open/a.md")], [planted])).toEqual([
+      expect.objectContaining({ type: "create", path: "tasks/open/a.md" }),
+    ]);
+  });
+
+  it("never closes an unlabelled issue, whatever its marker names", () => {
+    const planted = issue(9, "tasks/open/gone.md", { labels: [] });
+    expect(planSync([rendered("tasks/open/live.md")], [issue(6, "tasks/open/live.md"), planted])).toEqual([]);
   });
 
   it("refuses to plan when two open issues claim the same entry, rather than picking one", () => {

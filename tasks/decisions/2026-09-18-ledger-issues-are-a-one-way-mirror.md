@@ -13,11 +13,16 @@ comment settles nothing until someone writes it into the file — the rendered h
 conflict rules nobody has designed, and it turns an issue edit into a ledger write that skipped
 review.
 
-**Identity is a hidden `<!-- ledger-mirror: <path> -->` marker at the top of the body, not the title
-or a label.** Titles get edited and labels get removed; the `ledger` label is presentation only. The
-marker counts only as the body's first line, so an issue that quotes it is not taken for a mirror.
-Issues without one were filed by people and are never touched. A renamed entry is a new identity:
-its old issue closes and a new one opens.
+**Identity is a hidden `<!-- ledger-mirror: <path> -->` marker at the top of the body; trust is the
+`ledger` label.** Titles get edited, so neither they nor the label identify an entry. But the
+repository is public: anyone can open an issue whose body starts with a copied marker, and
+the second review of this script showed that doing so would either stop every sync as a duplicate
+or get the planted issue adopted as an entry's mirror, still editable by whoever planted it.
+Only someone with triage rights can label an issue (this repository has no issue templates that
+auto-apply one), so an issue counts as a mirror only with the marker *and* the label. Everything
+else is never touched — including a real mirror a maintainer unlabels, which is how to opt one out.
+The marker counts only as the body's first line, so an issue that quotes it is not taken for a
+mirror. A renamed entry is a new identity: its old issue closes and a new one opens.
 
 **Duplicates: an open issue beats a closed one; two open ones stop the run.** Picking between two
 open issues would silently orphan one, so that stays a human call — but closing the wrong one is
