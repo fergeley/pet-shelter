@@ -43,9 +43,11 @@ the `git log` that does. A closed issue whose entry is still in `tasks/open/` is
 **Dry run by default; `--apply` publishes.** The repository is public, and publishing is a one-way
 door (`.claude/templates/triage-rules.md` §6).
 
-**Not wired into CI.** A workflow that syncs on every push to `master` is the obvious next step. It
-was deliberately not taken: it changes CI and publishes on every merge, which is the repository
-owner's call, not a ride-along to the script.
+**Synced by CI on every push to `master`, at the owner's request.** `.github/workflows/ledger-issues.yml`
+runs `--apply` when `tasks/open/`, the script, or the workflow changes on `master`, and on demand.
+Never on `pull_request`: a branch's entries are unmerged, and publishing them would make every PR a
+one-way door. Runs queue in one concurrency group and never overlap, because two planning at once
+would each create the same new issue — and that duplicate stops every later run.
 
 Unobserved when this was written: that GitHub returns the marker byte-for-byte. That is a live
 kill condition, in `tasks/open/ledger-issue-marker-round-trip-is-unobserved.md`.
