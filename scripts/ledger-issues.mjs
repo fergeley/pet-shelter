@@ -61,15 +61,27 @@ export function pathFromMarker(body) {
 
 const normalise = (text) => String(text ?? "").replace(/\r\n/g, "\n").trim();
 
+// GitHub refuses a title over 256 characters and a body over 65,536, and one refused action stops
+// the run (see `applyActions`). So the entry-shaped refusals are prevented here, where a test holds
+// them. ceiling: the margins cover counting in code points rather than whatever GitHub counts in.
+const MAX_TITLE = 240;
+const MAX_BODY = 60_000;
+
+/** Cut by code point, so a clip never splits a surrogate pair GitHub would then rewrite. */
+const clip = (text, max, tail) => {
+  const chars = [...text];
+  return chars.length <= max ? text : chars.slice(0, max - [...tail].length).join("") + tail;
+};
+
 /** Title is the first H1; the body is the file without that one line. */
 export function parseEntry(path, text) {
   const lines = normalise(text).split("\n");
   const h1 = lines.findIndex((line) => /^#\s+\S/.test(line));
   // Collapsed because a title is one line: a name GitHub would store differently would never match.
   const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "").replace(/\s+/g, " ").trim();
-  // `slug || path`: GitHub refuses a blank title, and one refused create would stop every later run.
-  if (h1 === -1) return { path, title: slug || path, body: lines.join("\n").trim() };
-  const title = lines[h1].replace(/^#\s+/, "").trim();
+  // `slug || path`: GitHub refuses a blank title.
+  if (h1 === -1) return { path, title: clip(slug || path, MAX_TITLE, "…"), body: lines.join("\n").trim() };
+  const title = clip(lines[h1].replace(/^#\s+/, "").trim(), MAX_TITLE, "…");
   const body = [...lines.slice(0, h1), ...lines.slice(h1 + 1)].join("\n").trim();
   return { path, title, body };
 }
@@ -80,10 +92,11 @@ export function renderIssue(entry, { repo, branch }) {
     `> Mirrored from [\`${entry.path}\`](${url}) by \`scripts/ledger-issues.mjs\`. ` +
     "The file is the source of truth: edits to this description are overwritten on the next " +
     "sync. Discuss in comments; settle it by changing the file.";
+  const tail = "\n\n> Truncated here: the full entry is in the file linked above.";
   return {
     path: entry.path,
     title: entry.title,
-    body: `${markerFor(entry.path)}\n${header}\n\n${entry.body}`,
+    body: clip(`${markerFor(entry.path)}\n${header}\n\n${entry.body}`, MAX_BODY, tail),
   };
 }
 
@@ -177,13 +190,14 @@ export function issuesFromPages(pages) {
 }
 
 /**
- * Runs a plan through `exec` (the `gh` CLI in production) and returns what failed. A rejected action
- * is recorded and the rest still run: stopping at the first one would let a single bad entry — a
- * title over GitHub's length limit, say — stall every later action on every run.
+ * Runs a plan through `exec` (the `gh` CLI in production), stopping at the first refusal. Stop, not
+ * skip: closes sort last, so pressing on after a failed create would retire a renamed entry's only
+ * issue, and a run-wide failure — auth, network, a rate limit — only worsens by retrying. What an
+ * entry alone could get refused for (a blank or over-long title, an oversized body) is prevented in
+ * `parseEntry` and `renderIssue` instead, so one entry cannot wedge every run.
  */
 export function applyActions(actions, { repo, sha, exec, log }) {
-  const failures = [];
-  for (const action of actions) {
+  for (const [index, action] of actions.entries()) {
     try {
       if (action.type === "create") {
         const url = exec("gh", ["issue", "create", "--repo", repo, "--title", action.title, "--label", LABEL, "--body-file", "-"], action.body);
@@ -203,10 +217,14 @@ export function applyActions(actions, { repo, sha, exec, log }) {
         log(`  closed #${action.number}`);
       }
     } catch (error) {
-      failures.push({ type: action.type, path: action.path, message: String(error?.message ?? error).split("\n")[0] });
+      // execFileSync's first line is the command echoed back; gh's reason is on the lines after it.
+      const [command, ...reason] = String(error?.message ?? error).split("\n");
+      const why = reason.map((line) => line.trim()).filter(Boolean).join(" ") || command;
+      throw new Error(
+        `${action.type} ${action.path} was refused after ${index} of ${actions.length} actions applied: ${why}`,
+      );
     }
   }
-  return failures;
 }
 
 function formatAction(action) {
@@ -288,15 +306,7 @@ async function main(argv) {
     run("gh", ["label", "create", LABEL, "--repo", repo, "--color", "5319e7", "--description", "Mirrored from tasks/open/"]);
   }
 
-  const failures = applyActions(actions, { repo, sha, exec: run, log: (line) => process.stdout.write(`${line}\n`) });
-  if (failures.length > 0) {
-    // gh has already printed each reason to stderr; this is the summary, and the red run.
-    process.stderr.write(
-      `\nledger-issues: ${failures.length} of ${actions.length} actions failed:\n` +
-        `${failures.map((f) => `  ${f.type} ${f.path}: ${f.message}`).join("\n")}\n`,
-    );
-    process.exitCode = 1;
-  }
+  applyActions(actions, { repo, sha, exec: run, log: (line) => process.stdout.write(`${line}\n`) });
 }
 
 // Only run the CLI when executed directly, so the module stays importable by tests.

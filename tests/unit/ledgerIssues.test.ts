@@ -90,6 +90,13 @@ describe("parsing an entry", () => {
     expect(parseEntry("tasks/open/foo .md", "no heading").title).toBe("foo");
   });
 
+  it("clips an over-long title below GitHub's limit, the same way every run", () => {
+    const title = parseEntry("tasks/open/x.md", `# ${"word ".repeat(80)}\n\nbody`).title;
+    expect([...title].length).toBeLessThanOrEqual(240);
+    expect(title.endsWith("…")).toBe(true);
+    expect(parseEntry("tasks/open/x.md", `# ${"word ".repeat(80)}\n\nbody`).title).toBe(title);
+  });
+
   it("never produces an empty title, which GitHub refuses and which would stall every later run", () => {
     for (const path of ["tasks/open/.md", "tasks/open/ .md"]) {
       expect(parseEntry(path, "no heading").title.trim()).not.toBe("");
@@ -125,6 +132,13 @@ describe("rendering an issue", () => {
       expect(pathFromMarker(rendered(path).body)).toBe(path);
     }
     expect(rendered("tasks/open/foo bar.md").body).toContain("/blob/master/tasks/open/foo%20bar.md)");
+  });
+
+  it("clips an over-long body below GitHub's limit, keeping the marker and pointing at the file", () => {
+    const { body } = renderIssue(parseEntry("tasks/open/x.md", `# Big\n\n${"x".repeat(70_000)}`), TARGET);
+    expect([...body].length).toBeLessThanOrEqual(60_000);
+    expect(pathFromMarker(body)).toBe("tasks/open/x.md");
+    expect(body).toContain("Truncated");
   });
 
   it("ignores a marker quoted anywhere but the top of the body", () => {
@@ -288,16 +302,17 @@ describe("applying a plan", () => {
   };
   const target = { repo: "owner/repo", sha: "abcdef1", log: () => {} };
 
-  it("keeps going past a rejected action and reports it, so one bad entry cannot stall the rest", () => {
+  it("stops at the first rejected action — before any close — and says which and why", () => {
+    // A close sorted after a failed create would retire a renamed entry's only issue, and a run-wide
+    // failure (auth, network, rate limit) only worsens by pressing on.
     const { calls, exec } = fakeGh((args) => args.includes("A".repeat(300)));
-    const failures = applyActions(plan, { ...target, exec });
-    expect(calls).toHaveLength(plan.length);
-    expect(failures).toEqual([expect.objectContaining({ type: "create", path: "tasks/open/a.md" })]);
+    expect(() => applyActions(plan, { ...target, exec })).toThrow(/create tasks\/open\/a\.md.*title is too long/s);
+    expect(calls).toHaveLength(1);
   });
 
   it("creates with the label and the body on stdin, and closes with a comment naming the path", () => {
     const { calls, exec } = fakeGh(() => false);
-    expect(applyActions(plan, { ...target, exec })).toEqual([]);
+    applyActions(plan, { ...target, exec });
     expect(calls.every((call) => call.command === "gh")).toBe(true);
     expect(calls[1].args).toEqual(["issue", "create", "--repo", "owner/repo", "--title", "B", "--label", "ledger", "--body-file", "-"]);
     expect(calls[1].input).toBe("body b");

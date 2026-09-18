@@ -53,10 +53,14 @@ entries that branch has not merged yet.
 by being deleted (`tasks/README.md`), and the script cannot tell which, so the close comment names
 the `git log` that does. A closed issue whose entry is still in `tasks/open/` is reopened.
 
-**A rejected action does not stop the run.** Each failure is reported and the run exits non-zero,
-but the remaining actions still apply. Stopping at the first one would let a single bad entry — a
-title over GitHub's length limit, say — stall every later action on every CI run, with nothing
-visible but the same red line each time.
+**A refused action stops the run; what an entry could get refused for is prevented upstream.**
+Closes sort last, so pressing on after a failed create would retire a renamed entry's only issue,
+and a run-wide failure (auth, network, a rate limit) only worsens by retrying. The error names the
+action and gh's reason. The failure mode that pushes the other way — one bad entry refused on every
+run, wedging everything behind it — is closed where a test can hold it: `parseEntry` never yields a
+blank title and clips one over 240 characters, and `renderIssue` clips a body over 60,000, both
+below GitHub's limits and the same way every run. *Tried and reverted — keep going past a failure:*
+its own review found the rename case and the rate-limit case within one round.
 
 **`CLAIM-*` files are excluded.** They are session locks that live for one session.
 
