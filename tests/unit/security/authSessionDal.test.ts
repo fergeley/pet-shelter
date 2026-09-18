@@ -56,7 +56,7 @@ const NEON_HOST = "ep-example-123.eu-central-1.aws.neon.tech";
 
 describe("resolveDatabaseSsl - certificate verification is not optional", () => {
   it("demands a verified certificate for a Neon URL carrying sslmode=require", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     const policy = resolveDatabaseSsl(`postgresql://u:p@${NEON_HOST}/neondb?sslmode=require`);
 
@@ -64,7 +64,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("demands a verified certificate for a hosted URL with no sslmode at all", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     // The case the replaced substring sniff got *most* wrong. `neon.tech`
     // matched, `sslmode=require` did not, so this URL reached `pg` with
@@ -75,7 +75,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("encrypts a non-Neon hosted database, which the old sniff left in plaintext", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     // `includes("sslmode=require") || includes("neon.tech")` was false here, so
     // `ssl` was `undefined` and the connection crossed the public internet
@@ -86,7 +86,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("survives pg's own connection-string merge, which overrides the explicit ssl option", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     const policy = resolveDatabaseSsl(`postgresql://u:p@${NEON_HOST}/neondb?sslmode=require&schema=public`);
 
@@ -110,7 +110,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("leaves a loopback connection exactly as configured", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     const local = "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
     const policy = resolveDatabaseSsl(local);
@@ -122,7 +122,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("treats a Docker Compose service name as internal", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     // `postgresql://ci:ci@db:5432/ci_db` is the CI shape. A single-label host
     // cannot be a public DNS record, so demanding a public CA there would
@@ -139,7 +139,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
     ["127.example.com", "a public name that merely starts with 127."],
     ["[64:ff9b::1]", "an IPv4-mapped public IPv6 address"],
   ])("demands verified TLS for %s — %s", async (host) => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     expect(resolveDatabaseSsl(`postgresql://u:p@${host}:5432/app`).ssl).toEqual({
       rejectUnauthorized: true,
@@ -157,7 +157,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
     ["postgres.default.svc.cluster.local", "a Kubernetes service name"],
     ["db.internal", "a reserved private suffix"],
   ])("leaves %s alone — %s", async (host) => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     // Forcing a publicly-trusted certificate onto a private network breaks
     // every one of these at handshake, for connections that worked before.
@@ -165,7 +165,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("honours an explicit sslmode=disable rather than overriding it silently", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     const explicit = "postgresql://u:p@db.managed-postgres.example.com:5432/app?sslmode=disable";
     const policy = resolveDatabaseSsl(explicit);
@@ -175,7 +175,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("does not honour sslmode=no-verify, which is the defect being removed", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     const policy = resolveDatabaseSsl(`postgresql://u:p@${NEON_HOST}/neondb?sslmode=no-verify`);
 
@@ -184,7 +184,7 @@ describe("resolveDatabaseSsl - certificate verification is not optional", () => 
   });
 
   it("fails closed on a connection string it cannot parse", async () => {
-    const { resolveDatabaseSsl } = await import("@/lib/server/prisma");
+    const { resolveDatabaseSsl } = await import("@/lib/server/databaseSsl");
 
     expect(resolveDatabaseSsl("not a url").ssl).toEqual({ rejectUnauthorized: true });
   });
