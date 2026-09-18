@@ -26,20 +26,22 @@ const SRC = join(ROOT, "src");
 const RAW_READER = /\b(getCurrentSession|unsealSession)\b/;
 
 /**
- * Files allowed a raw read, each pinned to its exact number of call sites. A new call in an
- * allowed file changes the count and fails here, so the allowance cannot quietly widen.
+ * Files allowed a raw read, each pinned to its exact number of references to **each** reader —
+ * import lines included, so an aliased import (`getCurrentSession as readSession`) or a second
+ * reader added to an allowed file changes a count and fails here. The allowance cannot quietly
+ * widen. A comment naming a reader counts too; update the number with the reason.
  */
-const ALLOWED: Record<string, { reader: "getCurrentSession" | "unsealSession"; calls: number; reason: string }> = {
+const ALLOWED: Record<string, { references: Record<"getCurrentSession" | "unsealSession", number>; reason: string }> = {
   "src/actions/auth.ts": {
-    reader: "getCurrentSession",
-    calls: 2,
+    // One import and two calls.
+    references: { getCurrentSession: 3, unsealSession: 0 },
     reason:
       "logoutAction names the actor in its audit row before clearing the cookie; " +
       "getCurrentUserAction reports the caller's own cookie back. Neither grants anything.",
   },
   "src/proxy.ts": {
-    reader: "unsealSession",
-    calls: 1,
+    // One import and one call.
+    references: { getCurrentSession: 0, unsealSession: 2 },
     reason:
       "an early redirect for /admin/members; the page re-checks with getVerifiedSession and " +
       "every member action with requirePermission.",
@@ -66,10 +68,12 @@ describe("session source for authorization", () => {
     expect(readers.map(({ file }) => file).filter((file) => !(file in ALLOWED))).toEqual([]);
   });
 
-  it.each(Object.entries(ALLOWED))("%s makes exactly its allowed raw reads", (file, allowance) => {
+  it.each(Object.entries(ALLOWED))("%s references each raw reader exactly as often as allowed", (file, allowance) => {
     const text = readers.find((reader) => reader.file === file)?.text ?? "";
-    const calls = text.match(new RegExp(`\\b${allowance.reader}\\s*\\(`, "g"))?.length ?? 0;
+    const counted = Object.fromEntries(
+      Object.keys(allowance.references).map((name) => [name, text.match(new RegExp(`\\b${name}\\b`, "g"))?.length ?? 0])
+    );
 
-    expect(calls).toBe(allowance.calls);
+    expect(counted).toEqual(allowance.references);
   });
 });
