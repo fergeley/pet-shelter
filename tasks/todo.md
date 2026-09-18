@@ -40,12 +40,13 @@ Record active multi-step work streams below.
   `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
   then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
   four separate file-name shapes broke the marker until it was percent-encoded instead.
-- Final state: 35 tests, 28 of 28 mutations killed, dry runs from the root, from `tasks/`, in a
+- Final state: 36 tests, 29 of 29 mutations killed, dry runs from the root, from `tasks/`, in a
   depth-1 clone, and paging five issues at a time. The whole-branch review found no correctness
   bug; its low findings are fixed — an empty fallback title, an overstated line in this stream.
   Generalising the first, one round made the sync keep going past a refused action; its review
   found that retired renamed entries and hammered rate limits, so it was reverted to stopping, and
-  the entry-shaped refusals (blank or long title, oversized body) are prevented in the core instead.
+  the entry-shaped refusals (a blank, long or control-character title, an oversized body) are
+  prevented in the core instead.
 - Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
   first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
 

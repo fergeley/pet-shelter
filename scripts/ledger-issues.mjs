@@ -63,9 +63,23 @@ const normalise = (text) => String(text ?? "").replace(/\r\n/g, "\n").trim();
 
 // GitHub refuses a title over 256 characters and a body over 65,536, and one refused action stops
 // the run (see `applyActions`). So the entry-shaped refusals are prevented here, where a test holds
-// them. ceiling: the margins cover counting in code points rather than whatever GitHub counts in.
+// them. ceiling: counted in code points, on the belief — not verified — that GitHub counts
+// characters. If it counts UTF-16 units or bytes, the title margin is only 16, and a title of many
+// emoji or ~90 CJK characters would be refused first; lower MAX_TITLE if that is ever seen.
 const MAX_TITLE = 240;
 const MAX_BODY = 60_000;
+
+/**
+ * A title is one line of printable text. Control characters become spaces — a NUL in particular,
+ * because the title travels as a command-line argument and Node refuses one there — and whitespace
+ * runs collapse, since a title GitHub would store differently would never compare equal.
+ */
+const oneLine = (text) =>
+  [...text]
+    .map((char) => (char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f ? " " : char))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
 
 /** Cut by code point, so a clip never splits a surrogate pair GitHub would then rewrite. */
 const clip = (text, max, tail) => {
@@ -77,12 +91,11 @@ const clip = (text, max, tail) => {
 export function parseEntry(path, text) {
   const lines = normalise(text).split("\n");
   const h1 = lines.findIndex((line) => /^#\s+\S/.test(line));
-  // Collapsed because a title is one line: a name GitHub would store differently would never match.
-  const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "").replace(/\s+/g, " ").trim();
-  // `slug || path`: GitHub refuses a blank title.
-  if (h1 === -1) return { path, title: clip(slug || path, MAX_TITLE, "…"), body: lines.join("\n").trim() };
-  const title = clip(lines[h1].replace(/^#\s+/, "").trim(), MAX_TITLE, "…");
-  const body = [...lines.slice(0, h1), ...lines.slice(h1 + 1)].join("\n").trim();
+  const heading = h1 === -1 ? "" : oneLine(lines[h1].replace(/^#\s+/, ""));
+  const slug = oneLine(path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, ""));
+  // Each can clean down to nothing; GitHub refuses a blank title, and the path never is one.
+  const title = clip(heading || slug || oneLine(path), MAX_TITLE, "…");
+  const body = (h1 === -1 ? lines : [...lines.slice(0, h1), ...lines.slice(h1 + 1)]).join("\n").trim();
   return { path, title, body };
 }
 

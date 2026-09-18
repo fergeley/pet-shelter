@@ -58,8 +58,9 @@ Closes sort last, so pressing on after a failed create would retire a renamed en
 and a run-wide failure (auth, network, a rate limit) only worsens by retrying. The error names the
 action and gh's reason. The failure mode that pushes the other way — one bad entry refused on every
 run, wedging everything behind it — is closed where a test can hold it: `parseEntry` never yields a
-blank title and clips one over 240 characters, and `renderIssue` clips a body over 60,000, both
-below GitHub's limits and the same way every run. *Tried and reverted — keep going past a failure:*
+blank title, turns control characters into spaces (a NUL cannot travel as a command-line argument)
+and clips a title over 240 characters, and `renderIssue` clips a body over 60,000 — both below
+GitHub's limits, assuming it counts characters, and the same way every run. *Tried and reverted — keep going past a failure:*
 its own review found the rename case and the rate-limit case within one round.
 
 **`CLAIM-*` files are excluded.** They are session locks that live for one session.
