@@ -800,7 +800,11 @@ Thank you for your life-saving generosity and support of our shelter animals!
     text: plainText,
     html,
     template: "DONATION_RECEIPT",
-    entity: "DonationReceipt",
+    // NOT "DonationReceipt": the audit viewer's receipt list (`receiptLogs` in
+    // useAuditLogController), the LHDN CSV fallback (`generateReceiptsCsvString`) and the row
+    // highlight all treat that entity as a donation. Filed there, every receipt email would be
+    // counted as a second donation and exported as a zero-amount line in a tax file.
+    entity: "DonationReceiptEmail",
     entityId: receipt.receiptNumber,
   });
 }

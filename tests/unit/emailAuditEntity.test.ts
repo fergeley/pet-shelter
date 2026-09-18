@@ -13,9 +13,9 @@ import type { DonationReceipt } from "@/types/sponsorship";
  * Every email's audit row names the record it was about.
  *
  * `sendRawEmail` used to default `entity` to "AdoptionApplication", and three senders never
- * overrode it. The audit viewer (`useAuditLogController`) sorts by entity, so donation receipts
- * landed in its Adoptions tab instead of Receipts — including the eleven EMAIL_FAILED rows local
- * e2e wrote to production on 2026-09-14. See
+ * overrode it. The audit viewer (`useAuditLogController`) sorts by entity, so receipt emails
+ * landed in its Adoptions tab — including the eleven EMAIL_FAILED rows local e2e wrote to
+ * production on 2026-09-14. They must not land among donations either. See
  * `tasks/decisions/2026-09-18-every-email-names-its-audit-entity.md`.
  */
 
@@ -46,12 +46,12 @@ describe("email audit rows name their own entity", () => {
     vi.restoreAllMocks();
   });
 
-  it("files a donation receipt under DonationReceipt, the entity the Receipts tab shows", async () => {
+  it("files a donation receipt email under its own entity, out of the Adoptions tab", async () => {
     vi.stubEnv("RESEND_API_KEY", "");
 
     await sendDonationReceiptEmail(receipt);
 
-    expect(emailRow("DONATION_RECEIPT")).toMatchObject({ action: "EMAIL_SENT", entity: "DonationReceipt" });
+    expect(emailRow("DONATION_RECEIPT")).toMatchObject({ action: "EMAIL_SENT", entity: "DonationReceiptEmail" });
   });
 
   it("files a failed donation receipt the same way", async () => {
@@ -60,7 +60,21 @@ describe("email audit rows name their own entity", () => {
 
     await sendDonationReceiptEmail(receipt);
 
-    expect(emailRow("DONATION_RECEIPT")).toMatchObject({ action: "EMAIL_FAILED", entity: "DonationReceipt" });
+    expect(emailRow("DONATION_RECEIPT")).toMatchObject({ action: "EMAIL_FAILED", entity: "DonationReceiptEmail" });
+  });
+
+  it("adds no line to the LHDN receipts export", async () => {
+    // Filing receipt emails as "DonationReceipt" would have fixed the Adoptions tab and broken
+    // this: the export counts that entity as a donation, so each email became a zero-amount
+    // receipt line in a tax file. The label test above cannot see that; this one can.
+    vi.stubEnv("RESEND_API_KEY", "");
+    await sendDonationReceiptEmail(receipt);
+    const { generateReceiptsCsvString } = await import("@/lib/presentation/exportCsv");
+
+    const lines = generateReceiptsCsvString(getAuditLogs(50)).trim().split(/\r?\n/);
+
+    expect(emailRow("DONATION_RECEIPT")).toBeDefined();
+    expect(lines).toHaveLength(1); // the header, and nothing else
   });
 
   it("files a sponsorship welcome under PetSponsorship", async () => {
