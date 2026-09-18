@@ -19,8 +19,11 @@ repository is public: anyone can open an issue whose body starts with a copied m
 the second review of this script showed that doing so would either stop every sync as a duplicate
 or get the planted issue adopted as an entry's mirror, still editable by whoever planted it.
 Only someone with triage rights can label an issue (this repository has no issue templates that
-auto-apply one), so an issue counts as a mirror only with the marker *and* the label, and the
-issue list is fetched filtered by that label, so spam cannot push the mirrors off the page.
+auto-apply one), so an issue counts as a mirror only with the marker *and* the label. The issues
+are read filtered by that label, so spam cannot bury the mirrors — through GraphQL's
+`repository.issues`, paged to the end, and deliberately not `gh issue list --label`: with a label
+filter gh switches to the search index (`IssueSearch` under `GH_DEBUG=api`), which lags writes, so a
+run queued behind another would miss the issue it had just created and create it again.
 Everything else is never touched. That includes a real mirror a maintainer unlabels — but it is
 detached, not opted out: its entry is still open, so the next run opens a fresh labelled issue. The
 only way to stop mirroring an entry is to settle it. The marker counts only as the body's first line,

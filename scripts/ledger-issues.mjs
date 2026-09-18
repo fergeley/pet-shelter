@@ -32,14 +32,14 @@ const MARKER = /^\s*<!--\s*ledger-mirror:\s*(.+?)\s*-->/;
 
 /**
  * Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. A name the marker
- * cannot carry — one containing `-->` or a control character — is skipped rather than mirrored,
- * because it would never be read back and would gain a fresh issue on every run.
+ * cannot carry (`-->`, a line break of any kind) is skipped rather than mirrored, because it would
+ * never be read back and would gain a fresh issue on every run. Markable is defined as "round-trips
+ * through the marker" so this test cannot drift from the regex again.
  */
 export function isMirroredPath(path) {
   if (!path.startsWith(LEDGER_DIR) || !path.endsWith(".md")) return false;
   const name = path.slice(LEDGER_DIR.length);
-  const unmarkable = name.includes("-->") || [...name].some((char) => char.charCodeAt(0) < 0x20);
-  return !name.includes("/") && !name.startsWith("CLAIM-") && !unmarkable;
+  return !name.includes("/") && !name.startsWith("CLAIM-") && pathFromMarker(markerFor(path)) === path;
 }
 
 export function markerFor(path) {
@@ -139,6 +139,33 @@ export function planSync(rendered, issues) {
   return actions;
 }
 
+/**
+ * `repository.issues`, not `gh issue list --label`: with a label filter gh switches to the search
+ * index, which lags writes, so a run queued right behind another would not see the issue it had just
+ * created and would create it again. This connection reads current data and pages without a cap.
+ */
+const ISSUES_QUERY = `query($owner: String!, $name: String!, $label: String!, $endCursor: String) {
+  repository(owner: $owner, name: $name) {
+    issues(first: 100, after: $endCursor, filterBy: {labels: [$label]}, states: [OPEN, CLOSED]) {
+      nodes { number title body state labels(first: 100) { nodes { name } } }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
+
+/** `gh api graphql --paginate --slurp` pages → the flat shape `planSync` reads. */
+export function issuesFromPages(pages) {
+  return pages
+    .flatMap((page) => page.data.repository.issues.nodes)
+    .map(({ number, title, body, state, labels }) => ({
+      number,
+      title,
+      body,
+      state,
+      labels: labels.nodes.map(({ name }) => ({ name })),
+    }));
+}
+
 function formatAction(action) {
   const target = action.number ? `#${action.number}` : "new";
   return `  ${action.type.padEnd(6)} ${target.padEnd(6)} ${action.path}`;
@@ -186,15 +213,16 @@ async function main(argv) {
     .filter((path) => path && isMirroredPath(path));
   const rendered = paths.map((path) => renderIssue(parseEntry(path, run("git", ["show", `${sha}:${path}`])), { repo, branch }));
 
-  // Filtered by label on the server as well as in `planSync`: unfiltered, anyone could file enough
-  // issues on this public repository to push the mirrors off the page, and each run would then
-  // re-create every entry. ceiling: one page of 1000 *labelled* issues, open and closed; past that,
-  // paginate `gh api`.
-  const issues = JSON.parse(
-    run("gh", [
-      "issue", "list", "--repo", repo, "--label", LABEL, "--state", "all", "--limit", "1000",
-      "--json", "number,title,body,state,labels",
-    ]),
+  // Filtered by label on the server as well as in `planSync`, so spam on this public repository
+  // cannot bury the mirrors, and paged to the end, so there is no page for them to fall off.
+  const [owner, name] = repo.split("/");
+  const issues = issuesFromPages(
+    JSON.parse(
+      run("gh", [
+        "api", "graphql", "--paginate", "--slurp",
+        "-f", `query=${ISSUES_QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-f", `label=${LABEL}`,
+      ]),
+    ),
   );
 
   const actions = planSync(rendered, issues);

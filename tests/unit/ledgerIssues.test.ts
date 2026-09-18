@@ -10,6 +10,7 @@ import {
   parseEntry,
   renderIssue,
   planSync,
+  issuesFromPages,
 } from "../../scripts/ledger-issues.mjs";
 
 /**
@@ -50,6 +51,9 @@ describe("which files are mirrored", () => {
   it("skips a name the marker cannot carry, which would otherwise gain an issue on every run", () => {
     expect(isMirroredPath("tasks/open/a-->b.md")).toBe(false);
     expect(isMirroredPath("tasks/open/a\nb.md")).toBe(false);
+    // JavaScript line terminators above U+001F, which a regex `.` also refuses to cross.
+    expect(isMirroredPath("tasks/open/a b.md")).toBe(false);
+    expect(isMirroredPath("tasks/open/a b.md")).toBe(false);
   });
 
   it("skips anything outside tasks/open, nested, or not markdown", () => {
@@ -208,6 +212,39 @@ describe("planning a sync", () => {
   it("reopens the oldest when every duplicate is closed", () => {
     const issues = [issue(9, "tasks/open/a.md", { state: "CLOSED" }), issue(7, "tasks/open/a.md", { state: "CLOSED" })];
     expect(planSync([rendered("tasks/open/a.md")], issues)).toEqual([expect.objectContaining({ type: "reopen", number: 7 })]);
+  });
+});
+
+describe("reading issues from GraphQL pages", () => {
+  const page = (numbers: number[]) => ({
+    data: {
+      repository: {
+        issues: {
+          nodes: numbers.map((number) => ({
+            number,
+            title: `t${number}`,
+            body: `b${number}`,
+            state: "OPEN",
+            labels: { nodes: [{ name: "ledger" }] },
+          })),
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  });
+
+  it("flattens every page into the shape planSync reads, labels included", () => {
+    expect(issuesFromPages([page([1, 2]), page([3])])).toEqual([1, 2, 3].map((number) => ({
+      number,
+      title: `t${number}`,
+      body: `b${number}`,
+      state: "OPEN",
+      labels: [{ name: "ledger" }],
+    })));
+  });
+
+  it("reads an empty repository as no issues", () => {
+    expect(issuesFromPages([page([])])).toEqual([]);
   });
 });
 
