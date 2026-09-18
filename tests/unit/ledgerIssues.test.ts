@@ -88,6 +88,12 @@ describe("parsing an entry", () => {
     expect(parseEntry("tasks/open/a\r\nb.md", "no heading").title).toBe("a b");
     expect(parseEntry("tasks/open/foo .md", "no heading").title).toBe("foo");
   });
+
+  it("never produces an empty title, which GitHub refuses and which would stall every later run", () => {
+    for (const path of ["tasks/open/.md", "tasks/open/ .md"]) {
+      expect(parseEntry(path, "no heading").title.trim()).not.toBe("");
+    }
+  });
 });
 
 describe("rendering an issue", () => {

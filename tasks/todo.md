@@ -40,8 +40,10 @@ Record active multi-step work streams below.
   `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
   then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
   four separate file-name shapes broke the marker until it was percent-encoded instead.
-- Final state: 30 tests, 20 of 20 planner mutations killed, dry runs from the root, from `tasks/`,
-  in a depth-1 clone, and paging five issues at a time.
+- Final state: 31 tests, 22 of 22 planner mutations killed, dry runs from the root, from `tasks/`,
+  in a depth-1 clone, and paging five issues at a time. The final whole-branch review found no
+  correctness bug; its two low findings (an empty fallback title, and an overstated line in this
+  stream) are fixed.
 - Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
   first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
 
@@ -55,10 +57,12 @@ Record active multi-step work streams below.
   in two lessons and in `tasks/decisions/2026-09-08-admin-sponsorship-reconciliation.md`, and CI's
   test job passed on all eleven failed runs since 2026-09-08.
 - **PR #34's "dedicated table" ceiling for the impact counters stays untracked**, as its author chose.
-- **Four open entries lack the required `**Settles when:**` line** (`donation-form-and-admin-denials-have-loose-ends`,
-  `matcherless-hook-wiring-unverified`, `production-schema-has-drifted-ahead-of-master`,
-  `sponsor-portal-is-inert-until-reconciliation-is-reachable`), and one has two H1s. Noticed while
-  building the mirror, which copes with both; not rewritten, because they belong to other sessions.
+- **One open entry has no settle condition at all** (`sponsor-portal-is-inert-until-reconciliation-is-reachable`),
+  and three write theirs as a `## Settles when` heading rather than the `**Settles when:**` line
+  `tasks/README.md` asks for (`donation-form-and-admin-denials-have-loose-ends`,
+  `matcherless-hook-wiring-unverified`, `production-schema-has-drifted-ahead-of-master`); the second
+  of those also has two H1s. Noticed while building the mirror, which copes with all of it; not
+  rewritten, because they belong to other sessions.
 - **No two-way sync, and no run on `pull_request`.** Both are recorded as rejected in the decision.
 - **The workflow has never run** — it cannot before it is on `master`. Open entry
   `ledger-issues-workflow-has-never-run`, with an agent-checkable settle condition.

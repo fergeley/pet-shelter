@@ -67,7 +67,8 @@ export function parseEntry(path, text) {
   const h1 = lines.findIndex((line) => /^#\s+\S/.test(line));
   // Collapsed because a title is one line: a name GitHub would store differently would never match.
   const slug = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/, "").replace(/\s+/g, " ").trim();
-  if (h1 === -1) return { path, title: slug, body: lines.join("\n").trim() };
+  // `slug || path`: GitHub refuses a blank title, and one refused create would stop every later run.
+  if (h1 === -1) return { path, title: slug || path, body: lines.join("\n").trim() };
   const title = lines[h1].replace(/^#\s+/, "").trim();
   const body = [...lines.slice(0, h1), ...lines.slice(h1 + 1)].join("\n").trim();
   return { path, title, body };
