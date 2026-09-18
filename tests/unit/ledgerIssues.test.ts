@@ -48,12 +48,15 @@ describe("which files are mirrored", () => {
     expect(isMirroredPath("tasks/open/CLAIM-home-bulletins.md")).toBe(false);
   });
 
-  it("skips a name the marker cannot carry, which would otherwise gain an issue on every run", () => {
-    expect(isMirroredPath("tasks/open/a-->b.md")).toBe(false);
-    expect(isMirroredPath("tasks/open/a\nb.md")).toBe(false);
-    // JavaScript line terminators above U+001F, which a regex `.` also refuses to cross.
-    expect(isMirroredPath("tasks/open/a b.md")).toBe(false);
-    expect(isMirroredPath("tasks/open/a b.md")).toBe(false);
+  it("mirrors any name, because the marker percent-encodes it into printable ASCII", () => {
+    // Each of these broke a raw marker: `-->` ends the comment, a regex `.` stops at line breaks
+    // (U+2028 and U+2029 included), and GitHub may strip control characters it is sent.
+    for (const name of ["a-->b", "a\nb", "a\u2028b", "a\u2029b", "a\tb", "a\u0001b", "a\u0085b", "foo bar", "café"]) {
+      const path = `tasks/open/${name}.md`;
+      expect(isMirroredPath(path)).toBe(true);
+      expect(markerFor(path)).toMatch(/^[\x20-\x7e]+$/);
+      expect(pathFromMarker(markerFor(path))).toBe(path);
+    }
   });
 
   it("skips anything outside tasks/open, nested, or not markdown", () => {
@@ -99,6 +102,10 @@ describe("rendering an issue", () => {
   it("finds no marker in an issue a human wrote", () => {
     expect(pathFromMarker("Something is broken on the donate page")).toBeNull();
     expect(pathFromMarker(null)).toBeNull();
+  });
+
+  it("reads a marker with broken percent-encoding as no marker, rather than throwing", () => {
+    expect(pathFromMarker("<!-- ledger-mirror: tasks/open/%E0%A4%A.md -->")).toBeNull();
   });
 
   it("round-trips a path with a space or non-ASCII characters, and encodes it in the link", () => {

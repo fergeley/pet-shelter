@@ -14,7 +14,11 @@ conflict rules nobody has designed, and it turns an issue edit into a ledger wri
 review.
 
 **Identity is a hidden `<!-- ledger-mirror: <path> -->` marker at the top of the body; trust is the
-`ledger` label.** Titles get edited, so neither they nor the label identify an entry. But the
+`ledger` label.** The path is percent-encoded so the marker is printable ASCII for any file name:
+four review rounds each found another raw name that could not round-trip (a space, `-->`, U+2028, a
+control character GitHub might strip), and a marker that does not read back as its own path gains a
+fresh issue on every run. Encoding closed the class instead of enumerating it; plain names encode to
+themselves, so no existing marker changed. Titles get edited, so neither they nor the label identify an entry. But the
 repository is public: anyone can open an issue whose body starts with a copied marker, and
 the second review of this script showed that doing so would either stop every sync as a duplicate
 or get the planted issue adopted as an entry's mirror, still editable by whoever planted it.

@@ -28,27 +28,35 @@ export const LABEL = "ledger";
 
 // Anchored to the top of the body, where `renderIssue` puts it, so an issue that merely quotes the
 // marker (a bug report about this script, say) is not mistaken for a mirror and closed.
-const MARKER = /^\s*<!--\s*ledger-mirror:\s*(.+?)\s*-->/;
+const MARKER = /^\s*<!--\s*ledger-mirror:\s*(\S+)\s*-->/;
 
-/**
- * Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. A name the marker
- * cannot carry (`-->`, a line break of any kind) is skipped rather than mirrored, because it would
- * never be read back and would gain a fresh issue on every run. Markable is defined as "round-trips
- * through the marker" so this test cannot drift from the regex again.
- */
+/** Top-level markdown entries only. `CLAIM-*` files are session locks, not threads. */
 export function isMirroredPath(path) {
   if (!path.startsWith(LEDGER_DIR) || !path.endsWith(".md")) return false;
   const name = path.slice(LEDGER_DIR.length);
-  return !name.includes("/") && !name.startsWith("CLAIM-") && pathFromMarker(markerFor(path)) === path;
+  return !name.includes("/") && !name.startsWith("CLAIM-");
 }
 
+const encodePath = (path) => path.split("/").map(encodeURIComponent).join("/");
+
+/**
+ * The path is percent-encoded, so the marker is printable ASCII whatever the file is called. Raw, a
+ * name could end the comment (`-->`), stop the regex (any line break, U+2028 included), or carry a
+ * character GitHub rewrites on the way in — and a marker that does not read back as its own path
+ * gains a fresh issue on every run. Plain names encode to themselves.
+ */
 export function markerFor(path) {
-  return `<!-- ledger-mirror: ${path} -->`;
+  return `<!-- ledger-mirror: ${encodePath(path)} -->`;
 }
 
 export function pathFromMarker(body) {
   const match = MARKER.exec(String(body ?? ""));
-  return match ? match[1] : null;
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null; // malformed escapes: not a marker this script wrote
+  }
 }
 
 const normalise = (text) => String(text ?? "").replace(/\r\n/g, "\n").trim();
@@ -65,7 +73,7 @@ export function parseEntry(path, text) {
 }
 
 export function renderIssue(entry, { repo, branch }) {
-  const url = `https://github.com/${repo}/blob/${branch}/${entry.path.split("/").map(encodeURIComponent).join("/")}`;
+  const url = `https://github.com/${repo}/blob/${branch}/${encodePath(entry.path)}`;
   const header =
     `> Mirrored from [\`${entry.path}\`](${url}) by \`scripts/ledger-issues.mjs\`. ` +
     "The file is the source of truth: edits to this description are overwritten on the next " +
