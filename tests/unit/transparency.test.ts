@@ -61,6 +61,22 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const sessionMock = vi.hoisted(() => ({ getCurrentSession: vi.fn() }));
 vi.mock("@/lib/security/session", () => sessionMock);
 
+// The actions resolve their principal through the DAL, which re-reads the member's row.
+// Answered here as a reachable database would answer for an active member holding the
+// cookie's role. Without it the mocked Prisma above has no `user` model, the lookup throws,
+// and every test in this file would pass through the DAL's database-outage path instead —
+// the right answers for the wrong reason. Suspension itself is covered in
+// tests/unit/security/suspendedMemberContentActions.test.ts.
+vi.mock("@/lib/server/memberStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/memberStore")>()),
+  findMemberAuthStateById: vi.fn(async (id: string) => {
+    const session = await sessionMock.getCurrentSession();
+    return session && session.id === id
+      ? { role: session.role, status: "ACTIVE", name: session.name, email: session.email }
+      : null;
+  }),
+}));
+
 /** Makes every Prisma call reject the way an unreachable server does. */
 function makeDatabaseUnreachable() {
   const unreachable = () => {

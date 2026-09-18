@@ -28,12 +28,14 @@ suspension — an attacker's, or the one §4 step 3 gives you, which signing out
 browser but does not revoke — stays validly signed until it expires, **24 hours after it was
 issued**. Three things still honour it:
 
-- **Cookie-only checks, all the time.** The transparency actions in `src/actions/transparency.ts`
-  (expense entries, impact stats, financial reports, and the unpublished-draft snapshot), FAQ
-  editing (`requireFaqEditor` in `src/actions/faqs.ts`) and the `/admin/faqs` page authorize from
-  `getCurrentSession()` alone and never re-read the account's status. **With the database working,
-  a suspended Super Admin's cookie can still write the public financial ledger and edit FAQs.**
-  Tracked in `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
+- **Cookie-only checks, until their fix deploys.** The transparency actions in
+  `src/actions/transparency.ts` (expense entries, impact stats, financial reports, and the
+  unpublished-draft snapshot), FAQ editing (`requireFaqEditor` in `src/actions/faqs.ts`) and the
+  `/admin/faqs` page authorized from `getCurrentSession()` alone and never re-read the account's
+  status. **With the database working, a suspended Super Admin's cookie could still write the public
+  financial ledger and edit FAQs.** The follow-up to this PR (branch
+  `fix/admin-actions-honour-suspension`) routes them through the DAL; once it is deployed this path
+  is closed. See `tasks/decisions/2026-09-18-content-actions-honour-suspension.md`.
 - **Every check, during a database outage.** `readVerifiedSession` in `src/lib/security/dal.ts`
   returns the cookie's own claims when the lookup throws.
 - **Sign-in, during a database outage,** falls back to `userStore`'s in-memory copy of the seed,
