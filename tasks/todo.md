@@ -55,6 +55,9 @@ Record active multi-step work streams below.
   every diff; see `tasks/lessons/2026-09-18-a-raw-nul-in-a-test-turns-it-binary-and-hides-it-from-review.md`.
 - Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
   first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
+- The update and close paths ran for real too: `master` moved to `561ec62` (PR #47) mid-session,
+  adding one entry, editing one and deleting a settled one. The sync created #74, updated #67 and
+  closed #60 with the settling-commit hint, and the next run printed `in sync, nothing to do`.
 
 ## Deliberately not done
 
