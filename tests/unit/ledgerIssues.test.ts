@@ -11,6 +11,7 @@ import {
   renderIssue,
   planSync,
   issuesFromPages,
+  applyActions,
 } from "../../scripts/ledger-issues.mjs";
 
 /**
@@ -263,6 +264,46 @@ describe("reading issues from GraphQL pages", () => {
 
   it("reads an empty repository as no issues", () => {
     expect(issuesFromPages([page([])])).toEqual([]);
+  });
+});
+
+describe("applying a plan", () => {
+  const plan = [
+    { type: "create", path: "tasks/open/a.md", title: "A".repeat(300), body: "body a" },
+    { type: "create", path: "tasks/open/b.md", title: "B", body: "body b" },
+    { type: "reopen", number: 7, path: "tasks/open/c.md" },
+    { type: "update", number: 7, path: "tasks/open/c.md", title: "C", body: "body c" },
+    { type: "close", number: 9, path: "tasks/open/gone.md" },
+  ];
+
+  // Stands in for `gh`, so the calls can be checked without publishing anything.
+  const fakeGh = (rejects: (args: string[]) => boolean) => {
+    const calls: { command: string; args: string[]; input?: string }[] = [];
+    const exec = (command: string, args: string[], input?: string) => {
+      calls.push({ command, args, input });
+      if (rejects(args)) throw new Error("Command failed: gh issue create\ntitle is too long");
+      return "https://github.com/owner/repo/issues/1";
+    };
+    return { calls, exec };
+  };
+  const target = { repo: "owner/repo", sha: "abcdef1", log: () => {} };
+
+  it("keeps going past a rejected action and reports it, so one bad entry cannot stall the rest", () => {
+    const { calls, exec } = fakeGh((args) => args.includes("A".repeat(300)));
+    const failures = applyActions(plan, { ...target, exec });
+    expect(calls).toHaveLength(plan.length);
+    expect(failures).toEqual([expect.objectContaining({ type: "create", path: "tasks/open/a.md" })]);
+  });
+
+  it("creates with the label and the body on stdin, and closes with a comment naming the path", () => {
+    const { calls, exec } = fakeGh(() => false);
+    expect(applyActions(plan, { ...target, exec })).toEqual([]);
+    expect(calls.every((call) => call.command === "gh")).toBe(true);
+    expect(calls[1].args).toEqual(["issue", "create", "--repo", "owner/repo", "--title", "B", "--label", "ledger", "--body-file", "-"]);
+    expect(calls[1].input).toBe("body b");
+    expect(calls[3].args).toEqual(["issue", "edit", "7", "--repo", "owner/repo", "--title", "C", "--body-file", "-"]);
+    expect(calls[4].args.slice(0, 4)).toEqual(["issue", "close", "9", "--repo"]);
+    expect(calls[4].args.join(" ")).toContain("tasks/open/gone.md");
   });
 });
 

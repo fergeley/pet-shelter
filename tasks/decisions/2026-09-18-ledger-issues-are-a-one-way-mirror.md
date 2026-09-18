@@ -53,6 +53,11 @@ entries that branch has not merged yet.
 by being deleted (`tasks/README.md`), and the script cannot tell which, so the close comment names
 the `git log` that does. A closed issue whose entry is still in `tasks/open/` is reopened.
 
+**A rejected action does not stop the run.** Each failure is reported and the run exits non-zero,
+but the remaining actions still apply. Stopping at the first one would let a single bad entry — a
+title over GitHub's length limit, say — stall every later action on every CI run, with nothing
+visible but the same red line each time.
+
 **`CLAIM-*` files are excluded.** They are session locks that live for one session.
 
 **Dry run by default; `--apply` publishes.** The repository is public, and publishing is a one-way

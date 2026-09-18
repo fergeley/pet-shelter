@@ -176,6 +176,39 @@ export function issuesFromPages(pages) {
     }));
 }
 
+/**
+ * Runs a plan through `exec` (the `gh` CLI in production) and returns what failed. A rejected action
+ * is recorded and the rest still run: stopping at the first one would let a single bad entry — a
+ * title over GitHub's length limit, say — stall every later action on every run.
+ */
+export function applyActions(actions, { repo, sha, exec, log }) {
+  const failures = [];
+  for (const action of actions) {
+    try {
+      if (action.type === "create") {
+        const url = exec("gh", ["issue", "create", "--repo", repo, "--title", action.title, "--label", LABEL, "--body-file", "-"], action.body);
+        log(`  created ${url}`);
+      } else if (action.type === "update") {
+        exec("gh", ["issue", "edit", String(action.number), "--repo", repo, "--title", action.title, "--body-file", "-"], action.body);
+        log(`  updated #${action.number}`);
+      } else if (action.type === "reopen") {
+        exec("gh", ["issue", "reopen", String(action.number), "--repo", repo]);
+        log(`  reopened #${action.number}`);
+      } else if (action.type === "close") {
+        const comment =
+          `\`${action.path}\` left \`tasks/open/\` as of ${sha.slice(0, 7)}. ` +
+          "An entry closes by moving to `tasks/decisions/` or by being deleted; " +
+          `\`git log --diff-filter=D -- ${action.path}\` shows which commit settled it.`;
+        exec("gh", ["issue", "close", String(action.number), "--repo", repo, "--comment", comment]);
+        log(`  closed #${action.number}`);
+      }
+    } catch (error) {
+      failures.push({ type: action.type, path: action.path, message: String(error?.message ?? error).split("\n")[0] });
+    }
+  }
+  return failures;
+}
+
 function formatAction(action) {
   const target = action.number ? `#${action.number}` : "new";
   return `  ${action.type.padEnd(6)} ${target.padEnd(6)} ${action.path}`;
@@ -255,24 +288,14 @@ async function main(argv) {
     run("gh", ["label", "create", LABEL, "--repo", repo, "--color", "5319e7", "--description", "Mirrored from tasks/open/"]);
   }
 
-  for (const action of actions) {
-    if (action.type === "create") {
-      const url = run("gh", ["issue", "create", "--repo", repo, "--title", action.title, "--label", LABEL, "--body-file", "-"], action.body);
-      process.stdout.write(`  created ${url}\n`);
-    } else if (action.type === "update") {
-      run("gh", ["issue", "edit", String(action.number), "--repo", repo, "--title", action.title, "--body-file", "-"], action.body);
-      process.stdout.write(`  updated #${action.number}\n`);
-    } else if (action.type === "reopen") {
-      run("gh", ["issue", "reopen", String(action.number), "--repo", repo]);
-      process.stdout.write(`  reopened #${action.number}\n`);
-    } else if (action.type === "close") {
-      const comment =
-        `\`${action.path}\` left \`tasks/open/\` as of ${sha.slice(0, 7)}. ` +
-        "An entry closes by moving to `tasks/decisions/` or by being deleted; " +
-        `\`git log --diff-filter=D -- ${action.path}\` shows which commit settled it.`;
-      run("gh", ["issue", "close", String(action.number), "--repo", repo, "--comment", comment]);
-      process.stdout.write(`  closed #${action.number}\n`);
-    }
+  const failures = applyActions(actions, { repo, sha, exec: run, log: (line) => process.stdout.write(`${line}\n`) });
+  if (failures.length > 0) {
+    // gh has already printed each reason to stderr; this is the summary, and the red run.
+    process.stderr.write(
+      `\nledger-issues: ${failures.length} of ${actions.length} actions failed:\n` +
+        `${failures.map((f) => `  ${f.type} ${f.path}: ${f.message}`).join("\n")}\n`,
+    );
+    process.exitCode = 1;
   }
 }
 

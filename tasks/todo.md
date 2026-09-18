@@ -40,10 +40,10 @@ Record active multi-step work streams below.
   `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
   then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
   four separate file-name shapes broke the marker until it was percent-encoded instead.
-- Final state: 31 tests, 22 of 22 planner mutations killed, dry runs from the root, from `tasks/`,
-  in a depth-1 clone, and paging five issues at a time. The final whole-branch review found no
-  correctness bug; its two low findings (an empty fallback title, and an overstated line in this
-  stream) are fixed.
+- Final state: 33 tests, 25 of 25 mutations killed, dry runs from the root, from `tasks/`, in a
+  depth-1 clone, and paging five issues at a time. The final whole-branch review found no
+  correctness bug; its low findings are fixed — an empty fallback title, an overstated line in this
+  stream, and, generalising the first, a rejected action no longer stops the rest of the run.
 - Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
   first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
 
