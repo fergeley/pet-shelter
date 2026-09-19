@@ -229,10 +229,10 @@ instead of the code, on the only gate in front of applicant PII. And the first f
 
 ## 4. What is still unproven
 
-- **No connection to Neon has been observed under `rejectUnauthorized: true`.** ISRG Root X1 and X2
-  are confirmed present in Node's trust store locally; that the endpoint serves a complete chain to
-  one of them is asserted, not measured. Fails loudly at handshake if wrong, not silently.
-  Tracked in `tasks/open/neon-certificate-chain-not-observed.md`.
+- ~~No connection to Neon has been observed under `rejectUnauthorized: true`.~~ Observed
+  2026-09-14, when local e2e runs wrote to the production branch through the strict policy;
+  `tasks/decisions/2026-09-16-neon-verifies-under-strict-tls.md`. Local connections only — what the
+  Vercel deployment connects to is still unobserved.
 - **`checkRateLimit` is a per-process `Map`.** On a serverless host each warm instance counts
   separately, so no budget here bounds a distributed caller. That needs shared state.
 - **Address budgets require configuration.** With neither `TRUSTED_PROXY_HEADER` nor Vercel's edge,

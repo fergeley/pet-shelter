@@ -148,13 +148,13 @@ function createPrismaClient(): PrismaClient {
     "postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public";
 
   try {
-    const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+    const sslPolicy = resolveDatabaseSsl(connectionString);
     
     const pool =
       globalForPrisma.pgPool ??
       new Pool({
-        connectionString,
-        ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+        connectionString: sslPolicy.connectionString,
+        ssl: sslPolicy.ssl,
         max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
@@ -176,7 +176,7 @@ function createPrismaClient(): PrismaClient {
 ```
 
 > [!TIP]
-> When connecting to Neon Serverless PostgreSQL, ensure that SSL is enabled. The `rejectUnauthorized: false` configuration in `src/lib/prisma.ts` handles Neon certificate handshakes automatically.
+> TLS to Neon is verified, not merely enabled: `resolveDatabaseSsl` (`src/lib/server/databaseSsl.ts`) demands a trusted certificate for any public host and strips `sslmode` so `pg` cannot override it. Never set `rejectUnauthorized: false` to get past a handshake error; see `tasks/decisions/2026-09-08-database-tls-is-decided-by-host-not-url-spelling.md`.
 
 ---
 
