@@ -228,9 +228,9 @@ UPDATE "public"."users" SET "status" = 'ACTIVE', "updatedAt" = now() WHERE "id" 
 
 - **Status enum migration.** Adoption applications and status changes are being lost in production
   because the `ApplicationStatus`/`PetStatus` types are missing. The rehearsed fix is
-  `prisma/migrations/manual/20260917_status_enums/migration.sql`, shipped with PR #47; its header is
-  the procedure. It changes only the database, so it can be applied before that PR merges, and
-  every day it waits loses whatever applications arrive.
+  `prisma/migrations/manual/20260917_status_enums/migration.sql`, on master since PR #47; its
+  header is the procedure. It changes only the database and has to be applied by hand in the Neon
+  SQL editor, and every day it waits loses whatever applications arrive.
 - **The 2026-09-14 test rows.** Local e2e wrote three RM30 donations holding receipts
   `HFS-DON-202609-0001` to `0003`. Receipts are append-only statutory records
   (`prisma/schema.prisma`, model `Donation`): correct them with an offsetting record, never by

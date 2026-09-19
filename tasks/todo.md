@@ -18,7 +18,8 @@ Record active multi-step work streams below.
 # Public staff credentials and production data safety — PRs #46 and #47
 
 **Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
-· opened 2026-09-16 · both drafts, CI green, unmerged
+· opened 2026-09-16 · #47 merged 2026-09-18 (squash `561ec62`); #46 ready for review · follow-ups
+#72 (stacked on #46) and #73
 
 - [x] #46: `loginAction` refuses repo-published staff passwords in production; register and invite
       acceptance refuse them everywhere; `/admin/login` drops the pre-fill and, in production, the
@@ -55,7 +56,7 @@ which authorize from the cookie alone.
 - `pets.age` → `birthDate`, the other half of the schema drift: needs a backfill decision, and
   PR #42 is in flight in that area.
 - The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`,
-  which arrives with PR #47.
+  on master since #47. Fixed afterwards in #73.
 - Merging either PR: not permitted to this session.
 
 # Dual-track pet catalogue — plan
