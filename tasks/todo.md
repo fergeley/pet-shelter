@@ -50,8 +50,9 @@ Admin from a published password; and suspension not reaching the transparency an
 which authorize from the cookie alone.
 
 **Deliberately not done:**
-- Fixing those cookie-only actions: an authorization change in two other modules with its own
-  tests — `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
+- Fixing those cookie-only actions in #46 itself. Done instead as its own PR stacked on #46
+  (`fix/admin-actions-honour-suspension`, 2026-09-18), after the owner had run their steps:
+  `tasks/decisions/2026-09-18-content-actions-honour-suspension.md`.
 - `pets.age` → `birthDate`, the other half of the schema drift: needs a backfill decision, and
   PR #42 is in flight in that area.
 - The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`,

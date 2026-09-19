@@ -9,7 +9,8 @@ import {
   FaqFilterInput,
   FaqFormInput,
 } from "@/lib/validations/faq";
-import { getCurrentSession, SessionUser } from "@/lib/security/session";
+import type { SessionUser } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { assertAuthorized } from "@/lib/security/rbac";
 import { FAQ_EDITOR_ROLES } from "@/lib/domain/faqAccess";
 import {
@@ -34,7 +35,9 @@ import {
  * `requireFaqEditor()` first.
  */
 async function requireFaqEditor(): Promise<SessionUser> {
-  const session = await getCurrentSession();
+  // The DAL, not the raw cookie: a suspended or deleted editor's unexpired cookie still
+  // verifies its signature, and only the DAL re-reads status.
+  const session = await getVerifiedSession();
   assertAuthorized(session, [...FAQ_EDITOR_ROLES]);
   return session;
 }
