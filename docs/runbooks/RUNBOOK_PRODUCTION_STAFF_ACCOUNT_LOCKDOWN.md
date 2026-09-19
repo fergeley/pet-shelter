@@ -41,21 +41,24 @@ issued**. Three things still honour it:
   closes this one. Merge it as soon as §4 or §5 is done.
 
 Rotating `SESSION_SECRET` invalidates every cookie at once, closing the first two immediately;
-everyone signs in again. **What closes the window is Vercel:** set the new value in the Production
-environment variables, then redeploy. Nothing in the repo copies Vercel's values from anywhere else.
+everyone signs in again. It loses no data: `SESSION_SECRET` only signs staff sessions, sponsor
+sessions and notification-preference links (`signPayload` in `src/lib/security/crypto.ts`), and
+`encryptField`, the one thing that could encrypt data with it, has no callers. Links in emails
+already sent would stop working, and with email unset none were sent.
+
+**What closes the window is Vercel:** set the new value — at least 32 random characters;
+production refuses a weak or default value at boot — in the Production environment variables, then
+redeploy. Nothing in the repo copies Vercel's values from anywhere else.
 
 The production value also lives in the committed `.env.production.enc`
 (`docs/runbooks/RUNBOOK_SOPS_SECRETS_MANAGEMENT.md` §7), but **do not edit that file now**: it
 currently cannot be decrypted, and `tasks/open/sops-encrypted-env-timestamp-crlf-breaks-decryption.md`
 says not to re-encrypt the only copy while that is diagnosed. After rotating, it holds a stale
 `SESSION_SECRET`. Note that in the SOPS entry, and update the file once the entry settles, so that
-nobody later restores the old key from it. It loses no data: `SESSION_SECRET` only signs
-staff sessions, sponsor sessions and notification-preference links (`signPayload` in
-`src/lib/security/crypto.ts`), and `encryptField`, the one thing that could encrypt data with it,
-has no callers. Links in emails already sent would stop working, and with email unset none were
-sent. Use at least 32 random characters; production refuses a weak or default value at boot. Not rotating leaves them open until 24 hours
-after the last sign-in to a seeded account. Two records of sign-ins exist, and **both are
-best-effort**:
+nobody later restores the old key from it.
+
+Not rotating leaves the first two open until 24 hours after the last sign-in to a seeded account.
+Two records of sign-ins exist, and **both are best-effort**:
 
 - The `AUTH_LOGIN_SUCCESS` audit row is written fire-and-forget. A failed insert is silent in
   production (`recordAuditLog`, `src/lib/domain/auditLog.ts`).
@@ -111,9 +114,9 @@ marked "later seed" exist only if it was run again. Check the roster in Staff & 
 
 Do this **before** the published-password fix deploys.
 
-1. **Get the invite code.** Vercel → the project (team `isaiahs-projects-8abdd4ed`) → Settings →
-   Environment Variables → `STAFF_INVITE_SECRET` (Production). If Vercel shows it as a sensitive
-   value that cannot be revealed, use Procedure B instead.
+1. **Get the invite code.** Vercel → the project → Settings → Environment Variables →
+   `STAFF_INVITE_SECRET` (Production). If Vercel shows it as a sensitive value that cannot be
+   revealed, use Procedure B instead.
 2. **Create your account.** `https://pet-shelter-phi.vercel.app/admin/login` → **Create Account**.
    Your name, your own email, a password of 12+ characters you use nowhere else, and the invite
    code. **Not one of the passwords in §3:** production accepts them until the code fix deploys,
