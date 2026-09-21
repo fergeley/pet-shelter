@@ -6,6 +6,7 @@ import petsData from "../src/data/pets.json";
 import applicationsData from "../src/data/applications.json";
 import faqsData from "../src/data/faqs.json";
 import { assertSeedTargetIsLocal, resolveDatabaseUrl } from "./env";
+import { resolveDatabaseSsl } from "../src/lib/server/databaseSsl";
 import { getSampleLedger } from "../src/lib/domain/transparencySample";
 
 function hashPasswordSync(password: string): string {
@@ -26,10 +27,12 @@ async function main() {
   // checked before a connection is opened.
   assertSeedTargetIsLocal(connectionString);
 
-  const isSsl = connectionString.includes("sslmode=require") || connectionString.includes("neon.tech");
+  // Same policy as the app. Unreachable for a remote host unless ALLOW_REMOTE_SEED is
+  // set, but that is exactly the case where an unverified certificate would matter.
+  const sslPolicy = resolveDatabaseSsl(connectionString);
   const pool = new Pool({
-    connectionString,
-    ssl: isSsl ? { rejectUnauthorized: false } : undefined,
+    connectionString: sslPolicy.connectionString,
+    ssl: sslPolicy.ssl,
   });
   const adapter = new PrismaPg(pool);
   const prisma = new PrismaClient({ adapter });

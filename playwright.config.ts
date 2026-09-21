@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { config as loadDotenv } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { resolveE2eDatabaseUrl } from "./prisma/env";
 
 /**
  * Tier 5 — golden-path browser journeys.
@@ -25,6 +26,21 @@ for (const filename of [".env.local", ".env"]) {
  */
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const BASE_URL = process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`;
+
+/**
+ * The only database the web server may reach: a local one, or none. See
+ * `resolveE2eDatabaseUrl` in `prisma/env.ts` for why, and for the opt-in.
+ */
+const DATABASE_URL = resolveE2eDatabaseUrl();
+if (process.env.DATABASE_URL && !DATABASE_URL) {
+  const message =
+    "[e2e] DATABASE_URL is not a local database, so the web server runs without one. " +
+    "Set E2E_ALLOW_REMOTE_DATABASE=true to run against it.";
+  // CI's e2e job provisions Postgres because the database is what it tests. Offline, every
+  // spec still passes, so a warning there would be a green job that checked less.
+  if (process.env.CI) throw new Error(message);
+  console.warn(message);
+}
 
 export default defineConfig({
   testDir: "./e2e/specs",
@@ -63,9 +79,16 @@ export default defineConfig({
     // multi-minute build from every local run.
     command: `npx next dev -p ${PORT}`,
     url: BASE_URL,
-    // Locally, attach to whatever is already listening. In CI there is never a
-    // pre-existing server, and reusing one would mask a broken start.
-    reuseExistingServer: !process.env.CI,
+    // Set explicitly rather than inherited, because this process has just loaded
+    // `.env.local`. An empty value is also what stops `next dev` loading its own copy.
+    // RESEND_API_KEY is blank in every mode: the specs mail real-looking addresses and
+    // the shelter's notification inbox, and a blank key simulates the send.
+    env: { DATABASE_URL, RESEND_API_KEY: "" },
+    // Never attach to a server already listening. Its environment is whatever it was
+    // started with — a `next dev` on `.env.local` would take every write below
+    // straight to production, and the `env` above could not reach it. A port in use
+    // now fails the run instead.
+    reuseExistingServer: false,
     timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe",
