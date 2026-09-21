@@ -52,6 +52,22 @@ A human types both: `.claude/settings.json` denies agents `npx prisma db execute
 Both were rehearsed together on a throwaway local PostgreSQL 18.4 on 2026-09-18. Results are in
 the cleanup file's header and the decision entry.
 
+## Applied 2026-09-21 — cleanup confirmed, trigger not yet confirmed
+
+The owner ran both files in the Neon SQL editor and reported:
+
+    Deleted 3 e2e test receipts. Counter left at 3: the next receipt is HFS-DON-202609-0004.
+    Trigger "donations_no_mutation" for relation "donations" does not exist, skipping
+    [{ "scope": "HFS-DON-202609", "lastValue": 3 }]
+
+- **Cleanup: done.** Its `DO` block raises that notice only after deleting exactly 3 rows, having
+  first established there were exactly 3 in total. So `donations` is empty and the counter stands
+  at 3, as the `receipt_sequences` result shows.
+- **Trigger: ran, unverified.** The second notice is `donation_append_only.sql`'s
+  `DROP TRIGGER IF EXISTS` finding nothing to drop, which is what a first install prints. It does
+  **not** show that `CREATE TRIGGER` then succeeded. The `pg_trigger` and `count(*)` results were
+  not reported.
+
 ## After, read-only
 
     SELECT count(*) FROM donations;                                  -- expect 0
