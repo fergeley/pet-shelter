@@ -588,11 +588,15 @@ commit as this note.
 issue, #79, and it did not. GitHub read the closing keyword in the pull request body and closed
 #79 itself, two seconds after the merge — and the push produced no workflow run at all, so the
 sync never ran to be judged. Both are written up:
-`tasks/open/a-push-to-master-produced-no-workflow-run.md` and
-`tasks/lessons/2026-09-21-a-closing-keyword-can-fake-a-sync-that-never-ran.md`. A manual dispatch
-reconciled the state (run 35611053240, `in sync, nothing to do`). So the workflow has been
-observed creating issues and finding nothing to do; retiring one through the workflow has still
-not been observed, only through a local `--apply` (#60, 2026-09-18).
+`tasks/lessons/2026-09-21-a-closing-keyword-can-fake-a-sync-that-never-ran.md` and, once the miss
+was written off, `tasks/decisions/2026-09-21-the-mirror-syncs-at-the-next-matching-push.md`. A
+manual dispatch reconciled the state at the time (run 35611053240, `in sync, nothing to do`).
+
+**Closed out.** Runs have since been watched doing every job the script has, on pushes nobody
+was steering: creating (35609339972, five issues; 35609643275, #81; 35611655318, #84), retiring
+(35611516542 took #74 and #81 out when #72 and #73 merged; 35612411949 took #84 out), and
+finding nothing to do (35611529886). Only the update path has never run in CI — it has run
+locally, on #67. `master` at `04bebf4`: 27 entries, 32 issues, in sync.
 
 It has since run unattended for someone else's merge: the owner merged #46 as `a6d1007` three
 minutes later, and the workflow created #81 for the entry that merge added, with nobody watching.
