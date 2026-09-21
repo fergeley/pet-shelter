@@ -582,7 +582,17 @@ button. A finished stream belongs in the archive once merged anyway; see
 Merged as `102763d` (squash). The workflow ran unprompted on that push and applied the plan its
 log records — five creates, #76 to #80 — and a local dry run then printed `in sync, nothing to
 do`, which is the settle condition the open entry registered. That entry is deleted in the same
-commit as this note, so the mirror closes its own issue, #79, on the next push.
+commit as this note.
+
+**Correction, same day.** That deletion was expected to make the mirror retire the entry's own
+issue, #79, and it did not. GitHub read the closing keyword in the pull request body and closed
+#79 itself, two seconds after the merge — and the push produced no workflow run at all, so the
+sync never ran to be judged. Both are written up:
+`tasks/open/a-push-to-master-produced-no-workflow-run.md` and
+`tasks/lessons/2026-09-21-a-closing-keyword-can-fake-a-sync-that-never-ran.md`. A manual dispatch
+reconciled the state (run 35611053240, `in sync, nothing to do`). So the workflow has been
+observed creating issues and finding nothing to do; retiring one through the workflow has still
+not been observed, only through a local `--apply` (#60, 2026-09-18).
 
 It has since run unattended for someone else's merge: the owner merged #46 as `a6d1007` three
 minutes later, and the workflow created #81 for the entry that merge added, with nobody watching.
