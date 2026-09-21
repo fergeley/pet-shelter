@@ -572,3 +572,19 @@ button. A finished stream belongs in the archive once merged anyway; see
 - **No two-way sync, and no run on `pull_request`.** Both are recorded as rejected in the decision.
 - **The workflow has never run** — it cannot before it is on `master`. Open entry
   `ledger-issues-workflow-has-never-run`, with an agent-checkable settle condition.
+
+## Settled 2026-09-21
+
+Merged as `102763d` (squash). The workflow ran unprompted on that push and applied the plan its
+log records — five creates, #76 to #80 — and a local dry run then printed `in sync, nothing to
+do`, which is the settle condition the open entry registered. That entry is deleted in the same
+commit as this note, so the mirror closes its own issue, #79, on the next push.
+
+It has since run unattended for someone else's merge: the owner merged #46 as `a6d1007` three
+minutes later, and the workflow created #81 for the entry that merge added, with nobody watching.
+Every path — create, update, close, and a run that finds nothing to do — has now happened against
+GitHub rather than in a test.
+
+CI for `102763d` shows **cancelled**, not failed: Playwright, static analysis and strict
+persistence passed, and the unit job was still running when `a6d1007` superseded it, which is what
+`cancel-in-progress` in `ci.yml` is for. The same tree passed every job on this branch beforehand.
