@@ -34,6 +34,7 @@ import {
   computeAgeCategory,
   approximateBirthDate,
   deriveBirthDate,
+  hasAgeUnit,
 } from "@/lib/domain/petAge";
 
 /** Admin UI is English-only; the year range beside each name comes from the domain (PS-114). */
@@ -251,6 +252,11 @@ export function PetFormDialog({
       const derivedCategory = computeAgeCategory(bDate);
       setValue("age", derivedAge, { shouldValidate: true, shouldDirty: true });
       setValue("ageCategory", derivedCategory, { shouldValidate: true, shouldDirty: true });
+      // Reaching for the calendar *is* the claim that the birthday is known. Leaving the flag
+      // on its `true` default would file every picked date as an estimate — and would then let
+      // the next keystroke in Age overwrite the date, since that handler only spares exact ones.
+      // Ticking "Estimated birthday" afterwards is how an operator says "roughly this month".
+      setValue("birthDateIsEstimate", false, { shouldDirty: true });
     } else if (!bDate) {
       // With no explicit birth date, birthday reverts to an estimate
       setValue("birthDateIsEstimate", true, { shouldDirty: true });
@@ -261,12 +267,11 @@ export function PetFormDialog({
   const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     ageField.onChange(e);
     const typedAge = e.target.value.trim();
-    // Only derive approximate birth date when the user types an age expression with a unit
-    // (e.g. "2 years", "4 months", "1y", "3m", "2 tahun", "4 bulan") to avoid premature derivation on a single digit.
-    const hasUnit = /(\d+)\s*(y|m|year|month|yr|mo|thn|tahun|bln|bulan)/i.test(typedAge);
+    // Only derive once the age names a unit ("2 years", "4 bulan"), never from a bare digit:
+    // `hasAgeUnit` is the domain's own answer, so the token set cannot drift from the parser's.
     const currentBirthDate = getValues("birthDate");
     const isEstimate = getValues("birthDateIsEstimate");
-    if ((!currentBirthDate || isEstimate) && hasUnit) {
+    if ((!currentBirthDate || isEstimate) && hasAgeUnit(typedAge)) {
       const intakeDate = getValues("intakeDate") || new Date().toISOString().split("T")[0];
       const approx = approximateBirthDate(typedAge, intakeDate);
       setValue("birthDate", approx.birthDate, { shouldDirty: true, shouldValidate: true });

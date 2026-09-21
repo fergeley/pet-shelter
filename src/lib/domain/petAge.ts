@@ -106,9 +106,9 @@ export function withDerivedAge<T extends {
   ageCategory: AgeCategory;
 } {
   const birthDate = deriveBirthDate(pet);
-  const birthDateIsEstimate = pet.birthDate
-    ? (pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true)
-    : true;
+  // A birthday nobody entered is always an estimate: with no `birthDate` the value below is
+  // approximated from the age text or falls back to intake, and neither is an exact birthday.
+  const birthDateIsEstimate = pet.birthDate ? (pet.birthDateIsEstimate ?? true) : true;
 
   return {
     ...pet,
@@ -150,6 +150,25 @@ export function deriveBirthDate(pet: { birthDate?: string; age?: string; intakeD
 }
 
 /**
+ * The age units this module understands, English and Malay. Module constants rather than
+ * literals inside `approximateBirthDate`, because `hasAgeUnit` has to answer for exactly the
+ * same token set — a second copy in the admin dialog would drift the first time one grows.
+ * Both are applied to an already-lowercased string, so neither needs the `i` flag.
+ */
+const AGE_YEARS_PATTERN = /(\d+)\s*(?:y|yr|year|thn|tahun)/;
+const AGE_MONTHS_PATTERN = /(\d+)\s*(?:m|mo|month|bln|bulan)/;
+
+/**
+ * Whether an age string names a unit `approximateBirthDate` can actually reckon from. Callers
+ * use it to avoid deriving a birthday from a bare "2", which is a half-typed "2 years" far more
+ * often than it is an answer.
+ */
+export function hasAgeUnit(ageStr: string): boolean {
+  const norm = ageStr.toLowerCase().trim();
+  return AGE_YEARS_PATTERN.test(norm) || AGE_MONTHS_PATTERN.test(norm);
+}
+
+/**
  * Approximates a birth date from a legacy age string (e.g. "2 years", "4 months", "2 tahun")
  * relative to an intake date. Timezone-invariant UTC arithmetic.
  */
@@ -163,14 +182,14 @@ export function approximateBirthDate(
     return { birthDate: new Date().toISOString().split("T")[0], isEstimate: true };
   }
 
-  const yearMatch = norm.match(/(\d+)\s*(?:y|yr|year|thn|tahun)/i);
+  const yearMatch = norm.match(AGE_YEARS_PATTERN);
   if (yearMatch) {
     const years = parseInt(yearMatch[1], 10);
     const d = new Date(Date.UTC(parts.year - years, parts.month, parts.day));
     return { birthDate: d.toISOString().split("T")[0], isEstimate: true };
   }
 
-  const monthMatch = norm.match(/(\d+)\s*(?:m|mo|month|bln|bulan)/i);
+  const monthMatch = norm.match(AGE_MONTHS_PATTERN);
   if (monthMatch) {
     const months = parseInt(monthMatch[1], 10);
     const d = new Date(Date.UTC(parts.year, parts.month - months, parts.day));
