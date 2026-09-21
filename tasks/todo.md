@@ -18,8 +18,8 @@ Record active multi-step work streams below.
 # Public staff credentials and production data safety — PRs #46 and #47
 
 **Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
-· opened 2026-09-16 · #47 merged 2026-09-18 (squash `561ec62`); #46 ready for review · follow-ups
-#72 (stacked on #46) and #73
+· opened 2026-09-16 · #47 merged 2026-09-18 (squash `561ec62`), #46 merged 2026-09-21 (merge commit
+`a6d1007`) · follow-ups #72 (this branch, now targeting master) and #73, both open
 
 - [x] #46: `loginAction` refuses repo-published staff passwords in production; register and invite
       acceptance refuse them everywhere; `/admin/login` drops the pre-fill and, in production, the
@@ -29,7 +29,8 @@ Record active multi-step work streams below.
 - [x] #47: local e2e cannot reach a non-local database or send mail; `seed.ts` and `migrate-faqs.ts`
       use `resolveDatabaseSsl`; Neon TLS entry closed.
 - [x] #47: `prisma/migrations/manual/20260917_status_enums/` — rehearsed locally, 29 checks.
-- [ ] Owner: runbook §4 or §5 in production, then merge #46.
+- [x] Owner: runbook §4 or §5 in production, then merge #46 (merged 2026-09-21; the production
+      steps are the owner's report, not observable from here).
 - [ ] Owner: apply the enum migration in the Neon SQL editor (needs no merge).
 - [ ] Owner: decide on `SESSION_SECRET` rotation, now that the cookie-only actions are known.
 - [ ] Owner: decide how to correct the three 2026-09-14 test receipts (offsetting record).
@@ -57,7 +58,9 @@ which authorize from the cookie alone.
   PR #42 is in flight in that area.
 - The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`,
   on master since #47. Fixed afterwards in #73.
-- Merging either PR: not permitted to this session.
+- Merging any of these PRs: not permitted to this session, so each merge is the owner's. After
+  #46 merged, this branch took master and retargeted to it — the procedure differs for a squash,
+  which is what #73 needed.
 
 # Dual-track pet catalogue — plan
 
