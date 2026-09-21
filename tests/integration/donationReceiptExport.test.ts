@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { signInAs, signInAsAdmin, signOut } from "../setup/authSession";
+import {
+  memberRowForId,
+  signInAs,
+  signInAsAdmin,
+  signOut,
+  TEST_ADMIN,
+} from "../setup/authSession";
 import { generateReceiptsCsvString } from "@/lib/presentation/exportCsv";
 import type { DonationRecord } from "@/lib/server/donationLedger";
 
@@ -26,10 +32,16 @@ import type { DonationRecord } from "@/lib/server/donationLedger";
  */
 
 const listDonationsOrThrow = vi.fn();
+const findMemberAuthStateById = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/server/donationLedger", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/server/donationLedger")>();
   return { ...actual, listDonationsOrThrow };
+});
+
+vi.mock("@/lib/server/memberStore", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/server/memberStore")>();
+  return { ...actual, findMemberAuthStateById };
 });
 
 /** One ledger row, shaped exactly as `toRecord` returns it. RM 250.00 as exact sen. */
@@ -99,6 +111,7 @@ function cell(csv: string, header: string): string {
 
 beforeEach(() => {
   listDonationsOrThrow.mockReset();
+  findMemberAuthStateById.mockReset().mockImplementation(async (id: string) => memberRowForId(id));
 });
 
 describe("fetchDonationReceiptsAction", () => {
@@ -122,6 +135,20 @@ describe("fetchDonationReceiptsAction", () => {
     const res = await fetchDonationReceiptsAction();
 
     expect(res.success).toBe(false);
+    expect(listDonationsOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("refuses a suspended admin's still-valid cookie before reading donor PII", async () => {
+    await signInAsAdmin();
+    const activeAdmin = memberRowForId(TEST_ADMIN.id);
+    if (!activeAdmin) throw new Error("Expected the test admin fixture");
+    findMemberAuthStateById.mockResolvedValueOnce({ ...activeAdmin, status: "SUSPENDED" });
+    const { fetchDonationReceiptsAction } = await import("@/actions/donations");
+
+    const res = await fetchDonationReceiptsAction();
+
+    expect(res.success).toBe(false);
+    expect(res.data).toBeUndefined();
     expect(listDonationsOrThrow).not.toHaveBeenCalled();
   });
 

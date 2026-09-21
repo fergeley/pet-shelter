@@ -1,0 +1,21 @@
+# A raw NUL in a test file turns it binary and hides every later change from review
+
+**Learned:** 2026-09-18
+
+A test for control characters in issue titles was written with `\u0000`, `\u0007` and `\u007f` in a
+string literal, and the edit tool wrote them into the file as the raw bytes, not as escapes. The
+test still passed. But one NUL makes git treat the whole file as binary: the branch's `--stat`
+showed `tests/unit/ledgerIssues.test.ts | Bin 0 -> 15596 bytes`, and every diff of it after that
+read "Binary files differ" — in `git diff`, in `/code-review`, and in the pull request. An edit that
+weakened those very assertions would have passed review unseen. The next review caught it, not the
+author.
+
+It then happened again, in the first draft of this lesson: quoting the three escapes in backticks,
+the write tool stored the raw bytes, and `git diff --numstat` listed the new lesson as `-  -`, the
+mark of a binary file. The cause is the tool, not the author's typing, so it will recur whenever a
+backslash-u escape is typed into file content.
+
+**Rule:** after writing any file that quotes a control or line-separator character, scan it for raw
+ones (code point below 0x20 other than CR and LF, 0x7f, U+2028, U+2029) and rewrite them as escape
+text with a script rather than by retyping. Then run `git diff --numstat origin/master` and treat
+`-  -` against a text file as a defect.

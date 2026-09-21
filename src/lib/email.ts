@@ -49,7 +49,7 @@ async function sendRawEmail({
   text,
   template,
   entityId,
-  entity = "AdoptionApplication",
+  entity,
   replyTo,
   extraHeaders,
   category = "transactional",
@@ -60,8 +60,11 @@ async function sendRawEmail({
   text: string;
   template: string;
   entityId?: string;
-  /** Audit-log target entity. Defaults to the historical value. */
-  entity?: string;
+  /**
+   * Audit-log target entity: the record this email is about. Required, because the audit viewer
+   * sorts by it and a default filed every donation receipt under adoption applications.
+   */
+  entity: string;
   replyTo?: string;
   extraHeaders?: Record<string, string>;
   category?: string;
@@ -358,6 +361,7 @@ ${SHELTER_ADDRESS}
     text,
     html,
     template: "APPLICATION_CONFIRMATION",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -423,6 +427,7 @@ https://hopeforstrays.org/admin/applications
     text,
     html,
     template: "STAFF_ALERT",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -529,6 +534,7 @@ Phone: ${SHELTER_PHONE}
     text: plainText,
     html,
     template: `STATUS_UPDATE_${newStatus}`,
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -614,6 +620,7 @@ ${SHELTER_NAME}
     text: plainText,
     html,
     template: "INTERVIEW_INVITATION",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -653,7 +660,7 @@ const PAYMENT_RAIL_LABELS: Record<PaymentMethod, string> = {
 };
 
 /**
- * 5. Sends official Malaysian tax-deductible e-Receipt for rescue donations and pet sponsorships.
+ * 5. Sends an official receipt whose tax-filing status follows its donor identifier.
  */
 export async function sendDonationReceiptEmail(
   receipt: DonationReceipt
@@ -687,7 +694,7 @@ ${SHELTER_NAME}
 ${SHELTER_ADDRESS}
 Phone: ${SHELTER_PHONE} | Email: ${SHELTER_EMAIL}
 Registrar of Societies (PPM): ${receipt.shelterRegistrationNo}
-LHDN Tax Exemption Reference: ${receipt.taxDeductibleRef}
+${fields.claimable ? `LHDN Tax Exemption Reference: ${receipt.taxDeductibleRef}` : ""}
 
 Receipt No: ${receipt.receiptNumber}
 Date Issued: ${receipt.date}
@@ -706,7 +713,7 @@ TOTAL CONTRIBUTION RECEIVED: ${fields.amount}
 ${
     fields.claimable
       ? "* Under Subsection 44(6) of the Income Tax Act 1967 (Malaysia), donations to Pertubuhan Kebajikan Hope for Strays are eligible for income tax deductions."
-      : "* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Reply with yours and we will reissue it as a Subsection 44(6) tax-exemption receipt."
+      : "* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Contact the shelter before filing if you need tax documentation."
   }
 * This receipt is computer-generated and valid without signature.
 
@@ -715,7 +722,7 @@ Thank you for your life-saving generosity and support of our shelter animals!
 
   const html = wrapEmailHtml(`
     <div style="border-bottom: 2px solid ${EMAIL_RECEIPT.ink}; padding-bottom: 16px; margin-bottom: 20px;">
-      <span class="badge badge-success">Official Tax-Exempt e-Receipt</span>
+      <span class="badge badge-success">${fields.claimable ? "Official Tax-Exempt e-Receipt" : "Official Donation Receipt"}</span>
       <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: ${EMAIL_RECEIPT.ink};">Thank You for Your Generous Contribution!</h2>
       <p style="margin: 0; font-size: 13px; color: ${EMAIL_RECEIPT.inkMuted};">
         Receipt Reference: <strong style="font-family: monospace; color: ${EMAIL_RECEIPT.ink};">${receipt.receiptNumber}</strong> &bull; Date: ${receipt.date}
@@ -766,13 +773,13 @@ Thank you for your life-saving generosity and support of our shelter animals!
     </div>
 
     <div style="background:${EMAIL_RECEIPT.panel}; padding: 14px; border-radius: 6px; font-size: 12px; color: ${EMAIL_RECEIPT.inkSoft}; margin: 20px 0; line-height: 1.5; border: 1px solid ${EMAIL_RECEIPT.rule};">
-      <strong>Malaysian Tax Deduction Information:</strong><br/>
+      <strong>${fields.claimable ? "Malaysian Tax Deduction Information" : "Receipt filing status"}:</strong><br/>
       Official Shelter Registration No: <strong>${receipt.shelterRegistrationNo}</strong><br/>
-      LHDN Inland Revenue Board Tax Exemption Reference: <strong>${receipt.taxDeductibleRef}</strong><br/>
+      ${fields.claimable ? `LHDN Inland Revenue Board Tax Exemption Reference: <strong>${receipt.taxDeductibleRef}</strong><br/>` : ""}
       ${
         fields.claimable
           ? "<em>* This computer-generated receipt is valid for personal or corporate tax filing in Malaysia under Section 44(6) of the Income Tax Act 1967.</em>"
-          : "<em>* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Reply with yours and we will reissue it as a Subsection 44(6) tax-exemption receipt.</em>"
+          : "<em>* This receipt carries no NRIC, passport or SSM number, so it cannot be filed against a tax return. Contact the shelter before filing if you need tax documentation.</em>"
       }
     </div>
 
@@ -793,6 +800,11 @@ Thank you for your life-saving generosity and support of our shelter animals!
     text: plainText,
     html,
     template: "DONATION_RECEIPT",
+    // NOT "DonationReceipt": the audit viewer's receipt list (`receiptLogs` in
+    // useAuditLogController), the LHDN CSV fallback (`generateReceiptsCsvString`) and the row
+    // highlight all treat that entity as a donation. Filed there, every receipt email would be
+    // counted as a second donation and exported as a zero-amount line in a tax file.
+    entity: "DonationReceiptEmail",
     entityId: receipt.receiptNumber,
   });
 }
@@ -803,7 +815,7 @@ Thank you for your life-saving generosity and support of our shelter animals!
  *
  * Deliberately not a tax document. The commitment has not been reconciled
  * against the shelter's bank statement, so this acknowledges it, carries the
- * supporter's badge, and states plainly when the Section 44(6) receipt follows.
+ * supporter's badge, and states plainly when the official receipt follows.
  * Sending a numbered receipt here would hand someone a filing document for a
  * transfer that may never arrive — see `reconcilePetSponsorshipAction`.
  *
@@ -823,10 +835,10 @@ export async function sendSponsorshipWelcomeEmail(
     paymentRail: PAYMENT_RAIL_LABELS[pledge.paymentMethod],
   };
 
-  const subject = `🐾 Thank you for sponsoring ${pledge.petName}!`;
+  const subject = `🐾 We recorded your pledge for ${pledge.petName}`;
 
   const plainText = `
-THANK YOU FOR SPONSORING ${pledge.petName.toUpperCase()}!
+SPONSORSHIP PLEDGE RECORDED FOR ${pledge.petName.toUpperCase()}
 ===================================================
 ${SHELTER_NAME}
 ${SHELTER_ADDRESS}
@@ -834,8 +846,8 @@ Phone: ${SHELTER_PHONE} | Email: ${SHELTER_EMAIL}
 
 Dear ${pledge.sponsorName},
 
-You are now a sponsor of ${pledge.petName}. Thank you for standing behind an
-animal who needed someone.
+We recorded your pledge for ${pledge.petName}. Thank you for standing behind an
+animal who needed someone while the shelter matches your transfer.
 
 YOUR SPONSORSHIP:
 - Sponsored Animal: ${pledge.petName}
@@ -850,9 +862,8 @@ ${pledge.reconciliationNotice}
 Please quote ${pledge.pledgeRef} in your transfer description so our coordinator
 can match your payment quickly.
 
-IMPORTANT: This confirms your sponsorship pledge. It is NOT a tax receipt. Your
-official Section 44(6) tax-exempt receipt is issued separately once your payment
-has been reconciled.
+IMPORTANT: This confirms your sponsorship pledge; it is not a receipt. Your
+official receipt is issued separately once your payment has been reconciled.
 
 With gratitude,
 The ${SHELTER_NAME} Team
@@ -860,7 +871,7 @@ The ${SHELTER_NAME} Team
 
   const html = wrapEmailHtml(`
     <div style="border-bottom: 2px solid ${EMAIL_BRAND.border}; padding-bottom: 16px; margin-bottom: 20px;">
-      <span class="badge" style="background:${tone.surface};color:${tone.text};">Sponsorship Confirmed</span>
+      <span class="badge" style="background:${tone.surface};color:${tone.text};">Sponsorship Pledge Recorded</span>
       <h2 style="margin: 8px 0 4px 0; font-size: 22px; color: ${EMAIL_BRAND.foreground};">
         Thank you for sponsoring ${escapeHtml(pledge.petName)}!
       </h2>
@@ -871,8 +882,9 @@ The ${SHELTER_NAME} Team
 
     <p>Dear <strong>${escapeHtml(pledge.sponsorName)}</strong>,</p>
     <p>
-      You are now a sponsor of <strong>${escapeHtml(pledge.petName)}</strong>. Your support pays for
-      the care that gets a rescued animal from intake to a home.
+      We recorded your pledge for <strong>${escapeHtml(pledge.petName)}</strong>. Once the shelter
+      matches the transfer, your support pays for the care that gets a rescued animal from intake
+      to a home.
     </p>
 
     <div style="text-align:center; margin: 24px 0;">
@@ -920,9 +932,8 @@ The ${SHELTER_NAME} Team
 
     <div style="background:${EMAIL_BRAND.muted}; padding: 14px; border-radius: 6px; font-size: 12px; color: ${EMAIL_BRAND.mutedForeground}; margin: 20px 0; line-height: 1.5;">
       <em>
-        This confirms your sponsorship pledge and is <strong>not</strong> a tax receipt. Your
-        official Section 44(6) tax-exempt receipt is issued separately once your payment has been
-        reconciled.
+        This confirms your sponsorship pledge and is <strong>not</strong> a receipt. Your official
+        receipt is issued separately once your payment has been reconciled.
       </em>
     </div>
 
@@ -939,6 +950,7 @@ The ${SHELTER_NAME} Team
     text: plainText,
     html,
     template: "SPONSORSHIP_WELCOME",
+    entity: "PetSponsorship",
     entityId: pledge.pledgeRef,
   });
 }
@@ -1238,5 +1250,6 @@ Reply directly to this email to answer the sponsor.
     text,
     html,
     template: "CARETAKER_QUESTION",
+    entity: "Sponsor",
   });
 }

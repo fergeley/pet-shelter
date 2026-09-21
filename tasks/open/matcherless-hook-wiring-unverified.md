@@ -13,7 +13,8 @@ matcher all match every tool, and nothing here has ever confirmed that.
 This matters because the failure is silent. A matcher the harness does not honour produces no
 error — the hook simply never runs, and `schema-auditor`'s fence in front of the Neon **production**
 connection string quietly stops existing. It is the same shape as the YAML parse failure in
-`tasks/lessons.md`: a config this repo writes, a parser it does not control, absence as the symptom.
+`tasks/lessons/2026-08-31-a-config-file-whose-parse-failure-is-silent-needs-a-test-that-parses.md`: a
+config this repo writes, a parser it does not control, absence as the symptom.
 
 ## What was done instead, and what it costs
 

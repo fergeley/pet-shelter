@@ -40,7 +40,10 @@ store of commitments. See
 payment gateway behind it — DuitNow QR and bank transfers arrive out of band — so a
 submitted pledge is an *assertion*, not money received. Every commitment starts
 `PENDING_PAYMENT`; a coordinator reconciles it against money that arrived via
-`reconcilePetSponsorshipAction`, which is what assigns a receipt number. Without that
+`reconcilePetSponsorshipAction`, which is what assigns a receipt number — drawn inside the
+same transaction that moves the pledge to `ACTIVE`, so two coordinators confirming at once
+issue one receipt — or dismisses a claim no transfer ever backed via
+`rejectPetSponsorshipAction`, which moves it to `CANCELLED` and issues nothing. Without that
 split, the checkout form would be a self-service Gold button: anyone could assert an
 RM 1,200 pledge and unlock every gate on the next request. `countsTowardFunding` in
 `src/lib/domain/petSponsorship.ts` is the single rule for "does this count", reused by

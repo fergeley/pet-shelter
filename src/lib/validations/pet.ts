@@ -25,8 +25,16 @@ export const photoNotificationSchema = z.object({
 
 export type PhotoNotificationInput = z.infer<typeof photoNotificationSchema>;
 
-import { MedicalTimelineCategory, PetStatus, PetUpdate } from "@/types/pet";
+import {
+  Gender,
+  MedicalTimelineCategory,
+  PetSize,
+  PetStatus,
+  PetUpdate,
+  Species,
+} from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { AGE_BANDS } from "@/lib/domain/petAge";
 
 /**
  * Canonical pet lifecycle statuses. "Rehabilitation" is a legacy alias of
@@ -41,6 +49,34 @@ export const PET_STATUS_VALUES = [
 ] as const;
 
 export const PET_STATUS_FILTER_VALUES = ["all", ...PET_STATUS_VALUES] as const;
+
+/**
+ * The recorded sexes, in the order surfaces should offer them. Shared for the same reason the
+ * statuses above are: the form schema, the filter schema and the gallery's `<select>` were
+ * about to hold a fourth hand-written copy of this two-item list between them.
+ */
+export const GENDER_VALUES = ["Male", "Female"] as const satisfies readonly Gender[];
+
+export const GENDER_FILTER_VALUES = ["all", ...GENDER_VALUES] as const;
+
+/**
+ * The species a pet can be filed under. Shared by the form and filter schemas — **not** yet by the
+ * gallery, whose species toggle still hand-lists dog and cat. Adding a species here reaches both
+ * schemas; it does not add a button.
+ */
+export const SPECIES_VALUES = ["dog", "cat", "other"] as const satisfies readonly Species[];
+
+/**
+ * Size bands. Shared by the form and filter schemas — **not** yet by the gallery's size select,
+ * whose options carry hand-written bilingual weight ranges. Adding a band here reaches both
+ * schemas; it does not add an option.
+ */
+export const SIZE_VALUES = ["Small", "Medium", "Large"] as const satisfies readonly PetSize[];
+
+// On both lists above, `satisfies readonly Species[]` / `PetSize[]` proves only that each value
+// listed is a real one. It does not prove every real one is listed: add "rabbit" to `Species` and
+// this still compiles, while both schemas reject it and `resolveFilters` silently resets
+// `?species=rabbit` to "all". Keep them in step by hand until something checks exhaustiveness.
 
 /** Statuses that denote an animal still under clinical or behavioural care. */
 export const REHABILITATION_STATUSES: readonly PetStatus[] = ["In Rehabilitation", "Rehabilitation"];
@@ -160,12 +196,12 @@ function duplicateIds(events: readonly { id: string }[] | undefined): string[] {
 
 export const petBaseFormSchema = z.object({
   name: z.string().min(1, "Pet name is required").max(60, "Name is too long"),
-  species: z.enum(["dog", "cat", "other"]),
+  species: z.enum(SPECIES_VALUES),
   breed: z.string().min(1, "Breed is required"),
   age: z.string().min(1, "Age description is required (e.g. '2 years')"),
-  ageCategory: z.enum(["puppy_kitten", "young", "adult", "senior"]),
-  gender: z.enum(["Male", "Female"]),
-  size: z.enum(["Small", "Medium", "Large"]),
+  ageCategory: z.enum(AGE_BANDS),
+  gender: z.enum(GENDER_VALUES),
+  size: z.enum(SIZE_VALUES),
   weight: z.string().min(1, "Weight is required (e.g. '18 kg')"),
   status: z.enum(PET_STATUS_VALUES),
   adoptionFee: z.string().min(1, "Adoption fee is required (e.g. 'Free')"),
@@ -272,20 +308,33 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
 export type PetFormInput = z.input<typeof petBaseFormSchema>;
 export type PetFormOutput = z.output<typeof petBaseFormSchema>;
 
+/**
+ * Every enum here is built from a shared list rather than re-typed: `AGE_BANDS` (which the age
+ * select also renders from), `SPECIES_VALUES`, `SIZE_VALUES`, `GENDER_VALUES`. The species toggle
+ * and size select in the gallery still hand-list their options — see those constants.
+ *
+ * That stopped being cosmetic when the gallery began resolving URL values against this schema
+ * (`resolveFilters` in `usePetGalleryController`): a value missing from here is now silently
+ * reset to "all". So a band added to `AGE_BANDS` but not re-typed here would have rendered in the
+ * age select, and choosing it would have snapped the select back with the grid unchanged and no
+ * error anywhere.
+ */
 export const petFilterSchema = z.object({
-  species: z.enum(["all", "dog", "cat", "other"]).optional().default("all"),
+  species: z.enum(["all", ...SPECIES_VALUES]).optional().default("all"),
+  gender: z.enum(GENDER_FILTER_VALUES).optional().default("all"),
   status: z.enum(PET_STATUS_FILTER_VALUES).optional().default("all"),
-  ageCategory: z.enum(["all", "puppy_kitten", "young", "adult", "senior"]).optional().default("all"),
-  size: z.enum(["all", "Small", "Medium", "Large"]).optional().default("all"),
+  ageCategory: z.enum(["all", ...AGE_BANDS]).optional().default("all"),
+  size: z.enum(["all", ...SIZE_VALUES]).optional().default("all"),
   search: z.string().optional().default(""),
   isArchived: z.boolean().optional(),
 });
 
 export type PetFilterInput = {
-  species?: "all" | "dog" | "cat" | "other";
+  species?: "all" | (typeof SPECIES_VALUES)[number];
+  gender?: "all" | Gender;
   status?: PetStatus | "all";
-  ageCategory?: "all" | "puppy_kitten" | "young" | "adult" | "senior";
-  size?: "all" | "Small" | "Medium" | "Large";
+  ageCategory?: "all" | (typeof AGE_BANDS)[number];
+  size?: "all" | (typeof SIZE_VALUES)[number];
   search?: string;
   isArchived?: boolean;
 };

@@ -15,6 +15,7 @@ import { Role, ROLES, normalizeRole } from "@/lib/security/rbac";
 import { getStaffInviteSecret } from "@/lib/security/secrets";
 import { recordLogin } from "@/lib/server/memberStore";
 import { USER_STATUSES } from "@/lib/security/permissions";
+import { isPublishedStaffPassword, PUBLISHED_PASSWORD_MESSAGE } from "@/lib/security/publishedPasswords";
 
 export interface AuthResponse {
   success: boolean;
@@ -76,7 +77,15 @@ export async function loginAction(credentials: {
   }
 
   // 2. Fetch User & Verify Password
-  const user = await findUserByEmail(emailKey);
+  //
+  // A password this public repository publishes is not a credential in production,
+  // whichever store vouches for the account: the Postgres rows the seed wrote, or
+  // userStore's in-memory copy of the same seed when no database answers. Refused
+  // before the lookup, so the caller learns nothing about the account. Outside
+  // production the seeded logins are the offline demo, as in sponsorRepository.ts.
+  const refusesPublishedPassword =
+    process.env.NODE_ENV === "production" && isPublishedStaffPassword(credentials.password);
+  const user = refusesPublishedPassword ? null : await findUserByEmail(emailKey);
   // master removed the universal "1234" fallback outright rather than gating it
   // to non-production, which is the stricter of the two fixes. Kept as-is.
   const isValidPassword = user ? await verifyPassword(credentials.password, user.passwordHash) : false;
@@ -89,7 +98,11 @@ export async function loginAction(credentials: {
       action: "AUTH_LOGIN_FAILED",
       entity: "Auth",
       entityId: emailKey,
-      details: { reason: "Invalid email or password" },
+      details: {
+        reason: refusesPublishedPassword
+          ? "Published staff password refused in production"
+          : "Invalid email or password",
+      },
     });
 
     return {
@@ -189,6 +202,12 @@ export async function registerAction(data: {
 
   if (password.length < 8) {
     return { success: false, error: "Password must be at least 8 characters in length." };
+  }
+
+  // In every environment: an account created with one would be refused at sign-in in
+  // production, and a password the repository publishes protects nothing anywhere.
+  if (isPublishedStaffPassword(password)) {
+    return { success: false, error: PUBLISHED_PASSWORD_MESSAGE };
   }
 
   // 1. Rate Limiting on Registrations

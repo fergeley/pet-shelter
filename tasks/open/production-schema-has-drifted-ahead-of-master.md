@@ -11,6 +11,18 @@
 > What remains is the half this note always said needed a human: the
 > `ApplicationStatus` conversion and the `pets.age` → `birthDate` migration.
 > Both still destroy data. **`db push` remains unguarded and still destructive.**
+>
+> **2026-09-16: the drift is losing data already.** Without the two enum types, every
+> application insert and every status write or filter fails in production, silently. See
+> "The missing types are losing writes now" below.
+
+> **Re-measured 2026-09-16 against `origin/master` 5b2672a: unchanged.** Same 3 destructive and
+> 6 additive statements as the 2026-09-09 record below. That record is reformatted, so this is a
+> statement-by-statement match, not a byte comparison. The main checkout's `schema.prisma` and
+> checker working copies hash identically to master's. Everything master's schema added since
+> 2026-09-09 is present on production: #39's nine `adoption_applications` columns and their unique
+> index, alongside the sponsor and donation tables. Raw output, now kept rather than paraphrased:
+> `tasks/decisions/2026-09-16-sponsor-portal-activation-applies-nothing-to-production.md`.
 
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:
@@ -66,6 +78,10 @@ For the full SQL, run the underlying command rather than the summary:
 
     npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
 
+A human types that one. `.claude/settings.json` denies `npx prisma migrate*` and
+`npx prisma db execute*` to agents (since 2026-09-05), including the read-only `diff`. An agent's
+route to this measurement is `npm run db:check-drift`.
+
 ## A worktree cannot take this measurement
 
 Observed 2026-09-09. `.env.local` is gitignored, so it does not exist in a `git worktree`.
@@ -113,6 +129,55 @@ The destructive statements were left pending on purpose, and the two that remain
 pending for the same reason: each needs someone who knows whether the object is wanted, and the
 status conversion needs a `USING` cast rather than a drop-and-recreate.
 
+## The missing types are losing writes now, not only blocking a push (established 2026-09-16)
+
+The two additive `CREATE TYPE` statements above were treated as safe-to-apply-later. They are not
+optional: master's generated client already depends on them.
+
+- **What Prisma sends, captured with no database.** Prisma 7.9.1, generated from master's schema,
+  over a `pg` pool whose `query` records the SQL and throws:
+
+  | Operation | Enum cast sent |
+  |---|---|
+  | `adoptionApplication.create` | `CAST($12::text AS "public"."ApplicationStatus")` |
+  | `adoptionApplication.update` setting `status` | `CAST($1::text AS "public"."ApplicationStatus")` |
+  | `adoptionApplication.findMany` filtered by `status` | `CAST($1::text AS "public"."ApplicationStatus")` |
+  | `pet.update` setting `status` | `CAST($1::text AS "public"."PetStatus")` |
+  | notes-only update, unfiltered `findMany`, pet archive/restore | none |
+
+  Production lacks both types, so every row in the first four fails there.
+- **Swallowed.** `insertServerApplication` (`src/lib/server/applicationRepository.ts:202-247`)
+  catches the failure and calls `handlePersistenceError(…, "write")`, which rethrows only a unique
+  violation or under `STRICT_PERSISTENCE=true` — set only by the integration tiers. Otherwise it
+  `console.warn`s, keeps the application in the process's memory, writes the
+  `APPLICATION_SUBMITTED` audit row (which casts nothing), and the applicant sees success and gets
+  both confirmation emails.
+- **Observed in production data.** A masked summary of the 2026-09-16 export: the four
+  applications local e2e submitted on 2026-09-14 (13:34–16:01 UTC; `app-1789392875319`,
+  `app-1789392933730`, `app-1789400500650`, `app-1789401656866`) each have an
+  `APPLICATION_SUBMITTED` audit row, none is in `adoption_applications`, and no deletion of any of
+  them was audited. Donations and pet archive/restore from the same runs did persist.
+
+So if the Vercel deployment uses this branch, real adoption applications, approve/reject decisions,
+status filters in the admin list, and pet status changes are failing behind a success screen. If it
+has no `DATABASE_URL`, they live only in serverless memory, which is lost too. Only the Vercel
+dashboard says which.
+
+**Do not fix this with `db push`.** The conversion still needs the reviewed migration described
+above: create the two types, then convert each column with a data-preserving `USING` cast. That is
+a production change for a human to apply, and it was deliberately not applied here.
+
+**2026-09-17: that migration now exists, rehearsed, not applied.**
+`prisma/migrations/manual/20260917_status_enums/migration.sql` (with `rollback.sql`) converts both
+columns in one transaction, aborts naming any value the types lack, and is safe to re-run. It was
+rehearsed on a throwaway local PostgreSQL shaped like production. After two rounds of code review,
+which added schema qualification and a lock timeout that holds however the editor runs it, it
+passed all twenty-nine checks. They include Prisma's own casting statements failing before and
+succeeding after. It has not touched
+production: the session that wrote it was refused access to the production database. The owner
+applies it in the Neon SQL editor, following the file's header. Once applied, the
+`ApplicationStatus` half of "Settles when" below is met; the `pets.age` → `birthDate` half is not.
+
 ## Settles when
 
 Either a single reviewed migration reconciles the two remaining conversions with data preserved
@@ -121,5 +186,30 @@ Either a single reviewed migration reconciles the two remaining conversions with
 re-derived each time.
 
 **Until then, treat `npm run db:push` as destructive against production.** The safe loop is
-`migrate diff` → read the SQL → apply only what you intended with `prisma db execute`.
+`migrate diff` → read the SQL → apply only what you intended with `prisma db execute` — the apply
+typed by a human, per the deny above.
 `npm run db:push:local` remains safe: it pins localhost.
+
+## Re-measured 2026-09-18, after the owner applied the status-enum migration
+
+The owner reported applying PR #47's `prisma/migrations/manual/20260917_status_enums/migration.sql`
+in the Neon SQL editor. `npm run db:check-drift` from the main checkout confirms it. The checkout's
+`schema.prisma` and `check-drift.ts` hash, line endings normalised, to `origin/master`'s. Exit 1,
+raw SQL lines:
+
+    Target: postgresql://<user>:***@ep-broad-band-b36iq50r-pooler...neon.tech/... (remote)   ← redacted as elsewhere in this file
+    !! 2 DESTRUCTIVE statement(s). `prisma db push` WOULD DESTROY DATA:
+       ALTER TABLE "notification_preferences" ALTER COLUMN "updatedAt" DROP DEFAULT
+       ALTER TABLE "pets" DROP COLUMN "age", DROP COLUMN "ageCategory", ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01', ADD COLUMN "birthDateIsEstimate" BOO
+    1 additive statement(s) — things this branch's schema has that the database lacks:
+       ALTER TABLE "shelter_settings" ADD COLUMN "cloudinaryCloudName" TEXT, ADD COLUMN "emailFrom" TEXT DEFAULT 'Hope for Strays <onboarding@resend.dev>', ADD COLUMN 
+
+Against 2026-09-16's 3 destructive and 6 additive statements, the following are gone:
+
+- the `adoption_applications.status` drop-and-recreate;
+- both `CREATE TYPE` statements;
+- the three status indexes.
+
+The `pets` statement is truncated at 160 characters, so whether `pets.status` still converts
+inside it is not answered by this run. The indexes on `pets(…status…)` being present suggests it
+does not. The `pets.age` → `birthDate` migration and the `shelter_settings` columns remain.
