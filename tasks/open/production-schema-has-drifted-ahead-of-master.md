@@ -16,6 +16,14 @@
 > application insert and every status write or filter fails in production, silently. See
 > "The missing types are losing writes now" below.
 
+> **Re-measured 2026-09-16 against `origin/master` 5b2672a: unchanged.** Same 3 destructive and
+> 6 additive statements as the 2026-09-09 record below. That record is reformatted, so this is a
+> statement-by-statement match, not a byte comparison. The main checkout's `schema.prisma` and
+> checker working copies hash identically to master's. Everything master's schema added since
+> 2026-09-09 is present on production: #39's nine `adoption_applications` columns and their unique
+> index, alongside the sponsor and donation tables. Raw output, now kept rather than paraphrased:
+> `tasks/decisions/2026-09-16-sponsor-portal-activation-applies-nothing-to-production.md`.
+
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:
 `prisma/env.ts` protects `db:seed` with `assertSeedTargetIsLocal`, and nothing protects push.
@@ -69,6 +77,10 @@ resolution. Do not read it as resolved.
 For the full SQL, run the underlying command rather than the summary:
 
     npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+
+A human types that one. `.claude/settings.json` denies `npx prisma migrate*` and
+`npx prisma db execute*` to agents (since 2026-09-05), including the read-only `diff`. An agent's
+route to this measurement is `npm run db:check-drift`.
 
 ## A worktree cannot take this measurement
 
@@ -174,5 +186,30 @@ Either a single reviewed migration reconciles the two remaining conversions with
 re-derived each time.
 
 **Until then, treat `npm run db:push` as destructive against production.** The safe loop is
-`migrate diff` → read the SQL → apply only what you intended with `prisma db execute`.
+`migrate diff` → read the SQL → apply only what you intended with `prisma db execute` — the apply
+typed by a human, per the deny above.
 `npm run db:push:local` remains safe: it pins localhost.
+
+## Re-measured 2026-09-18, after the owner applied the status-enum migration
+
+The owner reported applying PR #47's `prisma/migrations/manual/20260917_status_enums/migration.sql`
+in the Neon SQL editor. `npm run db:check-drift` from the main checkout confirms it. The checkout's
+`schema.prisma` and `check-drift.ts` hash, line endings normalised, to `origin/master`'s. Exit 1,
+raw SQL lines:
+
+    Target: postgresql://<user>:***@ep-broad-band-b36iq50r-pooler...neon.tech/... (remote)   ← redacted as elsewhere in this file
+    !! 2 DESTRUCTIVE statement(s). `prisma db push` WOULD DESTROY DATA:
+       ALTER TABLE "notification_preferences" ALTER COLUMN "updatedAt" DROP DEFAULT
+       ALTER TABLE "pets" DROP COLUMN "age", DROP COLUMN "ageCategory", ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01', ADD COLUMN "birthDateIsEstimate" BOO
+    1 additive statement(s) — things this branch's schema has that the database lacks:
+       ALTER TABLE "shelter_settings" ADD COLUMN "cloudinaryCloudName" TEXT, ADD COLUMN "emailFrom" TEXT DEFAULT 'Hope for Strays <onboarding@resend.dev>', ADD COLUMN 
+
+Against 2026-09-16's 3 destructive and 6 additive statements, the following are gone:
+
+- the `adoption_applications.status` drop-and-recreate;
+- both `CREATE TYPE` statements;
+- the three status indexes.
+
+The `pets` statement is truncated at 160 characters, so whether `pets.status` still converts
+inside it is not answered by this run. The indexes on `pets(…status…)` being present suggests it
+does not. The `pets.age` → `birthDate` migration and the `shelter_settings` columns remain.

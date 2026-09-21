@@ -20,7 +20,8 @@ a donor.
 >
 > **This does not unblock production on its own — §2 below still does.** The screen reads
 > and writes through the database; with the migration unapplied there is no `sponsors`
-> table for it to reach.
+> table for it to reach. *(2026-09-16: §2's premise did not hold. The table was already on
+> production; see §2.)*
 
 The original text, unedited:
 
@@ -44,7 +45,41 @@ receipt — the screen should show it prominently. `reconcileSponsorship` alread
 `already_reconciled` with the existing number, so two coordinators racing is handled;
 the UI needs to render that outcome rather than treat it as an error.
 
-## 2. The production migration has not been applied — blocking, operational
+## 2. ~~The production migration has not been applied~~ — **Resolved 2026-09-16, by measurement**
+
+> Nothing was applied: the production Neon branch already had it. The 2026-09-09 drift record is
+> consistent with it being there then too, but that record does not name its branch.
+> `npm run db:check-drift` against `ep-broad-band-b36iq50r` proposes no statement for `sponsors`,
+> the `pet_sponsorships.displayOnWall` column, its `userId` index and foreign key, `donations` or
+> `receipt_sequences`. The raw output, and why absence from that diff is presence, are in
+> `tasks/decisions/2026-09-16-sponsor-portal-activation-applies-nothing-to-production.md`.
+>
+> The 500 this section predicted is absent on the live site: `GET /sponsors` and
+> `GET /sponsor/login` on `https://pet-shelter-phi.vercel.app` return 200, and the route has no
+> error or loading boundary to hide a thrown query. That rules out production reading a database
+> without `sponsors`. On its own it does not show production reads a database: a production build
+> seeds no demo sponsors (`SEEDING_ENABLED` in `src/lib/server/sponsorRepository.ts`), so it
+> renders the same empty wall with no `DATABASE_URL`.
+>
+> **Which database production reads — checked by the human, 2026-09-16.** In the Vercel dashboard,
+> Settings → Environment Variables: `DATABASE_URL` is present, ticked for Production, and names the
+> `ep-broad-band-…` endpoint. That is the branch the drift check measured, so the inventory above
+> describes the database live visitors use. Reported in chat, not screenshotted. **Not reported:**
+> the variable's "Updated" date against the running deployment (2026-09-15 00:51 +08), since a
+> variable changed after a deploy is not in it, and whether the URL carries `sslmode=disable`.
+>
+> **2026-09-17, human-run read-only probe:** `pet_sponsorships` has no rows on production, so no
+> supporter has pledged through a pet's checkout since 5b2672a, and nothing awaits reconciliation.
+> `donations` had 3 rows and no append-only trigger. Both were settled on 2026-09-21: the rows
+> were e2e test receipts and were removed, and the trigger is installed, so the ledger is empty and
+> the first real receipt will be `HFS-DON-202609-0004`
+> (`tasks/decisions/2026-09-21-production-receipts-are-append-only.md`).
+>
+> **Still open, and why this entry stays open:** §3–§5 below. No receipt has yet been observed
+> travelling pledge → confirm → `HFS-DON-…` → claimed account on production; that is step 6 of
+> `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`.
+
+The original text, unedited:
 
 ```bash
 psql "$DATABASE_URL" -f prisma/sql/2026-09-03_sponsor_accounts_additive.sql

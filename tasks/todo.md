@@ -15,6 +15,72 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Sponsor portal production activation — audit, run, close
+
+**Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
+**Brief:** `docs/tasks/TARGET_SPONSOR_PORTAL_PRODUCTION_ACTIVATION.md`
+
+## Items
+
+- [x] Audit the brief against `origin/master` 5b2672a: #39's columns, 5b2672a's checkout, the
+      local-rehearsal lesson, #41.
+- [x] Claim and six kill conditions committed before the production read (`3c14176`).
+- [x] Step 1: `npm run db:check-drift` from the main checkout, read-only. Every planned object is
+      already present, so the apply list is empty. K1 did not fire; K2–K6 n/a.
+- [x] Step 5, GET-only: `/sponsors` and `/sponsor/login` return 200. That proves less than first
+      claimed; see Review.
+- [x] Revise the brief; resolve §2 of the sponsor portal entry; re-measure note on the drift entry;
+      decision entry with the raw output.
+- [x] §A, answered by the human in Vercel: Production `DATABASE_URL` names `ep-broad-band-…`.
+- [x] Trigger probe, run by the human (agents are refused production reads): no append-only
+      trigger, 3 receipts, 0 pledges. Closed by
+      `tasks/decisions/2026-09-21-production-receipts-are-append-only.md`.
+- [ ] Step 6, the end-to-end receipt test: human decision. No real pledge exists, so it needs a
+      staff sponsorship with a real transfer.
+- [x] Decide the 3 receipts. Owner's query, 2026-09-18: all three are e2e test rows. Delete
+      them and keep the counter at 3 (`tasks/decisions/2026-09-18-e2e-test-receipts-removed-counter-kept.md`).
+      `cleanup.sql` rehearsed on local PostgreSQL: the production case plus five abort cases.
+- [x] Owner applied `cleanup.sql`, then `donation_append_only.sql`, 2026-09-21. Verified: the
+      ledger is empty, the counter reads 3, and `donations_no_mutation` is enabled.
+- [x] PR #47's enum migration: applied by the owner, and confirmed by `db:check-drift` on
+      2026-09-18 (3→2 destructive, 6→1 additive).
+- [x] PR #47: merged by the owner 2026-09-18. An agent merge was refused as
+      `[Merge Without Review]`, and the PR was a draft at the time.
+
+## Explicitly NOT done
+
+- **No production write of any kind.** Nothing was missing, and the trigger is a separate decision.
+- **No local rehearsal.** The apply list was empty. The `db pull --print` route stays a candidate
+  in the brief, unexercised.
+- **`neon-certificate-chain-not-observed.md` left alone.** PR #47 moves it to `decisions/`. This
+  session's evidence was first overclaimed, then reverted.
+- **No lesson file.** The patterns (a public GET cannot show production has a database; agents
+  cannot read production; K2 needs keyword and classifier) are in the brief and the decision
+  entry. None came from a human correcting this session's work, which `tasks/lessons/README.md`
+  requires.
+- **No PR.** The branch is docs and ledger only, and `AGENTS.md` forbids a docs-only PR. It rides
+  the next code branch.
+
+## Review
+
+- **Independent review earned its keep twice.** Round one found 8 defects in this session's own
+  writing: a K2 claim the classifier does not support, a dropped production-target warning, a
+  false brief-author timeline, and "receipts real since 5b2672a". Round two found the serious one.
+  `/sponsors` rendering no demo names does not show a database: `SEEDING_ENABLED` is off under
+  `NODE_ENV=production`, so a production build with no database renders the same page. Only the
+  Vercel dashboard could answer it, and it did.
+- **The two commits recording the Vercel answer and the probe results were not independently
+  reviewed.** They record human-reported facts only. Whoever opens the PR this rides on runs
+  `/code-review` over the whole diff.
+- **Related live incident, not this stream's:** PR #47 documents that production lacks the
+  `ApplicationStatus`/`PetStatus` types, so application inserts and status writes fail silently.
+  Its ledger hedged on which database Vercel uses; §A answered that: this one.
+- **Supersedes an item in the stream below.** It lists "decide how to correct the three 2026-09-14
+  test receipts (offsetting record)" as open. They were removed instead, with the counter kept, on
+  2026-09-18 and 2026-09-21: `tasks/decisions/2026-09-18-e2e-test-receipts-removed-counter-kept.md`
+  and `tasks/decisions/2026-09-21-production-receipts-are-append-only.md`. An offsetting record
+  would have added two false documents to remove one, and no code path issues one.
+
 # Public staff credentials and production data safety — PRs #46 and #47
 
 **Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
