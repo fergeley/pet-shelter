@@ -223,6 +223,11 @@ export const petBaseFormSchema = z.object({
     .refine(
       (val) => {
         if (!val) return true;
+        // One day of slack, deliberately. The shelter runs in Asia/Kuala_Lumpur (UTC+8), so a
+        // browser's local "today" is a calendar day ahead of the server's UTC date for the first
+        // eight hours of every day. Comparing against UTC today would reject a pet born this
+        // morning. The dialog's `max` still stops the picker at UTC today; this is the server
+        // being tolerant of the gap, not an invitation to file future birthdays.
         const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
         return val <= tomorrow;
       },

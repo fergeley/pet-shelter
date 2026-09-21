@@ -107,6 +107,11 @@ export function usePetStore() {
       const index = pets.findIndex((p) => p.id === id);
       if (index === -1) return null;
 
+      // An omitted field leaves the stored birthday alone; an empty string is the operator
+      // clearing it. Resolved once, because the estimate flag below turns on the same answer.
+      const nextBirthDate =
+        input.birthDate !== undefined ? input.birthDate || undefined : pets[index].birthDate;
+
       const updatedPet: Pet = withDerivedAge({
         ...pets[index],
         name: input.name,
@@ -124,9 +129,11 @@ export function usePetStore() {
         tags: input.tags,
         featured: input.featured ?? false,
         intakeDate: input.intakeDate,
-        birthDate: input.birthDate !== undefined ? (input.birthDate || undefined) : pets[index].birthDate,
-        birthDateIsEstimate: (input.birthDate !== undefined ? (input.birthDate || undefined) : pets[index].birthDate)
-          ? (input.birthDateIsEstimate !== undefined ? input.birthDateIsEstimate : (pets[index].birthDateIsEstimate ?? true))
+        birthDate: nextBirthDate,
+        // An absent birthday can only be an estimate; a present one keeps the submitted flag,
+        // else whatever the record already claimed.
+        birthDateIsEstimate: nextBirthDate
+          ? (input.birthDateIsEstimate ?? pets[index].birthDateIsEstimate ?? true)
           : true,
         rehabStage: input.rehabStage,
         rehabStageMs: input.rehabStageMs,
