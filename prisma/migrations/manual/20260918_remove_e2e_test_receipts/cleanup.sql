@@ -16,8 +16,15 @@
 -- Safety:
 --   * One statement, one DO block, so it is all-or-nothing in any SQL editor mode.
 --   * Aborts, deleting nothing, unless ALL of these hold: exactly these 3 receipts exist, all
---     for @example.test donors; no other receipt exists; September's counter stands at 3.
+--     for @example.test donors; no other receipt exists; September's counter stands at 3; and no
+--     pet_sponsorships row claims one of these receipt numbers.
 --     A real donation arriving first makes it abort; re-run it only after re-checking.
+--   * The 2026-09-21 run carried the first three guards only. The fourth was added afterwards,
+--     on review: PetSponsorship.receiptNumber is a plain String with no foreign key, and
+--     registerSponsorAction authenticates a portal claim by matching it against an ACTIVE
+--     commitment, so deleting a receipt a commitment names would leave that row pointing at
+--     nothing. That run was safe because a separate read-only probe on 2026-09-17 found
+--     pet_sponsorships empty, which this file did not establish for itself.
 --   * Holds September's counter row FOR UPDATE, so no receipt can be issued mid-run. Gives up
 --     after 5 s rather than stalling live checkouts if something else holds it.
 --   * Aborts if the append-only trigger (prisma/sql/donation_append_only.sql) is already
@@ -43,6 +50,9 @@
 --   * five abort cases each delete nothing: a real receipt already issued, one of the three
 --     belonging to a real donor, the counter moved, the trigger already installed, and the
 --     counter row locked by another transaction (gave up after about 5 s).
+-- Re-rehearsed 2026-09-21 with the pet_sponsorships guard added: the production case and the
+-- five abort cases behave as before, and a sixth — a commitment claiming HFS-DON-202609-0002 —
+-- aborts with "1 pet_sponsorships row(s) claim these receipts", leaving all three rows in place.
 -- Production's PostgreSQL version was not checked; the block uses nothing newer than 9.x.
 
 DO $$
@@ -53,6 +63,7 @@ DECLARE
     counter_value integer;
     total_receipts integer;
     matching_receipts integer;
+    claiming_sponsorships integer;
     deleted_receipts integer;
 BEGIN
     PERFORM set_config('lock_timeout', '5s', true);
@@ -81,6 +92,17 @@ BEGIN
     IF counter_value IS DISTINCT FROM 3 THEN
         RAISE EXCEPTION 'Nothing deleted: expected the HFS-DON-202609 counter at 3, found %.',
             counter_value;
+    END IF;
+
+    -- A commitment naming one of these receipts would be left pointing at nothing, and the
+    -- portal's claim challenge would still accept the number.
+    SELECT count(*) INTO claiming_sponsorships
+      FROM public.pet_sponsorships
+     WHERE "receiptNumber" = ANY (e2e_receipts);
+
+    IF claiming_sponsorships <> 0 THEN
+        RAISE EXCEPTION 'Nothing deleted: % pet_sponsorships row(s) claim these receipts.',
+            claiming_sponsorships;
     END IF;
 
     DELETE FROM public.donations
