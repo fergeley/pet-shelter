@@ -1,7 +1,7 @@
 import { ShieldAlert } from "lucide-react";
 
 import { FaqDataTable } from "@/components/admin/FaqDataTable";
-import { getCurrentSession } from "@/lib/security/session";
+import { getVerifiedSession } from "@/lib/security/dal";
 import { hasRole } from "@/lib/security/rbac";
 import { FAQ_EDITOR_ROLES } from "@/lib/domain/faqAccess";
 import { listFaqRecords } from "@/lib/server/faqRepository";
@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * so this check controls what is rendered rather than what is permitted.
  */
 export default async function AdminFaqsPage() {
-  const session = await getCurrentSession();
+  // Verified, so a suspended editor's unexpired cookie does not render the drafts.
+  const session = await getVerifiedSession();
 
   if (!hasRole(session, [...FAQ_EDITOR_ROLES])) {
     return (

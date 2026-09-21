@@ -49,7 +49,7 @@ async function sendRawEmail({
   text,
   template,
   entityId,
-  entity = "AdoptionApplication",
+  entity,
   replyTo,
   extraHeaders,
   category = "transactional",
@@ -60,8 +60,11 @@ async function sendRawEmail({
   text: string;
   template: string;
   entityId?: string;
-  /** Audit-log target entity. Defaults to the historical value. */
-  entity?: string;
+  /**
+   * Audit-log target entity: the record this email is about. Required, because the audit viewer
+   * sorts by it and a default filed every donation receipt under adoption applications.
+   */
+  entity: string;
   replyTo?: string;
   extraHeaders?: Record<string, string>;
   category?: string;
@@ -358,6 +361,7 @@ ${SHELTER_ADDRESS}
     text,
     html,
     template: "APPLICATION_CONFIRMATION",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -423,6 +427,7 @@ https://hopeforstrays.org/admin/applications
     text,
     html,
     template: "STAFF_ALERT",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -529,6 +534,7 @@ Phone: ${SHELTER_PHONE}
     text: plainText,
     html,
     template: `STATUS_UPDATE_${newStatus}`,
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -614,6 +620,7 @@ ${SHELTER_NAME}
     text: plainText,
     html,
     template: "INTERVIEW_INVITATION",
+    entity: "AdoptionApplication",
     entityId: app.id,
   });
 }
@@ -793,6 +800,11 @@ Thank you for your life-saving generosity and support of our shelter animals!
     text: plainText,
     html,
     template: "DONATION_RECEIPT",
+    // NOT "DonationReceipt": the audit viewer's receipt list (`receiptLogs` in
+    // useAuditLogController), the LHDN CSV fallback (`generateReceiptsCsvString`) and the row
+    // highlight all treat that entity as a donation. Filed there, every receipt email would be
+    // counted as a second donation and exported as a zero-amount line in a tax file.
+    entity: "DonationReceiptEmail",
     entityId: receipt.receiptNumber,
   });
 }
@@ -938,6 +950,7 @@ The ${SHELTER_NAME} Team
     text: plainText,
     html,
     template: "SPONSORSHIP_WELCOME",
+    entity: "PetSponsorship",
     entityId: pledge.pledgeRef,
   });
 }
@@ -1237,5 +1250,6 @@ Reply directly to this email to answer the sponsor.
     text,
     html,
     template: "CARETAKER_QUESTION",
+    entity: "Sponsor",
   });
 }

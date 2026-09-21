@@ -1,9 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getCurrentSession } from "@/lib/security/session";
+import { requirePermission } from "@/lib/security/dal";
 import {
-  assertHasPermission,
   ForbiddenError,
   PERMISSIONS,
   UnauthorizedError,
@@ -137,9 +136,11 @@ function toMessage(err: unknown, fallback: string): string {
  * Rate limit one editor's writes.
  *
  * Authorization is deliberately NOT folded in here. Every action states its own
- * `assertHasPermission` so the gate is readable where the action is read, rather
+ * `requirePermission` so the gate is readable where the action is read, rather
  * than one indirection away — which is also what
- * `tests/unit/serverActionAuth.test.ts` checks for.
+ * `tests/unit/serverActionAuth.test.ts` checks for. It goes through the DAL rather than
+ * the raw cookie reader, so a suspended or deleted member's unexpired cookie is refused;
+ * see `tests/unit/security/verifiedSessionOnly.test.ts`.
  */
 function enforceWriteRateLimit(actorId: string): void {
   const limit = checkRateLimit(
@@ -161,8 +162,7 @@ export async function getAdminTransparencySnapshotAction(): Promise<
   ActionResult<TransparencySnapshot>
 > {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    await requirePermission(PERMISSIONS.MANAGE_CONTENT);
 
     const snapshot = await readTransparencySnapshot({ includeUnpublished: true });
     return { success: true, data: snapshot };
@@ -179,8 +179,7 @@ export async function createExpenseItemAction(
   input: ExpenseItemInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const validated = expenseItemSchema.parse(input);
@@ -215,8 +214,7 @@ export async function updateExpenseItemAction(
   input: ExpenseItemInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const validated = expenseItemSchema.parse(input);
@@ -246,8 +244,7 @@ export async function updateExpenseItemAction(
 
 export async function deleteExpenseItemAction(id: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const removed = await deleteExpenseItem(id);
@@ -283,8 +280,7 @@ export async function saveImpactStatAction(
   input: ImpactStatInput
 ): Promise<ActionResult<{ id: string; key: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const validated = impactStatSchema.parse(input);
@@ -315,8 +311,7 @@ export async function saveImpactStatAction(
 
 export async function deleteImpactStatAction(key: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const removed = await deleteImpactStat(key);
@@ -349,8 +344,7 @@ export async function createFinancialReportAction(
   input: FinancialReportInput
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const validated = financialReportSchema.parse(input);
@@ -381,8 +375,7 @@ export async function createFinancialReportAction(
 
 export async function deleteFinancialReportAction(id: string): Promise<ActionResult> {
   try {
-    const session = await getCurrentSession();
-    assertHasPermission(session, PERMISSIONS.MANAGE_CONTENT);
+    const session = await requirePermission(PERMISSIONS.MANAGE_CONTENT);
     enforceWriteRateLimit(session.id);
 
     const removed = await deleteFinancialReport(id);
