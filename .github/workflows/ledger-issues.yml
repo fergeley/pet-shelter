@@ -1,0 +1,43 @@
+name: Ledger issues
+
+# Mirrors tasks/open/ into GitHub issues once a change to it has landed on master. The rules — the
+# file wins, deleting an entry closes its issue, CLAIM-* files are skipped — live in
+# scripts/ledger-issues.mjs and tasks/decisions/2026-09-18-ledger-issues-are-a-one-way-mirror.md.
+#
+# Deliberately not on pull_request: a branch's entries are unmerged, and publishing them would make
+# every PR a one-way door.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "tasks/open/**"
+      - "scripts/ledger-issues.mjs"
+      - ".github/workflows/ledger-issues.yml"
+  workflow_dispatch:
+
+# Queued, never run side by side: two runs planning at once would each create the same new issue,
+# and that duplicate stops every later run until someone closes one. A pending run replaced by a
+# newer one loses nothing, because each run reads the tip of master fresh.
+concurrency:
+  group: ledger-issues
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    name: Mirror tasks/open into issues
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      # No `npm ci`: the script is dependency-free and needs only git and gh, both on the runner.
+      - name: Sync issues with tasks/open on master
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/ledger-issues.mjs --apply
