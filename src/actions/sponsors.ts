@@ -33,7 +33,6 @@ import {
   getCurrentSupporterTier,
 } from "@/lib/domain/sponsorAccess";
 import { recordAuditLog } from "@/lib/domain/auditLog";
-import { getCurrentSession } from "@/lib/security/session";
 import { assertAuthorized, ROLES } from "@/lib/security/rbac";
 import { sendCaretakerQuestionEmail } from "@/lib/email";
 import { tierLabel } from "@/lib/domain/supporterTier";
