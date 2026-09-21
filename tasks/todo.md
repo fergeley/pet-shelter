@@ -15,6 +15,71 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# A pet the database lacks stops being served from the fixture
+
+**Branch:** `worktree-pet-missing-row-is-an-answer` · opened 2026-09-22 · ROUTINE lane
+**Closes:** `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`
+
+## Items
+
+- [x] Audit the brief against `origin/master` 8d36ace before writing anything. Four of its five
+      steps needed revising; step 3 was already satisfied and step 4's test shape would not have
+      discriminated.
+- [x] `findServerPetByIdAsync` returns `null` after a successful read that found nothing. One
+      line; the `catch` and the no-database path are untouched.
+- [x] `tests/integration/petMissingRowIsAnAnswer.test.ts`, 10 tests, every one on `pet-001`.
+- [x] Probe: pre-fix reader put back, suite run, 3 failures observed, fix restored.
+- [x] Three stale comments repaired — `prismaDouble.ts`, `faqEmptyPublishSet.test.ts`,
+      `pets.ts` — all describing a `length > 0` trigger that no reader has used for weeks.
+- [x] Ledger: decision entry; `pets-json-fallback-empty-means-outage.md` narrowed to the two
+      readers that remain; one lesson.
+- [x] Collision check against the nine live worktrees. `worktree-adoption-submit-guards` is
+      closing `submit-application-checks-a-fixture-and-no-status.md` right now; a note written
+      there was reverted rather than shipped into a modify/delete conflict.
+- [x] Gates: `typecheck`, `test` (1580), `test:integration` (69), `test:components` (170),
+      `lint`, `docs:check`.
+
+## Review
+
+The brief asked for five things and four of them were wrong about the repository, which is the
+part worth recording.
+
+**Step 3 — "verify callers return 404/error" — was already true.** `getPetById` has returned
+`null` on a falsy pet since PR #38 and `createPetSponsorshipAction` has returned
+`{success: false}` since it was written. Neither was edited. Editing them would also have
+collided with `codex/sponsorship-contract`, an unmerged branch that rewrites
+`src/actions/sponsorships.ts` wholesale — worth checking for before touching a file, not after.
+
+**Step 4's suggested test would not have failed against the bug.** The brief pointed at
+`softDeleteFiltering.test.ts`, whose own comments already document why: an `itest-` id is absent
+from the fixture mirror too, so the reader returns `null` for it either way. Every test in the
+new suite uses `pet-001`, a real row in `src/data/pets.json`, unarchived there.
+
+**The decision was not actually open.** Both the open entry and `prismaDouble.ts` described
+`getServerPetsAsync` as gating its fallback on `rows.length > 0`; it has not done that since it
+was fixed, and `softDeleteFiltering.test.ts` pins the current behaviour. So the catalogue and the
+profile disagreed about the same table, and the profile was the odd one out — which turns "should
+a missing row fall back?" from a policy question into a consistency defect. That is the whole
+argument for the one-line change, and it was sitting in the repository rather than in the brief.
+
+**Deliberately not done:**
+
+- **`src/actions/sponsorships.ts` untouched.** A genuinely unknown `petId` now gets
+  `SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE` — "we could not confirm your pledge" — which invites
+  a retry that can never succeed. It is the wrong message for the case, but it is the right
+  *outcome*, the file is being rewritten on another branch, and a copy change is not this task.
+- **`submitApplication` untouched, and its open entry left alone.** Another session is closing
+  both on `worktree-adoption-submit-guards`, off the same base commit. The two changes compose —
+  their caller switch plus this reader fix — but neither is complete alone: on their branch a
+  fixture id still resolves, because they inherit the pre-fix reader. The paths are disjoint, so
+  the merge will be clean and will prove nothing; whoever lands second runs the other's suite.
+- **The mirror is still rewritten on every public profile view**, so during an outage the
+  catalogue's order follows recent profile views. Carried into the decision entry rather than
+  fixed: it is cosmetic, and the sync is what lets a later outage serve a recently viewed animal.
+- **Tier 3b (`npm run test:db`) not run** — no Postgres on 5432 here, and
+  `tests/integration/db/` has no pet-read coverage, so it could not have exercised this.
+- **`npm run build` not run** — see the gate note in the close report.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
