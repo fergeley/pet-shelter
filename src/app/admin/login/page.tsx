@@ -34,10 +34,7 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Form states
-  const [loginData, setLoginData] = useState({
-    email: "admin@hopeforstrays.org",
-    password: "admin123",
-  });
+  const [loginData, setLoginData] = useState({ email: "", password: "" });
 
   const [regData, setRegData] = useState({
     name: "",
@@ -260,33 +257,38 @@ export default function AdminLoginPage() {
                   </Button>
                 </form>
 
-                {/* 1-Click Quick Demo Accounts */}
-                <div className="border-t border-border pt-4 bg-muted/20 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 sm:p-6 space-y-2.5 text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-foreground">
-                    <ShieldCheck className="size-4 text-success-text " />
-                    <span>1-Click Quick Demo Staff Sign In</span>
+                {/* The offline demo only. Every one of these passwords is published in this
+                    repository, and loginAction refuses them in production; see
+                    src/lib/security/publishedPasswords.ts. Gated here so a production page
+                    neither advertises them nor ships them in its bundle. */}
+                {process.env.NODE_ENV !== "production" && (
+                  <div className="border-t border-border pt-4 bg-muted/20 -mx-6 -mb-6 sm:-mx-8 sm:-mb-8 p-4 sm:p-6 space-y-2.5 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-foreground">
+                      <ShieldCheck className="size-4 text-success-text " />
+                      <span>1-Click Quick Demo Staff Sign In</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      {[
+                        { role: "Super Admin", email: "admin@hopeforstrays.org", pass: "admin123" },
+                        { role: "Volunteer Coord.", email: "coordinator@hopeforstrays.org", pass: "coord123" },
+                        { role: "Animal Manager", email: "animals@hopeforstrays.org", pass: "animal123" },
+                        { role: "Content Editor", email: "content@hopeforstrays.org", pass: "content123" },
+                        { role: "Staff", email: "staff@hopeforstrays.org", pass: "staff123" },
+                      ].map((demo) => (
+                        <Button
+                          key={demo.role}
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleQuickDemoLogin(demo.email, demo.pass)}
+                          className="text-2xs font-semibold"
+                        >
+                          {demo.role}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-                    {[
-                      { role: "Super Admin", email: "admin@hopeforstrays.org", pass: "admin123" },
-                      { role: "Volunteer Coord.", email: "coordinator@hopeforstrays.org", pass: "coord123" },
-                      { role: "Animal Manager", email: "animals@hopeforstrays.org", pass: "animal123" },
-                      { role: "Content Editor", email: "content@hopeforstrays.org", pass: "content123" },
-                      { role: "Staff", email: "staff@hopeforstrays.org", pass: "staff123" },
-                    ].map((demo) => (
-                      <Button
-                        key={demo.role}
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        onClick={() => handleQuickDemoLogin(demo.email, demo.pass)}
-                        className="text-2xs font-semibold"
-                      >
-                        {demo.role}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+                )}
               </div>
             )}
 

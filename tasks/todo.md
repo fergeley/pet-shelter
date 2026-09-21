@@ -15,6 +15,49 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Public staff credentials and production data safety — PRs #46 and #47
+
+**Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
+· opened 2026-09-16 · #47 merged 2026-09-18 (squash `561ec62`); #46 ready for review · follow-ups
+#72 (stacked on #46) and #73
+
+- [x] #46: `loginAction` refuses repo-published staff passwords in production; register and invite
+      acceptance refuse them everywhere; `/admin/login` drops the pre-fill and, in production, the
+      demo block. Proven on an offline `next build` + `next start`.
+- [x] #46: `docs/runbooks/RUNBOOK_PRODUCTION_STAFF_ACCOUNT_LOCKDOWN.md` — create a real Super Admin
+      without email, then suspend the seeded accounts; SQL rehearsed locally, 16 checks.
+- [x] #47: local e2e cannot reach a non-local database or send mail; `seed.ts` and `migrate-faqs.ts`
+      use `resolveDatabaseSsl`; Neon TLS entry closed.
+- [x] #47: `prisma/migrations/manual/20260917_status_enums/` — rehearsed locally, 29 checks.
+- [ ] Owner: runbook §4 or §5 in production, then merge #46.
+- [ ] Owner: apply the enum migration in the Neon SQL editor (needs no merge).
+- [ ] Owner: decide on `SESSION_SECRET` rotation, now that the cookie-only actions are known.
+- [ ] Owner: decide how to correct the three 2026-09-14 test receipts (offsetting record).
+
+## Review
+
+**Done without production access.** The owner asked on 2026-09-17 for the production steps to be
+done for them. The auto-mode classifier refused even a read-only query against production, and
+refused `prisma db push` / `migrate diff` against a local throwaway database. So everything that
+touches production is prepared, rehearsed on an embedded PostgreSQL shaped like production, and
+handed to the owner; nothing has run there.
+
+**Four review rounds, each on the previous round's fixes, each found something real:** an
+unqualified enum type that would convert the columns yet leave Prisma failing (confirmed against
+the old file); a lock timeout that did nothing when an editor runs one statement per transaction
+(the old file was still waiting at 20 s); a hash command that would have created an unusable Super
+Admin from a published password; and suspension not reaching the transparency and FAQ actions,
+which authorize from the cookie alone.
+
+**Deliberately not done:**
+- Fixing those cookie-only actions: an authorization change in two other modules with its own
+  tests — `tasks/open/transparency-and-faq-actions-ignore-suspension.md`.
+- `pets.age` → `birthDate`, the other half of the schema drift: needs a backfill decision, and
+  PR #42 is in flight in that area.
+- The email audit rows filed under `AdoptionApplication`: `tasks/open/email-audit-rows-name-the-wrong-entity.md`,
+  on master since #47. Fixed afterwards in #73.
+- Merging either PR: not permitted to this session.
+
 # Dual-track pet catalogue — plan
 
 **Branch:** `worktree-agent-4-animals` · opened 2026-09-08
@@ -460,3 +503,72 @@ defines "adoptable" separately from `getPetStatusPresentation` — added to
 `tasks/open/submit-application-checks-a-fixture-and-no-status.md`, the same adoption-flow thread;
 and the JSON-LD price is built by deleting every non-digit from free text —
 `tasks/open/pet-profile-json-ld-price-fuses-digits.md`, latent since every fixture fee is "Free".
+
+# Home page loose ends, and the ledger mirrored into GitHub issues — review
+
+**Branch:** `worktree-ledger-issues-mirror` · opened 2026-09-18 · base `85ee351`
+
+_At the end of the file rather than prepended: PRs #46 and #72 prepend a stream at the top, and
+two insertions at one line conflict, which would cost a security fix its CI run and its merge
+button. A finished stream belongs in the archive once merged anyway; see
+`tasks/lessons/2026-09-14-a-shared-todo-ledger-accumulates-finished-streams-until-it-conflicts.md`._
+
+## What shipped
+
+- [x] Four home page defects no open entry held, each checked at `85ee351` (most by a throwaway
+      component test): `bulletins-are-a-per-browser-demo-anyone-can-edit`,
+      `home-page-text-stays-english-on-the-malay-site`,
+      `hero-mounts-a-quiz-and-sponsor-dialog-nothing-can-open`,
+      `nav-links-point-at-home-sections-the-page-no-longer-renders`.
+- [x] `scripts/ledger-issues.mjs` (`npm run ledger:issues`): a one-way mirror of `tasks/open/` into
+      public issues labelled `ledger`. Rules and why: `tasks/decisions/2026-09-18-ledger-issues-are-a-one-way-mirror.md`.
+- [x] `.github/workflows/ledger-issues.yml` runs it with `--apply` on push to `master`.
+- [x] Published 2026-09-18 from `master`: #48–#71, one per entry. The home page entries and the
+      workflow's own open entry publish when this branch merges and the workflow runs.
+
+## Review
+
+- Twelve `/code-review` passes — the branch, every fix round on its own, and the whole branch before
+  the pull request — plus one probe found by running the script the way CI will. Until the last,
+  every pass found real defects, and the fix rounds made some of their own:
+  running from `tasks/` would have closed every issue; a depth-1 clone could not resolve
+  `origin/master`; any stranger could plant a marker (fixed with the label gate); the label filter
+  then moved the read onto the lagging search index (fixed with GraphQL `repository.issues`);
+  four separate file-name shapes broke the marker until it was percent-encoded instead.
+- Final state: 36 tests, 29 of 29 mutations killed, dry runs from the root, from `tasks/`, in a
+  depth-1 clone, and paging five issues at a time. The whole-branch review found no correctness
+  bug; its low findings are fixed — an empty fallback title, an overstated line in this stream.
+  Generalising the first, one round made the sync keep going past a refused action; its review
+  found that retired renamed entries and hammered rate limits, so it was reverted to stopping, and
+  the entry-shaped refusals (a blank, long or control-character title, an oversized body) are
+  prevented in the core instead.
+- Two slips the per-round loop missed and the close-out gates caught. The per-round check ran
+  vitest and eslint but not `tsc`, and vitest strips types without checking them, so a regex `s`
+  flag this repo's ES2017 target rejects passed every round and failed only the final typecheck.
+  And the edit tool stored `\u0000`-style escapes as raw bytes, turning the test file binary for
+  every diff; see `tasks/lessons/2026-09-18-a-raw-nul-in-a-test-turns-it-binary-and-hides-it-from-review.md`.
+- Registered kill condition — the marker survives GitHub — **SURVIVED**: the run straight after the
+  first `--apply` printed `in sync, nothing to do`. Entry deleted, verdict in the decision record.
+- The update and close paths ran for real too: `master` moved to `561ec62` (PR #47) mid-session,
+  adding one entry, editing one and deleting a settled one. The sync created #74, updated #67 and
+  closed #60 with the settling-commit hint, and the next run printed `in sync, nothing to do`.
+
+## Deliberately not done
+
+- **None of the four home page defects is fixed.** The ask was to write them up, and each needs an
+  owner's decision first: bulletin persistence (P-D in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md`),
+  FE-02's hero buttons against the undocumented "sitemap" in `home.test.tsx`, where the dead anchors
+  should point.
+- **PR #34's three unreproduced local failures were not filed.** They match the load-timeout pattern
+  in two lessons and in `tasks/decisions/2026-09-08-admin-sponsorship-reconciliation.md`, and CI's
+  test job passed on all eleven failed runs since 2026-09-08.
+- **PR #34's "dedicated table" ceiling for the impact counters stays untracked**, as its author chose.
+- **One open entry has no settle condition at all** (`sponsor-portal-is-inert-until-reconciliation-is-reachable`),
+  and three write theirs as a `## Settles when` heading rather than the `**Settles when:**` line
+  `tasks/README.md` asks for (`donation-form-and-admin-denials-have-loose-ends`,
+  `matcherless-hook-wiring-unverified`, `production-schema-has-drifted-ahead-of-master`); the second
+  of those also has two H1s. Noticed while building the mirror, which copes with all of it; not
+  rewritten, because they belong to other sessions.
+- **No two-way sync, and no run on `pull_request`.** Both are recorded as rejected in the decision.
+- **The workflow has never run** — it cannot before it is on `master`. Open entry
+  `ledger-issues-workflow-has-never-run`, with an agent-checkable settle condition.
