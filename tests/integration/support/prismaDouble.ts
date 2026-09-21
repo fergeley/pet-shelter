@@ -54,17 +54,19 @@ export interface PrismaDouble {
 /**
  * Builds a client double whose reads all resolve empty by default.
  *
- * Empty rather than populated on purpose: `getServerPetsAsync` only trusts the
- * database when it returns at least one row, and falls through to the in-memory
- * fixtures otherwise. Defaulting to empty means a test that forgets to arrange
- * its rows exercises the fallback and fails on a fixture value it never chose,
- * instead of quietly passing against data it did not write.
+ * Empty means "the database holds nothing", and every reader here now takes that
+ * as an answer rather than as a cue to serve fixtures: `getServerPetsAsync`
+ * returns `[]`, `findServerPetByIdAsync` returns `null`, `getServerFaqsAsync`
+ * returns `[]`. All three fall back only from their `catch`. So a test that
+ * forgets to arrange its rows sees an empty shelter, not bundled demo animals —
+ * and a test that *wants* the fallback has to provoke a failure, which is the
+ * arrangement that actually exercises it.
  *
- * That rationale is about the *pet* reader, not a house rule. `faqRepository`
- * deliberately treats an empty result as an answer — staff have unpublished
- * everything — and falls back only from its `catch`, so for FAQs this default
- * means "nothing published" rather than "arrange your rows". See
- * `faqEmptyPublishSet.test.ts`, which pins that difference.
+ * This default once carried the opposite rationale, because the pet catalogue
+ * gated its fallback on `rows.length > 0` and the single-pet read fell through
+ * after an empty result. Both are fixed —
+ * `softDeleteFiltering.test.ts` and `petMissingRowIsAnAnswer.test.ts` pin them —
+ * and `faqEmptyPublishSet.test.ts` pins the FAQ reader that was right first.
  */
 export function createPrismaDouble(): PrismaDouble {
   return {

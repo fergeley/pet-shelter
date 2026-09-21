@@ -102,8 +102,24 @@ export async function getStoredGalleryImages(id: string): Promise<string[] | nul
 }
 
 /**
- * Reads a pet from PostgreSQL first with full relations, syncing to the
- * in-memory mirror cache upon retrieval. Falls back to in-memory store.
+ * Reads one animal from PostgreSQL with full relations, syncing it to the
+ * in-memory mirror cache on the way back.
+ *
+ * **"No such row" is an answer, not an outage.** A successful query that found
+ * nothing returns `null`; the mirror is reached only when the query *threw*, or
+ * when no database is configured at all. This is the same trigger
+ * `getServerPetsAsync` above uses, and `getServerFaqsAsync` beside it.
+ *
+ * It used to fall through to the mirror on both exits, which published demo
+ * data: an id present in `src/data/pets.json` but absent from a populated
+ * database was served at its exact URL — `/pets` omitted it, because the
+ * catalogue returns whatever the database returned, so the animal was
+ * unreachable from the grid and reachable by direct link — and sponsorship
+ * checkout recorded pledges against the fixture's name. A hard-deleted row, or
+ * a fixture id production was never seeded with, was enough. Pinned by
+ * `tests/integration/petMissingRowIsAnAnswer.test.ts`;
+ * `tasks/decisions/2026-09-22-a-pet-the-database-lacks-is-a-missing-pet.md`
+ * carries the reasoning and the one case this deliberately stops serving.
  */
 export async function findServerPetByIdAsync(id: string): Promise<Pet | null> {
   const norm = id.trim().toLowerCase();
@@ -113,11 +129,10 @@ export async function findServerPetByIdAsync(id: string): Promise<Pet | null> {
         where: { id: id.trim() },
         include: PET_INCLUDE,
       });
-      if (row) {
-        const pet = mapDbPetToPet(row as unknown as DbPetRecord);
-        serverPets = [pet, ...serverPets.filter((p) => p.id.toLowerCase() !== norm)];
-        return pet;
-      }
+      if (!row) return null;
+      const pet = mapDbPetToPet(row as unknown as DbPetRecord);
+      serverPets = [pet, ...serverPets.filter((p) => p.id.toLowerCase() !== norm)];
+      return pet;
     } catch (err) {
       handlePersistenceError("Prisma pet find by id", err, "read");
       return findServerPetById(id);
