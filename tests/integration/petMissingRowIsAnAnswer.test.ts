@@ -68,11 +68,22 @@ vi.mock("@/lib/server/sponsorshipLedger", async (importOriginal) => {
   };
 });
 
-/** Nothing here is about mail; the welcome send would otherwise reach a real transport. */
-vi.mock("@/lib/email", () => ({
-  sendSponsorshipWelcomeEmail: vi.fn().mockResolvedValue(undefined),
-  sendDonationReceiptEmail: vi.fn().mockResolvedValue(undefined),
-}));
+/**
+ * Nothing here is about mail; the welcome send would otherwise reach a real transport.
+ *
+ * Partial, like the ledger mock above. Replacing the module wholesale would leave its other
+ * twelve exports undefined, and the next test in this file that reaches the photo-update or
+ * application-confirmation path would fail at call time with "No export is defined on the
+ * mock" rather than at import — a long way from the line that caused it.
+ */
+vi.mock("@/lib/email", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/email")>();
+  return {
+    ...actual,
+    sendSponsorshipWelcomeEmail: vi.fn().mockResolvedValue(undefined),
+    sendDonationReceiptEmail: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 /** A fixture animal, chosen because the mirror can serve it and a populated database may not. */
 const FIXTURE_ID = "pet-001";
@@ -87,6 +98,11 @@ beforeAll(async () => {
 beforeEach(() => {
   resetPrismaDouble(double);
   vi.unstubAllEnvs();
+  // The ledger mock is built once, in the module factory, and this config sets no
+  // `clearMocks`. Without this, `not.toHaveBeenCalled()` below would be asserting against
+  // call history accumulated by every earlier test in the file — passing only because of
+  // the order the tests happen to be declared in.
+  vi.clearAllMocks();
 });
 
 /** Guards every assertion below: an id the fixture does not hold would prove nothing. */

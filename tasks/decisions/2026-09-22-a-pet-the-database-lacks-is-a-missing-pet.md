@@ -52,6 +52,14 @@ Named so the next person meets it as a decision rather than as a bug:
 
 ## Not closed by this
 
+- **Sponsorship checkout still accepts an *archived* animal.** The entry this settles named the
+  checkout exposure as covering both a missing animal and an archived one; only the first is a
+  repository question, because an archived pet is a row the database really has. Refiled as
+  `tasks/open/sponsorship-checkout-accepts-an-archived-animal.md` rather than left in this
+  entry's prose — `open/` mirrors to a public GitHub issue and a settled decision does not, so
+  burying a live money-taking gap here would have removed it from the only list anyone reads.
+  Found by the review of this change; not observed in production.
+
 - **Every public profile view still rewrites the shared mirror**, moving the viewed animal to its
   front, so during an outage the catalogue's order follows recent profile views. Carried over
   from the closed entry's second bullet, unchanged and still cosmetic: an anonymous GET mutating

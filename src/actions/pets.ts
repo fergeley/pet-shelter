@@ -134,8 +134,11 @@ export async function getPetById(id: string): Promise<Pet | null> {
   // *is* in `pets.json` used to fall through and publish the demo animal; the repository now
   // returns null for that, and reaches the mirror only from its `catch` or with no database
   // configured (`tasks/decisions/2026-09-22-a-pet-the-database-lacks-is-a-missing-pet.md`).
-  // The guard below covers what that does not: the no-database path, whose mirror lookup
-  // lowercases and would still answer `/pets/PET-001` with fixture `pet-001`.
+  // The guard below covers what that does not: *both* remaining routes to the mirror, whose
+  // lookup lowercases. With no database configured, and equally during a non-strict outage —
+  // the `catch` also returns `findServerPetById(id)` — `/pets/PET-001` still matches fixture
+  // `pet-001`, and only the exact-id comparison refuses it. Do not delete this guard on the
+  // grounds that the repository "returns null now"; it does not, on either of those paths.
   const requested = id.trim();
   const pet = await findServerPetByIdAsync(requested);
   if (!pet || pet.id !== requested || pet.isArchived) return null;
