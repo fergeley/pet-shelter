@@ -50,8 +50,8 @@ Kept because each one will recur in the next brief written the same way.
 6. **Its inventory had a blind spot.** Prisma's diff cannot see triggers, so it cannot say whether
    `donation_append_only.sql` guards the receipt rows `/donate` writes whenever a database is set,
    as it has since before 5b2672a. Filed as
-   `tasks/open/production-receipts-are-not-append-only.md`. A human-run probe on 2026-09-17 found
-   no trigger and 3 receipts.
+   `tasks/decisions/2026-09-21-production-receipts-are-append-only.md`. A human-run probe on
+   2026-09-17 found no trigger and 3 receipts; both were settled on 2026-09-21.
 7. **Its "master is red" prerequisite** was closed by #41, and step 7 named a "Still outstanding"
    block that the drift entry does not have.
 
@@ -85,8 +85,9 @@ back to memory. Open the Vercel project → Settings → Environment Variables �
 
 The only real proof is one pledge travelling the whole chain: pledge → confirm in `/admin/donations`
 → a real `HFS-DON-…` number → a portal account claimed with it. On production that **writes a
-statutory receipt and sends real email**, so it needs its own yes. The receipt is not append-only
-there yet (`tasks/open/production-receipts-are-not-append-only.md`). Do not fake it with a test
+statutory receipt and sends real email**, so it needs its own yes. Since 2026-09-21 that receipt
+is append-only in the database too, so a mistake cannot be edited away
+(`tasks/decisions/2026-09-21-production-receipts-are-append-only.md`). Do not fake it with a test
 row — a receipt is a statutory document.
 
 Since 5b2672a there are two ways to get it:

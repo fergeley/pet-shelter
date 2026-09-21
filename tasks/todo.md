@@ -33,14 +33,15 @@ Record active multi-step work streams below.
       decision entry with the raw output.
 - [x] §A, answered by the human in Vercel: Production `DATABASE_URL` names `ep-broad-band-…`.
 - [x] Trigger probe, run by the human (agents are refused production reads): no append-only
-      trigger, 3 receipts, 0 pledges. Filed `tasks/open/production-receipts-are-not-append-only.md`.
+      trigger, 3 receipts, 0 pledges. Closed by
+      `tasks/decisions/2026-09-21-production-receipts-are-append-only.md`.
 - [ ] Step 6, the end-to-end receipt test: human decision. No real pledge exists, so it needs a
       staff sponsorship with a real transfer.
 - [x] Decide the 3 receipts. Owner's query, 2026-09-18: all three are e2e test rows. Delete
       them and keep the counter at 3 (`tasks/decisions/2026-09-18-e2e-test-receipts-removed-counter-kept.md`).
       `cleanup.sql` rehearsed on local PostgreSQL: the production case plus five abort cases.
-- [ ] Owner applies `cleanup.sql`, then `donation_append_only.sql`, then pastes the three
-      read-only checks into `tasks/open/production-receipts-are-not-append-only.md`.
+- [x] Owner applied `cleanup.sql`, then `donation_append_only.sql`, 2026-09-21. Verified: the
+      ledger is empty, the counter reads 3, and `donations_no_mutation` is enabled.
 - [x] PR #47's enum migration: applied by the owner, and confirmed by `db:check-drift` on
       2026-09-18 (3→2 destructive, 6→1 additive).
 - [ ] Merge PR #47: the owner. It is still a draft, and the classifier refused an agent merge as

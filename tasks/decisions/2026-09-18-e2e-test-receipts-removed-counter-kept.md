@@ -1,7 +1,7 @@
 # The e2e test receipts are removed, and the receipt counter is not reset
 
-**Decided:** 2026-09-18 · applied by the owner: see
-`tasks/open/production-receipts-are-not-append-only.md` until that entry closes
+**Decided:** 2026-09-18 · applied by the owner 2026-09-21, verified in
+`tasks/decisions/2026-09-21-production-receipts-are-append-only.md`
 
 ## Context
 
