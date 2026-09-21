@@ -141,14 +141,27 @@ Never copy `.env.local` anywhere.
 
 - Map each missing object to an existing file in `prisma/sql/`; write a new additive file only if
   none exists, never edit an applied one.
-- **K2:** over `parseStatements` output (comments stripped), `isDestructiveStatement` **and** this
-  keyword test, which skips foreign-key referential actions:
+- **K2:** over `parseStatements` output, `isDestructiveStatement` **and** this keyword test, which
+  skips foreign-key referential actions:
   `/\b(DROP|TRUNCATE)\b|(?<!\bON\s+)\b(DELETE|UPDATE)\b|\bALTER\b[\s\S]*?\bTYPE\b/i`.
   Measured 2026-09-16 over all ten files. It scores 0 on the seven purely additive ones. It fires on
   `donation_append_only.sql` (`DROP TRIGGER`), the rbac backfill's `UPDATE`s, and
   `ALTER TYPE … ADD VALUE`, which is additive but irreversible, so a human judges it. The classifier
   alone scored 0 on all ten. Any hit stops the list.
-- **K5:** every file enclosed in one `BEGIN; … COMMIT;`, so a failed statement aborts it whole.
+  **K2 is a tripwire, not an oracle.** Three known ways it misreads a file, all found by review
+  rather than by a run, so check a hit by reading the statement before acting on it:
+  - `parseStatements` (`sqlSafety.ts`) drops only lines whose trimmed text *starts* with `--`. A
+    trailing `-- … DROP …` on a statement line survives and fires the keyword test. That is the
+    same false positive this K2 was written to remove; the ten current files simply have none.
+  - `ON CONFLICT … DO UPDATE` fires, because the word before `UPDATE` is `DO`, not `ON`. For an
+    upsert that is arguably right — it writes rows, so it is not additive — but a human, not the
+    regex, should make that call.
+  - The splitter has no dollar-quote awareness: it cuts on every `;`, including those inside a
+    `$$ … $$` body. `donation_append_only.sql`'s 3 statements come out as 5 fragments, and a
+    `DO $$ … $$` block fragments further. Any statement-level count over such a file is nonsense.
+- **K5:** every file enclosed in one `BEGIN; … COMMIT;`, so a failed statement aborts it whole. A
+  single `DO $$ … $$;` block satisfies the same requirement by being one statement, and must be
+  checked by reading, since the splitter shreds it (above).
 - Name each statement's **data** precondition, such as a foreign key validated against existing
   `pet_sponsorships.userId` values. A schema-only rehearsal cannot see rows.
 
@@ -171,10 +184,17 @@ against the rehearsal target matches step 1 byte for byte, apart from the `Targe
 >     DATABASE_URL="$REHEARSAL_URL" npx prisma db execute --file prisma/sql/<file>.sql
 >
 > `prisma db execute` prints no `Target:` line, so the only proof of where it went is the
-> `db:check-drift` run with the same inline URL immediately before it. That run's `Target:` must
-> read `(local)`, which `check-drift.ts` prints only for exactly
-> `postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public`; another port
-> reads `(remote)`. The additive files' own headers still show the bare command. See
+> `db:check-drift` run with the same inline URL immediately before it.
+>
+> **Read that line's host, not only its label.** The 2026-09-11 version of this brief said: *"The
+> host must be the rehearsal branch's. If it names production, stop — that is the one line
+> standing between this step and an unreviewed production write."* That still governs, and it is
+> the only check that works on a Neon rehearsal branch, which prints `(remote)` exactly as
+> production does. The label is a second check, not a replacement: `(local)` appears only for
+> `postgresql://postgres:postgrespassword@localhost:5432/pet_shelter?schema=public`, the exact
+> string `check-drift.ts` compares against. A different port, `127.0.0.1`, another database name,
+> or a missing `?schema=public` all read `(remote)` while being perfectly local. The additive
+> files' own headers still show the bare command. See
 > `tasks/lessons/2026-09-11-a-rehearsal-that-resolves-its-target-from-config-rehearses-nothing.md`.
 
 Apply each file (a human types it, prefixed as above), re-run drift, apply again, re-run drift. **K4:** the

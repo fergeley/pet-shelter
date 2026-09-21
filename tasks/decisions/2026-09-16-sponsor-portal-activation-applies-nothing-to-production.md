@@ -31,7 +31,7 @@ for byte. The main checkout's working copies of `prisma/schema.prisma`, `scripts
 and `scripts/lib/sqlSafety.ts` hash identically to this worktree's, cut from `origin/master`, so
 the diff was taken against master's schema. Raw, exit 1, explanatory prose lines omitted:
 
-    Target: postgresql://neondb_owner:***@ep-broad-band-b36iq50r-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require (remote)
+    Target: postgresql://<user>:***@ep-broad-band-b36iq50r-pooler...neon.tech/... (remote)   ← host and role redacted; this repo is public
     !! 3 DESTRUCTIVE statement(s). `prisma db push` WOULD DESTROY DATA:
        ALTER TABLE "adoption_applications" DROP COLUMN "status", ADD COLUMN "status" "ApplicationStatus" NOT NULL DEFAULT 'SUBMITTED'
        ALTER TABLE "notification_preferences" ALTER COLUMN "updatedAt" DROP DEFAULT

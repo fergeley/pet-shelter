@@ -197,7 +197,7 @@ in the Neon SQL editor. `npm run db:check-drift` from the main checkout confirms
 `schema.prisma` and `check-drift.ts` hash, line endings normalised, to `origin/master`'s. Exit 1,
 raw SQL lines:
 
-    Target: postgresql://neondb_owner:***@ep-broad-band-b36iq50r-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require (remote)
+    Target: postgresql://<user>:***@ep-broad-band-b36iq50r-pooler...neon.tech/... (remote)   ← redacted as elsewhere in this file
     !! 2 DESTRUCTIVE statement(s). `prisma db push` WOULD DESTROY DATA:
        ALTER TABLE "notification_preferences" ALTER COLUMN "updatedAt" DROP DEFAULT
        ALTER TABLE "pets" DROP COLUMN "age", DROP COLUMN "ageCategory", ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01', ADD COLUMN "birthDateIsEstimate" BOO
