@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { CANONICAL_ROLES, USER_STATUSES } from "@/lib/security/permissions";
+import { isPublishedStaffPassword, PUBLISHED_PASSWORD_MESSAGE } from "@/lib/security/publishedPasswords";
 
 /**
  * Roles are validated against the canonical five only. The deprecated aliases
@@ -34,7 +35,10 @@ export const acceptInvitationSchema = z
   .object({
     email: z.string().trim().toLowerCase().email("Enter a valid email address"),
     token: z.string().trim().min(1, "This invitation link is incomplete"),
-    password: z.string().min(8, "Password must be at least 8 characters in length"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters in length")
+      .refine((password) => !isPublishedStaffPassword(password), PUBLISHED_PASSWORD_MESSAGE),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
