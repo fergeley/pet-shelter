@@ -36,8 +36,11 @@ Record active multi-step work streams below.
 - [x] Collision check against the nine live worktrees. `worktree-adoption-submit-guards` is
       closing `submit-application-checks-a-fixture-and-no-status.md` right now; a note written
       there was reverted rather than shipped into a modify/delete conflict.
-- [x] Gates: `typecheck`, `test` (1580), `test:integration` (69), `test:components` (170),
-      `lint`, `docs:check`.
+- [x] Gates: `typecheck`, `test:integration` (69), `test:components` (170), `lint` (0 errors),
+      `docs:check`. `npm test` is reported separately — see Review.
+- [x] `/code-review high` on `origin/master...HEAD`: 4 findings, all verified by probe, 3 fixed
+      in `06393d3` and the fourth refiled as an open entry. Second review round on that fix
+      commit, per the standing order that a fix round is unreviewed code.
 
 ## Review
 
@@ -78,7 +81,40 @@ argument for the one-line change, and it was sitting in the repository rather th
   fixed: it is cosmetic, and the sync is what lets a later outage serve a recently viewed animal.
 - **Tier 3b (`npm run test:db`) not run** — no Postgres on 5432 here, and
   `tests/integration/db/` has no pet-read coverage, so it could not have exercised this.
-- **`npm run build` not run** — see the gate note in the close report.
+- **`npm run build` not run.** The worktree has its own `npm ci`, so it could have been; it was
+  left out because nothing here touches a route, a component or the Prisma schema, and the build
+  would only re-prove what `tsc --noEmit` already proved. Named rather than implied.
+- **The unit suite was not made to pass, because it does not pass on `master` either.** Run one
+  gave `1580 passed (1580)`; run two on the same tree gave `57 failed`; the main checkout with
+  none of this branch's changes gave `54 failed (1582)`; a review sub-agent running all three
+  projects got `1819` green. The failures are authorization tests, `volunteerForm` and
+  `applicationWorkflow` among them, and `tests/unit/volunteerForm.test.ts` reproduces in
+  isolation on `master`. Filed as
+  `tasks/open/unit-suite-auth-tests-pass-or-fail-by-scheduling.md` with the four counts. Not
+  fixed here: it is not this change's defect, and diagnosing it properly is its own task. What
+  this branch can say is narrower and worth saying plainly — every gate that is deterministic
+  passes, and the one that is not, is not.
+
+## Review round
+
+`/code-review high` found four, none touching the fix. Each was checked by probe before being
+accepted, per the standing order:
+
+1. **Sponsorship checkout accepts an archived animal** — confirmed by `grep -n "isArchived"
+   src/actions/sponsorships.ts`, which returns nothing. The settled entry had recorded this and
+   the decision entry replacing it had not carried it, so it would have left the ledger with the
+   file. Refiled to `open/`, where it mirrors to a public issue. Not fixed: it is a caller check,
+   and the caller is being rewritten on `codex/sponsorship-contract`.
+2. **The `getPetById` comment understated its own guard**, saying the exact-id check covers "the
+   no-database path" when the `catch` path reaches the same case-insensitive mirror. Fixed — and
+   pointed at, because this branch's lesson is precisely that comments become the spec.
+3. **`not.toHaveBeenCalled()` depended on test declaration order** — the ledger `vi.fn()` is
+   built once in the module factory and no config clears it. Fixed with `vi.clearAllMocks()`.
+4. **`@/lib/email` was mocked wholesale**, leaving twelve of fourteen exports undefined for the
+   next test that needs one. Fixed with `importOriginal` and a spread.
+
+The reviewer also ran the probe independently and reproduced the same three failures, which is
+the part of its report worth more than the findings.
 
 # Sponsor portal production activation — audit, run, close
 
