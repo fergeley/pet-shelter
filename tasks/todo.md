@@ -147,6 +147,25 @@ No lesson written for this: the parallel session had already filed
 `tasks/lessons/2026-09-22-a-fix-can-silently-retire-the-test-that-guarded-the-thing-it-did-not-fix.md`,
 whose rule is the one followed here, and a second copy is the duplication `AGENTS.md` warns about.
 
+**The third review found the status check's floor, and it is lower than the code claimed.** The
+guard's comment said an unrecognised status "resolves to the `pending` presentation, so it fails
+closed". That is true of `getPetStatusPresentation` and false of the path that reaches it:
+`fromDbPetStatus` compares four exact, case-sensitive spellings and returns `"Available"` for
+everything else, so nothing unknown ever arrives at the fallback from a database read. A column
+holding `adopted` presents as Available, `isAdoptable` is true, and the guard passes the animal it
+exists to refuse — on a production branch that has held `Pet.status` as text rather than the enum.
+
+Comment corrected, gap filed as `tasks/open/an-unknown-pet-status-reads-as-available.md`, and
+pinned by a test named "does NOT yet refuse…" so it is found when the mapper is fixed rather than
+discovered again. Not fixed here: the default sits in a mapper every pet read goes through, so
+changing it is a catalogue-wide behaviour change, and what it should become is a real question —
+`Pending` fails closed for adoption but files the animal in the adoptable track, throwing turns one
+bad row into a failed render, and a fifth `Unknown` status touches every surface.
+
+This is the one finding across three reviews that reached the PR's own claim. It does not defeat it
+— before this change *no* status was checked at all — but "rejects a pet that is not adoptable" is
+now stated with its floor: as far as the mapper can tell one.
+
 **Rejecting `Pending` is a product call, and it was already made.**
 `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md` files Pending in the
 adoptable *track* while the detail page renders its button disabled on purpose. `isAdoptable` is

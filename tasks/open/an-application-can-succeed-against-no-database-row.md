@@ -37,14 +37,37 @@ read the fixture — but the guard is what now makes the claim "the animal was c
 database", and that claim does not hold on these paths.
 
 The honest fix is not another per-caller check; the id comparison is already there and cannot see
-this. It is either a reader that tells its caller which source answered, so a *write* path can
-refuse what a *read* path is happy to serve from the fixture, or a write that does not swallow
-P2003. The second is the smaller one and is probably right on its own: a foreign-key violation is a
-deterministic caller error, not a transient outage, which is the same argument `persistenceMode.ts`
-already makes for rethrowing P2002 in every mode.
+this.
 
-**Settles when:** a submission that cannot be persisted does not report success — either because
-the write path distinguishes a fixture-backed resolution from a database one, or because
-`handlePersistenceError` treats P2003 the way it treats P2002 — pinned by a strict-persistence test
-that arranges a `findUnique` miss on a real `pets.json` id and asserts the caller is not told the
-application succeeded.
+**An earlier draft of this entry proposed making `handlePersistenceError` rethrow P2003 the way it
+rethrows P2002, on the ground that a foreign-key violation is a deterministic caller error rather
+than a transient outage. That is wrong, and the repo already says so.** Corrected here after a
+review of the neighbouring branch pointed at the evidence:
+
+- `src/lib/server/sponsorshipLedger.ts` defines `FK_VIOLATION = "P2003"` — "an optional relation no
+  longer has a row" — and `recordSponsorshipPledge` *recovers* from it: it re-reads both referents
+  after the failed insert, clears only the one that actually vanished, and retries. A global
+  rethrow in the shared decision point would sit underneath a caller that has already decided this
+  code is recoverable.
+- `AdoptionApplication.petId` is `String?` with `onDelete: SetNull`, and `petName` beside it is
+  documented as a snapshot that "survives `petId` going null" — the same shape as
+  `PetSponsorship.petId`, whose comment says a record "can legitimately name an animal that has no
+  row here". Rethrowing would refuse a submission the schema is explicitly built to accept, and
+  turn away an applicant whose chosen animal's row disappeared mid-flight.
+
+P2003 does not have one meaning. Where the relation is required it means "this write is wrong";
+where it is optional it means "the referent vanished, drop the link". Both pet foreign keys here
+are the second kind, which is why `handlePersistenceError` — shared by every repository — is the
+wrong altitude to decide it.
+
+The option that matches both the schema and the only precedent in this codebase is to mirror
+`recordSponsorshipPledge` in `insertServerApplication`: on P2003, retry once with `petId: null`.
+The application then persists, the reference code stays honest, and `petName`/`petBreed` carry what
+the applicant applied for — which is what this entry is actually complaining about, since the
+complaint is that the row is *lost*, not that it is accepted.
+
+**Settles when:** a submission that reports success has actually been persisted — whether by
+retrying with `petId: null` as the sponsorship ledger does, or by the write path distinguishing a
+fixture-backed resolution from a database one and refusing before it acknowledges — pinned by a
+strict-persistence test that arranges a `findUnique` miss on a real `pets.json` id, drives the
+insert to P2003, and asserts on what the caller is told *and* on what was written.

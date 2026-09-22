@@ -212,6 +212,26 @@ describe("submitApplication under strict persistence", () => {
       expect(prismaDouble.adoptionApplication.create).not.toHaveBeenCalled();
     });
 
+    it("does NOT yet refuse an animal whose stored status is an unrecognised spelling", async () => {
+      // Pinning a gap, not endorsing it. `fromDbPetStatus` compares four exact, case-sensitive
+      // spellings and returns "Available" for anything else, so a column holding `adopted`
+      // arrives here as Available and this guard — which refuses `Adopted` — lets it through.
+      // The fail-closed fallback in `getPetStatusPresentation` never sees it, because the mapper
+      // resolved it first.
+      //
+      // The production branch has held `Pet.status` as text rather than the `PetStatus` enum,
+      // which is where such a value survives. When the mapper is fixed this test flips, and it is
+      // written to be found at that moment: `tasks/open/an-unknown-pet-status-reads-as-available.md`.
+      // `DbPetRecord.status` is `PrismaPetStatus | string`, which is the point: the column can
+      // hold text the enum would have refused.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", status: "adopted" }));
+      const { submitApplication } = await import("@/actions/applications");
+
+      const result = await submitApplication(applicationFor("pet-001"));
+
+      expect(result.success).toBe(true);
+    });
+
     it("rejects an application for an animal in rehabilitation", async () => {
       givenPersistedPet(
         makeDbPet({ id: "pet-001", name: "Bella", status: "In Rehabilitation" })

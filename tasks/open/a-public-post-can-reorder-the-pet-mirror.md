@@ -25,9 +25,14 @@ where a trusted proxy header is configured at all), so the order is cheap to dri
 
 `atomicUpdateApplicationStatus` calls it when staff approve an application. Two shelter animals
 sharing a name — not exotic; `pets.json` alone ships common ones — and whichever sits earlier in the
-array wins, even when the *other* one is the exact id match. So an approval can flip the wrong
-animal to Adopted in the cache until the next hydrate, and the attacker chooses which by submitting
-an application for it first.
+array wins, even when the *other* one is the exact id match. The attacker chooses which by
+submitting an application for it first.
+
+**And the damage outlives the cache.** An earlier draft of this entry said "until the next
+hydrate", which understates it: `atomicUpdateApplicationStatus` writes the returned pet's id into a
+`PET_STATUS_TRANSITION_ADOPTED` audit row (`entityId: adoptedPet.id`). A rehydrate corrects the
+mirror; it does not correct the audit log, which is the permanent record of who was adopted and
+when. Corrected here after the session fixing `markCachedPetAdopted` pointed it out.
 
 The forged-name half of this is already closed: `submitApplication` now stores `pet.name` from the
 verified row rather than the posted string, so the name reaching `markCachedPetAdopted` is always

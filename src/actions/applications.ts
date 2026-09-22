@@ -178,7 +178,17 @@ export async function submitApplication(
       // alone: `Pending` is a stage of the adoption track whose button already renders
       // disabled, and that is the product call recorded in
       // `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md`.
-      // An unrecognised status resolves to the `pending` presentation, so it fails closed.
+      //
+      // This check is only as good as the status it is handed, and on the database route that is
+      // **fail-open, not fail-closed**. `getPetStatusPresentation` does fall back to the `pending`
+      // presentation for a value it does not know, but nothing unknown reaches it from a database
+      // read: `fromDbPetStatus` matches four exact, case-sensitive spellings and returns
+      // `"Available"` for everything else, so a column holding `adopted` or `ADOPTED` arrives here
+      // as Available and this guard lets it through — the animal it was written to refuse. That
+      // matters because the production branch has held `Pet.status` as text rather than the
+      // `PetStatus` enum. Not fixed here: the default lives in a mapper every pet read goes
+      // through, so changing it is a catalogue-wide behaviour change, not a line in this action.
+      // `tasks/open/an-unknown-pet-status-reads-as-available.md`.
       return {
         success: false,
         error: `${pet.name} is not currently accepting adoption applications (${presentation.labelFallback}).`,
