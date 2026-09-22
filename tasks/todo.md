@@ -956,12 +956,46 @@ accepted. The substantive outcomes:
 - **Eight `home.*` keys orphaned by deleting `HomeCommunitySection`** were removed; the sweep that
   proved two keys unused should have caught these in the same pass.
 
+## Second review round, and why it mattered
+
+`/code-review` was run again over the fix commit, per close-out step 6 — the rule that exists
+because a fix round is unreviewed code written in a hurry. It returned fourteen more findings, two
+confirmed by live probe, and it was right to.
+
+**The headline one: the test named for the comment-stripping fix never called the walker.** It
+asserted on `stripComments` in isolation, so deleting the strip call from inside the walk reverted
+the whole fix with every test green. The manual probe run at the time had been real and end-to-end;
+the committed test was not, and only the committed test runs again. Replaced with a temp-dir fixture
+page driven through `idsRenderedBy`; deleting the strip call now fails it. Written up as a lesson.
+
+**Second probe-confirmed finding: every reported line number was wrong** — shifted by the comment
+lines above the link, one of them by 33 lines into a different component. Comment bodies are blanked
+in place now rather than deleted. The guard's only diagnostic output is where the broken link is.
+
+Also closed: the walk now seeds from `layout.tsx` as well as `page.tsx` (`Navbar`/`Footer` ids were
+invisible, which would have failed a *working* link and pressured someone to weaken the guard);
+default imports are resolved; query strings before a fragment are matched; two docblocks cited
+ledger files this branch had deleted; and `HomeProcessSection` gained real render coverage in both
+locales, having had none.
+
+**One change was reverted outright.** The navbar tagline had been shortened in English to remove a
+duplicate of the hero `<h1>`. That dropped "& Education" — one of the three pillars the org names —
+which is a content decision, not a deduplication, and it created a third near-identical variant
+rather than removing one. Restored, and the duplication is now a ledger entry instead.
+
+Two findings were accepted as real and **not** fixed, because they are pre-existing and wider than
+this work: `HomeStandardsSection` carries the same diverged-duplicate copy against `home.protocol*`,
+and ~25 dictionary keys still have no reader. Both are in
+`tasks/open/home-page-copy-is-duplicated-outside-the-dictionary.md`, which argues for a guard test
+rather than another hand-picked sweep. The `<html lang>` gap that had been recorded only in a
+component docblock is now `tasks/open/served-html-is-english-whatever-language-the-reader-chose.md`.
+
 ## Verification
 
 Final: `npm run check` 0 errors, 12 pre-existing warnings (one fewer than at the base);
-`npm run test:all` 119 files / 1844 tests; `npm run test:integration` 70; `npm run build` compiled
+`npm run test:all` 119 files / 1850 tests; `npm run test:integration` 70; `npm run build` compiled
 with `/` still `○ (Static) 5m` — ISR intact, which was `#78`'s binding constraint.
 
 Each new suite was run against the unfixed tree first and observed failing: 1 of 1 for `#77`, both
-cases naming all four broken links for `#80`, 12 of the then-17 for `#78`. The guard's two repaired
-holes were each re-probed after the fix.
+cases naming all four broken links for `#80`, 12 of the then-17 for `#78`. Every repair to the
+anchor guard was re-probed by breaking it again afterwards.

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync, statSync, existsSync } from "fs";
+import { readFileSync, readdirSync, statSync, existsSync, mkdtempSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
 import { join, dirname, resolve, relative, sep } from "path";
 import { fileURLToPath } from "url";
 
@@ -24,7 +25,8 @@ import { fileURLToPath } from "url";
  *
  * **Every route, not just `/`.** An earlier version of this file matched only
  * `"/#id"`. That left `/get-involved#volunteer` — the link the fix for
- * `nav-links-point-at-home-sections-the-page-no-longer-renders.md` *created* —
+ * `tasks/decisions/2026-09-22-home-anchors-remount-the-process-section-and-repoint-support.md`
+ * *created* —
  * outside its own coverage, along with four more in `Navbar.tsx`. A guard that
  * does not cover the fix that produced it is half a guard.
  *
@@ -68,20 +70,30 @@ const ID_ATTRIBUTE = /\bid=["']([A-Za-z0-9_-]+)["']/g;
 const RENDERED_COMPONENT = /<([A-Z]\w*)/g;
 
 /**
- * Removes block comments, which is also the form a JSX comment takes — the
- * braces around one are left behind as a harmless empty expression.
+ * Blanks out comments, keeping the file's line count and every line's length.
  *
  * Without this, commenting a mount out still counts it as rendered: the exact
  * defect this file guards, passing silently. Three commented-out JSX blocks
- * exist in this tree today, in `HomeSections.tsx` and `Hero.tsx`, so the
- * stripping is load-bearing rather than theoretical.
- *
- * Line comments are deliberately NOT removed: a double slash occurs inside
- * every `https://` URL written in a JSX attribute, and cutting from there to
- * end-of-line would corrupt the text this guard reads.
+ * exist in this tree today, in `HomeSections.tsx` and `Hero.tsx`, so it is
+ * load-bearing rather than theoretical.
  */
-function stripBlockComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, "");
+function stripComments(text: string): string {
+  const blank = (s: string) => s.replace(/[^\n]/g, " ");
+  return (
+    text
+      // Comment bodies become blanks rather than vanishing. `anchorLinks`
+      // splits on newlines afterwards, and deleting the text outright shifted
+      // every reported line number by the comment lines above it — a guard
+      // whose whole value is naming where the broken link sits must not
+      // misname it by 33 lines, into a different component.
+      .replace(/\/\*[\s\S]*?\*\//g, blank)
+      // A line comment counts only where the slashes open a token: at the
+      // start of a line, or after whitespace. That spares every `https://` in
+      // a JSX attribute, whose slashes follow a colon, while still blanking a
+      // mount someone commented out with `//` — which the block-comment pass
+      // alone let through, leaving the same hole it was written to close.
+      .replace(/(^|\s)\/\/[^\n]*/gm, (match, lead: string) => lead + blank(match.slice(lead.length)))
+  );
 }
 
 /** Every `.ts`/`.tsx` file under `src`. */
@@ -112,9 +124,10 @@ function resolveImport(specifier: string, fromFile: string): string | null {
   return null;
 }
 
-/** name -> file, for every named import in `text` that resolves into `src`. */
+/** name -> file, for every import in `text` that resolves into `src`. */
 function importMap(text: string, fromFile: string): Map<string, string> {
   const map = new Map<string, string>();
+
   const named = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']([^"']+)["']/g;
   for (const [, names, specifier] of text.matchAll(named)) {
     const file = resolveImport(specifier, fromFile);
@@ -124,6 +137,18 @@ function importMap(text: string, fromFile: string): Map<string, string> {
       if (name) map.set(name, file);
     }
   }
+
+  // Default imports too. Nothing under `src/app` uses this shape for a
+  // component today, but nothing forbids it, and a missed import means the
+  // walk never enters the component — reporting a working link as broken.
+  // A false red is worse than a miss here: it pressures the next person to
+  // loosen the guard rather than fix the parser.
+  const byDefault = /import\s+([A-Z]\w*)\s*(?:,\s*\{[^}]*\}\s*)?from\s+["']([^"']+)["']/g;
+  for (const [, name, specifier] of text.matchAll(byDefault)) {
+    const file = resolveImport(specifier, fromFile);
+    if (file) map.set(name, file);
+  }
+
   return map;
 }
 
@@ -161,18 +186,40 @@ function pageForRoute(route: string): string | null {
   return existsSync(file) ? file : null;
 }
 
-/** Ids rendered by a route, walking down from its `page.tsx`. */
-function idsRenderedBy(entry: string): Set<string> {
+/**
+ * The page, plus every `layout.tsx` wrapping it.
+ *
+ * A route renders more than its own page. `src/app/layout.tsx` mounts `Navbar`
+ * and `Footer` on every route, so an id declared in the footer is on screen
+ * everywhere — and a walk that started at `page.tsx` alone would call a link
+ * to it broken. That false red is the worst failure this guard has, because
+ * the natural response to one is to weaken the guard.
+ */
+function entriesForRoute(route: string): string[] {
+  const page = pageForRoute(route);
+  if (!page) return [];
+  const segments = route.split("/").filter(Boolean);
+  const layouts: string[] = [];
+  for (let depth = 0; depth <= segments.length; depth += 1) {
+    const layout = join(APP, ...segments.slice(0, depth), "layout.tsx");
+    if (existsSync(layout)) layouts.push(layout);
+  }
+  return [page, ...layouts];
+}
+
+/** Ids rendered by a route, walking down from each of its entry files. */
+function idsRenderedBy(entries: string | string[]): Set<string> {
+  const roots = typeof entries === "string" ? [entries] : entries;
   const ids = new Set<string>();
   const seen = new Set<string>();
 
   function visit(file: string, source: string) {
-    const text = stripBlockComments(readFileSync(file, "utf8"));
+    const text = stripComments(readFileSync(file, "utf8"));
     const imports = importMap(text, file);
     const blocks = componentBlocks(text);
-    // The entry is one component, so its whole text is its body. Elsewhere,
-    // only the named component's block counts.
-    const body = file === entry ? text : (blocks.get(source) ?? "");
+    // An entry file is one component, so its whole text is its body.
+    // Elsewhere, only the named component's block counts.
+    const body = roots.includes(file) ? text : (blocks.get(source) ?? "");
     if (!body) return;
 
     for (const match of body.matchAll(ID_ATTRIBUTE)) {
@@ -190,7 +237,7 @@ function idsRenderedBy(entry: string): Set<string> {
     }
   }
 
-  visit(entry, "PageEntry");
+  for (const root of roots) visit(root, "RouteEntry");
   return ids;
 }
 
@@ -208,22 +255,28 @@ interface AnchorLink {
  * Matches an href that starts at the app root, so `https://…#frag` and a bare
  * `#id` (which resolves against whatever page is showing) are both out of
  * scope — this guard is about links that name a route and an anchor together.
+ *
+ * ceiling: a route interpolated into a template literal (`` `/pets/${id}#x` ``)
+ * is skipped, because the route cannot be known without running the code. A
+ * query string before the fragment IS matched, and the query is discarded
+ * before resolving the route.
  */
 function anchorLinks(): AnchorLink[] {
   const found: AnchorLink[] = [];
   for (const file of sourceFiles()) {
-    stripBlockComments(readFileSync(file, "utf8"))
+    stripComments(readFileSync(file, "utf8"))
       .split(/\r?\n/)
       .forEach((text, i) => {
-        for (const [, route, id] of text.matchAll(
-          /["'`]\/([A-Za-z0-9/_-]*)#([A-Za-z0-9_-]+)/g,
+        for (const [, path, id] of text.matchAll(
+          /["'`]\/([A-Za-z0-9/_.=&?-]*)#([A-Za-z0-9_-]+)/g,
         )) {
+          const route = path.split("?")[0].replace(/\/$/, "");
           found.push({
             file: relative(ROOT, file).split(sep).join("/"),
             line: i + 1,
             route,
             id,
-            href: `/${route}#${id}`,
+            href: `/${path}#${id}`,
           });
         }
       });
@@ -235,7 +288,7 @@ describe("in-app anchor links", () => {
   it("walks a page's render tree rather than the whole source", () => {
     // Anchors the walker itself. Without this, a bug that returned every id in
     // the repo — or none — would make the real assertion below vacuous.
-    const home = idsRenderedBy(pageForRoute("")!);
+    const home = idsRenderedBy(entriesForRoute(""));
 
     expect(home).toContain("our-work");
     expect(home).toContain("adopt");
@@ -248,35 +301,83 @@ describe("in-app anchor links", () => {
     expect(home).not.toContain("support");
     expect(home).not.toContain("volunteer");
 
-    const getInvolved = idsRenderedBy(pageForRoute("get-involved")!);
+    const getInvolved = idsRenderedBy(entriesForRoute("get-involved"));
     expect(getInvolved).toContain("volunteer");
     expect(getInvolved).toContain("foster");
     expect(getInvolved).not.toContain("how-it-works");
   });
 
   it("does not count a commented-out mount as rendered", () => {
-    // `{/* <HomeProcessSection /> */}` must not keep `#how-it-works` alive.
-    // Three commented-out JSX blocks exist in this tree already, so the
-    // stripping this relies on is load-bearing rather than theoretical.
-    const page = readFileSync(pageForRoute("")!, "utf8");
-    expect(page).toContain("<HomeProcessSection />");
+    // Exercised through `idsRenderedBy`, not against `stripComments` directly.
+    // A first version of this case asserted on the helper's output, and
+    // deleting the helper's call inside the walk left every test in this file
+    // green — the guard silently reverted to the behaviour this case is named
+    // for. Asserting on a helper proves the helper, not the thing that uses it.
+    const fixtures = mkdtempSync(join(tmpdir(), "anchor-guard-"));
+    try {
+      const page = join(fixtures, "page.tsx");
+      writeFileSync(
+        page,
+        [
+          'import { Live, Dead } from "./sections";',
+          "export default function Page() {",
+          "  return (",
+          "    <main>",
+          "      <Live />",
+          "      {/* <Dead /> */}",
+          "      // <Dead />",
+          "    </main>",
+          "  );",
+          "}",
+        ].join("\n"),
+      );
+      writeFileSync(
+        join(fixtures, "sections.tsx"),
+        [
+          "export function Live() {",
+          '  return <section id="live-anchor" />;',
+          "}",
+          "export function Dead() {",
+          '  return <section id="dead-anchor" />;',
+          "}",
+        ].join("\n"),
+      );
 
-    const commentedOut = stripBlockComments(
-      page.replace("<HomeProcessSection />", "{/* <HomeProcessSection /> */}"),
-    );
-    // The JSX usage is what `RENDERED_COMPONENT` matches and what the walk
-    // follows; the import line survives, and should, because an unused import
-    // is ESLint's problem rather than this guard's.
-    expect(commentedOut).not.toMatch(/<HomeProcessSection/);
-    expect(commentedOut).toContain("HomeProcessSection,");
+      const ids = idsRenderedBy(page);
+      expect(ids).toContain("live-anchor");
+      // Commented out both ways a mount can be commented out.
+      expect(ids).not.toContain("dead-anchor");
+    } finally {
+      rmSync(fixtures, { recursive: true, force: true });
+    }
+  });
+
+  it("reports the line the broken link is actually written on", () => {
+    // Comment bodies are blanked rather than deleted. When they were deleted,
+    // a link in `HomeSections.tsx` was reported 33 lines above its real
+    // position, inside a different component — the guard's only diagnostic
+    // output, pointing somewhere else.
+    const source = readFileSync(join(SRC, "components", "layout", "Footer.tsx"), "utf8");
+    const stripped = stripComments(source);
+
+    expect(stripped.split("\n")).toHaveLength(source.split("\n").length);
+
+    const realLine = source
+      .split(/\r?\n/)
+      .findIndex((line) => line.includes('"/get-involved#volunteer"'));
+    const strippedLine = stripped
+      .split(/\r?\n/)
+      .findIndex((line) => line.includes('"/get-involved#volunteer"'));
+    expect(realLine).toBeGreaterThan(-1);
+    expect(strippedLine).toBe(realLine);
   });
 
   it("points every in-app anchor link at an id that route renders", () => {
     const idsByRoute = new Map<string, Set<string> | null>();
     const unresolved = anchorLinks().filter((link) => {
       if (!idsByRoute.has(link.route)) {
-        const page = pageForRoute(link.route);
-        idsByRoute.set(link.route, page ? idsRenderedBy(page) : null);
+        const entries = entriesForRoute(link.route);
+        idsByRoute.set(link.route, entries.length ? idsRenderedBy(entries) : null);
       }
       return !idsByRoute.get(link.route)?.has(link.id);
     });

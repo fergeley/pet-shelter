@@ -4,6 +4,7 @@ import { screen } from "@testing-library/react";
 import { Hero } from "@/components/layout/Hero";
 import {
   HomeGalleryLoading,
+  HomeProcessSection,
   HomeViewAllPetsLink,
 } from "@/components/layout/HomeSections";
 import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
@@ -20,9 +21,8 @@ import { renderWithLanguage } from "./support/render";
  * right string somewhere else on the page, satisfies a presence check.
  * Absence is what discriminates, so it is what is asserted.
  *
- * The strings covered are the inventory in
- * `tasks/open/home-page-text-stays-english-on-the-malay-site.md`, minus the
- * bulletin admin chrome, which is deliberately left English — see
+ * The strings covered, and the bulletin admin chrome deliberately left in
+ * English, are both settled by
  * `tasks/decisions/2026-09-22-home-page-malay-stops-at-the-bulletin-admin-chrome.md`.
  */
 
@@ -109,22 +109,55 @@ describe("BulletinFeed on the Malay site", () => {
     expect(screen.queryByText("Latest news and updates")).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["bulletins.allNoticesTitle", "Semua Notis Komuniti", "All Community Notices"],
-    ["bulletins.petsFeedTitle", "Notis Adopsi & Kemas Kini Klinik", "Adoption Notices & Clinic Updates"],
-  ] as const)("translates the %s heading a sibling page asks for", (titleKey, malay, english) => {
-    // `/bulletins` and `/pets` used to pass their headings as English string
-    // literals. Once the chrome around them became Malay, that left those two
-    // pages with a Malay feed under an English title — a worse mixed-language
-    // result than before. They pass a key now, and this is what pins it.
-    seedBulletins([bulletin()]);
-    renderWithLanguage(<BulletinFeed targetPage="home" titleKey={titleKey} />, {
-      language: "ms",
-    });
+  // The prop combinations the real call sites use, not a convenient one:
+  // `/bulletins` renders `targetPage="all"` and `/pets` renders
+  // `targetPage="pets"` with `compact` and `maxItems`.
+  const siblingFeeds = [
+    {
+      titleKey: "bulletins.allNoticesTitle",
+      props: { targetPage: "all" } as const,
+      malay: "Semua Notis Komuniti",
+      english: "All Community Notices",
+    },
+    {
+      titleKey: "bulletins.petsFeedTitle",
+      props: { targetPage: "pets", compact: true, maxItems: 2 } as const,
+      malay: "Notis Adopsi & Kemas Kini Klinik",
+      english: "Adoption Notices & Clinic Updates",
+    },
+  ] as const;
 
-    expect(screen.getByText(malay)).toBeInTheDocument();
-    expect(screen.queryByText(english)).not.toBeInTheDocument();
-  });
+  it.each(siblingFeeds)(
+    "translates the $titleKey heading a sibling page asks for",
+    ({ titleKey, props, malay, english }) => {
+      // `/bulletins` and `/pets` used to pass their headings as English string
+      // literals. Once the chrome around them became Malay, that left those two
+      // pages with a Malay feed under an English title — a worse mixed-language
+      // result than before. They pass a key now, and this is what pins it.
+      seedBulletins([bulletin()]);
+      renderWithLanguage(<BulletinFeed {...props} titleKey={titleKey} />, {
+        language: "ms",
+      });
+
+      expect(screen.getByText(malay)).toBeInTheDocument();
+      expect(screen.queryByText(english)).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(siblingFeeds)(
+    "keeps the $titleKey heading English on the English site",
+    ({ titleKey, props, malay, english }) => {
+      // Without this, a key that resolved in `ms` but not in `en` would pass
+      // every assertion above. The case this replaced covered the English side
+      // for a caller-supplied heading; that coverage is kept here rather than
+      // dropped along with the string prop.
+      seedBulletins([bulletin()]);
+      renderWithLanguage(<BulletinFeed {...props} titleKey={titleKey} />);
+
+      expect(screen.getByText(english)).toBeInTheDocument();
+      expect(screen.queryByText(malay)).not.toBeInTheDocument();
+    },
+  );
 
   it.each<[BulletinCategory, string, string]>([
     ["urgent_need", "Asuhan Segera / Keperluan", "Urgent Foster / Need"],
@@ -176,6 +209,46 @@ describe("BulletinFeed on the Malay site", () => {
     expect(
       screen.queryByText("No updates or bulletins posted for this section.")
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("HomeProcessSection, the remounted #how-it-works anchor", () => {
+  // Nothing rendered this component at all before 2026-09-22: `1137d3e`
+  // unmounted it and the only test touching it since is the structural anchor
+  // guard, which asserts the string `<HomeProcessSection />` appears in
+  // `page.tsx` and never renders anything. Remounting it made its copy visible
+  // again, and reading that copy from the dictionary is the change that needs
+  // covering — a future edit reintroducing an inline literal would otherwise
+  // pass CI.
+  it("renders the three steps from the dictionary in English", () => {
+    renderWithLanguage(<HomeProcessSection />);
+
+    expect(screen.getByRole("heading", { name: "How Adoption Works" })).toBeInTheDocument();
+    expect(screen.getByText("Browse & Submit Application")).toBeInTheDocument();
+    expect(screen.getByText("Meet & Socialize")).toBeInTheDocument();
+    expect(screen.getByText("Finalize & Welcome Home")).toBeInTheDocument();
+    // The wording the inline ternary had drifted to, which the dictionary does
+    // not use. Its presence would mean the literals came back.
+    expect(screen.queryByText(/zero adoption fees/)).not.toBeInTheDocument();
+  });
+
+  it("renders the three steps in Malay, with no English left behind", () => {
+    renderWithLanguage(<HomeProcessSection />, { language: "ms" });
+
+    expect(screen.getByText("Semak & Hantar Permohonan")).toBeInTheDocument();
+    expect(screen.getByText("Sesi Suai Kenal & Interaksi")).toBeInTheDocument();
+    expect(screen.getByText("Tandatangan Perjanjian & Bawa Pulang")).toBeInTheDocument();
+
+    expect(screen.queryByText("Browse & Submit Application")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meet & Socialize")).not.toBeInTheDocument();
+    expect(screen.queryByText("Finalize & Welcome Home")).not.toBeInTheDocument();
+    // The pre-2026-09-22 inline Malay, which disagreed with the dictionary.
+    expect(screen.queryByText("Pilih Haiwan & Hantar Permohonan")).not.toBeInTheDocument();
+  });
+
+  it("declares the id three links in the nav and footer point at", () => {
+    const { container } = renderWithLanguage(<HomeProcessSection />);
+    expect(container.querySelector("section#how-it-works")).not.toBeNull();
   });
 });
 

@@ -115,16 +115,16 @@ export function Navbar() {
                 Hope for Strays <span className="text-primary text-xs font-bold uppercase tracking-wider">UM</span>
               </span>
               {/*
-                The abbreviated tagline, in both languages. It used to carry
-                the full English headline — "Coexistence through TNRM &
-                Education" — which is verbatim the hero's `<h1>`, while its
-                Malay was already the short form. One string in two places, and
-                only one of them translated, is the shape AGENTS.md calls the
-                defect. Shortening the English removes the duplicate rather
-                than lengthening a `text-3xs` slot to match it.
+                The English here is verbatim the hero's `<h1>`, while the Malay
+                is a shortened form — one string in two places, translated
+                twice, differently. Shortening the English to match was tried
+                and reverted: it dropped "& Education", one of the three
+                pillars this org names in `HomeOurWorkSection`, which is a
+                content decision rather than a deduplication. Tracked in
+                `tasks/open/home-page-copy-is-duplicated-outside-the-dictionary.md`.
               */}
               <span className="text-3xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:block">
-                {isMs ? "Kewujudan Bersama melalui TNRM" : "Coexistence through TNRM"}
+                {isMs ? "Kewujudan Bersama melalui TNRM" : "Coexistence through TNRM & Education"}
               </span>
             </div>
           </Link>
