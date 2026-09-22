@@ -1,0 +1,422 @@
+import type {
+  BulletinCategory as PrismaBulletinCategory,
+  BulletinTargetPage as PrismaBulletinTargetPage,
+  BulletinMediaType as PrismaBulletinMediaType,
+} from "@prisma/client";
+
+import initialBulletinsData from "@/data/bulletins.json";
+import {
+  Bulletin,
+  BulletinCategory,
+  BulletinMediaType,
+  BulletinRecord,
+  BulletinTargetPage,
+} from "@/types/bulletin";
+import {
+  BULLETIN_CATEGORIES,
+  BULLETIN_MEDIA_TYPES,
+  BULLETIN_TARGET_PAGES,
+  BulletinFormValues,
+} from "@/lib/validations/bulletin";
+import { toPublicEmbedUrl, toPublicMediaUrl } from "@/lib/domain/bulletinMedia";
+import { recordAuditLog } from "@/lib/domain/auditLog";
+import { SessionUser } from "@/lib/security/session";
+import { prisma } from "@/lib/server/prisma";
+import { handlePersistenceError } from "@/lib/persistenceMode";
+
+/**
+ * Bulletin reads and writes over the repository layer.
+ *
+ * Storage strategy matches `./faqRepository`: Prisma when a database is
+ * reachable, the committed `src/data/bulletins.json` fixture when it is not, so
+ * the public feed still renders during an outage and the unit suite needs no
+ * database. As with FAQ — and unlike the older pet path — an *empty* result is
+ * not treated as an outage; see `getPublicBulletins`.
+ *
+ * This module is the only bulletin code permitted to touch Prisma
+ * (docs/architecture/LAYERS.md, L-B2); `src/actions/bulletins.ts` calls in here.
+ *
+ * It replaces `src/lib/client/bulletinStore.ts`, an L-F4 localStorage hook that
+ * was the entire persistence story for this type: every visitor edited their own
+ * private copy, nothing staff wrote reached anyone, and a redeployed fixture
+ * never reached a browser that had already stored one.
+ */
+
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+
+/**
+ * Compile-time proof that the declarations of each bulletin vocabulary agree:
+ * the Prisma enums, the TypeScript unions, and the zod tuples. The presentation
+ * tables in `@/lib/presentation/bulletinPresentation` are `Record<…, …>` over
+ * the same unions, so the compiler already holds them to this without needing a
+ * reference here.
+ *
+ * Adding a category to the schema without adding it to the union — or the
+ * reverse — makes this line a type error rather than a value that reaches
+ * production and renders as its own raw slug.
+ */
+export const BULLETIN_VOCABULARY_IS_CONSISTENT: Exact<
+  PrismaBulletinCategory,
+  BulletinCategory
+> &
+  Exact<(typeof BULLETIN_CATEGORIES)[number], BulletinCategory> &
+  Exact<PrismaBulletinTargetPage, BulletinTargetPage> &
+  Exact<(typeof BULLETIN_TARGET_PAGES)[number], BulletinTargetPage> &
+  Exact<PrismaBulletinMediaType, BulletinMediaType> &
+  Exact<(typeof BULLETIN_MEDIA_TYPES)[number], BulletinMediaType> = true;
+
+/** The fixture, typed. Its shape is asserted by tests/unit/bulletins.test.ts. */
+interface BulletinFixtureRow {
+  id: string;
+  title: string;
+  content: string;
+  titleMs: string | null;
+  contentMs: string | null;
+  category: BulletinCategory;
+  targetPage: BulletinTargetPage;
+  mediaType: BulletinMediaType;
+  mediaUrl: string | null;
+  videoEmbedUrl: string | null;
+  isPinned: boolean;
+  isPublished: boolean;
+  authorName: string;
+  publishedAt: string;
+}
+
+function freshBulletins(): BulletinRecord[] {
+  const epoch = new Date(0).toISOString();
+  return (structuredClone(initialBulletinsData) as BulletinFixtureRow[]).map((row) => ({
+    ...row,
+    createdAt: epoch,
+    updatedAt: epoch,
+  }));
+}
+
+let serverBulletins: BulletinRecord[] = freshBulletins();
+
+/** Test-only. Reached through `resetServerStore()` in `./fallbackState`. */
+export function resetBulletins(): void {
+  serverBulletins = freshBulletins();
+}
+
+interface DbBulletinRow {
+  id: string;
+  title: string;
+  content: string;
+  titleMs: string | null;
+  contentMs: string | null;
+  category: BulletinCategory;
+  targetPage: BulletinTargetPage;
+  mediaType: BulletinMediaType;
+  mediaUrl: string | null;
+  videoEmbedUrl: string | null;
+  isPinned: boolean;
+  isPublished: boolean;
+  authorName: string;
+  publishedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * A notice date is a day, not an instant.
+ *
+ * Stored as midnight UTC and read back in UTC so the string an editor typed is
+ * the string every reader sees. Formatting in local time would move a clinic
+ * announced for Saturday onto Friday for anyone west of the shelter, which is
+ * the whole content of the notice.
+ */
+function toDateString(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return date.toISOString().slice(0, 10);
+}
+
+export function parseNoticeDate(value: string): Date {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function mapDbBulletin(row: DbBulletinRow): BulletinRecord {
+  return {
+    id: row.id,
+    title: row.title,
+    content: row.content,
+    titleMs: row.titleMs,
+    contentMs: row.contentMs,
+    category: row.category,
+    targetPage: row.targetPage,
+    mediaType: row.mediaType,
+    mediaUrl: row.mediaUrl,
+    videoEmbedUrl: row.videoEmbedUrl,
+    isPinned: row.isPinned,
+    isPublished: row.isPublished,
+    authorName: row.authorName,
+    publishedAt: toDateString(row.publishedAt),
+    createdAt: toDateString(row.createdAt),
+    updatedAt: toDateString(row.updatedAt),
+  };
+}
+
+/**
+ * The public projection.
+ *
+ * Two things happen here and nowhere else. The English copy is resolved into
+ * any missing Malay field, so no reader can render a blank title. And both
+ * media URLs pass the host allow-list — the enforcing half of that check,
+ * because the seed and the hand-run migration insert rows without going near
+ * the action that validates on write.
+ */
+function toBulletin(record: BulletinRecord): Bulletin {
+  return {
+    id: record.id,
+    title: record.title,
+    content: record.content,
+    category: record.category,
+    targetPage: record.targetPage,
+    mediaType: record.mediaType,
+    mediaUrl: toPublicMediaUrl(record.mediaUrl),
+    videoEmbedUrl: toPublicEmbedUrl(record.videoEmbedUrl),
+    isPinned: record.isPinned,
+    publishedAt: record.publishedAt,
+    authorName: record.authorName,
+  };
+}
+
+/** Pinned first, then newest. The only ordering this type has. */
+function sortForFeed<T extends { isPinned: boolean; publishedAt: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+    return b.publishedAt.localeCompare(a.publishedAt);
+  });
+}
+
+function matchesTarget(record: { targetPage: BulletinTargetPage }, page: BulletinTargetPage) {
+  if (page === "all") return true;
+  return record.targetPage === "all" || record.targetPage === page;
+}
+
+/**
+ * Published bulletins for one public feed.
+ *
+ * A successful query returning no rows is an ANSWER — staff have unpublished
+ * everything, or nothing targets this page — not an outage. Substituting the
+ * fixture there would resurrect retracted notices and leave no way to empty the
+ * feed, so only a thrown error falls back. This is the settled repo-wide
+ * position; `tests/integration/faqEmptyPublishSet.test.ts` pins it for FAQ and
+ * `getServerPetsAsync` was brought onto it afterwards.
+ *
+ * `limit` is pushed into the query rather than sliced afterwards: the ordering
+ * is the database's, so `take` returns the notices a page would have shown
+ * without reading the rest. The fixture path below has to sort in memory
+ * instead, which is why `sortForFeed` exists at all.
+ *
+ * ceiling: an unlimited call (`/bulletins`) reads every published row in one
+ * payload. Fine at shelter scale — tens of notices — but page it if the archive
+ * outgrows a few hundred, which is also when the feed stops being readable.
+ */
+export async function getPublicBulletins(
+  targetPage: BulletinTargetPage = "all",
+  limit?: number
+): Promise<Bulletin[]> {
+  try {
+    const rows = await prisma.bulletin.findMany({
+      where: {
+        isPublished: true,
+        targetPage:
+          targetPage === "all"
+            ? undefined
+            : { in: ["all", targetPage] as PrismaBulletinTargetPage[] },
+      },
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+      ...(limit ? { take: limit } : {}),
+    });
+    return (rows as unknown as DbBulletinRow[]).map(mapDbBulletin).map(toBulletin);
+  } catch (err) {
+    handlePersistenceError("Bulletin read", err);
+  }
+
+  const fallback = sortForFeed(
+    serverBulletins.filter((b) => b.isPublished && matchesTarget(b, targetPage))
+  ).map(toBulletin);
+  return limit ? fallback.slice(0, limit) : fallback;
+}
+
+/**
+ * Every row, published or not, for the editor.
+ *
+ * No fixture fallback, deliberately: those rows carry ids that need not exist in
+ * the database, so every Edit, Delete and Pin on them would fail with "not
+ * found" while the table insisted the data was there. An outage has to surface.
+ * Copied from `listFaqRecords`, which learned it first.
+ */
+export async function listBulletinRecords(): Promise<BulletinRecord[]> {
+  const rows = await prisma.bulletin.findMany({
+    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+  });
+  return (rows as unknown as DbBulletinRow[]).map(mapDbBulletin);
+}
+
+/**
+ * The fields an editor controls, shared by create and update.
+ *
+ * `authorName` is deliberately NOT here: a create takes it from the acting
+ * session, an update must leave it alone, and neither may take it from the
+ * form. Keeping it out of the shared shape means a future field cannot pick up
+ * the byline by accident.
+ */
+function editablePayload(values: BulletinFormValues) {
+  return {
+    category: values.category as PrismaBulletinCategory,
+    targetPage: values.targetPage as PrismaBulletinTargetPage,
+    title: values.title,
+    content: values.content,
+    titleMs: values.titleMs ?? null,
+    contentMs: values.contentMs ?? null,
+    mediaType: values.mediaType as PrismaBulletinMediaType,
+    // A URL is kept only when its media type will actually render it, so
+    // switching a card to None does not leave an orphaned iframe URL in the row
+    // for a later edit to resurrect.
+    mediaUrl: values.mediaType === "image" ? (values.mediaUrl ?? null) : null,
+    videoEmbedUrl: values.mediaType === "video" ? (values.videoEmbedUrl ?? null) : null,
+    isPinned: values.isPinned,
+    isPublished: values.isPublished,
+    publishedAt: parseNoticeDate(values.publishedAt),
+  };
+}
+
+export async function insertServerBulletin(
+  values: BulletinFormValues,
+  actor: SessionUser
+): Promise<BulletinRecord> {
+  // The byline is the actor's, never the form's. See bulletinFormSchema.
+  const created = await prisma.bulletin.create({
+    data: { ...editablePayload(values), authorName: actor.name || actor.email },
+  });
+  const record = mapDbBulletin(created as unknown as DbBulletinRow);
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: "BULLETIN_CREATED",
+    entity: "Bulletin",
+    entityId: record.id,
+    details: {
+      category: record.category,
+      targetPage: record.targetPage,
+      title: record.title,
+      isPublished: record.isPublished,
+      isPinned: record.isPinned,
+    },
+  });
+
+  return record;
+}
+
+export async function updateServerBulletin(
+  id: string,
+  values: BulletinFormValues,
+  actor: SessionUser
+): Promise<BulletinRecord | null> {
+  const existing = await prisma.bulletin.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const before = mapDbBulletin(existing as unknown as DbBulletinRow);
+  // `authorName` is omitted: an edit does not reassign the byline, so correcting
+  // a colleague's typo does not silently put your name on their notice.
+  const updated = await prisma.bulletin.update({
+    where: { id },
+    data: editablePayload(values),
+  });
+  const record = mapDbBulletin(updated as unknown as DbBulletinRow);
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: "BULLETIN_UPDATED",
+    entity: "Bulletin",
+    entityId: id,
+    details: {
+      before: { title: before.title, category: before.category, targetPage: before.targetPage },
+      after: { title: record.title, category: record.category, targetPage: record.targetPage },
+    },
+  });
+
+  return record;
+}
+
+export async function setServerBulletinPublished(
+  id: string,
+  isPublished: boolean,
+  actor: SessionUser
+): Promise<BulletinRecord | null> {
+  const existing = await prisma.bulletin.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const updated = await prisma.bulletin.update({ where: { id }, data: { isPublished } });
+  const record = mapDbBulletin(updated as unknown as DbBulletinRow);
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: isPublished ? "BULLETIN_PUBLISHED" : "BULLETIN_UNPUBLISHED",
+    entity: "Bulletin",
+    entityId: id,
+    details: { title: record.title, isPublished },
+  });
+
+  return record;
+}
+
+export async function setServerBulletinPinned(
+  id: string,
+  isPinned: boolean,
+  actor: SessionUser
+): Promise<BulletinRecord | null> {
+  const existing = await prisma.bulletin.findUnique({ where: { id } });
+  if (!existing) return null;
+
+  const updated = await prisma.bulletin.update({ where: { id }, data: { isPinned } });
+  const record = mapDbBulletin(updated as unknown as DbBulletinRow);
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: isPinned ? "BULLETIN_PINNED" : "BULLETIN_UNPINNED",
+    entity: "Bulletin",
+    entityId: id,
+    details: { title: record.title, isPinned },
+  });
+
+  return record;
+}
+
+export async function deleteServerBulletin(id: string, actor: SessionUser): Promise<boolean> {
+  const existing = await prisma.bulletin.findUnique({ where: { id } });
+  if (!existing) return false;
+
+  const record = mapDbBulletin(existing as unknown as DbBulletinRow);
+  await prisma.bulletin.delete({ where: { id } });
+
+  recordAuditLog({
+    actorId: actor.id,
+    actorEmail: actor.email,
+    actorRole: actor.role,
+    action: "BULLETIN_DELETED",
+    entity: "Bulletin",
+    entityId: id,
+    // The whole notice, because a delete is the one change nothing else records.
+    details: {
+      category: record.category,
+      targetPage: record.targetPage,
+      title: record.title,
+      content: record.content,
+      authorName: record.authorName,
+      publishedAt: record.publishedAt,
+    },
+  });
+
+  return true;
+}
