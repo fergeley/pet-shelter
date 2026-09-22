@@ -210,18 +210,26 @@ export async function recordDonationPledge(
 /**
  * A unique violation on `donation_pledges.pledgeRef`, and nothing else.
  *
- * Scoped by model *and* target: the table's other unique is `receiptNumber`, and
- * retrying a collision on that with a fresh pledge reference would write a second
- * row for money that already has a receipt. Prisma reports the model in
- * `meta.modelName` and the constraint's columns in `meta.target`.
+ * Discriminated on `meta.target`, which names the constraint's columns — as a
+ * field-name array, or as the index name `donation_pledges_pledgeRef_key`,
+ * depending on the driver. The table's other unique is `receiptNumber`, and
+ * retrying *that* with a fresh reference would write a second row for money that
+ * already has a receipt, so the column test is the part that must hold.
+ *
+ * Deliberately **not** gated on `meta.modelName`, unlike `isUniqueViolation` in
+ * `donationLedger.ts`. That one is scoped by model because it guards a shared
+ * retry around a transaction that writes several tables, and its comment records
+ * the models measured on this client. Nothing has measured `modelName` for a
+ * `donationPledge.create`, and the cost of guessing wrong is silent: the retry
+ * would never fire and a colliding reference would go on being reported to the
+ * donor as an unconfirmed write. Here the caller is the discriminator — this runs
+ * only around `prisma.donationPledge.create`, so a P2002 reaching it can only
+ * have come from a `donation_pledges` constraint.
  */
 function isPledgeRefCollision(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
-  const { code, meta } = err as {
-    code?: unknown;
-    meta?: { modelName?: unknown; target?: unknown };
-  };
-  if (code !== "P2002" || meta?.modelName !== "DonationPledge") return false;
+  const { code, meta } = err as { code?: unknown; meta?: { target?: unknown } };
+  if (code !== "P2002") return false;
 
   const target = meta?.target;
   const columns = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];

@@ -120,6 +120,32 @@ describe("donation pledge ledger against real PostgreSQL", () => {
     expect(record.receiptNumber).toBeNull();
   });
 
+  it("redraws a colliding pledge reference instead of losing the gift", async () => {
+    const taken = await recordDonationPledge(draft(), { now: PROBE_INSTANT });
+
+    // The same reference a second time. The column is unique, so this is exactly
+    // what a same-day random collision produces — and the *real* P2002, with
+    // whatever `meta.modelName` and `meta.target` this Prisma client actually
+    // populates. The unit tests fabricate that error object, so this is the only
+    // place the predicate is checked against the shape Postgres really raises.
+    const second = await recordDonationPledge(
+      draft({ pledgeRef: taken.pledgeRef, donorEmail: "second.donor@example.test" }),
+      { now: PROBE_INSTANT }
+    );
+
+    expect(second.pledgeRef).not.toBe(taken.pledgeRef);
+    expect(second.pledgeRef).toMatch(/^HFS-GFT-\d{8}-\d{6}$/);
+    expect(second.status).toBe("PENDING_PAYMENT");
+
+    // Both gifts survived, and neither drew a receipt on the way.
+    const rows = await prisma.donationPledge.findMany({
+      where: { pledgeRef: { in: [taken.pledgeRef, second.pledgeRef] } },
+      select: { pledgeRef: true, receiptNumber: true },
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.receiptNumber === null)).toBe(true);
+  });
+
   it("lists pending gifts oldest first, breaking a same-instant tie on id", async () => {
     const sameInstant = new Date("2999-01-10T04:00:00.000Z");
     const tied = [

@@ -394,12 +394,28 @@ export async function reconcilePetSponsorshipAction(
       pledgeRef: ref.data,
       receiptNumber: donation.receiptNumber,
       petName: record.petName,
-      // Carried so the LHDN CSV fallback can name the supporter. This row is
-      // classified as a donation by `exportCsv` (it has a `receiptNumber`), and
-      // without these two it exported as "Anonymous Donor" with the reconciling
-      // coordinator's address in the donor column.
+      // The block below exists for the LHDN CSV fallback. This row is classified
+      // as a donation by `exportCsv` (it carries a `receiptNumber`), and that
+      // exporter reads one specific key per column: without them a reconciled
+      // sponsorship exported as "Anonymous Donor", with the reconciling
+      // coordinator's address as the donor's, RM 0.00 as the amount, and the
+      // literals "Rescue Donation" and "DuitNow QR" invented for the rest.
+      //
+      // `amountMYR` in particular is not optional decoration: it is the *only*
+      // amount key that exporter reads, so `amountSen` and `amountDisplay` beside
+      // it — which every other reader uses — left the money column reading zero on
+      // a document filed with LHDN.
+      //
+      // `taxIdOrIc` is deliberately absent. It is an NRIC, the tax column can be
+      // blank, and an audit row is not the place to widen where it is stored.
       sponsorName: record.sponsorName,
       sponsorEmail: record.sponsorEmail,
+      amountMYR: ringgitFromSen(record.amountSen),
+      tierId: donation.tierId,
+      tierName: donation.tierName,
+      frequency: donation.frequency,
+      paymentMethod: donation.paymentMethod,
+      targetPetName: donation.targetPetName,
       amountSen: record.amountSen as number,
       amountDisplay: formatMYR(record.amountSen),
     },

@@ -29,10 +29,10 @@ const prismaDouble = vi.hoisted(() => ({
 }));
 
 /** What Prisma raises for a unique violation, in the shape the ledger inspects. */
-function uniqueViolation(modelName: string, target: string[]) {
+function uniqueViolation(modelName: string | null, target: string[] | string) {
   return Object.assign(new Error("Unique constraint failed"), {
     code: "P2002",
-    meta: { modelName, target },
+    meta: modelName === null ? { target } : { modelName, target },
   });
 }
 
@@ -181,5 +181,65 @@ describe("a colliding pledge reference is retried, not reported as a lost gift",
       DonationPledgeWriteError
     );
     expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(2);
+  });
+});
+
+/**
+ * The shapes a P2002 actually arrives in.
+ *
+ * The retry must not depend on `meta.modelName`: nothing has measured Prisma
+ * populating it for a `donationPledge.create`, and if it is absent the predicate
+ * would quietly return false, the retry would never run, and a colliding
+ * reference would go on being reported to the donor as an unconfirmed write --
+ * the failure the retry exists to remove, silently unfixed. `meta.target` also
+ * arrives either as a field-name array or as the index name, depending on the
+ * driver, so both are pinned here.
+ */
+describe("the collision predicate survives every shape the error arrives in", () => {
+  it("retries when meta carries no modelName at all", async () => {
+    const { recordDonationPledge } = await import("@/lib/server/donationPledgeLedger");
+
+    prismaDouble.donationPledge.create
+      .mockRejectedValueOnce(uniqueViolation(null, ["pledgeRef"]))
+      .mockImplementationOnce(async (args: { data: { pledgeRef: string } }) =>
+        pledgeRow(args.data.pledgeRef)
+      );
+
+    const record = await recordDonationPledge(DRAFT);
+
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(2);
+    expect(record.pledgeRef).not.toBe(DRAFT.pledgeRef);
+  });
+
+  it("retries when target is the index name rather than the column list", async () => {
+    const { recordDonationPledge } = await import("@/lib/server/donationPledgeLedger");
+
+    prismaDouble.donationPledge.create
+      .mockRejectedValueOnce(
+        uniqueViolation(null, "donation_pledges_pledgeRef_key")
+      )
+      .mockImplementationOnce(async (args: { data: { pledgeRef: string } }) =>
+        pledgeRow(args.data.pledgeRef)
+      );
+
+    const record = await recordDonationPledge(DRAFT);
+
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(2);
+    expect(record.pledgeRef).not.toBe(DRAFT.pledgeRef);
+  });
+
+  it("still refuses to retry the receiptNumber unique without a modelName", async () => {
+    const { recordDonationPledge, DonationPledgeWriteError } = await import(
+      "@/lib/server/donationPledgeLedger"
+    );
+
+    prismaDouble.donationPledge.create.mockRejectedValue(
+      uniqueViolation(null, "donation_pledges_receiptNumber_key")
+    );
+
+    await expect(recordDonationPledge(DRAFT)).rejects.toBeInstanceOf(
+      DonationPledgeWriteError
+    );
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(1);
   });
 });

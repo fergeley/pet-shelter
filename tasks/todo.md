@@ -128,6 +128,25 @@ A second `/code-review high` over the fix commit returned six more, again each p
    the export stops calling reconciled sponsors "Anonymous Donor".
 6. **Deploy ordering** — already tracked; see the open entry and the PR description.
 
+A third `/code-review high`, over the second fix commit, returned four more:
+
+1. **The sponsorship export fix was itself half a fix, and the half it left was the money.**
+   `exportCsv` reads `amountMYR` and nothing else for the amount column, and the
+   `SPONSORSHIP_RECONCILED` audit row carried only `amountSen`/`amountDisplay`. So the previous
+   commit gave those rows a real supporter name and address — making them look authoritative —
+   while the LHDN amount column still read `0.00`. The row now carries `amountMYR`, plus the tier,
+   frequency, rail and dedication the exporter was otherwise inventing as "Rescue Donation" and
+   "DuitNow QR". `taxIdOrIc` is deliberately still absent: an audit row is not somewhere to widen
+   where an NRIC is stored.
+2. **The collision retry was gated on `meta.modelName`**, which nothing in this repo has observed
+   Prisma populating for a `donationPledge.create`. If it is absent the predicate returns false,
+   the retry never fires, and the donor loses the gift exactly as before — silently. The call site
+   is the discriminator (this only ever wraps one `create`), so the check is now on `meta.target`
+   alone, with tests for the no-`modelName` and index-name shapes.
+3. **The truncation banner had no test.** Two added, both directions.
+4. A collision case was added to the Postgres suite, since that tier is the only place the *real*
+   P2002 shape is observable — still unrun here.
+
 ### Deliberately not done
 
 - **No payment webhook.** The open entry offered it as the other fork. There is no processor
