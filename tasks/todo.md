@@ -15,6 +15,89 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Pet birth date — production conversion and the form that feeds it
+
+**Branch:** `worktree-pet-birth-date-migration` · opened 2026-09-22
+**Brief:** a five-step plan in the session prompt, revised before execution — see Review.
+
+## Items
+
+- [x] Audit the brief against `origin/master` rather than the main checkout, which was three
+      commits behind. Step 1 was already done: the owner applied `20260917_status_enums` on
+      2026-09-18 and the drift entry records the re-measurement.
+- [x] Establish what the remaining pet drift actually costs. Probed the SQL Prisma emits with a
+      recording `pg` pool and no database: `pet.findMany` selects `birthDate`, production has no
+      such column, the error is swallowed, and the catalogue falls back to `src/data/pets.json`.
+- [x] `prisma/migrations/manual/20260922_pet_birth_date/` — `migration.sql`, `rollback.sql`,
+      `cleanup.sql`. Archives `age`/`ageCategory` before dropping, backfills per row from that
+      row's own intake date and age prose, flags every row an estimate.
+- [x] `prisma/migrations/manual/20260922_settings_and_defaults/` — the additive remainder, so the
+      drift has one answer rather than a leftover.
+- [x] Rehearse on embedded PostgreSQL 17 (pglite; no Docker daemon, no local PostgreSQL). **42
+      checks, all green**, harness committed as `rehearse.mjs`. Four real bugs found and fixed:
+      interval arithmetic vs JS date overflow; `CURRENT_DATE` vs UTC; `"500 years"` backfilling
+      silently to 1526; and an impossible `intakeDate` aborting without naming the row.
+- [x] Audit against the parallel branch `fix/pets-birth-date-production-migration`, found late.
+      It is the **expand** half (never drops); this folder is the **contract** half. Verified they
+      compose by running mine against a table it had already migrated.
+- [x] Form and write paths: `birthDate` + `birthDateIsEstimate` collected, `age`/`ageCategory`
+      derived read-only; `createPet`, `updatePet` and the client store carry the date through.
+- [x] Gates: `typecheck`, `test` (1580), `test:components`, `test:integration` (59), `lint`
+      (0 errors, no new warnings), `docs:check`.
+- [x] Ledger: two decisions, three lessons, `pet-form-has-no-birth-date-field.md` deleted, the
+      drift entry updated and left open.
+- [ ] **Owner decides between this migration and the parallel one**, or applies them as
+      expand → soak → contract. They derive different dates for month-end rows until that
+      divergence is settled — see the decision entry.
+- [ ] **Owner applies the chosen migration(s) in the Neon SQL editor**, then `cleanup.sql` once
+      the archive has been read. Nothing further can be authored from here.
+
+## Review
+
+**The brief was revised, not executed.** Five of its assumptions did not survive contact:
+
+1. *"Review `20260917_status_enums` for readiness"* — already applied to production on 2026-09-18.
+   The main checkout was at `b44f857`, `origin/master` at `8d36ace`, and the intervening commits
+   held the re-measurement. Lesson filed.
+2. *"Design a migration to replace `age`/`ageCategory` with `birthDate`"* — the schema did that on
+   2026-08-28 (`6108d82`). The gap was production DDL, not schema design.
+3. *"Do not hardcode a birthday like '2024-01-01' without marking the estimate"* — right instinct,
+   wrong artifact. `'2024-01-01'` is the `@default` on `prisma/schema.prisma:78`, which is why
+   `db push` emits it. The column keeps it (or drift never clears); no row receives it.
+4. *"Prepare a reversible migration with `migration.sql` and `rollback.sql`"* — a rollback of a
+   `DROP COLUMN` restores nothing unless something kept the values. Hence the archive table, and
+   the third file that drops it.
+5. *"Settle both open entries into `tasks/decisions/`"* — only one could settle. The drift entry's
+   own "Settles when" requires production to be reconciled, and an agent cannot reach it.
+   Recording it as settled would have been a conclusion without evidence.
+
+**The finding that changed the priority.** The pet conversion had been filed as pending hygiene
+for nineteen days. It is not: production's pet catalogue is being served from the JSON fixture,
+because the deployed client asks for a column production does not have. That is the same failure
+shape as the 2026-09-16 application-insert finding, one table over, and it means every pet the
+shelter has added or edited since the schema change is invisible on the live site.
+
+**The mistake worth recording.** Neither this session nor the concurrent one listed the branches
+before writing a migration, so the same conversion was authored twice on the same day. The audit
+was one `git branch -a` and one `gh pr list`. `tasks/open/` could not have warned either session —
+an entry records what is known, not who is acting on it — and the `open/CLAIM-*.md` the ledger
+contract provides for exactly this went unwritten by both. Lesson filed. The salvage: reading the
+other branch adversarially found two real defects in this one, because its edge-case list differed.
+
+**Deliberately not done:**
+
+- **Not applied.** `.claude/settings.json` denies agents `npx prisma migrate*` and `db execute*`,
+  and this session had no production access. Both files are rehearsed and unapplied.
+- **`getServerPetsAsync`'s missing `select` left as it is.** Narrowing it would hide this class of
+  failure rather than fix it, and the fallback-trigger question is its own open entry.
+- **`Pet.age` not made bilingual.** `ages-render-in-english-on-malay-site.md` stays open; it is a
+  cross-module type-contract change, not a ride-along.
+- **`intakeDate` left as `z.string().min(4)`** rather than tightened to `isoDateSchema`.
+- **The archive is not dropped.** `cleanup.sql` is a deliberate human step, and until it runs
+  `db:check-drift` will report one statement. Said out loud rather than hidden.
+- **No e2e coverage added.** `e2e/pages/AdminPetsPage.ts` has no field fillers and the pet
+  lifecycle spec never opens the form; building that out is its own task.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
