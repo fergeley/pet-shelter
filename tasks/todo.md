@@ -28,9 +28,11 @@ Record active multi-step work streams below.
 - [x] Establish what the remaining pet drift actually costs. Probed the SQL Prisma emits with a
       recording `pg` pool and no database: `pet.findMany` selects `birthDate`, production has no
       such column, the error is swallowed, and the catalogue falls back to `src/data/pets.json`.
-- [x] `prisma/migrations/manual/20260922_pet_birth_date/` — `migration.sql`, `rollback.sql`,
-      `cleanup.sql`. Archives `age`/`ageCategory` before dropping, backfills per row from that
-      row's own intake date and age prose, flags every row an estimate.
+- [x] `prisma/migrations/manual/20260922_pets_birth_date_contract/` — `migration.sql`,
+      `rollback.sql`, `cleanup.sql`, `rehearse.mjs`. **Restructured as the contract half** after
+      the owner chose expand → soak → contract: it archives `age`/`ageCategory`/`birthDate`/
+      `birthDateIsEstimate` and drops the two old columns, and derives nothing. Folder renamed
+      from `20260922_pet_birth_date` — one letter from the expand half's name was a hazard.
 - [x] `prisma/migrations/manual/20260922_settings_and_defaults/` — the additive remainder, so the
       drift has one answer rather than a leftover.
 - [x] Rehearse on embedded PostgreSQL 17 (pglite; no Docker daemon, no local PostgreSQL). **42
@@ -57,11 +59,28 @@ Record active multi-step work streams below.
       Rehearsal 46 → 48 checks.
 - [x] Ledger: two decisions, five lessons, two new open entries,
       `pet-form-has-no-birth-date-field.md` deleted, the drift entry updated and left open.
-- [ ] **Owner decides between this migration and the parallel one**, or applies them as
-      expand → soak → contract. They derive different dates for month-end rows until that
-      divergence is settled — see the decision entry.
-- [ ] **Owner applies the chosen migration(s) in the Neon SQL editor**, then `cleanup.sql` once
-      the archive has been read. Nothing further can be authored from here.
+- [x] **Decided, with owner's authority: expand → soak → contract.** The parallel branch's file is
+      the expand half and never drops; this one is the contract half. Reversed this session's own
+      position on the arithmetic — expand's clamping stands, because once the contract derives
+      nothing there is no second rule to keep in step, and the dispute was 1–3 days on a value
+      already flagged an estimate. Raised directly with the other session.
+- [x] Verified the real sequence end to end against `fix/pets-birth-date-production-migration` at
+      `77510c5`: expand applies, contract applies on top, archive holds five rows with zero birth
+      dates differing from expand's, contract rollback restores every age while `birthDate`
+      survives. This also caught that review round 1's guard had **broken** the composition.
+- [ ] **Owner applies expand, leaves a soak window, reads the derived birthdays against the age
+      prose, then applies contract**, then `cleanup.sql`. Nothing further can be authored here.
+- [x] Both peers answered. The expand session agreed the split, took the roll-forward argument
+      this session had *withdrawn*, and changed expand to match `approximateBirthDate` (`b40a7d7`)
+      — re-verified: 0 of 5 rows differ. They also now refuse Malay tokens outright. Their session
+      has ended; branch is final.
+- [x] PR #42 yielded the form to #94, and found a real defect in it by reading the description:
+      `birthDateIsEstimate` defaulted on every parse, so an update omitting it demoted a known
+      birthday to an estimate. Probed, fixed, pinned. They were also about to make
+      `approximateBirthDate` clamp, which would have re-diverged the just-agreed expand; asked
+      them to drop it.
+- [x] Corrected a stale figure this session published about PR #42 (166 files / −13,546) — it was
+      measured against an old tip; the honest number is 17 files / +1048 / −72, clean and green.
 
 ## Review
 

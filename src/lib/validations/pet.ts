@@ -228,7 +228,18 @@ export const petBaseFormSchema = z.object({
   // required" instead of "Date must be in YYYY-MM-DD format", which is what an empty string earns
   // from the regex and is not what the operator did wrong.
   birthDate: z.string().min(1, "Birth date is required").pipe(isoDateSchema),
-  birthDateIsEstimate: z.boolean().optional().default(true),
+
+  /**
+   * Optional with NO `.default(true)`, deliberately.
+   *
+   * A default here is applied on every parse, so the key is always present in the output — and
+   * `updatePet` merges `{ ...existing, ...validated }`. A caller that simply did not mention the
+   * flag would therefore overwrite a stored `false` with `true`, silently demoting a birthday
+   * someone actually knew to a guess, which is the one thing this field exists to prevent.
+   * Measured, not theorised. Leaving it absent lets `existing` survive the spread; the two create
+   * paths apply `?? true` themselves, where defaulting to "estimated" is the honest choice.
+   */
+  birthDateIsEstimate: z.boolean().optional(),
 
   gender: z.enum(GENDER_VALUES),
   size: z.enum(SIZE_VALUES),

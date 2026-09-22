@@ -114,7 +114,9 @@ export function usePetStore() {
         species: input.species,
         breed: input.breed,
         birthDate: input.birthDate,
-        birthDateIsEstimate: input.birthDateIsEstimate ?? true,
+        // Falls back to what is stored, not to `true`: an edit that does not mention the flag must
+        // not demote a birthday someone knew. Only a genuinely new record defaults to "estimated".
+        birthDateIsEstimate: input.birthDateIsEstimate ?? pets[index].birthDateIsEstimate ?? true,
         gender: input.gender,
         size: input.size,
         weight: input.weight,

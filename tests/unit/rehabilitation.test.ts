@@ -309,6 +309,34 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       ).toBe(true);
     });
 
+    it("should leave birthDateIsEstimate absent when the payload omits it", () => {
+      // `updatePet` merges `{ ...existing, ...validated }`. If the schema defaulted this field,
+      // the key would be present on every parse and a caller that merely did not mention the flag
+      // would overwrite a stored `false` with `true` — silently demoting a birthday someone
+      // actually knew to a guess, which is the one thing the field exists to prevent. Found on the
+      // neighbouring PR's code and confirmed here before the default was removed.
+      const withoutFlag: Record<string, unknown> = { ...baseForm };
+      delete withoutFlag.birthDateIsEstimate;
+      const parsed = petFormSchema.safeParse(withoutFlag);
+
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect("birthDateIsEstimate" in parsed.data).toBe(false);
+
+        const existing = { birthDateIsEstimate: false };
+        expect({ ...existing, ...parsed.data }.birthDateIsEstimate).toBe(false);
+      }
+    });
+
+    it("should keep an explicit birthDateIsEstimate of false", () => {
+      const parsed = petFormSchema.safeParse({ ...baseForm, birthDateIsEstimate: false });
+
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.birthDateIsEstimate).toBe(false);
+      }
+    });
+
     it("should accept a birth date on the intake date itself", () => {
       // An animal born the day it arrived is a real case — a litter surrendered at birth — so the
       // boundary is inclusive, and pinning it stops a later `>=` from quietly refusing them.

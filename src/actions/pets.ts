@@ -191,7 +191,9 @@ export async function createPet(
       species: validated.species,
       breed: validated.breed,
       birthDate: validated.birthDate,
-      birthDateIsEstimate: validated.birthDateIsEstimate,
+      // A new animal whose intake form said nothing about how the birthday was established is an
+      // estimate. The schema no longer defaults this, so the create path states it.
+      birthDateIsEstimate: validated.birthDateIsEstimate ?? true,
       gender: validated.gender,
       size: validated.size,
       weight: validated.weight,

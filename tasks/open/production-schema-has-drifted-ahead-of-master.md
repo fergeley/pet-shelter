@@ -29,7 +29,10 @@
 > failure is swallowed — so the public pet list is being served from `src/data/pets.json`, not from
 > the database. Same shape as the application-insert finding below, one table over. See "The pet
 > catalogue is being served from the fixture" at the end of this file. The migration that fixes it
-> now exists, rehearsed, unapplied: `prisma/migrations/manual/20260922_pet_birth_date/`.
+> now exists as an expand/contract pair, rehearsed, unapplied:
+> `prisma/migrations/manual/20260922_pets_birth_date/` (expand, on
+> `fix/pets-birth-date-production-migration`) then
+> `prisma/migrations/manual/20260922_pets_birth_date_contract/` (archive and drop).
 
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:
@@ -265,17 +268,27 @@ Authored, rehearsed on embedded PostgreSQL 17, **not applied** — agents are de
 access and `npx prisma migrate*`/`db execute*`. The owner applies these in the Neon SQL editor,
 following each file's header, in this order:
 
-1. `prisma/migrations/manual/20260922_pet_birth_date/migration.sql` — archives `age` and
-   `ageCategory` to `pets_age_archive_20260922`, backfills `birthDate` per row from that row's own
-   intake date and age prose (a transcription of `approximateBirthDate` in
-   `src/lib/domain/petAge.ts`, checked row-for-row against it), flags every backfilled row
-   `birthDateIsEstimate = true`, then drops the two columns. No row receives the `'2024-01-01'`
-   column default. `rollback.sql` and `cleanup.sql` sit beside it.
-2. `prisma/migrations/manual/20260922_settings_and_defaults/migration.sql` — the seven
+1. **Expand** — `prisma/migrations/manual/20260922_pets_birth_date/migration.sql`, on branch
+   `fix/pets-birth-date-production-migration`. Adds `birthDate` / `birthDateIsEstimate`, backfills
+   every row from that row's own intake date and age prose, and relaxes `age` / `ageCategory` to
+   nullable. **This is the step that stops the outage**, and it destroys nothing. Reversible with
+   no data loss.
+2. **Soak.** Between the two steps, read the derived birthdays against the prose that produced
+   them, in production, while both still exist:
+   `SELECT "id","name","age","ageCategory","intakeDate","birthDate" FROM pets ORDER BY "birthDate";`
+   That window is the reason the conversion is split; nothing after step 1 is urgent.
+3. **Contract** — `prisma/migrations/manual/20260922_pets_birth_date_contract/migration.sql`.
+   Copies `age`, `ageCategory`, `birthDate` and `birthDateIsEstimate` to
+   `pets_age_archive_20260922`, then drops the two old columns. Derives nothing — the expand half
+   owns that rule alone. Refuses if expand has not run, which it tells by `age` still being
+   `NOT NULL`. `rollback.sql` and `cleanup.sql` sit beside it.
+4. `prisma/migrations/manual/20260922_settings_and_defaults/migration.sql` — the seven
    `shelter_settings` email and storage columns, and the `notification_preferences.updatedAt`
    `DROP DEFAULT`. Nothing here is urgent; it is the remainder.
 
 Rationale, rejected alternatives and the full rehearsal record:
+`tasks/decisions/2026-09-22-the-pet-birth-date-conversion-splits-into-expand-and-contract.md`,
+which supersedes the single-file design in
 `tasks/decisions/2026-09-22-pet-birth-date-backfill-derives-from-intake-and-age.md`.
 
 **Expect drift to read one statement, not zero, immediately after applying both.** The archive

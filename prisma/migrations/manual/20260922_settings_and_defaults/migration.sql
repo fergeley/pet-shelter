@@ -1,7 +1,8 @@
 -- The rest of the drift: the `shelter_settings` email and storage columns production lacks, and
 -- the `notification_preferences.updatedAt` default master's schema does not declare.
 --
--- Scope: this file and 20260922_pet_birth_date beside it are, together, the whole of the drift
+-- Scope: this file, plus 20260922_pets_birth_date (expand) and 20260922_pets_birth_date_contract
+-- (archive and drop) beside it, are together the whole of the drift
 -- recorded in tasks/open/production-schema-has-drifted-ahead-of-master.md as of its 2026-09-18
 -- re-measurement — one additive statement and two destructive ones, of which only the pet one
 -- destroys anything. Applying both, plus that folder's cleanup.sql, takes
