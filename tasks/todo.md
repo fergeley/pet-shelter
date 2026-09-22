@@ -129,6 +129,36 @@ accepted, per the standing order:
 The reviewer also ran the probe independently and reproduced the same three failures, which is
 the part of its report worth more than the findings.
 
+### Second round, on the fix commit — and it was right to insist
+
+The standing order says a fix round is unreviewed code. It found five more, and this is the part
+of the stream worth reading:
+
+1. **The exposure is still open on the outage path.** `handlePersistenceError` rethrows only
+   under `STRICT_PERSISTENCE`, which nothing outside `vitest.config.mts` and one npm script sets
+   — so in production a transient read failure serves fixture `pet-001` at its exact URL and
+   bills a pledge against it. The decision entry had filed this under "what this deliberately
+   stops serving", as a *virtue*, and not under "not closed by this". The code was right and the
+   claim was wrong, which is the more dangerous of the two. Filed as
+   `tasks/open/an-outage-serves-and-bills-fixture-animals.md`; framing corrected in place.
+2. **Three comments I had just written were factually wrong about other functions** —
+   "the same trigger `getServerPetsAsync` uses" (it has no `isDatabasePersistent()` gate at all),
+   "all three fall back only from their `catch`" (contradicted by a test in the same commit), and
+   the exact-id guard "covers" both mirror routes (it refuses a case-variant and nothing more).
+   This stream's own lesson is about exactly this, and I reintroduced it within the hour. The
+   lesson now says so and carries a stronger rule: a comment naming another symbol is a claim
+   that requires opening that symbol, not recalling it.
+3. **A test pinned the repair shut.** "Leaves the mirror holding the fixture it declined to
+   serve" also asserted that the reader may never evict the denied id — which is the cheapest fix
+   for finding 1. It now asserts a *different* fixture id survives, proving the suite has not
+   simply lost its fixtures without forbidding the improvement.
+4. The wrong checkout message is **newly reachable because of this change**: `if (!pet)` was
+   nearly dead before, and is now the normal answer for a hard-deleted animal, telling supporters
+   to chase a bank reference for a pledge nothing attempted. Recorded on the sponsorship entry.
+
+The probe was re-run after the test edit — same 3 of 10 fail against the pre-fix reader — because
+changing an assertion invalidates the earlier discrimination evidence.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
