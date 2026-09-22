@@ -8,6 +8,7 @@ import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
 import {
   HomeStandardsSection,
   HomeOurWorkSection,
+  HomeProcessSection,
   HomeQuickActionsSection,
 } from "@/components/layout/HomeSections";
 import { getPublicPets } from "@/actions/pets";
@@ -91,7 +92,10 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* 5. Shelter Standards & Veterinary Commitments */}
+      {/* 5. Adoption Process Steps — the #how-it-works anchor */}
+      <HomeProcessSection />
+
+      {/* 6. Shelter Standards & Veterinary Commitments */}
       <HomeStandardsSection />
     </div>
   );

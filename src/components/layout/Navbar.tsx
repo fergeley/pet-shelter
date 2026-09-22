@@ -145,7 +145,7 @@ export function Navbar() {
                 aria-expanded={openDropdown === "adoption"}
                 onClick={() => setOpenDropdown((prev) => (prev === "adoption" ? null : "adoption"))}
                 className={`inline-flex items-center gap-1 text-sm font-semibold transition-colors hover:text-foreground cursor-pointer ${
-                  pathname.startsWith("/applications") || pathname === "/#how-it-works"
+                  pathname.startsWith("/applications")
                     ? "text-foreground font-bold"
                     : "text-muted-foreground"
                 }`}

@@ -7,28 +7,17 @@ import {
   FileText, 
   Users, 
   HomeIcon, 
-  Phone,
-  Clock,
-  MapPin,
-  MessageCircle,
-  Calendar,
-  Truck,
   Heart,
   ShieldCheck,
   ArrowRight,
   Stethoscope,
   GraduationCap,
-  Sparkles,
   Scissors,
   CheckCircle2,
   Package
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
-
-export function HomeGalleryHeader() {
-  return null;
-}
 
 /**
  * FE-03: "Our Work" — The 3 Core Pillars of Hope for Strays UM:
@@ -295,7 +284,7 @@ export function HomeProcessSection() {
   ];
 
   return (
-    <section id="how-it-works" className="border-t border-border bg-background py-14 sm:py-18">
+    <section id="how-it-works" className="border-t border-border bg-background py-14 sm:py-18 scroll-mt-24">
       <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
         <div className="max-w-2xl mb-10">
           <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
@@ -416,208 +405,6 @@ export function HomeStandardsSection() {
                 </p>
               </div>
             ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-export function HomeCommunitySection() {
-  const { isMs } = useLanguage();
-
-  return (
-    <section id="support" className="border-t border-border bg-background py-14 sm:py-18">
-      <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
-        {/* Section Header */}
-        <div className="max-w-3xl mb-8 space-y-2">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-muted-foreground">
-            {isMs ? "Tindakan Komuniti" : "Community Action"}
-          </span>
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {isMs ? "Sukarelawan, Penjaga Sementara & Penajaan" : "Volunteer, Foster, or Sponsor Care"}
-          </h2>
-          <p className="text-base text-muted-foreground leading-relaxed">
-            {isMs
-              ? "Tiada pengalaman lampau diperlukan. Kami menyediakan 100% makanan haiwan, kelengkapan perubatan, sangkar, dan rawatan veterinar bagi semua penjaga sementara."
-              : "No prior shelter experience is required. We provide 100% of pet food, medical supplies, crates, and veterinary care for all temporary foster parents."}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Column: Volunteer & Foster Care Opportunities */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="border border-border bg-card p-6 sm:p-7 space-y-5 rounded-2xl shadow-xs">
-              <div className="flex items-center gap-2.5 pb-3 border-b border-border">
-                <div className="flex size-8 items-center justify-center bg-foreground text-background rounded-lg">
-                  <Users className="size-4" />
-                </div>
-                <div>
-                  <h3 className="font-heading text-lg font-bold text-foreground">
-                    {isMs ? "Peranan Sukarelawan & Penjaga Aktif" : "Active Volunteer & Foster Roles"}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {isMs ? "Slot fleksibel dibuka setiap minggu di santuari Petaling Jaya kami." : "Flexible slots available weekly at our Petaling Jaya sanctuary."}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="border border-border bg-background p-4 space-y-1.5 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <Heart className="size-4 text-foreground shrink-0" />
-                    <h4 className="text-sm font-bold text-foreground">
-                      {isMs ? "Berjalan Bersama Anjing Hujung Minggu" : "Weekend Dog Walking"}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {isMs ? "Sabtu & Ahad, 10:00 pagi – 12:00 tgh hari. Senaman & sosialisasi anjing di laman luar." : "Saturdays & Sundays, 10:00 AM – 12:00 PM. Exercise and socialize dogs in our outdoor yard."}
-                  </p>
-                </div>
-
-                <div className="border border-border bg-background p-4 space-y-1.5 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="size-4 text-foreground shrink-0" />
-                    <h4 className="text-sm font-bold text-foreground">
-                      {isMs ? "Hari Mandian & Penjagaan Bulu" : "Bath & Grooming Days"}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {isMs ? "Setiap Sabtu ke-2 & ke-4. Mandian berubat, memberus bulu, dan penjagaan rapi." : "Every 2nd & 4th Saturday. Medicated baths, brush-outs, and gentle care for recovering strays."}
-                  </p>
-                </div>
-
-                <div className="border border-border bg-background p-4 space-y-1.5 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <Truck className="size-4 text-foreground shrink-0" />
-                    <h4 className="text-sm font-bold text-foreground">
-                      {isMs ? "Pengangkutan Klinik Veterinar" : "Clinic Transport"}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {isMs ? "Pengangkutan hari bekerja untuk pemeriksaan kesihatan dan pembedahan mandul." : "Weekday transport for veterinary health checkups and spay/neuter clinic appointments."}
-                  </p>
-                </div>
-
-                <div className="border border-border bg-background p-4 space-y-1.5 rounded-xl">
-                  <div className="flex items-center gap-2">
-                    <HomeIcon className="size-4 text-foreground shrink-0" />
-                    <h4 className="text-sm font-bold text-foreground">
-                      {isMs ? "Rumah Asuhan Sementara" : "Temporary Foster Homes"}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    {isMs ? "Penjagaan jangka pendek anak haiwan atau pasca pembedahan. Makanan & bil vet ditanggung sepenuhnya." : "Short-term care for nursing litters, kittens, or post-op recovery. All food and vet bills covered."}
-                  </p>
-                </div>
-              </div>
-
-              {/* Pre-filled Direct WhatsApp Action Buttons */}
-              <div className="pt-2 border-t border-border flex flex-wrap gap-3">
-                <a
-                  href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20would%20like%20to%20volunteer%20for%20weekend%20dog%20walking%20and%20sanctuary%20care!"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonVariants({
-                    size: "sm",
-                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 bg-success-solid text-white hover:bg-success-solid dark:hover:bg-success-solid rounded-xl",
-                  })}
-                >
-                  <MessageCircle className="size-4" />
-                  {isMs ? "WhatsApp Penyelaras Sukarelawan" : "WhatsApp Volunteer Coordinator"}
-                </a>
-
-                <a
-                  href="https://wa.me/60123456789?text=Hi%20Hope%20for%20Strays%2C%20I%20am%20interested%20in%20becoming%20a%20temporary%20foster%20parent%20for%20a%20rescue%20pet!"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "sm",
-                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 rounded-xl",
-                  })}
-                >
-                  <MessageCircle className="size-4" />
-                  {isMs ? "WhatsApp Pasukan Asuhan" : "WhatsApp Foster Team"}
-                </a>
-
-                <Link
-                  href="/get-involved"
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "sm",
-                    className: "text-xs sm:text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 px-4 py-2.5 gap-2 rounded-xl",
-                  })}
-                >
-                  <Users className="size-4" />
-                  {isMs ? "Semua Laluan Penglibatan" : "Get Involved Page"}
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Walk-in Sanctuary Hours & Physical Drop-off */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* Visiting Hours Card */}
-            <div className="border border-border bg-card p-6 space-y-4 rounded-2xl shadow-xs">
-              <div className="flex items-center gap-2 pb-2 border-b border-border">
-                <Clock className="size-4 text-foreground" />
-                <h3 className="font-heading text-base font-bold text-foreground uppercase tracking-wider">
-                  {isMs ? "Waktu Lawatan Santuari Walk-In" : "Walk-in Sanctuary Visiting Hours"}
-                </h3>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between items-center py-1 border-b border-border/40">
-                  <span className="font-semibold text-foreground">{isMs ? "Selasa – Ahad" : "Tuesday – Sunday"}</span>
-                  <span className="font-mono font-medium text-foreground">{isMs ? "10:00 Pagi – 5:00 Petang" : "10:00 AM – 5:00 PM"}</span>
-                </div>
-                <div className="flex justify-between items-center py-1 text-muted-foreground">
-                  <span className="font-medium">{isMs ? "Isnin" : "Mondays"}</span>
-                  <span className="text-xs italic">{isMs ? "Tutup (Sanitasi Santuari & Lawatan Vet)" : "Closed (Sanctuary Cleaning & Vet Rounds)"}</span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2 text-xs text-muted-foreground pt-1">
-                <MapPin className="size-4 text-foreground shrink-0 mt-0.5" />
-                <span>No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia</span>
-              </div>
-
-              <div className="pt-2">
-                <a
-                  href="tel:+60378765432"
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "sm",
-                    className: "w-full text-xs font-semibold uppercase tracking-wider gap-1.5 rounded-xl",
-                  })}
-                >
-                  <Phone className="size-3.5" />
-                  {isMs ? "Hubungi Santuari: 03-7876 5432" : "Call Sanctuary: 03-7876 5432"}
-                </a>
-              </div>
-            </div>
-
-            {/* In-Kind Shelter Wishlist Banner */}
-            <div className="border border-border bg-muted/30 p-5 space-y-3 rounded-2xl">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
-                  <Package className="size-3.5 text-primary" />
-                  {isMs ? "Keperluan Rumah Pemulihan" : "Rehab House Wishlist"}
-                </h4>
-                <Link
-                  href="/needs"
-                  className="text-2xs font-bold text-primary hover:underline"
-                >
-                  {isMs ? "Lihat Senarai Penuh →" : "View Full List →"}
-                </Link>
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                {isMs
-                  ? "Sokong rawatan 40+ haiwan reskue dengan menyumbang makanan berkhasiat, ubat cuci F10, alas serap kencing, dan perangkap sangkar TNRM."
-                  : "Support 40+ recovering rescues with clinical diet foods, F10 disinfectant, pee pads, and humane TNRM trap cages."}
-              </p>
-            </div>
           </div>
         </div>
       </div>
