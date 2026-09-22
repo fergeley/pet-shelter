@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 
 /**
  * Every exported function in a `"use server"` module is an HTTP POST endpoint
@@ -98,24 +99,63 @@ interface ActionExport {
   body: string;
 }
 
-function collectServerActions(): ActionExport[] {
+function extractActionsFromSource(file: string, source: string): ActionExport[] {
+  if (!/^\s*["']use server["']/m.test(source)) return [];
+
+  const sourceFile = ts.createSourceFile(
+    file,
+    source,
+    ts.ScriptTarget.Latest,
+    /* setParentNodes */ false
+  );
+
   const found: ActionExport[] = [];
 
-  for (const file of readdirSync(ACTIONS_DIR).filter((f) => f.endsWith(".ts"))) {
-    const source = readFileSync(join(ACTIONS_DIR, file), "utf8");
-    if (!/^\s*["']use server["']/m.test(source)) continue;
-
-    const pattern = /^export\s+async\s+function\s+([A-Za-z0-9_]+)/gm;
-    const starts: Array<{ name: string; index: number }> = [];
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(source)) !== null) {
-      starts.push({ name: match[1], index: match.index });
+  ts.forEachChild(sourceFile, (node) => {
+    if (ts.isFunctionDeclaration(node)) {
+      const isExported = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword);
+      if (isExported && isAsync && node.name && node.body) {
+        found.push({
+          file,
+          name: node.name.text,
+          body: node.body.getText(sourceFile),
+        });
+      }
+    } else if (ts.isVariableStatement(node)) {
+      const isExported = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (isExported) {
+        for (const decl of node.declarationList.declarations) {
+          if (ts.isIdentifier(decl.name) && decl.initializer) {
+            let init = decl.initializer;
+            while (ts.isParenthesizedExpression(init)) {
+              init = init.expression;
+            }
+            if (
+              (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) &&
+              init.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword)
+            ) {
+              found.push({
+                file,
+                name: decl.name.text,
+                body: init.body.getText(sourceFile),
+              });
+            }
+          }
+        }
+      }
     }
+  });
 
-    starts.forEach((start, i) => {
-      const end = i + 1 < starts.length ? starts[i + 1].index : source.length;
-      found.push({ file, name: start.name, body: source.slice(start.index, end) });
-    });
+  return found;
+}
+
+function collectServerActions(dir: string = ACTIONS_DIR): ActionExport[] {
+  const found: ActionExport[] = [];
+
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
+    const source = readFileSync(join(dir, file), "utf8");
+    found.push(...extractActionsFromSource(file, source));
   }
 
   return found;
@@ -153,5 +193,67 @@ describe("server action authorization", () => {
     for (const action of settings) {
       expect(AUTH_TOKENS.some((token) => action.body.includes(token))).toBe(true);
     }
+  });
+
+  it("does not attribute private helper auth tokens to preceding exported actions", () => {
+    // Demonstrates the fix for tasks/open/server-action-auth-guard-slices-bodies-by-the-next-export.md:
+    // an unguarded exported action followed by a private helper containing an AUTH_TOKEN
+    // must not have that token attributed to its body.
+    const mockSource = `
+"use server";
+
+export async function vulnerablePublicAction() {
+  return "unprotected data";
+}
+
+async function getAdminActorOrThrow() {
+  const session = await verifyAdminSession("MANAGE_PETS");
+  return session;
+}
+`;
+    const extracted = extractActionsFromSource("mockActions.ts", mockSource);
+    expect(extracted).toHaveLength(1);
+    expect(extracted[0].name).toBe("vulnerablePublicAction");
+    expect(AUTH_TOKENS.some((token) => extracted[0].body.includes(token))).toBe(false);
+
+    // If judged against the guard, this action must be flagged as unguarded
+    const unguarded = extracted
+      .filter((a) => !AUTH_TOKENS.some((token) => a.body.includes(token)))
+      .filter((a) => !(a.name in INTENTIONALLY_PUBLIC));
+    expect(unguarded).toHaveLength(1);
+    expect(unguarded[0].name).toBe("vulnerablePublicAction");
+  });
+
+  it("extracts and audits exported async arrow functions and function expressions", () => {
+    const mockSource = `
+"use server";
+
+export const unguardedArrowAction = async () => {
+  return "unprotected data";
+};
+
+export const guardedArrowAction = async () => {
+  await verifyAdminSession("MANAGE_PETS");
+  return "protected data";
+};
+
+export const guardedExpressionAction = async function () {
+  await verifyAdminSession("MANAGE_PETS");
+  return "protected data";
+};
+`;
+    const extracted = extractActionsFromSource("mockArrowActions.ts", mockSource);
+    expect(extracted).toHaveLength(3);
+    expect(extracted.map((a) => a.name)).toEqual([
+      "unguardedArrowAction",
+      "guardedArrowAction",
+      "guardedExpressionAction",
+    ]);
+
+    const unguarded = extracted
+      .filter((a) => !AUTH_TOKENS.some((token) => a.body.includes(token)))
+      .filter((a) => !(a.name in INTENTIONALLY_PUBLIC));
+    expect(unguarded).toHaveLength(1);
+    expect(unguarded[0].name).toBe("unguardedArrowAction");
   });
 });
