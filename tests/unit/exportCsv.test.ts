@@ -197,3 +197,100 @@ describe("Applications and Pets CSV Generators", () => {
     expect(csv).toContain("Yes");
   });
 });
+
+/**
+ * The audit row -> LHDN CSV contract, which nothing tested and which was
+ * therefore half-fixed twice in one week.
+ *
+ * `generateReceiptsCsvString` reads one specific key per column. A reconciled
+ * contribution's audit row is classified as a donation by the presence of
+ * `receiptNumber`, so whatever that row omits, this exporter invents or blanks.
+ * Two rounds of review found the same defect from opposite ends: the row gained
+ * a real supporter name and address while the amount column still read `0.00`,
+ * because the only amount key this exporter read was `amountMYR` and the row
+ * carried `amountSen`.
+ *
+ * These pin the contract from the exporter's side, so the next omission fails
+ * here rather than on a document somebody files.
+ */
+describe("a reconciled contribution's audit row exports every column it can fill", () => {
+  function reconciledSponsorship(details: Record<string, unknown>): AuditEntry {
+    return {
+      id: "audit-spn-1",
+      // The reconciling coordinator, not the supporter. That is the point: the
+      // supporter's identity has to come out of `details`.
+      actorId: "usr-coord-01",
+      actorEmail: "coordinator@hopeforstrays.org",
+      actorRole: "VOLUNTEER_COORDINATOR",
+      action: "SPONSORSHIP_RECONCILED",
+      entity: "PetSponsorship",
+      entityId: "HFS-PLG-20260914-123456",
+      createdAt: "2026-09-22T02:00:00.000Z",
+      details,
+    };
+  }
+
+  it("names the supporter and their amount, not the coordinator and zero", () => {
+    const csv = generateReceiptsCsvString([
+      reconciledSponsorship({
+        pledgeRef: "HFS-PLG-20260914-123456",
+        receiptNumber: "HFS-DON-202609-0007",
+        petName: "Bella",
+        sponsorName: "Aisyah Rahman",
+        sponsorEmail: "aisyah@example.com",
+        amountMYR: 80,
+        tierId: "vaccine",
+        tierName: "Core Vaccination & Deworming",
+        frequency: "one_time",
+        paymentMethod: "online_banking",
+        targetPetName: "Bella",
+        amountSen: 8000,
+        amountDisplay: "RM 80.00",
+      }),
+    ]);
+
+    expect(csv).toContain('"HFS-DON-202609-0007"');
+    expect(csv).toContain('"Aisyah Rahman"');
+    expect(csv).toContain('"aisyah@example.com"');
+    expect(csv).toContain('"80.00"');
+    expect(csv).toContain('"Core Vaccination & Deworming"');
+    expect(csv).toContain('"online_banking"');
+    // The coordinator must not appear in the donor column.
+    expect(csv).not.toContain("coordinator@hopeforstrays.org");
+    // And the amount must never read zero for a receipted contribution.
+    expect(csv).not.toContain('"0.00"');
+  });
+
+  it("falls back to the exact sen for rows written before amountMYR was carried", () => {
+    // Every `SPONSORSHIP_RECONCILED` row in the existing audit history has this
+    // shape. No change to what is written from now on can retrofit them, so the
+    // exporter has to read what they actually hold.
+    const csv = generateReceiptsCsvString([
+      reconciledSponsorship({
+        pledgeRef: "HFS-PLG-20260914-123456",
+        receiptNumber: "HFS-DON-202609-0007",
+        petName: "Bella",
+        sponsorEmail: "aisyah@example.com",
+        amountSen: 8000,
+        amountDisplay: "RM 80.00",
+      }),
+    ]);
+
+    expect(csv).toContain('"80.00"');
+    expect(csv).not.toContain('"0.00"');
+  });
+
+  it("leaves the amount blank rather than claiming zero when it is unknowable", () => {
+    // "We do not know what this was" and "this was nothing" are different facts,
+    // and on a tax return the second is the more dangerous to assert.
+    const csv = generateReceiptsCsvString([
+      reconciledSponsorship({
+        receiptNumber: "HFS-DON-202609-0008",
+        sponsorEmail: "aisyah@example.com",
+      }),
+    ]);
+
+    expect(csv).toContain('"HFS-DON-202609-0008"');
+    expect(csv).not.toContain('"0.00"');
+  });
+});

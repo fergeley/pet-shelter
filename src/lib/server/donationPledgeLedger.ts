@@ -233,6 +233,19 @@ function isPledgeRefCollision(err: unknown): boolean {
 
   const target = meta?.target;
   const columns = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+
+  // An unreadable `target` means a collision, not a refusal. `createPledgeRow`
+  // never sets `receiptNumber`, so it inserts NULL — and Postgres unique indexes
+  // do not collide on NULL. A P2002 from this one statement can therefore only be
+  // the pledge reference. Some connectors leave `target` undefined, and defaulting
+  // to `false` there would put back exactly the silent hole that removing the
+  // `meta.modelName` gate closed: the retry never fires, only on a path no local
+  // test tier can reach, and the donor loses the gift.
+  //
+  // The column test below is kept for the day someone gives this insert a
+  // `receiptNumber`. Retrying *that* with a fresh reference would write a second
+  // row for money that already has a receipt.
+  if (columns.length === 0) return true;
   return columns.some((c) => typeof c === "string" && c.includes("pledgeRef"));
 }
 

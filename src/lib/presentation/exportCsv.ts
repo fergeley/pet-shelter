@@ -237,9 +237,28 @@ export function generateReceiptsCsvString(
         Boolean(d.receiptNumber);
 
       if (isDonation) {
-        const rawAmount = (d.amountMYR as number | string | undefined) ?? 0;
+        // `amountMYR` first, then the exact sen every other reader stores.
+        //
+        // Reconciled sponsorships have always carried `amountSen`/`amountDisplay`
+        // and never `amountMYR`, and this is the only amount key this exporter
+        // used to read — so those rows printed "0.00" on a document filed with
+        // LHDN, beside a real receipt number and a real supporter. Rows written
+        // before 2026-09-22 still carry only `amountSen`, and no change to what is
+        // written from now on can retrofit them, so the fallback is what makes the
+        // existing audit history exportable rather than merely the next row.
+        //
+        // An absent amount yields an empty cell, never `0.00`. The old default
+        // made "we do not know what this was" indistinguishable from "this was
+        // nothing", which on a tax return is the more dangerous of the two.
+        const rawAmount =
+          (d.amountMYR as number | string | undefined) ??
+          (typeof d.amountSen === "number" ? d.amountSen / 100 : undefined);
         const formattedAmount =
-          typeof rawAmount === "number" ? rawAmount.toFixed(2) : String(rawAmount);
+          rawAmount === undefined
+            ? ""
+            : typeof rawAmount === "number"
+              ? rawAmount.toFixed(2)
+              : String(rawAmount);
 
         const formattedDate = entry.createdAt.includes("T")
           ? entry.createdAt.replace("T", " ").slice(0, 19)
