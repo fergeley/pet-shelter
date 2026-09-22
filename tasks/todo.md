@@ -27,12 +27,14 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 51 checks on a throwaway embedded PostgreSQL 18.4, all passing,
+- [x] `rehearse.mjs` beside it — 55 checks on a throwaway embedded PostgreSQL 18.4, all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
 - [x] `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md` — the backfill
       rule, the expand/contract split, and the full check list.
 - [x] Drift entry updated with the 2026-09-22 measurement, and one earlier claim in it corrected.
+- [x] Four lessons: the lenient-parser trap, the superseded NOT NULLs, the stray-process sweep,
+      and the regex that finds a number beside a unit rather than the number.
 - [x] The `#46`/`#47` stream's one genuinely stale line: the enum migration is applied.
 - [ ] **Owner: apply `20260922_pets_birth_date/migration.sql` in the Neon SQL editor.** Run the
       header's "before" query first — it names any row the file would refuse. Needs no merge.
@@ -66,11 +68,39 @@ Record active multi-step work streams below.
   that into the `pets.json` mirror. ASSERTED for production itself — the `/pets` probe above is
   what would settle it, and nobody has run it.
 
-**Two defects the rehearsal found in this session's own first draft**, both fixed and both written
-up as lessons: `to_date` raises on `2024-02-31` rather than rolling it forward, so the validation
-built on a round-trip comparison aborted without naming the row; and a failing multi-statement file
-leaves the editor session in an aborted transaction, which the header now tells the reader to
-expect.
+**Two defects the rehearsal found in this session's own first draft**, both fixed: `to_date` raises
+on `2024-02-31` rather than rolling it forward, so the validation built on a round-trip comparison
+aborted without naming the row; and a failing multi-statement file leaves the editor session in an
+aborted transaction, which the header now tells the reader to expect.
+
+**`/code-review` then found six more, every one real, and the green rehearsal had not caught any of
+them.** Worth recording because the rehearsal was thorough and still missed all six:
+
+1. **A fractional age was silently read as the wrong number.** `"1.5 years"` backfills as **5**
+   years — the patterns take the digit run beside the unit token, not the leading number. The
+   plausibility bound passed it, no notice fired, and the follow-up file is scheduled to drop the
+   `age` prose that would have revealed it. Now refused and named. Every rehearsal fixture had
+   been `"N years"` or `"N months"`, because that is what the repo's seed data holds — so the
+   fixtures tested the shapes that already exist, which is the set that never contained the bug.
+2. **The header's pre-check listed only two of the four refusals**, so a clean pre-check could
+   still be followed by an abort — defeating the one step the header calls unskippable. And the
+   check named "names every row the file would refuse" tested neither missing case.
+3. **The Malay-token equivalence claim was false**, and it was this session's own regression: the
+   token list came from PR #42's `approximateBirthDate` and the work was then re-based onto
+   master, whose version matches only `y` and `m`. Claim withdrawn, divergence named in both the
+   header and the decision entry; the wider tokens are kept on purpose.
+4. **Every disclosure was `RAISE NOTICE`**, which the Neon SQL editor is not documented to show —
+   so the clamping the decision entry calls "made visible" might not have been. The After section
+   now carries a query that reads the clamped rows out of the table.
+5. **The snapshot was taken before any exclusive lock**, so a row inserted in that window would
+   keep the `'2024-01-01'` default while the guard that exists to catch exactly that still passed.
+   `LOCK TABLE ... ACCESS EXCLUSIVE` now precedes the read.
+6. **The rehearsal reported any Prisma import failure as "no generated client" and exited 0**,
+   which would have dropped its seven strongest checks silently on any machine but this one. It
+   now reports the real error and a skip fails the run.
+
+The fix round is `00e75f4` and the commit after it; both are themselves re-reviewed, per the
+2026-09-08 lesson that a fix round is unreviewed code written in a hurry.
 
 **Deliberately not done:**
 - **Putting this on PR #42, as the brief asked.** Three reasons. That branch cannot host the

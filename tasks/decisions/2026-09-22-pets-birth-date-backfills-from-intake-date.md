@@ -3,7 +3,7 @@
 **Decided:** 2026-09-22
 
 `prisma/migrations/manual/20260922_pets_birth_date/` closes the `pets.age` half of
-`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Four choices in it are reversible
+`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Five choices in it are reversible
 and are written down here rather than only in the file's header.
 
 ## 1. `birthDate := intakeDate - age`, not `today - age`
@@ -65,13 +65,43 @@ arithmetic forward to `2026-03-03`, because `Date.UTC(2026, 1, 31)` overflows in
 rules disagree only when the day of the month cannot survive the subtraction, so the migration
 names exactly those rows in a `NOTICE`.
 
-Clamping is kept: a date inside the intended month beats one in the next. The divergence is made
-visible rather than silently resolved, because it is the one place where the backfilled value is
-not what the app would have computed.
+Clamping is kept: a date inside the intended month beats one in the next, and the divergence is
+made visible rather than silently resolved.
+
+**A first draft of this section called clamping "the one place where the backfilled value is not
+what the app would have computed". That was wrong, and the review caught it.** There is a second,
+and it is one this session introduced: the Malay tokens. The token list was taken from PR #42's
+`approximateBirthDate`, and then this work was re-based onto master, whose version matches only
+`/(\d+)\s*y/` and `/(\d+)\s*m/`. So master's app today reads neither `tahun`/`thn` nor
+`bulan`/`bln`, falls through, and returns the **intake date itself** — "born the day we took it
+in". The SQL reads them as years and months.
+
+The wider token set is kept, because reading `"2 tahun"` as two years is right whether or not
+PR #42 lands, and storing intake-day-as-birthday is wrong either way. What is withdrawn is the
+claim of equivalence: for a Malay-worded age this file and today's app disagree, deliberately, and
+this file is the one to trust. Those two — month-end clamping and Malay tokens — are the only
+places they differ.
+
+## 5. A fractional age is refused, not rounded
+
+`"1.5 years"` is exactly the prose an intake volunteer types, and it is the one input that parses
+cleanly and means something else. The unit patterns take the digit run that sits *next to the unit
+token*, not the leading number, so `"1.5 years"` yields **5** — a birthday three and a half years
+early. `"2.5 months"` yields 5, `"1,5 tahun"` yields 5, `"1 1/2 years"` yields 2. Nothing
+downstream could tell: the plausibility bound passes, the clamping notice does not fire, and after
+the follow-up file drops `age` the prose that would have revealed it is gone.
+
+Master's `approximateBirthDate` has the same behaviour, so this is not a divergence from the app —
+but a one-shot production backfill is not a render that can be corrected next time the page loads.
+Rounding in either direction is a claim about an animal nobody here has met, so the file refuses
+and names the row, and the pre-check names it in advance. `"18 months"` says what `"1.5 years"`
+meant, and the rule reads it.
+
+Found by `/code-review`, not by the rehearsal, which had no fractional fixture.
 
 ## What was rehearsed
 
-Fifty-one checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
+Fifty-five checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
 `prisma/migrations/manual/20260922_pets_birth_date/rehearse.mjs` with its connection string inline
 — never against production, and resolving nothing from `.env.local` or `prisma.config.ts`. **The
 script is kept beside the migration**, which the `20260917_status_enums` rehearsal did not do: its
@@ -84,9 +114,10 @@ able to re-take the measurement.
   carries, `birthDateIsEstimate` is true throughout, and an insert without `age` succeeds.
 - **B1–B3** re-running changes nothing, **including a `birthDate` corrected by hand in between** —
   the file must never overwrite a date a human typed into the admin form.
-- **C1–C8** every refusal leaves the table untouched, with the offending rows named: unparseable
-  age, empty age, NULL age, a non-date `intakeDate`, `2024-02-31`, month 13, `"500 years"`, and a
-  fourteen-digit age.
+- **C1–C11** every refusal leaves the table untouched, with the offending rows named: unparseable
+  age, empty age, NULL age, a non-date `intakeDate`, `2024-02-31`, month 13, `"500 years"`, a
+  fourteen-digit age, and the three fractional shapes `"1.5 years"`, `"1,5 tahun"`,
+  `"1 1/2 years"` — see choice 5.
 - **D1** neither `birthDate` nor `age` present: refuses rather than giving every animal the same
   invented birthday.
 - **E1** English and Malay units, `"1 year 6 months"` taking the year, `"2y"`, and an age embedded
@@ -103,18 +134,30 @@ able to re-take the measurement.
   than reported as already migrated -- the client selects both, so half the pair is still broken,
   and which of exact-or-estimate the stored dates are is not knowable from here.
 - **I1** the TEMP scratch table exists nowhere afterwards.
-- **J1–J2** the pre-check query printed in the header — the thing the owner actually runs first —
-  returns the right verdict for each row and changes nothing.
+- **J1–J3** the pre-check query printed in the header — the thing the owner actually runs first —
+  returns the right verdict for each of the four ways the file can refuse and the two it accepts,
+  changes nothing, and **each verdict is then checked against what the file actually does**, so a
+  clean pre-check cannot be followed by an abort.
 - **P1–P7** master's own generated Prisma client against a production-shaped `pets`: before,
   `findMany` and `create` both fail on `pets.birthDate`; after, both succeed, the archive update
   succeeds, and the backfilled date is right. **P7** puts the NOT NULL back to prove choice 3 is
   load-bearing rather than dead weight.
 
-Two things the rehearsal found that were wrong in the first draft, both now fixed and both worth
-knowing: `to_date` does not roll an impossible date forward, it raises — see
+Two things the rehearsal itself found, both fixed: `to_date` does not roll an impossible date
+forward, it raises — see
 `tasks/lessons/2026-09-22-to-date-raises-on-an-impossible-date-it-does-not-roll-it-forward.md`;
 and a failing multi-statement file leaves the editor session in an aborted transaction, which the
 header now tells the reader to expect.
+
+**`/code-review` then found six more, every one real**, which is the argument for running it on a
+file like this rather than trusting a green rehearsal. In severity order: a fractional age read as
+the digits beside the unit (choice 5 below); a pre-check that did not list two of the four
+refusals, so a clean pre-check could still be followed by an abort; the false equivalence claim in
+choice 4; every disclosure being `RAISE NOTICE`, which the Neon editor is not documented to show;
+a snapshot taken before any exclusive lock, so a row inserted in the window would keep the
+`'2024-01-01'` default while the guard that exists to catch exactly that still passed; and a
+rehearsal that reported any Prisma import failure as "no generated client" and exited 0, which
+would have silently dropped its seven strongest checks on any machine but this one.
 
 ## Not rehearsed, and not knowable from here
 

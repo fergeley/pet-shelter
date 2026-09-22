@@ -1,4 +1,4 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 51 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. 55 checks.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -16,10 +16,11 @@
 // Set REHEARSAL_PORT to move it off 55433 if that is taken.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped and reported as skipped, and the other forty-four still run.
+// they are skipped -- loudly, and the run then exits non-zero -- and the other forty-eight
+// still run.
 
-import { readFileSync, mkdtempSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { readFileSync, mkdtempSync, existsSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import process from "node:process";
@@ -245,6 +246,12 @@ const REFUSALS = [
   ["C5 month 13 aborts rather than raising", [["bad-5", "2 years", "2024-13-01"]], /bad-5/],
   ["C6 implausible age (500 years) aborts", [["bad-6", "500 years", "2026-01-01"]], /not a plausible/],
   ["C7 huge digit run aborts without integer overflow", [["bad-7", "99999999999999 years", "2026-01-01"]], /not a plausible/],
+  // The one input shape that parses cleanly and means something else. The rule takes the digit
+  // run beside the unit token, so "1.5 years" yields 5 -- a birthday three and a half years out,
+  // passing the plausibility bound and firing no notice. These must abort, not round.
+  ["C9 a decimal age aborts instead of reading the digits beside the unit", [["bad-9", "1.5 years", "2026-01-01"]], /fractional/],
+  ["C10 a comma decimal aborts", [["bad-10", "1,5 tahun", "2026-01-01"]], /fractional/],
+  ["C11 a written fraction aborts", [["bad-11", "1 1/2 years", "2026-01-01"]], /fractional/],
 ];
 for (const [name, rows, expect] of REFUSALS) {
   await fresh(c, [...FIXTURES, ...rows]);
@@ -288,7 +295,14 @@ for (const [name, rows, expect] of REFUSALS) {
   await c.query(MIGRATION);
   const r = await c.query(`SELECT "id","age","birthDate" FROM "public"."pets" ORDER BY "id"`);
   const wrong = r.rows.filter((row) => row.birthDate !== CASES.find((x) => x[0] === row.id)[3]);
-  check("E1 English and Malay units, and years-before-months, derive as the app does", wrong.length === 0, wrong.length ? JSON.stringify(wrong) : `${r.rows.length}/${r.rows.length}`);
+  // NOT "as the app does" -- that was the earlier name and it was false. master's
+  // approximateBirthDate (src/lib/domain/petAge.ts) matches only /(\d+)\s*y/ and /(\d+)\s*m/, so
+  // for e-1..e-4 it matches nothing and returns the intake date unchanged. The four Malay cases
+  // are exactly where this SQL and today's app disagree, deliberately, and migration.sql's header
+  // says so. The English cases do agree with the app. These expectations are calendar arithmetic
+  // stated by hand, which is what they should be: deriving them from the app would make the
+  // check agree with whatever the app does, including its bugs.
+  check("E1 English and Malay units, and years-before-months, derive the stated calendar date", wrong.length === 0, wrong.length ? JSON.stringify(wrong) : `${r.rows.length}/${r.rows.length}`);
 }
 
 // ------------------------------------------------------ F. month-end clamping is reported
@@ -412,24 +426,41 @@ for (const [name, rows, expect] of REFUSALS) {
   if (from < 0 || to < from) throw new Error("pre-check block not found in migration.sql header");
   const PRECHECK = lines.slice(from, to + 1).map((l) => l.replace(/^--\s?/, "")).join("\n");
 
-  await fresh(c, [
-    ["j-1", "2 years", "2026-06-12"],
-    ["j-2", "unknown", "2026-06-12"],
-    ["j-3", "2 years", "2024-02-31"],
-    ["j-4", "4 months", "2026-06-12"],
-    ["j-5", "2 years", "not-a-date"],
-  ]);
+  // One fixture per way the file can refuse, plus two it accepts. An earlier version omitted the
+  // implausible and fractional rows, so J1 asserted "names every row the file would refuse"
+  // while testing only two of the four refusals -- the claim was in the name, not in the check.
+  const J = [
+    ["j-1", "2 years", "2026-06-12", "ok: years"],
+    ["j-2", "unknown", "2026-06-12", "unparseable age"],
+    ["j-3", "2 years", "2024-02-31", "bad intakeDate"],
+    ["j-4", "4 months", "2026-06-12", "ok: months"],
+    ["j-5", "2 years", "not-a-date", "bad intakeDate"],
+    ["j-6", "500 years", "2026-06-12", "implausible age"],
+    ["j-7", "900 months", "2026-06-12", "implausible age"],
+    ["j-8", "1.5 years", "2026-06-12", "fractional age"],
+  ];
+  await fresh(c, J);
   const verdict = Object.fromEntries((await c.query(PRECHECK)).rows.map((x) => [x.id, x.verdict]));
+  const wrong = J.filter(([id, , , want]) => verdict[id] !== want);
   check(
-    "J1 the header's pre-check names every row the file would refuse, and no others",
-    verdict["j-1"] === "ok: years" &&
-      verdict["j-2"] === "unparseable age" &&
-      verdict["j-3"] === "bad intakeDate" &&
-      verdict["j-4"] === "ok: months" &&
-      verdict["j-5"] === "bad intakeDate",
-    JSON.stringify(verdict)
+    "J1 the header's pre-check returns the right verdict for every way the file can refuse",
+    wrong.length === 0,
+    wrong.length ? JSON.stringify(wrong.map(([id, , , want]) => `${id}: want ${want}, got ${verdict[id]}`)) : `${J.length}/${J.length}`
   );
   check("J2 the pre-check changes nothing", !(await columns(c)).birthDate);
+
+  // And the pre-check's verdict must agree with what the file actually does: every row it calls
+  // ok must survive, and each one it names must abort. Otherwise the owner reads a clean
+  // pre-check and still gets an abort, which is the failure this pairing exists to prevent.
+  for (const [id, age, intake, want] of J) {
+    await fresh(c, [[id, age, intake]]);
+    const r = await expectFail(c, MIGRATION);
+    const refused = want.startsWith("ok:") ? !r.failed : r.failed;
+    if (!refused) {
+      check(`J3 pre-check verdict "${want}" matches the file's behaviour for ${id}`, false, r.message.split("\n")[0]);
+    }
+  }
+  check("J3 every pre-check verdict matches what migration.sql actually does", true, `${J.length} rows`);
 }
 
 // ------------------------------------------------ I. no scratch table is left behind
@@ -440,12 +471,23 @@ for (const [name, rows, expect] of REFUSALS) {
 
 // ---------------------------------- P. master's own generated client, before and after
 {
+  // These seven are the strongest evidence in the change -- the failure reproduced rather than
+  // reasoned -- so a skip has to be loud and has to say what actually went wrong. The first
+  // version caught every error as "no generated client" and still exited 0, which would hide a
+  // genuinely broken import behind a plausible message on any machine but the one it was written
+  // on. pathToFileURL because a hand-built `file:///` + join() is Windows-shaped: on POSIX the
+  // join already starts with a slash and the result is file://// with a bogus host.
   let PrismaClient, PrismaPg;
+  const clientPath = join(REPO, "node_modules", "@prisma", "client", "default.js");
+  const adapterPath = join(REPO, "node_modules", "@prisma", "adapter-pg", "dist", "index.js");
   try {
-    ({ PrismaClient } = await import(`file:///${join(REPO, "node_modules", "@prisma", "client", "default.js").replace(/\\/g, "/")}`));
-    ({ PrismaPg } = await import(`file:///${join(REPO, "node_modules", "@prisma", "adapter-pg", "dist", "index.js").replace(/\\/g, "/")}`));
-  } catch {
-    for (const n of ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]) skip(`${n} Prisma-level check`, "no generated client; run `npm run db:generate`");
+    ({ PrismaClient } = await import(pathToFileURL(clientPath).href));
+    ({ PrismaPg } = await import(pathToFileURL(adapterPath).href));
+  } catch (e) {
+    const why = existsSync(clientPath)
+      ? `import failed, NOT a missing client: ${e.message.split("\n")[0]}`
+      : `no generated client at ${clientPath} -- run \`npm run db:generate\``;
+    for (const n of ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]) skip(`${n} Prisma-level check`, why);
   }
 
   if (PrismaClient) {
@@ -500,7 +542,10 @@ for (const [name, rows, expect] of REFUSALS) {
   }
 }
 
-console.log(`\n${failures ? `${failures} FAILED` : "all checks passed"}${skipped ? `, ${skipped} skipped` : ""}`);
+// A skip is not a pass. The Prisma group is the only skippable one and it carries the strongest
+// evidence here, so losing it has to change the exit code, not just add a word to the summary.
+if (skipped) console.log(`\n${skipped} check(s) SKIPPED -- read the reason above; this run did not prove what a full one proves.`);
+console.log(`\n${failures ? `${failures} FAILED` : skipped ? "no failures, but checks were skipped" : "all checks passed"}`);
 await c.end();
 try {
   await server.stop();
@@ -508,4 +553,4 @@ try {
   // Windows holds the data directory open briefly; the directory is a mkdtemp under the OS temp
   // dir and is not reused, so a failed teardown is not a failed rehearsal.
 }
-process.exit(failures ? 1 : 0);
+process.exit(failures || skipped ? 1 : 0);

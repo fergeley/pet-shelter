@@ -63,11 +63,21 @@
 -- is true for every backfilled row without exception: a date derived from prose is an estimate,
 -- whatever the prose claimed.
 --
--- Two units are recognised, with the same tokens the app accepts, English and Malay:
+-- Two units are recognised, in English and Malay:
 --   years   [0-9]+ followed by y | yr | year | thn | tahun
 --   months  [0-9]+ followed by m | mo | month | bln | bulan
 -- Years are tried first, so "1 year 6 months" backfills as 1 year -- which is what the app does
 -- with the same string. Anything else is not guessed at; see "Safety".
+--
+-- **The Malay tokens are wider than master's app, deliberately.** `approximateBirthDate` on
+-- master matches only /(\d+)\s*y/ and /(\d+)\s*m/, so it reads "2 years" and "4 months" but not
+-- "2 tahun", "3 thn", "4 bulan" or "6 bln" -- for those it falls through and returns the intake
+-- date itself, i.e. "born the day we took it in". PR #42 (feat/pet-form-birth-date) widens the
+-- app to exactly the token set above; this file does not wait for it, because reading "2 tahun"
+-- as two years is right whether or not that PR lands, and storing intake-day-as-birthday is
+-- wrong either way. So for a Malay-worded age this file and today's app disagree, and this file
+-- is the one to trust. That is a second place -- alongside month-end clamping below -- where the
+-- backfilled value is not what master's arithmetic would produce today. There are no others.
 --
 -- Scope: `pets` only, and only the two added columns plus the two relaxed constraints. The
 -- drop of `age`/`ageCategory` is deliberately NOT here. It destroys the only record of what
@@ -84,6 +94,10 @@
 --     is not a real calendar date, aborts the file naming that row's id and both values. The
 --     column's '2024-01-01' default is never allowed to stand as an answer.
 --   * Implausible ages abort too: over 60 years or 720 months is a typo or junk, not an animal.
+--   * A fractional age aborts, rather than being rounded. It is the one input that parses
+--     cleanly and means something else: the rule takes the digits beside the unit, so
+--     "1.5 years" reads as 5 and nothing downstream could tell. Rounding it in either
+--     direction is a claim about an animal nobody here has met.
 --   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
 --     this file will not overwrite a date a human has since corrected through the admin form.
 --     The two DROP NOT NULLs are no-ops the second time. A table carrying only one of the pair
@@ -123,15 +137,30 @@
 --                 > extract(day FROM (make_date(substr(left("intakeDate",10),1,4)::int,
 --                                               substr(left("intakeDate",10),6,2)::int, 1)
 --                                     + interval '1 month' - interval '1 day')) THEN 'bad intakeDate'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9][.,/][0-9]' THEN 'fractional age'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'
+--                 AND (regexp_match(lower("age"),
+--                       '([0-9]+)[[:space:]]*(?:y|yr|year|thn|tahun)'))[1]::numeric > 60
+--                 THEN 'implausible age'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)'
+--                 AND (regexp_match(lower("age"),
+--                       '([0-9]+)[[:space:]]*(?:m|mo|month|bln|bulan)'))[1]::numeric > 720
+--                 THEN 'implausible age'
 --            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'  THEN 'ok: years'
 --            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)' THEN 'ok: months'
 --            ELSE 'unparseable age'
 --          END AS verdict
 --     FROM "public"."pets" ORDER BY 5 DESC, 1;
 --
--- Every row should read `ok: years` or `ok: months`. A row that does not is a row to correct by
--- hand first -- set its `age` to a form the rule reads, or its `intakeDate` to a real date -- or
--- this file will abort naming it. Keep the output: it is the only record of what `age` held.
+-- Every row should read `ok: years` or `ok: months`. The other four verdicts are the four things
+-- this file refuses, and each is a row to correct by hand first, or it will abort naming that row:
+--
+--   bad intakeDate    not a real calendar date; fix the date
+--   fractional age    "1.5 years" reads as 5; rewrite in whole units, "18 months"
+--   implausible age   over 60 years or 720 months; a typo, not an animal
+--   unparseable age   no number-and-unit the rule recognises; rewrite as "2 years", "4 months"
+--
+-- Keep the output. After the follow-up file drops `age`, it is the only record of what it held.
 --
 -- After: the same animals, with dates instead of prose.
 --
@@ -143,6 +172,21 @@
 --    WHERE table_schema = 'public' AND table_name = 'pets'
 --      AND column_name IN ('age','ageCategory','birthDate','birthDateIsEstimate')
 --    ORDER BY column_name;
+--
+-- **Everything this file tells you, it tells you through RAISE NOTICE** -- the row count it
+-- backfilled, the rows whose date was clamped to a month end, and the "already migrated, nothing
+-- rewritten" line. A psql session prints those; the Neon SQL editor is not documented to, so
+-- assume you will not see them and read the answers out of the table instead. The count is the
+-- first query above. The clamped rows, which are the only ones whose backfilled date is not what
+-- the app's own arithmetic would have produced, are these:
+--
+--   SELECT "id", "name", "age", "intakeDate", "birthDate"
+--     FROM "public"."pets"
+--    WHERE right("birthDate", 2) <> right(left("intakeDate", 10), 2)
+--    ORDER BY "id";
+--
+-- Expect none unless an animal was taken in on the 29th, 30th or 31st. Each row it returns has a
+-- birthday moved back to the end of its month, which is deliberate -- see "THE BACKFILL RULE".
 --
 -- `birthDate` and `birthDateIsEstimate` should be NOT NULL; `age` and `ageCategory` should now
 -- read YES under is_nullable, with every value still present. Then load the public catalogue:
@@ -156,7 +200,7 @@
 -- "PetStatus" as the owner applied on 2026-09-18, `intakeDate` as text, and every other scalar
 -- master's Pet model declares, so a Prisma select differs from it in exactly the two columns.
 --
--- Fifty-one checks, all passing. Forty-four at the SQL level and seven driving master's own
+-- Fifty-five checks, all passing. Forty-eight at the SQL level and seven driving master's own
 -- generated Prisma client. They are listed in
 -- tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md. In summary:
 --   * The ten src/data/pets.json animals backfill to the exact `birthDate` that file carries,
@@ -167,7 +211,11 @@
 --   * Before: prisma.pet.findMany and prisma.pet.create both fail on the missing column.
 --     After: both succeed, the archive update succeeds, and the backfilled date is the right one.
 --   * Every refusal leaves the table untouched: unparseable age, NULL age, empty age, a
---     non-date intakeDate, 2024-02-31, month 13, "500 years", and a fourteen-digit age.
+--     non-date intakeDate, 2024-02-31, month 13, "500 years", a fourteen-digit age, and the
+--     three fractional shapes "1.5 years", "1,5 tahun" and "1 1/2 years".
+--   * The pre-check in this header returns the right verdict for each of those, and each
+--     verdict matches what the file then actually does -- so a clean pre-check is not
+--     followed by an abort.
 --   * Re-running changes nothing, including a `birthDate` corrected by hand in between.
 --   * Under a held lock it gives up at 5 s having committed nothing, and finishes on a re-run.
 --   * Under a foreign search_path the columns still land on public.pets.
@@ -203,6 +251,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'public.pets does not exist';
   END IF;
+
+  -- Taken here, before the snapshot below reads the table, rather than left to the first ALTER.
+  -- The snapshot alone takes only ACCESS SHARE, so a row inserted between it and the ALTER would
+  -- be absent from the scratch table, unmatched by the UPDATE, and left holding the '2024-01-01'
+  -- default -- while the "did every row get one" guard still passed, because that guard counts
+  -- the snapshot. Locking first makes the read and the write see the same table. Subject to the
+  -- 5s lock_timeout above, so this still gives up rather than queueing behind a long transaction.
+  LOCK TABLE "public"."pets" IN ACCESS EXCLUSIVE MODE;
 
   SELECT count(*) FILTER (WHERE column_name = 'age')                 > 0,
          count(*) FILTER (WHERE column_name = 'ageCategory')         > 0,
@@ -263,6 +319,10 @@ BEGIN
                CASE WHEN left(coalesce(p."intakeDate", ''), 10)
                          ~ '^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
                     THEN left(p."intakeDate", 10) END AS intake_txt,
+               -- A decimal or fraction anywhere in the age. The unit patterns below take the
+               -- digit run that sits next to the unit token, so "1.5 years" would yield 5, not
+               -- 1 -- a birthday three and a half years wrong, with every other check passing.
+               lower(coalesce(p."age", '')) ~ '[0-9][.,/][0-9]' AS fractional,
                CASE
                  WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'
                    THEN 'years'
@@ -291,6 +351,22 @@ BEGIN
 
     IF offenders IS NOT NULL THEN
       RAISE EXCEPTION E'pets rows whose birthday cannot be derived:\n    %\nCorrect "age" or "intakeDate" for each, then re-run. Nothing has been changed.',
+        offenders;
+    END IF;
+
+    -- Checked before the plausibility bound, because a fractional age passes that bound: the
+    -- 5 taken from "1.5 years" is a perfectly plausible number of years. This is the one input
+    -- shape that parses cleanly and means something else entirely, so it is refused rather than
+    -- rounded -- rounding it either way is a decision about an animal's age that belongs to
+    -- whoever knows the animal. "18 months" says what "1.5 years" meant, and this file reads it.
+    SELECT string_agg(
+             format('%L (age=%L)', "id", "age"), E'\n    ' ORDER BY "id")
+      INTO offenders
+      FROM _pets_birth_backfill
+     WHERE fractional;
+
+    IF offenders IS NOT NULL THEN
+      RAISE EXCEPTION E'pets rows whose "age" is fractional, which this file will not round:\n    %\nThe rule reads the digits next to the unit, so "1.5 years" would be stored as 5 years before intake. Rewrite each in whole units -- "18 months" for "1.5 years" -- then re-run. Nothing has been changed.',
         offenders;
     END IF;
 
