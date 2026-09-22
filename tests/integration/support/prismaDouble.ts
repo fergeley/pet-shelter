@@ -63,10 +63,14 @@ export interface PrismaDouble {
  *
  * The two list readers fall back only from their `catch`. `findServerPetByIdAsync`
  * has one more door: it is gated on `isDatabasePersistent()` and serves the
- * mirror without querying at all when no database is configured, which
- * `petMissingRowIsAnAnswer.test.ts` pins. It does not apply under this double —
- * the integration project sets `STRICT_PERSISTENCE` — but do not carry
+ * mirror without querying at all when no database is configured. Do not carry
  * "only from their `catch`" across to that reader; it is not true of it.
+ *
+ * That door is reachable under this double, despite the project setting
+ * `STRICT_PERSISTENCE`: `persistenceMode` reads both flags per call, so a test
+ * that stubs `STRICT_PERSISTENCE=false` and `DATABASE_URL=""` takes it.
+ * `petMissingRowIsAnAnswer.test.ts` does exactly that, and it is the only place
+ * `getPetById`'s exact-id guard is exercised.
  *
  * This default once carried the opposite rationale, because the pet catalogue
  * gated its fallback on `rows.length > 0` and the single-pet read fell through

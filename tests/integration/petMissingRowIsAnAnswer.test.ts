@@ -127,21 +127,23 @@ describe("the repository distinguishes a missing row from an unreachable databas
     expect(await findServerPetByIdAsync(FIXTURE_ID)).toBeNull();
   });
 
-  it("declines to serve the fixture rather than having no fixtures", async () => {
+  it("does not empty the mirror when it declines to serve from it", async () => {
     double.pet.findUnique.mockResolvedValue(null);
     const { findServerPetByIdAsync, getServerPets } = await import("@/lib/server/petRepository");
 
     await findServerPetByIdAsync(FIXTURE_ID);
 
-    // Without this, the test above would pass against a reader that had simply lost its
-    // fixtures — a much worse change that looks identical from outside.
+    // Scope stated honestly, because an earlier version of this test claimed more than it
+    // proves. It does **not** guard against a reader that lost its fallback: the harness's
+    // `resetServerStore()` reseeds this array from `pets.json` before every test, so the
+    // assertion below holds even against a reader with no fallback at all. That coverage
+    // comes from the outage and no-database cases above, which observe what the reader
+    // *returns* rather than what the mirror contains.
     //
-    // Asserted on a *different* fixture id than the one just queried, on purpose. Asserting
-    // that `pet-001` survives would also pin that the reader may never evict the row the
-    // database just denied — and evicting it is the natural fix for the residual in
-    // `tasks/open/an-outage-serves-and-bills-fixture-animals.md`, where a later outage
-    // serves that same stale fixture. A test should not forbid the repair for a defect it
-    // is not about.
+    // What it does pin is narrower and still worth having: a declined read leaves the mirror
+    // alone rather than mutating it. Asserted on a *different* fixture id than the one just
+    // queried, so it does not also forbid evicting the row the database denied — which is the
+    // natural repair for `tasks/open/an-outage-serves-and-bills-fixture-animals.md`.
     const mirror = getServerPets();
     expect(mirror.length).toBeGreaterThan(0);
     expect(mirror.some((p) => p.id === "pet-002")).toBe(true);
@@ -204,6 +206,37 @@ describe("the public callers do not serve or bill demo data", () => {
     // `/pets` already omits this animal — `getServerPetsAsync` returns whatever the database
     // returned — so serving it here made it reachable by direct link and nowhere else.
     expect(await getPetById(FIXTURE_ID)).toBeNull();
+  });
+
+  it("still refuses a case-variant of a fixture id on both mirror routes", async () => {
+    // Coverage this branch would otherwise have destroyed. `getPetById`'s exact-id guard was
+    // pinned by `softDeleteFiltering.test.ts` ("does not serve an archived animal through a
+    // case-variant of its id"), which arranges `findUnique` to resolve null for `PET-001`.
+    // Against the reader *this branch ships*, that arrangement never reaches the mirror — the
+    // repository returns null straight from the empty read — so the guard stops being the thing
+    // that refuses the request. Deleting `pet.id !== requested` left the entire integration
+    // project green, which is how a guard gets removed by a later cleanup with CI agreeing.
+    //
+    // These two arrangements take the routes where the mirror really does answer, and where its
+    // lookup lowercases `PET-001` into fixture `pet-001`.
+    const { getPetById } = await import("@/actions/pets");
+
+    // Route 1: no database configured at all.
+    vi.stubEnv("STRICT_PERSISTENCE", "false");
+    vi.stubEnv("DATABASE_URL", "");
+    expect(await getPetById("PET-001")).toBeNull();
+    expect(double.pet.findUnique).not.toHaveBeenCalled();
+
+    // Route 2: a non-strict outage, where the `catch` hands back the mirror.
+    vi.stubEnv("DATABASE_URL", "postgresql://itest/unreachable");
+    double.pet.findUnique.mockRejectedValue(new Error("connection refused"));
+    expect(await getPetById("Pet-001")).toBeNull();
+
+    // The discriminator. Without it, a reader that refused *everything* on these routes would
+    // pass the two assertions above, and deleting the guard would still fail nothing. The
+    // canonical spelling resolving here proves the route works and that the guard alone is
+    // what refuses the variants.
+    expect(await getPetById("pet-001")).toMatchObject({ id: FIXTURE_ID, name: FIXTURE_NAME });
   });
 
   it("refuses a sponsorship for an animal the database does not hold", async () => {

@@ -36,8 +36,10 @@ Record active multi-step work streams below.
 - [x] Collision check against the nine live worktrees. `worktree-adoption-submit-guards` is
       closing `submit-application-checks-a-fixture-and-no-status.md` right now; a note written
       there was reverted rather than shipped into a modify/delete conflict.
-- [x] Gates: `typecheck`, `test:integration` (69), `test:components` (170), `lint` (0 errors),
-      `docs:check`. `npm test` is reported separately — see Review.
+- [x] Gates: `typecheck`, `test:integration` (70), `test:components` (170), `lint` (0 errors),
+      `docs:check`. `npm test` is reported separately — see Review. CI is the authority for the
+      two that cannot run here: `Strict persistence against Postgres` and `Playwright golden
+      paths` both passed on PR #89.
 - [x] `/code-review high` on `origin/master...HEAD`: 4 findings, all verified by probe, 3 fixed
       in `06393d3` and the fourth refiled as an open entry. Second review round on that fix
       commit, per the standing order that a fix round is unreviewed code.
@@ -158,6 +160,40 @@ of the stream worth reading:
 
 The probe was re-run after the test edit — same 3 of 10 fail against the pre-fix reader — because
 changing an assertion invalidates the earlier discrimination evidence.
+
+### Third round, before the merge — and it stopped the merge
+
+Run against the whole diff once the PR was open. Five findings; one of them was the reason this
+list insists on a review per fix round.
+
+**The change had silently retired the test guarding `getPetById`'s exact-id check.** That guard
+was pinned by `softDeleteFiltering.test.ts`'s case-variant test, which arranges `findUnique` to
+resolve `null` for `PET-001`. Against the old reader that null reached the case-insensitive
+mirror and the guard refused the result; against the new reader the empty read returns `null`
+first and the guard is never reached. Measured, not argued: deleting `pet.id !== requested` left
+**69 of 69 integration tests green**. Two earlier reviews missed it, and so did I — the line is
+still executed, just never decisive, so nothing flags it. A comment in the same commit said "do
+not delete this guard", which is a note, not a test.
+
+Closed by a new test that reaches the guard the way production still can — no `DATABASE_URL`, and
+a non-strict outage — with a positive control asserting `/pets/pet-001` *does* resolve on the same
+route, so a reader that refused everything could not pass it either. Verified by probe: removing
+the guard now fails that test, where before it failed nothing. Integration is 70, not 69, for
+this reason. Lesson written:
+`tasks/lessons/2026-09-22-a-fix-can-silently-retire-the-test-that-guarded-the-thing-it-did-not-fix.md`.
+
+The other four were narrower and all confirmed: a test of mine whose comment claimed coverage it
+did not provide (`resetServerStore()` reseeds the array it asserts on, so it holds even against a
+reader with no fallback); a `prismaDouble.ts` comment saying the no-database door is unreachable
+under that double when this branch's own test walks through it; a docstring naming one place
+`STRICT_PERSISTENCE` is set where the branch's own ledger entry names two; and the checkout
+rejection being pinned only as `success: false`, which locks in a message that tells supporters to
+chase a bank reference for an animal that never existed. The first three are fixed. The last is
+recorded on the sponsorship entry rather than fixed, because that file is being rewritten
+elsewhere.
+
+Three of the five were, again, prose asserting something about code — the failure this stream
+already wrote a lesson about, found twice more after writing it.
 
 # Sponsor portal production activation — audit, run, close
 

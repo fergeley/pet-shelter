@@ -119,7 +119,8 @@ export async function getStoredGalleryImages(id: string): Promise<string[] | nul
  *
  * **What this does not close: the `catch` path still serves fixtures.** A
  * transient read failure in non-strict mode — which is every deployed
- * environment; `STRICT_PERSISTENCE` is set only by `vitest.config.mts` — falls
+ * environment; `STRICT_PERSISTENCE` is set only by `vitest.config.mts` and the
+ * `test:integration` script — falls
  * back to the mirror, and for an id that really is in `pets.json` that means
  * the demo animal, at its exact URL, with `getPetById`'s exact-id guard
  * satisfied. Deliberate, because serving a stale read beats serving an error,
