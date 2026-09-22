@@ -137,17 +137,19 @@
 --                 > extract(day FROM (make_date(substr(left("intakeDate",10),1,4)::int,
 --                                               substr(left("intakeDate",10),6,2)::int, 1)
 --                                     + interval '1 month' - interval '1 day')) THEN 'bad intakeDate'
---            WHEN lower(coalesce("age",'')) ~ '[0-9][.,/][0-9]' THEN 'fractional age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'
+--            WHEN lower(coalesce("age",''))
+--                 ~ '[0-9][.,/][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+--                 THEN 'fractional age'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
 --                 AND (regexp_match(lower("age"),
---                       '([0-9]+)[[:space:]]*(?:y|yr|year|thn|tahun)'))[1]::numeric > 60
+--                       '([0-9]+)[[:space:]]*(?:tahun|thn|years|year|yrs|yr|y)\M'))[1]::numeric > 60
 --                 THEN 'implausible age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
 --                 AND (regexp_match(lower("age"),
---                       '([0-9]+)[[:space:]]*(?:m|mo|month|bln|bulan)'))[1]::numeric > 720
+--                       '([0-9]+)[[:space:]]*(?:bulan|bln|months|month|mths|mth|mos|mo|m)\M'))[1]::numeric > 720
 --                 THEN 'implausible age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'  THEN 'ok: years'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)' THEN 'ok: months'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'  THEN 'ok: years'
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M' THEN 'ok: months'
 --            ELSE 'unparseable age'
 --          END AS verdict
 --     FROM "public"."pets" ORDER BY 5 DESC, 1;
@@ -200,7 +202,7 @@
 -- "PetStatus" as the owner applied on 2026-09-18, `intakeDate` as text, and every other scalar
 -- master's Pet model declares, so a Prisma select differs from it in exactly the two columns.
 --
--- Fifty-five checks, all passing. Forty-eight at the SQL level and seven driving master's own
+-- Sixty-six checks, all passing. Fifty-nine at the SQL level and seven driving master's own
 -- generated Prisma client. They are listed in
 -- tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md. In summary:
 --   * The ten src/data/pets.json animals backfill to the exact `birthDate` that file carries,
@@ -211,8 +213,13 @@
 --   * Before: prisma.pet.findMany and prisma.pet.create both fail on the missing column.
 --     After: both succeed, the archive update succeeds, and the backfilled date is the right one.
 --   * Every refusal leaves the table untouched: unparseable age, NULL age, empty age, a
---     non-date intakeDate, 2024-02-31, month 13, "500 years", a fourteen-digit age, and the
---     three fractional shapes "1.5 years", "1,5 tahun" and "1 1/2 years".
+--     non-date intakeDate, 2024-02-31, month 13, "500 years", a fourteen-digit age, the three
+--     fractional shapes "1.5 years", "1,5 tahun" and "1 1/2 years", the vulgar fraction
+--     "1<1/2> years", and "3 minggu" / "5 hari" / "3 weeks" -- units this file does not read.
+--   * A decimal elsewhere in the string is not a fractional age: "2 years, 12.5 kg" and
+--     "3 tahun (lahir 12/06/2023)" both backfill normally rather than blocking the table.
+--   * rollback.sql does not tighten a column this file found already nullable, and it names the
+--     rows a rollback would strand with neither a birthday nor an age.
 --   * The pre-check in this header returns the right verdict for each of those, and each
 --     verdict matches what the file then actually does -- so a clean pre-check is not
 --     followed by an abort.
@@ -227,6 +234,11 @@
 -- damage anything -- which is why the "before" query above is worth running first.
 
 BEGIN;
+
+-- Bounds the wait on the advisory lock below, which is taken outside the DO block and so is
+-- not covered by the lock_timeout that block sets. Another manual migration holding the same
+-- key would otherwise make this statement wait under the session default, which is forever.
+SET LOCAL lock_timeout = '5s';
 
 SELECT pg_advisory_xact_lock(4210771001);
 
@@ -322,20 +334,22 @@ BEGIN
                -- A decimal or fraction anywhere in the age. The unit patterns below take the
                -- digit run that sits next to the unit token, so "1.5 years" would yield 5, not
                -- 1 -- a birthday three and a half years wrong, with every other check passing.
-               lower(coalesce(p."age", '')) ~ '[0-9][.,/][0-9]' AS fractional,
+               lower(coalesce(p."age", ''))
+                 ~ '[0-9][.,/][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+                 AS fractional,
                CASE
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
                    THEN 'years'
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
                    THEN 'months'
                END AS unit,
                CASE
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(y|yr|year|thn|tahun)'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
                    THEN (regexp_match(lower(p."age"),
-                          '([0-9]+)[[:space:]]*(?:y|yr|year|thn|tahun)'))[1]::numeric
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(m|mo|month|bln|bulan)'
+                          '([0-9]+)[[:space:]]*(?:tahun|thn|years|year|yrs|yr|y)\M'))[1]::numeric
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
                    THEN (regexp_match(lower(p."age"),
-                          '([0-9]+)[[:space:]]*(?:m|mo|month|bln|bulan)'))[1]::numeric
+                          '([0-9]+)[[:space:]]*(?:bulan|bln|months|month|mths|mth|mos|mo|m)\M'))[1]::numeric
                END AS qty
           FROM "public"."pets" p
       ) s;
@@ -426,11 +440,33 @@ BEGIN
 
   -- Independent of the backfill, and idempotent. The running release inserts a pet without
   -- `age` or `ageCategory`; while either is NOT NULL every pet creation fails. Values are kept.
-  IF has_age THEN
+  --
+  -- Each column that is actually relaxed is marked with a comment, and only a marked column is
+  -- tightened again by rollback.sql. Production's nullability is not measured -- a `migrate diff`
+  -- DROP clause does not report it -- so if `age` is already nullable there, the ALTER below is a
+  -- no-op. A rollback that then restored NOT NULL unconditionally would leave the column
+  -- *stricter* than it found it, in a state production was never in, and every pet creation would
+  -- fail 23502 for a reason this migration never caused. The marker is what keeps the pair
+  -- symmetric: apply relaxes and marks, rollback tightens and unmarks, and neither touches a
+  -- column it did not itself change.
+  IF has_age AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'pets'
+       AND column_name = 'age' AND is_nullable = 'NO'
+  ) THEN
     ALTER TABLE "public"."pets" ALTER COLUMN "age" DROP NOT NULL;
+    COMMENT ON COLUMN "public"."pets"."age" IS
+      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it';
   END IF;
-  IF has_age_category THEN
+
+  IF has_age_category AND EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public' AND table_name = 'pets'
+       AND column_name = 'ageCategory' AND is_nullable = 'NO'
+  ) THEN
     ALTER TABLE "public"."pets" ALTER COLUMN "ageCategory" DROP NOT NULL;
+    COMMENT ON COLUMN "public"."pets"."ageCategory" IS
+      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it';
   END IF;
 END $$;
 

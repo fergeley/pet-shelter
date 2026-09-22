@@ -3,7 +3,7 @@
 **Decided:** 2026-09-22
 
 `prisma/migrations/manual/20260922_pets_birth_date/` closes the `pets.age` half of
-`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Five choices in it are reversible
+`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Seven choices in it are reversible
 and are written down here rather than only in the file's header.
 
 ## 1. `birthDate := intakeDate - age`, not `today - age`
@@ -99,9 +99,52 @@ meant, and the rule reads it.
 
 Found by `/code-review`, not by the rehearsal, which had no fractional fixture.
 
+## 6. A unit token has to be a whole word
+
+The token list was widened to Malay (choice 4), and the alternation was unanchored, so a
+single-letter alternative matched the first letter of any word starting with it. `"3 minggu"` --
+Malay for three *weeks* -- matched the `m` of the months pattern and was stored as three
+**months**, a birthday about two months early for a puppy, reported by the pre-check as
+`ok: months`. English `"3 weeks"` was refused all along, so widening the list is precisely what
+opened it: adding `bulan` meant nothing on its own, but `m` beside it meant "any m-word".
+
+Every alternative now ends at a word boundary (`\M`), longest first:
+
+    years   (tahun|thn|years|year|yrs|yr|y)\M
+    months  (bulan|bln|months|month|mths|mth|mos|mo|m)\M
+
+So `"3 minggu"`, `"5 hari"` and `"3 weeks"` are all refused and named rather than guessed at,
+which is what the file's "anything else is not guessed at" promise was already claiming. The cost
+is that `"2 yo"` is now refused too, where the app would read it as two years. Refusing is the
+safe direction here: the owner sees the row and rewrites it, and nothing is stored wrong.
+
+Found by the second `/code-review` round, not by the rehearsal, whose age fixtures were all
+English or well-formed Malay.
+
+## 7. Rollback restores only what this migration removed
+
+`rollback.sql` used to `SET NOT NULL` on `age`/`ageCategory` whenever the column had no NULLs.
+That is not symmetric with apply. Production's nullability is **not measured** -- a `migrate diff`
+DROP clause does not report it -- so if `age` is already nullable there, `migration.sql`'s
+`DROP NOT NULL` is a no-op while the rollback would still tighten it. The column would come out of
+a failed apply/rollback cycle *stricter* than it went in, in a state production was never in, and
+every `prisma.pet.create` would fail 23502 for a reason nothing in this pair caused.
+
+`migration.sql` now marks each column it actually relaxes with a `COMMENT`, and `rollback.sql`
+restores the constraint only on a marked column and then clears the mark. Apply relaxes and marks;
+rollback tightens and unmarks; neither touches a column it did not itself change.
+
+The same round found a second rollback trap, now documented rather than removed because removing
+it would mean blocking the emergency exit: any pet created after go-live has `age IS NULL`, so
+dropping `birthDate` leaves it with no birthday and nothing to derive one from -- and
+`migration.sql` refuses a table it cannot *fully* derive, so one such row blocks re-applying to
+the whole table. `rollback.sql` now names those rows before it drops anything, and its header
+gives the `UPDATE` that puts an age back. Checks G6-G8 walk that whole cycle: rollback names the
+row, the migration then refuses the table over it, and it applies once that row has an age.
+
 ## What was rehearsed
 
-Fifty-five checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
+Sixty-six checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
 `prisma/migrations/manual/20260922_pets_birth_date/rehearse.mjs` with its connection string inline
 — never against production, and resolving nothing from `.env.local` or `prisma.config.ts`. **The
 script is kept beside the migration**, which the `20260917_status_enums` rehearsal did not do: its
@@ -118,6 +161,13 @@ able to re-take the measurement.
   age, empty age, NULL age, a non-date `intakeDate`, `2024-02-31`, month 13, `"500 years"`, a
   fourteen-digit age, and the three fractional shapes `"1.5 years"`, `"1,5 tahun"`,
   `"1 1/2 years"` — see choice 5.
+- **L1–L3** a unit token must be a whole word — `"3 minggu"`, `"5 hari"` and `"3 weeks"` are
+  refused, not read as months — a decimal elsewhere in the string is not a fractional age, so
+  `"2 years, 12.5 kg"` and `"3 tahun (lahir 12/06/2023)"` backfill normally, and a vulgar
+  fraction falls out as unparseable rather than as its leading digit. See choice 6.
+- **G6–G10** rollback names the rows it would strand, the migration then refuses the table over
+  one of them and applies once it has an age, and a column that was already nullable is not
+  tightened — so a pet can still be created after that rollback. See choice 7.
 - **D1** neither `birthDate` nor `age` present: refuses rather than giving every animal the same
   invented birthday.
 - **E1** English and Malay units, `"1 year 6 months"` taking the year, `"2y"`, and an age embedded
@@ -149,8 +199,9 @@ forward, it raises — see
 and a failing multi-statement file leaves the editor session in an aborted transaction, which the
 header now tells the reader to expect.
 
-**`/code-review` then found six more, every one real**, which is the argument for running it on a
-file like this rather than trusting a green rehearsal. In severity order: a fractional age read as
+**`/code-review` then found six more, every one real**, and a second round on the fixes found six
+more again — which is the argument for running it on a file like this rather than trusting a green
+rehearsal, and for reviewing the fix round rather than the first draft alone. In severity order: a fractional age read as
 the digits beside the unit (choice 5 below); a pre-check that did not list two of the four
 refusals, so a clean pre-check could still be followed by an abort; the false equivalence claim in
 choice 4; every disclosure being `RAISE NOTICE`, which the Neon editor is not documented to show;
@@ -165,3 +216,24 @@ Production's actual `age` values, and any view, constraint or trigger there that
 or `ageCategory`. Either would abort the transaction rather than damage anything — which is why
 the header's "before" query exists and is the one step not to skip. **The owner applies this in
 the Neon SQL editor.** Nothing in this session has touched production.
+
+## The second review round, on the first round's fixes
+
+Six more, all real. The worst was choice 6 above: widening the token list to Malay turned a
+one-letter alternative into a prefix match, so `"3 minggu"` became three months. The others: the
+rollback asymmetry and the strand-and-block trap (choice 7); the advisory lock at the top of the
+file waiting outside the `lock_timeout` the DO block sets, now bounded by a `SET LOCAL` before it;
+the fractional guard scanning the whole string, so `"2 years, 12.5 kg"` would have blocked the
+entire table with advice that did not fit the row; and `check("J3 …", true, …)` — a summary line
+passing a literal `true`, which is the very defect the comment two lines above it says an earlier
+revision of J1 had, reintroduced while fixing J1.
+
+That last one is why the suite is now mutation-tested rather than merely green: removing the
+fractional guard from `migration.sql` fails C9, C10, C11 and J3, with J3 naming the row it let
+through. A check that cannot fail is not a check, and the only way to know which kind you have is
+to break the thing it watches.
+
+One claim in that review did not survive checking: it held that `"1½ years"` would be read as 1
+year. It is not — the vulgar fraction is not `[0-9]`, so no unit pattern matches and the row is
+refused as underivable. L3 pins that, because the reasoning is subtle enough to be worth a test
+rather than a paragraph.

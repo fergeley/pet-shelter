@@ -1,4 +1,4 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 55 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. 66 checks.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -16,7 +16,7 @@
 // Set REHEARSAL_PORT to move it off 55433 if that is taken.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped -- loudly, and the run then exits non-zero -- and the other forty-eight
+// they are skipped -- loudly, and the run then exits non-zero -- and the other fifty-nine
 // still run.
 
 import { readFileSync, mkdtempSync, existsSync } from "node:fs";
@@ -354,7 +354,48 @@ for (const [name, rows, expect] of REFUSALS) {
     "G5 rollback with a post-migration NULL-age row leaves age nullable and says so",
     (await columns(c)).age.is_nullable === "YES" && notices.some((n) => /left nullable/.test(n))
   );
+  check(
+    "G6 rollback names the rows it is about to strand with no age and no birthDate",
+    notices.some((n) => /no birthday and no age/.test(n) && /post-1/.test(n)),
+    (notices.find((n) => /no birthday and no age/.test(n)) || "not named").replace(/\s+/g, " ").slice(0, 110)
+  );
   c.removeAllListeners("notice");
+
+  // And the trap that warning exists for: migration.sql refuses the whole table over that row.
+  const reapply = await expectFail(c, MIGRATION);
+  check(
+    "G7 migration.sql then refuses the whole table over that row, as the warning says",
+    reapply.failed && /post-1/.test(reapply.message),
+    reapply.failed ? reapply.message.split("\n")[0].slice(0, 70) : "it applied"
+  );
+  await c.query(`UPDATE "public"."pets" SET "age" = '6 years' WHERE "id" = 'post-1'`);
+  await c.query(MIGRATION);
+  check("G8 and applies once that row is given an age, as the header instructs", !!(await columns(c)).birthDate);
+}
+{
+  // The asymmetry: production's nullability is never measured, so `age` may already be nullable
+  // there. Then migration.sql's DROP NOT NULL is a no-op -- and a rollback that restored the
+  // constraint unconditionally would leave the column STRICTER than it found it, breaking every
+  // pet creation in a state production was never in. Only a column this migration marked is
+  // tightened again.
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ALTER COLUMN "age" DROP NOT NULL`);
+  await c.query(`ALTER TABLE "public"."pets" ALTER COLUMN "ageCategory" DROP NOT NULL`);
+  await c.query(MIGRATION);
+  await c.query(ROLLBACK);
+  const cols = await columns(c);
+  check(
+    "G9 a column that was already nullable is not tightened by rollback",
+    cols.age.is_nullable === "YES" && cols.ageCategory.is_nullable === "YES",
+    `age=${cols.age.is_nullable} ageCategory=${cols.ageCategory.is_nullable}`
+  );
+  const r = await expectFail(
+    c,
+    `INSERT INTO "public"."pets" ("id","name","species","breed","gender","size","weight",
+      "adoptionFee","description","rescueStory","image","intakeDate")
+     VALUES ('after-rb','X','dog','M','Male','S','1kg','RM1','d','r','/i','2026-01-01')`
+  );
+  check("G10 so a pet can still be created after that rollback", !r.failed, r.message.split("\n")[0]);
 }
 
 // ------------------------------------------------------- H. search_path and locking
@@ -418,6 +459,50 @@ for (const [name, rows, expect] of REFUSALS) {
   );
 }
 
+// ------------------- L. a unit token is a whole word, and the fraction guard is not greedy
+{
+  // "minggu" is Malay for weeks. A bare `m` alternative matches its first letter, so before the
+  // tokens were anchored with \M this stored 3 MONTHS for a three-week-old puppy -- and the
+  // pre-check called it `ok: months`. English "3 weeks" was refused all along, so widening the
+  // token list to Malay is what opened this, and only a whole-word match closes it.
+  for (const [id, age] of [["l-1", "3 minggu"], ["l-2", "2 minggu"], ["l-3", "3 weeks"], ["l-4", "5 hari"]]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(
+      `L1 "${age}" is refused rather than read as months or years`,
+      r.failed && new RegExp(id).test(r.message),
+      r.failed ? "" : "it was accepted"
+    );
+  }
+}
+{
+  // A decimal elsewhere in the string is not a fractional age. One offender aborts the whole
+  // table, so a false positive here would block the catalogue fix over a recorded weight.
+  const OK = [
+    ["l-5", "2 years, 12.5 kg", "2026-06-12", "2024-06-12"],
+    ["l-6", "3 tahun (lahir 12/06/2023)", "2026-06-12", "2023-06-12"],
+  ];
+  await fresh(c, OK);
+  await c.query(MIGRATION);
+  const got = Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
+  check(
+    "L2 a decimal elsewhere in the age does not trip the fraction guard",
+    OK.every(([id, , , want]) => got[id] === want),
+    JSON.stringify(got)
+  );
+}
+{
+  // A vulgar fraction is not ASCII, so the [0-9][.,/][0-9] guard cannot see it. It has to fall
+  // out as unparseable instead of being read as its leading digit -- checked, not assumed.
+  await fresh(c, [["l-7", "1½ years", "2026-06-12"]]);
+  const r = await expectFail(c, MIGRATION);
+  check(
+    "L3 a vulgar-fraction age is refused, not read as its leading digit",
+    r.failed && /l-7/.test(r.message),
+    r.failed ? r.message.split("\n")[0].slice(0, 70) : "it was accepted"
+  );
+}
+
 // ---------------------------------- J. the header's own pre-check query, as the owner runs it
 {
   const lines = MIGRATION.split("\n");
@@ -452,15 +537,21 @@ for (const [name, rows, expect] of REFUSALS) {
   // And the pre-check's verdict must agree with what the file actually does: every row it calls
   // ok must survive, and each one it names must abort. Otherwise the owner reads a clean
   // pre-check and still gets an abort, which is the failure this pairing exists to prevent.
+  // The summary line must carry the result, not the word "true". A previous revision passed a
+  // literal `true` here and printed `ok` whatever the loop found -- which is precisely the
+  // defect the comment above J1 says an earlier revision of J1 had, reintroduced one line down.
+  const j3bad = [];
   for (const [id, age, intake, want] of J) {
     await fresh(c, [[id, age, intake]]);
     const r = await expectFail(c, MIGRATION);
-    const refused = want.startsWith("ok:") ? !r.failed : r.failed;
-    if (!refused) {
-      check(`J3 pre-check verdict "${want}" matches the file's behaviour for ${id}`, false, r.message.split("\n")[0]);
-    }
+    const agrees = want.startsWith("ok:") ? !r.failed : r.failed;
+    if (!agrees) j3bad.push(`${id} (${want}): ${r.failed ? `aborted -- ${r.message.split("\n")[0]}` : "was accepted"}`);
   }
-  check("J3 every pre-check verdict matches what migration.sql actually does", true, `${J.length} rows`);
+  check(
+    "J3 every pre-check verdict matches what migration.sql actually does",
+    j3bad.length === 0,
+    j3bad.length ? JSON.stringify(j3bad) : `${J.length} rows`
+  );
 }
 
 // ------------------------------------------------ I. no scratch table is left behind

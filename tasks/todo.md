@@ -27,14 +27,15 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 55 checks on a throwaway embedded PostgreSQL 18.4, all passing,
+- [x] `rehearse.mjs` beside it — 66 checks on a throwaway embedded PostgreSQL 18.4, all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
 - [x] `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md` — the backfill
       rule, the expand/contract split, and the full check list.
 - [x] Drift entry updated with the 2026-09-22 measurement, and one earlier claim in it corrected.
-- [x] Four lessons: the lenient-parser trap, the superseded NOT NULLs, the stray-process sweep,
-      and the regex that finds a number beside a unit rather than the number.
+- [x] Five lessons: the lenient-parser trap, the superseded NOT NULLs, the stray-process sweep,
+      the regex that finds a number beside a unit rather than the number, and the token list
+      whose one-letter alternative became a prefix match when it gained a second language.
 - [x] The `#46`/`#47` stream's one genuinely stale line: the enum migration is applied.
 - [ ] **Owner: apply `20260922_pets_birth_date/migration.sql` in the Neon SQL editor.** Run the
       header's "before" query first — it names any row the file would refuse. Needs no merge.
@@ -99,8 +100,37 @@ them.** Worth recording because the rehearsal was thorough and still missed all 
    which would have dropped its seven strongest checks silently on any machine but this one. It
    now reports the real error and a skip fails the run.
 
-The fix round is `00e75f4` and the commit after it; both are themselves re-reviewed, per the
-2026-09-08 lesson that a fix round is unreviewed code written in a hurry.
+**A second review, on those fixes, found six more — every one real again.** Per the 2026-09-08
+lesson that a fix round is unreviewed code written in a hurry, and it earned its keep:
+
+1. **`"3 minggu"` — Malay for three weeks — was stored as three months.** Widening the token list
+   to Malay turned the bare `m` alternative into a prefix match on any m-word; English
+   `"3 weeks"` had always been refused correctly. Tokens are now anchored to a word boundary.
+2. **`rollback.sql` could leave a column stricter than it found it.** Production's nullability is
+   never measured, so if `age` was already nullable, apply was a no-op while rollback still
+   restored NOT NULL — breaking pet creation in a state production was never in. The migration
+   now marks what it relaxes and the rollback restores only marked columns.
+3. **A rollback after go-live could make the migration inapplicable.** Post-migration pets have
+   `age IS NULL`; dropping `birthDate` strands them, and one stranded row aborts the whole table
+   on re-apply. Now named before the drop, with the `UPDATE` to undo it, and walked end to end by
+   checks G6–G8.
+4. **The advisory lock at the top of the file waited outside any timeout**, since the DO block's
+   `lock_timeout` had not been set yet. Bounded by a `SET LOCAL` before it.
+5. **The fraction guard scanned the whole string**, so `"2 years, 12.5 kg"` would have blocked the
+   entire table with advice that did not fit the row. Narrowed to a fraction adjacent to a unit.
+6. **`check("J3 …", true, …)`** — a summary line passing a literal `true`, so it printed `ok`
+   whatever the loop found. That is the exact defect the comment two lines above it describes in
+   an earlier revision of J1, reintroduced while fixing J1.
+
+**The suite is now mutation-tested, not merely green.** Removing the fractional guard from
+`migration.sql` fails C9, C10, C11 and J3, with J3 naming the row it let through. Finding 6 is the
+reason: a green suite says nothing until you have seen it go red for the right cause.
+
+One claim in that review did not survive checking, and is recorded as such: it held `"1½ years"`
+would read as 1 year. It does not — the vulgar fraction is not `[0-9]`, no unit pattern matches,
+and the row is refused as underivable. Check L3 pins it.
+
+The fix rounds are `00e75f4`, `75b44a4` and the commit after them; all are themselves reviewed.
 
 **Deliberately not done:**
 - **Putting this on PR #42, as the brief asked.** Three reasons. That branch cannot host the
