@@ -94,8 +94,13 @@
 --    WHERE "age" ~* '[0-9]+[[:space:]]*(bulan|bln)\M';
 --
 -- **The date rolls forward rather than clamping.** See the note beside the UPDATE below.
--- Widening the app to read Malay is PR #42's business, and once it lands this file can widen
--- with it -- but the app has to move first, or the invariant breaks.
+--
+-- Either half of the invariant can be broken from the app's side, and both are PR #42's
+-- (feat/pet-form-birth-date) to move: widening approximateBirthDate to read Malay, which would
+-- let this file widen with it, and changing its rollover to a clamp, which would make this file
+-- wrong in the direction it has just moved away from. The app moves first either way. The
+-- rehearsal's O2 compares every stored date against that function, so a change there fails this
+-- file's checks loudly rather than being discovered in production.
 --
 -- Scope: `pets` only, and only the two added columns plus the two relaxed constraints. The
 -- drop of `age`/`ageCategory` is deliberately NOT here. It destroys the only record of what

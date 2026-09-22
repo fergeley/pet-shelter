@@ -64,9 +64,37 @@ The archive carrying `birthDateIsEstimate` matters: without it a rollback and re
 demotes a known birthday to an estimate. That is the other session's finding, recorded here
 because the two files are only correct together.
 
+## Verified against the contract half
+
+PR #94 ran this branch's tip (`b40a7d7`) through its contract on pglite: five rows including both
+rollover cases, **zero differing from `approximateBirthDate`**, and the full expand → contract →
+rollback sequence completing with every `age` string restored. The two halves compose.
+
+## The rationale weakened after the decision, and the decision stands anyway
+
+Honesty about the load-bearing part: PR #94 has since removed its re-derivation entirely. It now
+detects that expand ran from a structural signal — expand ends with `DROP NOT NULL` on `age`,
+which a hand-patched `ADD COLUMN birthDate ... DEFAULT '2024-01-01'` does not — so no arithmetic
+comparison is left for a Malay-backfilled row to fail. The reason this entry gives for refusing
+Malay is therefore no longer the reason it matters to *them*.
+
+It is kept on narrower ground: the invariant is an executable property (O2) rather than a claim,
+it holds for anything that re-derives later — a report, a test, the next migration — and it keeps
+the stored data and the app's own arithmetic from disagreeing about the same animal. The cost is
+one normalisation `UPDATE`, printed in the header, on rows the pre-check names first. That is a
+worse trade than it looked when the decision was made, and still the right one.
+
 ## What would reverse this
 
-PR #42 (`feat/pet-form-birth-date`) widens `approximateBirthDate` to read `tahun`/`thn`/`bulan`/
-`bln`. **Once that is on master, this file may widen with it** — the invariant is "match the app",
-not "be English". The app has to move first, or the invariant breaks in the direction that stops
-the contract migration.
+- **PR #42 widening `approximateBirthDate` to read `tahun`/`thn`/`bulan`/`bln`.** Once that is on
+  master this file may widen with it — the invariant is "match the app", not "be English".
+- **PR #42 changing the app to clamp.** Reported by PR #94 on 2026-09-22: that session was about
+  to replace the rollover with `Math.min(day, lastDayOfMonth)`, which would make this file diverge
+  again in the opposite direction from the one it just moved away from. PR #94 has asked them not
+  to, on the grounds that two of three implementations now agree on roll-forward. **If it lands
+  anyway, this file's `make_date(target month, 1) + (day - 1)` is what has to change**, and O2
+  will fail loudly rather than silently — which is the whole point of having written it down as a
+  check. Watch `src/lib/domain/petAge.ts` on `feat/pet-form-birth-date`.
+
+Either way the app moves first. An expand that stores what the app does not compute is the failure
+this entry exists to prevent, in whichever direction the disagreement arrives.
