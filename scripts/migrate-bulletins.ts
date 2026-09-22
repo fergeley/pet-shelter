@@ -1,6 +1,11 @@
 /**
  * Applies the community bulletin migration and seeds `src/data/bulletins.json` into it.
  *
+ * **Re-running it never overwrites an existing notice.** Rows are inserted with
+ * `ON CONFLICT DO NOTHING`, so staff edits made through /admin/bulletins survive
+ * a second run. See the comment on the INSERT for why that matters more here
+ * than in the seed.
+ *
  * Separate from `prisma/seed.ts` for the reason `migrate-faqs.ts` gives: that
  * script is refused against anything but a local database
  * (`assertSeedTargetIsLocal`), because it is not additive — it deletes and
@@ -67,31 +72,33 @@ async function main() {
     console.log("Added        :", added.join(", ") || "(none)");
     console.log("Removed      :", removed.join(", ") || "(none)");
 
+    let inserted = 0;
     for (const bulletin of bulletinsData) {
-      // `isPinned` and `isPublished` are INSERT-only, not part of the DO UPDATE
-      // set: re-running this must not republish or re-pin a notice that staff
-      // have deliberately taken down. Same contract as the FAQ seeder and
-      // prisma/seed.ts.
-      await pool.query(
+      /**
+       * `DO NOTHING`, not `DO UPDATE`.
+       *
+       * This script can be pointed at a hosted branch — that is the whole
+       * reason it exists apart from `prisma/seed.ts`, which refuses anything
+       * but localhost. So a row it meets again is a row staff may have edited
+       * through /admin/bulletins since it was seeded. An upsert would snap the
+       * title, body, image and notice date back to the committed fixture with
+       * no warning, no audit entry and no way to tell it had happened, because
+       * this writes through `pg` rather than through the repository.
+       *
+       * The fixture is launch content. Once a notice exists, the editor owns
+       * it. Correcting seeded copy is an edit in the admin screen, not a
+       * re-run of this script — and if the fixture really must be reimposed,
+       * that is a deliberate `DELETE` first, typed out by a human who has read
+       * this paragraph.
+       */
+      const res = await pool.query(
         `INSERT INTO "bulletins"
            ("id","category","targetPage","title","content","titleMs","contentMs",
             "mediaType","mediaUrl","videoEmbedUrl","isPinned","isPublished",
             "authorName","publishedAt","updatedAt")
          VALUES ($1, $2::"BulletinCategory", $3::"BulletinTargetPage", $4, $5, $6, $7,
                  $8::"BulletinMediaType", $9, $10, $11, $12, $13, $14::date, NOW())
-         ON CONFLICT ("id") DO UPDATE SET
-           "category"      = EXCLUDED."category",
-           "targetPage"    = EXCLUDED."targetPage",
-           "title"         = EXCLUDED."title",
-           "content"       = EXCLUDED."content",
-           "titleMs"       = EXCLUDED."titleMs",
-           "contentMs"     = EXCLUDED."contentMs",
-           "mediaType"     = EXCLUDED."mediaType",
-           "mediaUrl"      = EXCLUDED."mediaUrl",
-           "videoEmbedUrl" = EXCLUDED."videoEmbedUrl",
-           "authorName"    = EXCLUDED."authorName",
-           "publishedAt"   = EXCLUDED."publishedAt",
-           "updatedAt"     = NOW()`,
+         ON CONFLICT ("id") DO NOTHING`,
         [
           bulletin.id,
           bulletin.category,
@@ -109,6 +116,7 @@ async function main() {
           bulletin.publishedAt,
         ]
       );
+      inserted += res.rowCount ?? 0;
     }
 
     const counts = await pool.query(
@@ -116,7 +124,9 @@ async function main() {
     );
     const total = await pool.query('select count(*)::int n from "bulletins"');
     console.log(
-      `Seeded       : ${bulletinsData.length} notices, ${total.rows[0].n} rows total`
+      `Seeded       : ${inserted} new of ${bulletinsData.length} fixture notices, ` +
+        `${total.rows[0].n} rows total ` +
+        `(${bulletinsData.length - inserted} already present and left untouched)`
     );
     for (const row of counts.rows as { category: string; n: number }[]) {
       console.log(`  ${row.category.padEnd(14)} ${row.n}`);

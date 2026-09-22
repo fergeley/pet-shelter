@@ -12,10 +12,13 @@ export type BulletinMediaType = "image" | "video" | "none";
 /**
  * One bulletin as the public feed renders it.
  *
- * This is the *resolved* projection: the repository substitutes the English
- * copy for any missing Malay field before handing it out, so every reader gets
- * a plain `string` and no page can render a blank Malay title. It mirrors
- * `FaqItem` against `FaqRecord` next door.
+ * The public projection, mirroring `FaqItem` against `FaqRecord` next door.
+ *
+ * It deliberately carries **no Malay fields**. The columns exist and the editor
+ * writes them, but nothing renders them yet, so there is no resolution step
+ * here and none is implied. Adding `titleMs` to this interface without also
+ * adding the `titleMs ?? title` fallback in `bulletinRepository.toBulletin`
+ * would ship a blank Malay title for every untranslated row.
  *
  * `publishedAt` is an ISO date string (`YYYY-MM-DD`) rather than a `Date`,
  * because it is a notice date that a card prints verbatim — not an instant. It

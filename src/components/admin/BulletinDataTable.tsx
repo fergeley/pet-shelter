@@ -36,6 +36,7 @@ import {
 import {
   BULLETIN_CATEGORY_PRESENTATION,
   BULLETIN_TARGET_PAGE_LABELS,
+  presentBulletinCategory,
 } from "@/lib/presentation/bulletinPresentation";
 import { BULLETIN_CATEGORIES, BulletinFormInput } from "@/lib/validations/bulletin";
 import { BulletinRecord } from "@/types/bulletin";
@@ -247,7 +248,12 @@ export function BulletinDataTable({ initialBulletins }: BulletinDataTableProps) 
           )}
         >
           {filtered.map((bulletin) => {
-            const catInfo = BULLETIN_CATEGORY_PRESENTATION[bulletin.category];
+            // Through the presenter, not the table: a row whose category this
+            // build does not carry — written by the hand-run migration, or by a
+            // newer deploy — would otherwise be `undefined` here and throw on
+            // `.toneClass`, taking down the one screen where that row could be
+            // repaired. The public feed already reads it this way.
+            const catInfo = presentBulletinCategory(bulletin.category);
 
             return (
               <div
@@ -271,7 +277,7 @@ export function BulletinDataTable({ initialBulletins }: BulletinDataTableProps) 
                       {bulletin.publishedAt}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      · {BULLETIN_TARGET_PAGE_LABELS[bulletin.targetPage]}
+                      · {BULLETIN_TARGET_PAGE_LABELS[bulletin.targetPage] ?? bulletin.targetPage}
                     </span>
                   </div>
 

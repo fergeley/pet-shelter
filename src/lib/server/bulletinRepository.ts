@@ -84,7 +84,10 @@ interface BulletinFixtureRow {
 }
 
 function freshBulletins(): BulletinRecord[] {
-  const epoch = new Date(0).toISOString();
+  // The same formatter the database path uses. An ISO timestamp here and a
+  // YYYY-MM-DD there would make every consumer of these two fields behave
+  // differently depending on whether the database was reachable.
+  const epoch = toDateString(new Date(0));
   return (structuredClone(initialBulletinsData) as BulletinFixtureRow[]).map((row) => ({
     ...row,
     createdAt: epoch,
@@ -159,11 +162,18 @@ function mapDbBulletin(row: DbBulletinRow): BulletinRecord {
 /**
  * The public projection.
  *
- * Two things happen here and nowhere else. The English copy is resolved into
- * any missing Malay field, so no reader can render a blank title. And both
- * media URLs pass the host allow-list — the enforcing half of that check,
- * because the seed and the hand-run migration insert rows without going near
- * the action that validates on write.
+ * Both media URLs pass the host allow-list here — the enforcing half of that
+ * check, because the seed and the hand-run migration insert rows without going
+ * near the action that validates on write.
+ *
+ * **There is no Malay resolution in this function, and `Bulletin` carries no
+ * Malay fields.** `titleMs`/`contentMs` are stored and editable but not yet
+ * read by anything; the public feed is English-only until
+ * `tasks/open/home-page-text-stays-english-on-the-malay-site.md` is settled.
+ * Whoever settles it adds the fields to `Bulletin` **and** the
+ * `titleMs ?? title` fallback here at the same time — `Faq`'s `toFaqItem` is
+ * the shape to copy. Adding the field without the fallback ships a blank Malay
+ * title for every row that has no translation, which today is all of them.
  */
 function toBulletin(record: BulletinRecord): Bulletin {
   return {
@@ -182,10 +192,17 @@ function toBulletin(record: BulletinRecord): Bulletin {
 }
 
 /** Pinned first, then newest. The only ordering this type has. */
-function sortForFeed<T extends { isPinned: boolean; publishedAt: string }>(items: T[]): T[] {
+function sortForFeed<T extends { id: string; isPinned: boolean; publishedAt: string }>(
+  items: T[]
+): T[] {
   return [...items].sort((a, b) => {
     if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    return b.publishedAt.localeCompare(a.publishedAt);
+    const byDate = b.publishedAt.localeCompare(a.publishedAt);
+    if (byDate !== 0) return byDate;
+    // The same tiebreaker the query uses, so the two paths cannot disagree
+    // about which notices a limited feed shows. Relying on sort stability would
+    // tie the answer to fixture order instead.
+    return a.id.localeCompare(b.id);
   });
 }
 
@@ -226,8 +243,16 @@ export async function getPublicBulletins(
             ? undefined
             : { in: ["all", targetPage] as PrismaBulletinTargetPage[] },
       },
-      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
-      ...(limit ? { take: limit } : {}),
+      // `id` breaks the tie. publishedAt is a calendar day, so two notices
+      // posted the same day are the normal case, not an edge case: without a
+      // tiebreaker Postgres may return either order, and with `take` that means
+      // a different pair on each ISR regeneration — a notice can go missing
+      // from the home page with nobody having edited anything.
+      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }, { id: "asc" }],
+      // `limit !== undefined`, not `limit ?`: a caller computing the count can
+      // legitimately pass 0, and `limit ?` would read that as "no limit" and
+      // render the entire published archive.
+      ...(limit !== undefined ? { take: limit } : {}),
     });
     return (rows as unknown as DbBulletinRow[]).map(mapDbBulletin).map(toBulletin);
   } catch (err) {
@@ -237,7 +262,7 @@ export async function getPublicBulletins(
   const fallback = sortForFeed(
     serverBulletins.filter((b) => b.isPublished && matchesTarget(b, targetPage))
   ).map(toBulletin);
-  return limit ? fallback.slice(0, limit) : fallback;
+  return limit !== undefined ? fallback.slice(0, limit) : fallback;
 }
 
 /**
@@ -250,7 +275,9 @@ export async function getPublicBulletins(
  */
 export async function listBulletinRecords(): Promise<BulletinRecord[]> {
   const rows = await prisma.bulletin.findMany({
-    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
+    // Same tiebreaker as the public read, so the editor sees notices in the
+    // order visitors do rather than an order that shifts between page loads.
+    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }, { id: "asc" }],
   });
   return (rows as unknown as DbBulletinRow[]).map(mapDbBulletin);
 }

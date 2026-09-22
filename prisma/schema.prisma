@@ -912,12 +912,14 @@ model Bulletin {
   content String @db.Text
 
   /// Bahasa Malaysia copy. Nullable because staff may publish an English notice
-  /// and translate it later; the repository resolves the English text in its
-  /// place when mapping to Bulletin, so no reader ever sees a blank Malay title
-  /// and every consumer keeps a plain `string`. Storing the null rather than a
-  /// copy of the English means a later edit to the English still shows through
-  /// instead of leaving a stale duplicate behind — the same reasoning as
-  /// Faq.questionMs.
+  /// and translate it later. Storing the null rather than a copy of the English
+  /// means a later edit to the English still shows through instead of leaving a
+  /// stale duplicate behind — the same reasoning as Faq.questionMs.
+  ///
+  /// Unlike Faq, **nothing resolves these yet**: the `Bulletin` type carries no
+  /// Malay fields and the public feed is English-only. Whoever settles
+  /// tasks/open/home-page-text-stays-english-on-the-malay-site.md adds the
+  /// fields and the `titleMs ?? title` fallback in bulletinRepository together.
   ///
   /// These columns are written by the editor but not yet rendered: the public
   /// feed is English-only until
@@ -967,7 +969,17 @@ model Bulletin {
   /// then newest. Column order matches that predicate so the index serves the
   /// whole query rather than just its first term.
   @@index([isPublished, targetPage, isPinned, publishedAt])
-  /// The admin list, which reads every row published or not, newest first.
-  @@index([publishedAt])
+  ///
+  /// There is deliberately NO second index for the admin list. It reads every
+  /// row and sorts by isPinned before publishedAt, so an index on publishedAt
+  /// alone — which an earlier revision of this model carried, with a comment
+  /// claiming it served that query — cannot supply the ordering. Postgres
+  /// seq-scans and sorts either way, and the index was pure write amplification
+  /// on every create, edit, pin and publish.
+  ///
+  /// ceiling: a sequential scan of the whole table on each admin page load.
+  /// Correct at shelter scale (tens of notices). If the archive reaches a few
+  /// thousand, add @@index([isPinned, publishedAt]) — and add the matching
+  /// CREATE INDEX to prisma/migrations/manual/, or db:check-drift reports drift.
   @@map("bulletins")
 }

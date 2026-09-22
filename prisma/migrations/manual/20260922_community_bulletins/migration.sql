@@ -1,4 +1,4 @@
--- Community bulletins: three enums, the `bulletins` table, two indexes.
+-- Community bulletins: three enums, the `bulletins` table, one index.
 --
 -- Applied with `npm run db:migrate:bulletins`, which runs this file and then
 -- upserts src/data/bulletins.json. Written by hand rather than applied with
@@ -106,10 +106,10 @@ CREATE TABLE IF NOT EXISTS "bulletins" (
 );
 
 -- CreateIndex
+-- One index, for the public read. The admin list reads every row and sorts by
+-- isPinned before publishedAt, so an index on publishedAt alone cannot serve it;
+-- see the model comment in prisma/schema.prisma.
 CREATE INDEX IF NOT EXISTS "bulletins_isPublished_targetPage_isPinned_publishedAt_idx"
   ON "bulletins"("isPublished", "targetPage", "isPinned", "publishedAt");
-
-CREATE INDEX IF NOT EXISTS "bulletins_publishedAt_idx"
-  ON "bulletins"("publishedAt");
 
 COMMIT;

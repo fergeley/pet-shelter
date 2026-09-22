@@ -72,13 +72,31 @@ class RateLimitedError extends Error {
   }
 }
 
+/**
+ * Purge every surface that renders a bulletin.
+ *
+ * The try is **inside** the loop on purpose. Wrapping the whole loop meant one
+ * failing path skipped the rest: if `/` threw, `/pets` and `/bulletins` were
+ * never purged, the action still returned `success: true`, and the editor was
+ * told the change was live while two public feeds served the old render for the
+ * full 300s window this list exists to prevent.
+ *
+ * A failure is logged rather than swallowed. The common cause really is calling
+ * this outside a Next request scope, which is every unit test, so it must not
+ * throw — but a silent catch that is right for tests is how a production purge
+ * failure goes unnoticed.
+ */
 function revalidateBulletins(): void {
-  try {
-    for (const path of BULLETIN_PATHS) {
+  for (const path of BULLETIN_PATHS) {
+    try {
       revalidatePath(path);
+    } catch (err) {
+      // Outside a Next.js request scope (unit tests) this is expected and
+      // uninteresting; in a request it means a stale public page.
+      if (process.env.NODE_ENV !== "test") {
+        console.error("[bulletins] failed to revalidate", path, err);
+      }
     }
-  } catch {
-    // Outside a Next.js request scope (unit tests); nothing to invalidate.
   }
 }
 

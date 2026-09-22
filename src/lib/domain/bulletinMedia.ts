@@ -20,8 +20,16 @@
 
 /**
  * Hosts `next/image` will load, held in step with the `images.remotePatterns`
- * list in `next.config.ts` by `tests/unit/bulletins.test.ts`. A `*.` prefix
- * matches exactly one label, mirroring how Next reads `**.supabase.co`.
+ * list in `next.config.ts` by `tests/unit/bulletins.test.ts`. The patterns are
+ * written exactly as Next writes them, `**.` included, because the two lists
+ * have to mean the same thing and the cheapest way to guarantee that is to
+ * spell them the same.
+ *
+ * `**.` matches one or more leading labels, which is Next's reading. An earlier
+ * revision used `*.` and matched exactly one, which was stricter than the
+ * config: `abc.storage.supabase.co` was refused by the form while `next/image`
+ * would have served it, and the refusal pointed the editor at a config file
+ * that did allow it.
  *
  * Deliberately a copy rather than an import: `next.config.ts` is loaded by the
  * Next build, not by application code, and importing it into `src/` would pull
@@ -34,7 +42,7 @@ export const BULLETIN_IMAGE_HOSTS = [
   "plus.unsplash.com",
   "img.youtube.com",
   "i.ytimg.com",
-  "*.supabase.co",
+  "**.supabase.co",
   "utfs.io",
   "res.cloudinary.com",
 ] as const;
@@ -47,27 +55,35 @@ export const BULLETIN_IMAGE_HOSTS = [
  * because it is what the shipped fixture uses and what staff should prefer — it
  * does not set tracking cookies on a visitor who never plays the video.
  */
-export const BULLETIN_EMBED_HOSTS = [
-  "www.youtube-nocookie.com",
-  "youtube-nocookie.com",
-  "www.youtube.com",
-  "youtube.com",
-  "player.vimeo.com",
-] as const;
+export const BULLETIN_EMBED_RULES: ReadonlyArray<{
+  host: string;
+  /** The path an embeddable URL on that host must start with. */
+  prefix: string;
+}> = [
+  { host: "www.youtube-nocookie.com", prefix: "/embed/" },
+  { host: "youtube-nocookie.com", prefix: "/embed/" },
+  { host: "www.youtube.com", prefix: "/embed/" },
+  { host: "youtube.com", prefix: "/embed/" },
+  { host: "player.vimeo.com", prefix: "/video/" },
+];
+
+/** Host names only, for the messages that tell staff what is accepted. */
+export const BULLETIN_EMBED_HOSTS = BULLETIN_EMBED_RULES.map((r) => r.host);
 
 function hostMatches(host: string, pattern: string): boolean {
-  if (pattern.startsWith("*.")) {
-    const suffix = pattern.slice(1); // ".supabase.co"
+  if (pattern.startsWith("**.")) {
+    const suffix = pattern.slice(2); // ".supabase.co"
     if (!host.endsWith(suffix)) return false;
-    // Exactly one label in front, so "evil.com/x.supabase.co" and a bare
-    // "supabase.co" both fail rather than inheriting the allowance.
-    const label = host.slice(0, -suffix.length);
-    return label.length > 0 && !label.includes(".");
+    // One or more labels in front, matching Next's `**`. A bare "supabase.co"
+    // and an "evilsupabase.co" both still fail: the suffix carries its dot, so
+    // the match lands on a label boundary rather than on the string's tail.
+    return host.length > suffix.length;
   }
   return host === pattern;
 }
 
-function isAllowed(url: string, patterns: readonly string[]): boolean {
+/** Shared gate: absolute, https, no credentials. Host and path are the caller's. */
+function parseSafeUrl(url: string): URL | null {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -75,28 +91,43 @@ function isAllowed(url: string, patterns: readonly string[]): boolean {
     // Not an absolute URL. A relative path would be same-origin and therefore
     // safe, but `next/image` and `<iframe>` resolve them differently and no
     // fixture uses one, so the narrow answer is the right one.
-    return false;
+    return null;
   }
 
   // `https:` only. `http:` would be a mixed-content block in the browser, and
   // `javascript:`/`data:` are the reason this function exists at all.
-  if (parsed.protocol !== "https:") return false;
+  if (parsed.protocol !== "https:") return null;
 
   // Credentials in a URL are never legitimate here and confuse host parsing in
   // anything that re-parses the string later.
-  if (parsed.username || parsed.password) return false;
+  if (parsed.username || parsed.password) return null;
 
-  return patterns.some((pattern) => hostMatches(parsed.hostname, pattern));
+  return parsed;
 }
 
 /** True when `next/image` will actually load this URL. */
 export function isAllowedBulletinImageUrl(url: string): boolean {
-  return isAllowed(url, BULLETIN_IMAGE_HOSTS);
+  const parsed = parseSafeUrl(url);
+  if (!parsed) return false;
+  return BULLETIN_IMAGE_HOSTS.some((pattern) => hostMatches(parsed.hostname, pattern));
 }
 
-/** True when this URL may be placed in an `<iframe src>`. */
+/**
+ * True when this URL may be placed in an `<iframe src>`.
+ *
+ * The **path** is checked as well as the host, which the image list does not
+ * need to do. `https://www.youtube.com/watch?v=…` is on an allowed host and is
+ * not embeddable: YouTube serves `/watch` with `X-Frame-Options: SAMEORIGIN`,
+ * so it validates cleanly and then renders as an unexplained black box on `/`,
+ * `/pets` and `/bulletins`. The form already tells staff to use the embed link
+ * rather than the page link; this is that sentence enforced.
+ */
 export function isAllowedBulletinEmbedUrl(url: string): boolean {
-  return isAllowed(url, BULLETIN_EMBED_HOSTS);
+  const parsed = parseSafeUrl(url);
+  if (!parsed) return false;
+  return BULLETIN_EMBED_RULES.some(
+    (rule) => parsed.hostname === rule.host && parsed.pathname.startsWith(rule.prefix)
+  );
 }
 
 /**

@@ -46,8 +46,20 @@ const MEDIA_TYPE_LABELS: Record<(typeof BULLETIN_MEDIA_TYPES)[number], string> =
   video: "Video embed",
 };
 
+/**
+ * Today where the editor is, not in UTC.
+ *
+ * `toISOString().slice(0, 10)` is the UTC day, and Malaysia is UTC+8: at 02:00
+ * local the two disagree, so an overnight volunteer posting an urgent foster
+ * notice would get a card dated yesterday unless they noticed and corrected it.
+ * This is the same drift `bulletinRepository.toDateString` argues against,
+ * applied in the other direction — there the value is already a fixed calendar
+ * day, here it is "now" and must be read in the viewer's own zone.
+ */
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 const EMPTY: BulletinFormInput = {

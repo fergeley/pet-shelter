@@ -43,15 +43,41 @@ const optionalText = (max: number, label: string) =>
     .or(z.literal(""))
     .transform((v) => (v ? v : undefined));
 
-const optionalUrl = (check: (url: string) => boolean, message: string) =>
+const optionalUrl = () =>
   z
     .string()
     .trim()
     .max(2048, "URL is too long (maximum 2,048 characters)")
     .optional()
     .or(z.literal(""))
-    .transform((v) => (v ? v : undefined))
-    .refine((v) => v === undefined || check(v), { message });
+    .transform((v) => (v ? v : undefined));
+
+/**
+ * True only for a day that exists.
+ *
+ * `Date.parse("2026-02-31T00:00:00Z")` does **not** return NaN — it rolls the
+ * surplus days forward and yields 3 March. So a "does this parse" check accepts
+ * 31 February and the card then prints a different day from the one that was
+ * typed, which for a notice is the whole content. Round-tripping the parsed
+ * value back to its parts is what catches it.
+ */
+function isRealCalendarDay(value: string): boolean {
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+const IMAGE_HOST_MESSAGE =
+  "Image URL must be an https link on a host this site is configured to load " +
+  "(see images.remotePatterns in next.config.ts). An image elsewhere will not render.";
+
+const EMBED_HOST_MESSAGE =
+  `Video embed URL must be an https embed link on one of: ${BULLETIN_EMBED_HOSTS.join(", ")}. ` +
+  "Use the embed link, not the page link.";
 
 /**
  * Payload accepted by the admin create/update actions.
@@ -63,7 +89,8 @@ const optionalUrl = (check: (url: string) => boolean, message: string) =>
  * database's to set.
  *
  * Malay fields are optional: staff may publish an English notice and translate
- * it later, and the repository resolves the English copy in its place on read.
+ * it later. Nothing renders them yet — see the note on `Bulletin` in
+ * `@/types/bulletin`.
  */
 export const bulletinFormSchema = z
   .object({
@@ -82,15 +109,8 @@ export const bulletinFormSchema = z
     titleMs: optionalText(200, "Malay title"),
     contentMs: optionalText(5000, "Malay content"),
     mediaType: bulletinMediaTypeSchema.default("none"),
-    mediaUrl: optionalUrl(
-      isAllowedBulletinImageUrl,
-      "Image URL must be an https link on a host this site is configured to load " +
-        "(see images.remotePatterns in next.config.ts). An image elsewhere will not render."
-    ),
-    videoEmbedUrl: optionalUrl(
-      isAllowedBulletinEmbedUrl,
-      `Video embed URL must be an https link on one of: ${BULLETIN_EMBED_HOSTS.join(", ")}.`
-    ),
+    mediaUrl: optionalUrl(),
+    videoEmbedUrl: optionalUrl(),
     isPinned: z.boolean().default(false),
     isPublished: z.boolean().default(true),
     /**
@@ -103,23 +123,49 @@ export const bulletinFormSchema = z
       .string()
       .trim()
       .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD form")
-      .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)), {
-        message: "That date does not exist",
-      }),
+      .refine(isRealCalendarDay, { message: "That date does not exist" }),
   })
   /**
-   * A card renders media only when `mediaType` says so, so a type without its
-   * URL is a notice whose picture silently never appears — the editor saved
-   * what looked like a complete form and got a plain card. Caught here rather
-   * than shrugged off at render time.
+   * A URL is required, and its host checked, only for the media type that will
+   * actually render it.
+   *
+   * Both halves matter. A type without its URL is a notice whose picture
+   * silently never appears — the editor saved what looked like a complete form
+   * and got a plain card.
+   *
+   * And the checks are conditional rather than unconditional because the form
+   * only *renders* the field belonging to the selected type. An editor who
+   * pastes a link this site cannot load, is told so, and then gives up by
+   * switching the type to None would otherwise still be unable to save: the
+   * stale value keeps failing, and the input naming it is no longer on screen.
+   * Ignoring it is safe because `editablePayload` in the repository nulls the
+   * URL that does not belong to the stored type, so nothing unvalidated is
+   * ever written or read back.
    */
-  .refine((v) => v.mediaType !== "image" || !!v.mediaUrl, {
-    message: "Choose an image URL, or set media type to None.",
-    path: ["mediaUrl"],
-  })
-  .refine((v) => v.mediaType !== "video" || !!v.videoEmbedUrl, {
-    message: "Choose a video embed URL, or set media type to None.",
-    path: ["videoEmbedUrl"],
+  .superRefine((v, ctx) => {
+    if (v.mediaType === "image") {
+      if (!v.mediaUrl) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Choose an image URL, or set media type to None.",
+          path: ["mediaUrl"],
+        });
+      } else if (!isAllowedBulletinImageUrl(v.mediaUrl)) {
+        ctx.addIssue({ code: "custom", message: IMAGE_HOST_MESSAGE, path: ["mediaUrl"] });
+      }
+    }
+
+    if (v.mediaType === "video") {
+      if (!v.videoEmbedUrl) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Choose a video embed URL, or set media type to None.",
+          path: ["videoEmbedUrl"],
+        });
+      } else if (!isAllowedBulletinEmbedUrl(v.videoEmbedUrl)) {
+        ctx.addIssue({ code: "custom", message: EMBED_HOST_MESSAGE, path: ["videoEmbedUrl"] });
+      }
+    }
   });
 
 export type BulletinFormInput = z.input<typeof bulletinFormSchema>;

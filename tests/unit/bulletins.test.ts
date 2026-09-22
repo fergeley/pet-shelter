@@ -19,6 +19,7 @@ import {
 } from "@/lib/validations/bulletin";
 import type { SessionUser } from "@/lib/security/session";
 import fixtureJson from "@/data/bulletins.json";
+import { presentBulletinCategory } from "@/lib/presentation/bulletinPresentation";
 import { getRevalidatedPaths } from "../setup/nextMocks";
 
 /**
@@ -244,13 +245,37 @@ describe("bulletin media allow-list", () => {
     }
   });
 
-  it("reads `*.` as exactly one label", () => {
+  it("reads `**.` the way next.config does: one label or many", () => {
     expect(isAllowedBulletinImageUrl("https://myproject.supabase.co/x.png")).toBe(true);
-    // The apex itself is not a project bucket, and two labels deep is a host
-    // nobody provisioned through Supabase's own naming.
+    // Multi-label subdomains are real — `<project>.storage.supabase.co` — and
+    // next.config's `**.supabase.co` accepts them. An earlier revision matched
+    // exactly one label and so refused URLs next/image would have served,
+    // telling the editor to consult a config file that did allow them.
+    expect(isAllowedBulletinImageUrl("https://a.b.supabase.co/x.png")).toBe(true);
+
+    // The boundary still holds where it matters. The suffix carries its dot, so
+    // neither the bare apex nor a look-alike registrable domain inherits it.
     expect(isAllowedBulletinImageUrl("https://supabase.co/x.png")).toBe(false);
-    expect(isAllowedBulletinImageUrl("https://a.b.supabase.co/x.png")).toBe(false);
     expect(isAllowedBulletinImageUrl("https://evilsupabase.co/x.png")).toBe(false);
+    expect(isAllowedBulletinImageUrl("https://supabase.co.evil.com/x.png")).toBe(false);
+  });
+
+  it("requires an embeddable path, not just an allowed host", () => {
+    // A watch-page link is on an allowed host and is NOT embeddable: YouTube
+    // serves /watch with X-Frame-Options SAMEORIGIN, so it would validate
+    // cleanly and then render as an unexplained black box on three public
+    // pages. The form already tells staff to use the embed link.
+    expect(
+      isAllowedBulletinEmbedUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+    ).toBe(false);
+    expect(isAllowedBulletinEmbedUrl("https://www.youtube.com/")).toBe(false);
+    expect(isAllowedBulletinEmbedUrl("https://player.vimeo.com/xyz")).toBe(false);
+
+    expect(isAllowedBulletinEmbedUrl("https://www.youtube.com/embed/abc")).toBe(true);
+    expect(
+      isAllowedBulletinEmbedUrl("https://www.youtube-nocookie.com/embed/abc")
+    ).toBe(true);
+    expect(isAllowedBulletinEmbedUrl("https://player.vimeo.com/video/123")).toBe(true);
   });
 
   it("passes an allowed URL through and drops everything else", () => {
@@ -304,7 +329,6 @@ describe("bulletinFormSchema", () => {
     ["a javascript: URL", "javascript:alert(1)"],
     ["http rather than https", "http://images.unsplash.com/x.png"],
     ["a suffix look-alike host", "https://images.unsplash.com.evil.com/x.png"],
-    ["two labels under the Supabase wildcard", "https://a.b.supabase.co/x.png"],
     ["the bare Supabase apex", "https://supabase.co/x.png"],
   ])("rejects a mediaUrl that is %s", (_label, url) => {
     const res = parse({ mediaType: "image", mediaUrl: url });
@@ -315,6 +339,7 @@ describe("bulletinFormSchema", () => {
   it.each([
     ["an allow-listed CDN", ALLOWED_IMAGE],
     ["one label under the Supabase wildcard", "https://myproject.supabase.co/x.png"],
+    ["two labels under it, as next.config allows", "https://a.b.supabase.co/x.png"],
   ])("accepts a mediaUrl on %s", (_label, url) => {
     const res = parse({ mediaType: "image", mediaUrl: url });
     expect(res.success).toBe(true);
@@ -698,7 +723,13 @@ describe("getPublicBulletins", () => {
     await getPublicBulletins("home", 2);
     const scoped = lastQuery(prismaMock.bulletin.findMany);
     expect(scoped.where).toEqual({ isPublished: true, targetPage: { in: ["all", "home"] } });
-    expect(scoped.orderBy).toEqual([{ isPinned: "desc" }, { publishedAt: "desc" }]);
+    // `id` last: publishedAt is a calendar day, so ties are the normal case, and
+    // without a tiebreaker `take` returns a different pair on each regeneration.
+    expect(scoped.orderBy).toEqual([
+      { isPinned: "desc" },
+      { publishedAt: "desc" },
+      { id: "asc" },
+    ]);
 
     await getPublicBulletins("all");
     expect(lastQuery(prismaMock.bulletin.findMany).where).toEqual({
@@ -923,10 +954,142 @@ describe("BULLETIN_IMAGE_HOSTS agrees with next.config.ts", () => {
   });
 
   it.each(BULLETIN_IMAGE_HOSTS)("lists %s in images.remotePatterns", (host) => {
-    // Next reads `**.` as the wildcard; this module writes `*.` and means one
-    // label. An image host missing from next.config answers 400 from the
-    // optimizer, so the card is broken with nothing in the app to say why.
-    const expected = host.startsWith("*.") ? `**${host.slice(1)}` : host;
-    expect(configured).toContain(expected);
+    // The two lists are now spelled identically, `**.` included, so this is a
+    // plain containment check rather than a translation. An image host missing
+    // from next.config answers 400 from the optimizer, so the card is broken
+    // with nothing in the app to say why.
+    expect(configured).toContain(host);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Review round: the defects the 2026-09-22 review found, each pinned          */
+/* -------------------------------------------------------------------------- */
+
+describe("corrections from review", () => {
+  const validForm = {
+    category: "announcement" as const,
+    targetPage: "all" as const,
+    title: "A title long enough to pass",
+    content: "Body copy that is comfortably long enough to pass.",
+    mediaType: "none" as const,
+    isPinned: false,
+    isPublished: true,
+    publishedAt: "2026-08-14",
+  };
+
+  it.each([
+    ["31 February", "2026-02-31"],
+    ["30 February", "2026-02-30"],
+    ["31 April", "2026-04-31"],
+    ["31 June", "2026-06-31"],
+  ])("rejects %s, which Date.parse rolls forward instead of refusing", (_l, date) => {
+    // `Date.parse("2026-02-31T00:00:00Z")` is NOT NaN — it yields 3 March. A
+    // "does this parse" check accepted the date and the card then printed a
+    // different day from the one the editor typed, which for a notice is the
+    // whole content.
+    const res = bulletinFormSchema.safeParse({ ...validForm, publishedAt: date });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues.some((i) => i.path.includes("publishedAt"))).toBe(true);
+  });
+
+  it.each([
+    ["29 February in a leap year", "2024-02-29"],
+    ["the last day of a 30-day month", "2026-04-30"],
+    ["the last day of a 31-day month", "2026-12-31"],
+  ])("still accepts %s", (_l, date) => {
+    expect(
+      bulletinFormSchema.safeParse({ ...validForm, publishedAt: date }).success
+    ).toBe(true);
+  });
+
+  it("ignores a stale URL belonging to a media type that is not selected", () => {
+    // The dialog only renders the field for the SELECTED media type. Checking
+    // the other one unconditionally meant an editor who pasted a bad link, was
+    // told so, and then gave up by switching to None could never save: the
+    // stale value kept failing and its input was no longer on screen.
+    const res = bulletinFormSchema.safeParse({
+      ...validForm,
+      mediaType: "none",
+      mediaUrl: "https://evil.example.com/x.png",
+      videoEmbedUrl: "javascript:alert(1)",
+    });
+    expect(res.success).toBe(true);
+  });
+
+  it("still checks the URL belonging to the type that IS selected", () => {
+    // The half that must not have been weakened by the fix above.
+    expect(
+      bulletinFormSchema.safeParse({
+        ...validForm,
+        mediaType: "image",
+        mediaUrl: "https://evil.example.com/x.png",
+      }).success
+    ).toBe(false);
+    expect(
+      bulletinFormSchema.safeParse({
+        ...validForm,
+        mediaType: "video",
+        videoEmbedUrl: "https://evil.example.com/embed/x",
+      }).success
+    ).toBe(false);
+  });
+
+  it("never stores the URL of an unselected media type", async () => {
+    // The reason ignoring it above is safe: the repository nulls it, so an
+    // unvalidated value is never written and never read back.
+    sessionMock.getCurrentSession.mockResolvedValue(CONTENT_EDITOR);
+    const { createBulletinAction } = await import("@/actions/bulletins");
+
+    const res = await createBulletinAction({
+      ...validForm,
+      mediaType: "none",
+      mediaUrl: "https://evil.example.com/x.png",
+      videoEmbedUrl: "javascript:alert(1)",
+    });
+
+    expect(res.success).toBe(true);
+    const data = lastWriteData(prismaMock.bulletin.create);
+    expect(data.mediaUrl).toBeNull();
+    expect(data.videoEmbedUrl).toBeNull();
+    expect(JSON.stringify(data)).not.toContain("evil.example.com");
+    expect(JSON.stringify(data)).not.toContain("javascript:");
+  });
+
+  it("treats a limit of 0 as zero notices, not as no limit", async () => {
+    prismaMock.bulletin.findMany.mockResolvedValue([]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    await getPublicBulletins("home", 0);
+    // `limit ? … : …` spread `{}` here and returned the whole published
+    // archive — on the home page, for a caller that asked for none.
+    expect(lastQuery(prismaMock.bulletin.findMany).take).toBe(0);
+
+    // And the fixture path has to agree, or an outage changes the answer.
+    makeDatabaseUnreachable();
+    expect(await getPublicBulletins("home", 0)).toEqual([]);
+  });
+
+  it("orders ties deterministically on the fixture path too", async () => {
+    // Both paths must break ties the same way; otherwise an outage silently
+    // reorders the feed.
+    makeDatabaseUnreachable();
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const once = (await getPublicBulletins("all")).map((b) => b.id);
+    const twice = (await getPublicBulletins("all")).map((b) => b.id);
+    expect(once).toEqual(twice);
+    // Pinned first, then newest, then id.
+    expect(once).toEqual(["bulletin-001", "bulletin-002", "bulletin-003", "bulletin-004"]);
+  });
+
+  it("presents an unknown category instead of throwing", () => {
+    // The admin table indexed the presentation record directly, so a row whose
+    // category this build does not carry threw on `.toneClass` and took down
+    // the one screen where that row could be repaired.
+    const unknown = presentBulletinCategory("not_a_real_category" as never);
+    expect(unknown).toBeDefined();
+    expect(typeof unknown.toneClass).toBe("string");
+    expect(typeof unknown.label).toBe("string");
   });
 });
