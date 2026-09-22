@@ -12,6 +12,11 @@ two checkouts, within ninety minutes:
 | 3 | **main checkout on `master`, none of that branch's changes** | `20 failed \| 78 passed` · `54 failed (1582)` |
 | 4 | branch tree, all three projects, run by a review sub-agent | `116 files, 1819 tests`, all passed |
 | 5 | branch tree merged with `origin/master` after #88 | `8 failed \| 90 passed` · `8 failed (1582)` |
+| 6 | **the same merged tree as run 5, four commits of prose later** | `98 passed (98)` · `1582 passed (1582)` |
+
+Runs 5 and 6 are the pair to look at first. Same suite, same machine, same working tree apart from
+comments and ledger files that no test imports — `8 failed`, then all green. Nothing was fixed in
+between. Whatever this is, it is not in the source.
 
 Run 3 carries none of that branch's changes, so this is on `master`, not on any one branch.
 
@@ -49,11 +54,18 @@ suite passes it, so it is a lead and not the diagnosis.
 
 Load is the obvious suspect for the first group and is untested. Runs 2, 3 and 5 were taken with
 eight concurrent agent sessions on the machine — 70 `node` processes were counted during run 5,
-13 of them vitest workers for this one project — and runs 1 and 4 with far fewer. Several of the
+13 of them vitest workers for this one project — and runs 1, 4 and 6 with fewer. Several of the
 run-5 files are env-sensitive (`secrets`, `e2eDatabaseIsolation`, `publishedStaffPasswords` all
 use `vi.stubEnv`), and `layerBoundaries` is one of the tree-walking guards whose timeout
-`vitest.config.mts` already had to raise to 20s for exactly this reason. Neither observation has
-been run down.
+`vitest.config.mts` already had to raise to 20s for exactly this reason.
+
+**A concrete lead, from a reviewer who hit it on the components project:** its three failures
+were all `Hook timed out in 10000ms` inside the shared `beforeEach` in `tests/setup/nextMocks.ts`.
+`vitest.config.mts` raises `testTimeout` to 20s for that project and leaves **`hookTimeout` at
+its 10s default** — so a slow setup hook fails while the test body it belongs to would still have
+had time. That is per-project config, it would bite any suite whose setup hook is slow under
+load, and it is the first mechanism proposed here that would produce one failure in each of
+several unrelated files. Unverified against the unit project.
 
 **Why this is worth an entry rather than a shrug.** A suite that reports `1580 passed` under one
 schedule and 54 red under another gates nothing, and every session here runs `npm test` before

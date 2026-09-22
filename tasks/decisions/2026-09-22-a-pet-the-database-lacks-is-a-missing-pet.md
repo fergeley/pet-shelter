@@ -86,6 +86,19 @@ Named so the next person meets it as a decision rather than as a bug:
   two branches touch disjoint paths (`src/actions/applications.ts` there, `petRepository.ts`
   here), so whichever merges second should re-run the other's suite rather than trust the clean
   merge.
+
+  **Since measured, by that session rather than this one.** They merged this branch into theirs
+  and ran both suites together: typecheck clean, unit 1589, integration 79 — their 10 tests,
+  these 10, and the 59 that existed before. The changes compose as expected: with this reader
+  returning `null` for a missing row, their `!pet` branch fires where their exact-id comparison
+  would otherwise have, giving the same rejection. They kept that comparison deliberately,
+  because it still earns its place for the case-variant route this change does not close.
+
+  **The merge is not clean, on `tasks/todo.md`.** Both streams prepend to it — the collision
+  the file's own header describes and the reason `lessons/` and the ledger were split. They have
+  already withdrawn a note they had added to the entry this one deletes, so that modify/delete
+  conflict is gone; `todo.md` remains and whoever lands second resolves it by keeping both
+  streams.
 - **The other two readers named in `tasks/open/pets-json-fallback-empty-means-outage.md`** —
   `getServerApplicationsAsync` and `settingsRepository` — are unexamined. That entry has been
   narrowed to them.
