@@ -224,7 +224,10 @@ export const petBaseFormSchema = z.object({
    * `birthDateIsEstimate` is the honesty flag: false only when someone knows the real date, which
    * for a rescue is the exception. It defaults to true for that reason.
    */
-  birthDate: isoDateSchema,
+  // Piped rather than plain `isoDateSchema` so that leaving the field blank says "Birth date is
+  // required" instead of "Date must be in YYYY-MM-DD format", which is what an empty string earns
+  // from the regex and is not what the operator did wrong.
+  birthDate: z.string().min(1, "Birth date is required").pipe(isoDateSchema),
   birthDateIsEstimate: z.boolean().optional().default(true),
 
   gender: z.enum(GENDER_VALUES),

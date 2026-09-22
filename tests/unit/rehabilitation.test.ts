@@ -288,7 +288,15 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
 
     it("should require the birth date to be a real calendar day", () => {
       expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2 years" }).success).toBe(false);
-      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "" }).success).toBe(false);
+      // The message matters: an empty field is a thing the operator has not done yet, not a
+      // malformed date, and the regex's "must be in YYYY-MM-DD format" reads as the latter.
+      const blank = petFormSchema.safeParse({ ...baseForm, birthDate: "" });
+      expect(blank.success).toBe(false);
+      if (!blank.success) {
+        expect(blank.error.issues).toContainEqual(
+          expect.objectContaining({ path: ["birthDate"], message: "Birth date is required" })
+        );
+      }
       expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2025-13-01" }).success).toBe(false);
     });
 

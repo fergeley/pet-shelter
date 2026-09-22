@@ -223,6 +223,23 @@ export function PetFormDialog({
    * anything stored here would only ever be a second opinion that goes stale — which is exactly
    * how a typed "2 years" used to drift a year per year away from the displayed age.
    */
+  /**
+   * Upper bound for the date picker: the intake date, except when the animal already carries a
+   * later one.
+   *
+   * Without that exception a row whose stored birthday is out of range — the shape that
+   * `@default("2024-01-01")` produces for anything that arrived before 2024 — becomes wholly
+   * uneditable. The browser refuses the submit on `rangeOverflow` before the resolver runs, and a
+   * `rangeOverflow` never reaches `errors.birthDate`, so the operator cannot change that pet's
+   * name, status or photos and is told only by a native bubble. Widening to the stored value
+   * keeps the form usable and still stops anyone typing a *new* date past intake.
+   */
+  const birthDateMax = useMemo(() => {
+    if (!watchedIntakeDate) return undefined;
+    const stored = editingPet?.birthDate;
+    return stored && stored > watchedIntakeDate ? stored : watchedIntakeDate;
+  }, [watchedIntakeDate, editingPet?.birthDate]);
+
   const derivedAge = useMemo(() => {
     if (!watchedBirthDate || !/^\d{4}-\d{2}-\d{2}$/.test(watchedBirthDate)) return null;
     return {
@@ -339,7 +356,7 @@ export function PetFormDialog({
                 <Input
                   id="birthDate"
                   type="date"
-                  max={watchedIntakeDate || undefined}
+                  max={birthDateMax}
                   className="text-sm py-2"
                   {...register("birthDate")}
                 />
@@ -349,11 +366,17 @@ export function PetFormDialog({
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-sm font-semibold">Age Stage</Label>
+                <Label id="ageStageLabel" className="text-sm font-semibold">Age Stage</Label>
                 {/* Read-only on purpose. Both values are computed from the birth date by the
                     domain, and the whole point of PS-114 was that a separately stored band and a
-                    separately typed age string went stale while the animal kept ageing. */}
-                <div className="w-full border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                    separately typed age string went stale while the animal kept ageing.
+                    Not a form control, so the label above cannot use htmlFor; aria-labelledby is
+                    what stops a screen reader announcing the value with no name. */}
+                <div
+                  aria-labelledby="ageStageLabel"
+                  role="status"
+                  className="w-full border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                >
                   {derivedAge
                     ? `${derivedAge.age} — ${ADMIN_AGE_BAND_NAMES[derivedAge.band]} (${formatAgeBandRange(derivedAge.band)})`
                     : "Enter a birth date"}
