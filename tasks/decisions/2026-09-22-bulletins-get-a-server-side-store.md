@@ -144,3 +144,30 @@ Every correction carries a test, and each of those tests was checked against a m
 it covers — see
 `tasks/lessons/2026-09-22-a-mutation-probe-must-never-restore-over-uncommitted-work.md` for the
 way that check went wrong the first time and what it now requires.
+
+## The second review round, and why it mattered
+
+The fix commit was reviewed on its own, per the standing order that a fix round is new code nobody
+has read. It found **thirteen more**, and two of them defeated what the fix commit claimed:
+
+**The tiebreaker was ascending.** `publishedAt` is a calendar day, so ties are ordinary rather than
+exceptional, and an ascending tiebreaker resolves one to the *oldest* notice. A two-item feed
+therefore dropped the notice written most recently that day — permanently, not intermittently. The
+first fix turned an intermittent bug into a deterministic one and its comment claimed the opposite.
+Every clause is descending now.
+
+**Dropping the retired index left databases in drift.** Deleting the `CREATE` was not enough:
+anyone who had run the earlier revision held an index the schema no longer declares, which
+`check-drift` classifies as destructive and which blocks `npm run db:push` with guidance blaming
+another worktree's branch. The migration now carries `DROP INDEX IF EXISTS`. Rehearsed on a
+database seeded with the stale index: cleared by a re-run.
+
+The ordering moved to `src/lib/domain/bulletinOrdering.ts` because it could not otherwise be
+tested. The database path delegates ordering to Postgres and the committed fixture has no two
+notices on one day, so the rule — the part that was wrong — was reachable by no test. `planFaqRenumber`
+sets the precedent for pure ordering logic living in the domain layer. The query and the in-memory
+path now share one exported declaration rather than two literals free to drift.
+
+**The standing order earned its place here.** Ten of the first round's findings were fixed in one
+commit, and that commit introduced two defects worse than several it repaired. Reviewing it caught
+them before they reached master. Twelve mutants across both rounds, all killed.
