@@ -41,6 +41,12 @@ Record active multi-step work streams below.
 - [x] `/code-review high` on `origin/master...HEAD`: 4 findings, all verified by probe, 3 fixed
       in `06393d3` and the fourth refiled as an open entry. Second review round on that fix
       commit, per the standing order that a fix round is unreviewed code.
+- [x] Merged `origin/master` after #88 landed mid-session. The merge-check was clean, and the
+      clean result was not taken as the answer: `tasks/todo.md` is the one file both sides
+      touched, and it was read afterwards to confirm neither stream was dropped — `git diff
+      origin/master -- tasks/todo.md` shows no removed lines, so this copy is a superset of
+      theirs. #88 touches no `prisma/` path, so no `db:generate` was needed before re-running
+      the gates.
 
 ## Review
 
@@ -84,16 +90,23 @@ argument for the one-line change, and it was sitting in the repository rather th
 - **`npm run build` not run.** The worktree has its own `npm ci`, so it could have been; it was
   left out because nothing here touches a route, a component or the Prisma schema, and the build
   would only re-prove what `tsc --noEmit` already proved. Named rather than implied.
-- **The unit suite was not made to pass, because it does not pass on `master` either.** Run one
-  gave `1580 passed (1580)`; run two on the same tree gave `57 failed`; the main checkout with
-  none of this branch's changes gave `54 failed (1582)`; a review sub-agent running all three
-  projects got `1819` green. The failures are authorization tests, `volunteerForm` and
-  `applicationWorkflow` among them, and `tests/unit/volunteerForm.test.ts` reproduces in
-  isolation on `master`. Filed as
-  `tasks/open/unit-suite-auth-tests-pass-or-fail-by-scheduling.md` with the four counts. Not
-  fixed here: it is not this change's defect, and diagnosing it properly is its own task. What
-  this branch can say is narrower and worth saying plainly — every gate that is deterministic
-  passes, and the one that is not, is not.
+- **The unit suite was not made to pass, because it does not pass on `master` either.** Five runs
+  in ninety minutes: `1580 passed (1580)`, then `57 failed` on the same tree, then `54 failed`
+  on the main checkout carrying **none** of this branch's changes, then `1819` green across all
+  three projects from a review sub-agent, then `8 failed` after the merge — on a set of files
+  *disjoint* from the earlier failures, one test in each of eight unrelated domains.
+
+  Two measurements pin it as order-dependence rather than breakage, and they point opposite
+  ways: the eight files from the last run pass when run together alone (`8 passed`, `156
+  passed`), and `tests/unit/volunteerForm.test.ts` fails when run alone (`4 failed | 10
+  passed`) on both trees while passing inside the full suite. One group needs the suite, the
+  other needs to avoid it.
+
+  Filed as `tasks/open/unit-suite-is-order-dependent-in-both-directions.md` with all five counts
+  and both repros. Not fixed here: it is not this change's defect and it is its own task. The
+  claim this branch can actually make is the narrow one — every deterministic gate passes, the
+  new suite passes in every run it appeared in, and the gate that is not deterministic is
+  reported as such rather than as a pass.
 
 ## Review round
 
