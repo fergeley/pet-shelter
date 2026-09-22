@@ -244,9 +244,14 @@ BEGIN
     "ageCategory"      text,
     "intakeDate"       text,
     "derivedBirthDate" text        NOT NULL,
+    "derivedIsEstimate" boolean    NOT NULL DEFAULT true,
     "ageParsed"        boolean     NOT NULL,
     "archivedAt"       timestamptz NOT NULL DEFAULT now()
   );
+
+  -- For an archive written by an earlier revision of this file, which had no such column.
+  ALTER TABLE "public"."pets_age_archive_20260922"
+    ADD COLUMN IF NOT EXISTS "derivedIsEstimate" boolean NOT NULL DEFAULT true;
 
   ALTER TABLE "public"."pets" ADD COLUMN IF NOT EXISTS "birthDate" text;
   ALTER TABLE "public"."pets" ADD COLUMN IF NOT EXISTS "birthDateIsEstimate" boolean;
@@ -305,9 +310,15 @@ BEGIN
 
   GET DIAGNOSTICS archived_count = ROW_COUNT;
 
+  -- The flag comes from the archive rather than being hardcoded true. For a row this file
+  -- backfills the archive holds true, because a date derived from intakeDate − age is an estimate
+  -- by construction. For a row rollback.sql archived — an animal created after the conversion,
+  -- whose birthday a human may have entered exactly — it holds what that human recorded, so a
+  -- rollback followed by a re-apply gives the flag back rather than demoting "known" to
+  -- "estimated". Found by review; the earlier version wrote `true` here unconditionally.
   UPDATE "public"."pets" p
      SET "birthDate"           = a."derivedBirthDate",
-         "birthDateIsEstimate" = true
+         "birthDateIsEstimate" = a."derivedIsEstimate"
     FROM "public"."pets_age_archive_20260922" a
    WHERE a."id" = p."id"
      AND p."birthDate" IS NULL;

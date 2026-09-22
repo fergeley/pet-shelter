@@ -250,13 +250,28 @@ check(
 console.log("\n== 5. forward again restores birth dates exactly, the new pet's included");
 await db.exec(PET_MIG);
 const again = new Map(
-  (await db.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((r) => [r.id, r.birthDate])
+  (await db.query(`SELECT "id","birthDate","birthDateIsEstimate" FROM "public"."pets"`)).rows.map((r) => [
+    r.id,
+    r,
+  ])
 );
-check("round trip preserved every original birth date", after.rows.every((r) => again.get(r.id) === r.birthDate));
+check("round trip preserved every original birth date", after.rows.every((r) => again.get(r.id)?.birthDate === r.birthDate));
 check(
   "a human-entered birth date survived the round trip",
-  again.get("post-migration") === "2023-01-10",
-  String(again.get("post-migration"))
+  again.get("post-migration")?.birthDate === "2023-01-10",
+  String(again.get("post-migration")?.birthDate)
+);
+// The flag is the point of the checkbox, and it has its own way of being lost: the archive has to
+// carry it, or the re-apply stamps every restored row `true` and a known birthday silently becomes
+// an estimate. Review found exactly that; this is the assertion that would have caught it.
+check(
+  "a known birthday did NOT get demoted to an estimate by the round trip",
+  again.get("post-migration")?.birthDateIsEstimate === false,
+  String(again.get("post-migration")?.birthDateIsEstimate)
+);
+check(
+  "and the backfilled rows are still estimates",
+  after.rows.every((r) => again.get(r.id)?.birthDateIsEstimate === true)
 );
 
 console.log("\n== 6. cleanup, then rollback refuses rather than inventing");
@@ -291,8 +306,12 @@ check(
   "notification_preferences.updatedAt default dropped",
   byName(await cols(db, "notification_preferences")).get("updatedAt").column_default === null
 );
+const settingsBefore = JSON.stringify(await cols(db, "shelter_settings"));
 await db.exec(SET_MIG);
-check("settings migration re-runs as a no-op", true);
+check(
+  "settings migration re-runs as a no-op",
+  JSON.stringify(await cols(db, "shelter_settings")) === settingsBefore
+);
 await db.exec(SET_ROLL);
 sc = byName(await cols(db, "shelter_settings"));
 check("settings rollback removed the columns", !sc.has("cloudinaryCloudName") && !sc.has("emailFrom"));
@@ -303,7 +322,10 @@ check(
     .includes("CURRENT_TIMESTAMP")
 );
 await db.exec(SET_MIG);
-check("settings migration applies again after rollback", true);
+check(
+  "settings migration applies again after rollback",
+  JSON.stringify(await cols(db, "shelter_settings")) === settingsBefore
+);
 await db.close();
 
 // --- Scenario 2: the refusals, each on its own database, because each aborts the file ----------
@@ -343,7 +365,11 @@ await edge.exec(PET_MIG);
 const edgeRows = new Map(
   (await edge.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((r) => [r.id, r.birthDate])
 );
-check("60 years is accepted, not refused", edgeRows.get("sixty") === "1966-06-12", String(edgeRows.get("sixty")));
+check(
+  "60 years is accepted, not refused, and still derives as the app derives",
+  edgeRows.get("sixty") === approximateBirthDate("60 years", "2026-06-12").birthDate,
+  `${edgeRows.get("sixty")} vs ${approximateBirthDate("60 years", "2026-06-12").birthDate}`
+);
 check(
   "a real leap day is still accepted and rolls as the app rolls",
   edgeRows.get("leap-ok") === approximateBirthDate("1 year", "2024-02-29").birthDate,

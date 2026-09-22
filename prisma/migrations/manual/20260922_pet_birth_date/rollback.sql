@@ -8,7 +8,12 @@
 -- move. This file exists because DROP COLUMN is otherwise a one-way door, not because it is the
 -- expected next step.
 --
--- Nothing is lost in either direction. Values come back verbatim from
+-- Nothing is lost in either direction — including `birthDateIsEstimate`, which the archive
+-- carries so that a birthday someone actually knew is not demoted to an estimate by a rollback
+-- and re-apply. An earlier revision dropped that flag on the floor while this line already
+-- claimed otherwise; it was found by review, and `rehearse.mjs` now asserts it.
+--
+-- Values come back verbatim from
 -- "public"."pets_age_archive_20260922". Any animal created AFTER the conversion has no row there,
 -- so this file writes one first: its real `birthDate` is kept as "derivedBirthDate", and `age` /
 -- `ageCategory` are computed from that date as of the animal's intake, mirroring `formatAgeString`
@@ -70,8 +75,12 @@ BEGIN
 
   -- Animals created after the conversion: keep their real birth date in the archive so a later
   -- re-apply restores it, and reconstruct age prose as of intake the way the domain does.
+  -- For an archive written by an earlier revision of migration.sql, which had no such column.
+  ALTER TABLE "public"."pets_age_archive_20260922"
+    ADD COLUMN IF NOT EXISTS "derivedIsEstimate" boolean NOT NULL DEFAULT true;
+
   INSERT INTO "public"."pets_age_archive_20260922"
-    ("id", "age", "ageCategory", "intakeDate", "derivedBirthDate", "ageParsed")
+    ("id", "age", "ageCategory", "intakeDate", "derivedBirthDate", "derivedIsEstimate", "ageParsed")
   SELECT
     m."id",
     CASE
@@ -92,12 +101,16 @@ BEGIN
     END,
     m."intakeDate",
     m."birthDate",
+    -- Kept, not assumed: this animal may have a birthday someone actually knew, which is the
+    -- whole point of the flag. Re-applying migration.sql reads it back from here.
+    m."birthDateIsEstimate",
     false
   FROM (
     SELECT
       s."id",
       s."intakeDate",
       s."birthDate",
+      s."birthDateIsEstimate",
       greatest(
         0,
         CASE
@@ -112,6 +125,7 @@ BEGIN
         p."id",
         p."intakeDate",
         p."birthDate",
+        p."birthDateIsEstimate",
         CASE
           WHEN p."birthDate" ~ '^\d{4}-\d{2}-\d{2}'
           THEN substring(p."birthDate" FROM 1 FOR 10)::date
