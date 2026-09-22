@@ -33,7 +33,7 @@ and P-D for `Bulletin` in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md:193`.
       real PostgreSQL 18.4. Did not fire — the migration is rehearsed, not asserted.
 - [x] Migration rehearsed: hand-written DDL produces objects identical to `prisma db push`,
       is idempotent, and the enum rejects an out-of-vocabulary category.
-- [x] `Bulletin` model, three enums, two indexes; `src/lib/server/bulletinRepository.ts`;
+- [x] `Bulletin` model, three enums, one index; `src/lib/server/bulletinRepository.ts`;
       `src/actions/bulletins.ts` behind `requirePermission(MANAGE_CONTENT)`.
 - [x] `/admin/bulletins` editor; admin nav repointed and the `permissions: null` opt-out removed.
 - [x] K2: `BulletinFeed` is a Server Component with zero client state. Did not fire.

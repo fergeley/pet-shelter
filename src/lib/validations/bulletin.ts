@@ -63,7 +63,13 @@ const optionalUrl = () =>
  */
 function isRealCalendarDay(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);
-  const parsed = new Date(Date.UTC(year, month - 1, day));
+  // `Date.UTC(99, ...)` means 1999, not year 99 — the two-digit-year mapping is
+  // older than the API. Without setUTCFullYear the round-trip below would fail
+  // for every year 0000-0099 and refuse a syntactically valid date with "that
+  // date does not exist", which is untrue. Unreachable from an <input
+  // type="date">, but a false refusal in new validation code all the same.
+  const parsed = new Date(Date.UTC(2000, month - 1, day));
+  parsed.setUTCFullYear(year);
   return (
     parsed.getUTCFullYear() === year &&
     parsed.getUTCMonth() === month - 1 &&
@@ -166,7 +172,28 @@ export const bulletinFormSchema = z
         ctx.addIssue({ code: "custom", message: EMBED_HOST_MESSAGE, path: ["videoEmbedUrl"] });
       }
     }
-  });
+  })
+  /**
+   * Drop the URL that does not belong to the selected media type.
+   *
+   * The check above deliberately ignores it, so without this the parsed output
+   * could still *carry* an unvalidated string — a `javascript:` URL among
+   * them — and the only thing keeping it out of the database would be
+   * `editablePayload` in the repository. That is a guarantee living in another
+   * module, invisible to a future bulk import, patch route, or anything else
+   * that takes `BulletinFormValues` and writes `values.videoEmbedUrl`, which
+   * lands in an `<iframe src>` on three public pages.
+   *
+   * Stripping here makes the output type unable to hold one. The repository
+   * still nulls the column, and that redundancy is deliberate: one of the two
+   * is a type-level guarantee and the other covers rows that never pass through
+   * this schema at all.
+   */
+  .transform((v) => ({
+    ...v,
+    mediaUrl: v.mediaType === "image" ? v.mediaUrl : undefined,
+    videoEmbedUrl: v.mediaType === "video" ? v.videoEmbedUrl : undefined,
+  }));
 
 export type BulletinFormInput = z.input<typeof bulletinFormSchema>;
 export type BulletinFormValues = z.output<typeof bulletinFormSchema>;

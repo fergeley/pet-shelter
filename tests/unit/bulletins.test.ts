@@ -20,7 +20,11 @@ import {
 import type { SessionUser } from "@/lib/security/session";
 import fixtureJson from "@/data/bulletins.json";
 import { presentBulletinCategory } from "@/lib/presentation/bulletinPresentation";
-import { getRevalidatedPaths } from "../setup/nextMocks";
+import { getRevalidatedPaths, revalidatePathSpy } from "../setup/nextMocks";
+import {
+  BULLETIN_FEED_ORDER_BY,
+  sortBulletinsForFeed,
+} from "@/lib/domain/bulletinOrdering";
 
 /**
  * Community bulletins: media allow-list, authorisation, fallback policy.
@@ -725,10 +729,15 @@ describe("getPublicBulletins", () => {
     expect(scoped.where).toEqual({ isPublished: true, targetPage: { in: ["all", "home"] } });
     // `id` last: publishedAt is a calendar day, so ties are the normal case, and
     // without a tiebreaker `take` returns a different pair on each regeneration.
+    // Every tiebreaker DESC. `publishedAt` is a calendar day, so ties are
+    // ordinary; an ASC tiebreaker resolves a tied day to the OLDEST notice and
+    // a two-item feed would then drop the newest — the failure the tiebreaker
+    // exists to prevent.
     expect(scoped.orderBy).toEqual([
       { isPinned: "desc" },
       { publishedAt: "desc" },
-      { id: "asc" },
+      { createdAt: "desc" },
+      { id: "desc" },
     ]);
 
     await getPublicBulletins("all");
@@ -953,12 +962,13 @@ describe("BULLETIN_IMAGE_HOSTS agrees with next.config.ts", () => {
     expect(configured.length).toBeGreaterThan(0);
   });
 
-  it.each(BULLETIN_IMAGE_HOSTS)("lists %s in images.remotePatterns", (host) => {
-    // The two lists are now spelled identically, `**.` included, so this is a
-    // plain containment check rather than a translation. An image host missing
-    // from next.config answers 400 from the optimizer, so the card is broken
-    // with nothing in the app to say why.
-    expect(configured).toContain(host);
+  it("holds the two lists to the SAME set, in both directions", () => {
+    // Containment one way is not enough, and the justification for duplicating
+    // the list at all is that a test keeps the two honest. A host added to
+    // next.config alone is served by next/image and refused by the form, whose
+    // message then tells the editor to check images.remotePatterns — which
+    // lists it. A host added here alone answers 400 from the optimizer.
+    expect([...configured].sort()).toEqual([...BULLETIN_IMAGE_HOSTS].sort());
   });
 });
 
@@ -1091,5 +1101,136 @@ describe("corrections from review", () => {
     expect(unknown).toBeDefined();
     expect(typeof unknown.toneClass).toBe("string");
     expect(typeof unknown.label).toBe("string");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Second review round: the fix commit's own defects                          */
+/* -------------------------------------------------------------------------- */
+
+describe("corrections from the review of the fixes", () => {
+  const row = (
+    over: Partial<{ id: string; isPinned: boolean; publishedAt: string; createdAt: string }>
+  ) => ({
+    id: "x",
+    isPinned: false,
+    publishedAt: "2026-09-22",
+    createdAt: "2026-09-22T09:00:00.000Z",
+    ...over,
+  });
+
+  it("resolves a same-day tie to the NEWEST notice, not the oldest", () => {
+    // The whole point of the tiebreaker. An ascending one is deterministic and
+    // wrong: a two-item feed would drop the notice written most recently that
+    // day, permanently, which is the failure the tiebreaker was added to stop.
+    const sorted = sortBulletinsForFeed([
+      row({ id: "a", createdAt: "2026-09-22T09:00:00.000Z" }),
+      row({ id: "c", createdAt: "2026-09-22T14:00:00.000Z" }),
+      row({ id: "b", createdAt: "2026-09-22T11:00:00.000Z" }),
+    ]);
+    expect(sorted.map((r) => r.id)).toEqual(["c", "b", "a"]);
+    // The urgent notice posted at 14:00 survives a limit of two.
+    expect(sorted.slice(0, 2).map((r) => r.id)).toEqual(["c", "b"]);
+  });
+
+  it("puts pinned first, then the newest day, before any tiebreak", () => {
+    const sorted = sortBulletinsForFeed([
+      row({ id: "old", publishedAt: "2026-09-01" }),
+      row({ id: "pinned-old", publishedAt: "2026-08-01", isPinned: true }),
+      row({ id: "new", publishedAt: "2026-09-22" }),
+    ]);
+    expect(sorted.map((r) => r.id)).toEqual(["pinned-old", "new", "old"]);
+  });
+
+  it("breaks a full tie on id, descending, so the order is total", () => {
+    const same = { publishedAt: "2026-09-22", createdAt: "2026-09-22T09:00:00.000Z" };
+    const sorted = sortBulletinsForFeed([row({ id: "a", ...same }), row({ id: "b", ...same })]);
+    expect(sorted.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+
+  it("declares every tiebreaker descending in the query too", () => {
+    // The in-memory path and the query must answer the same question; a
+    // disagreement means an outage silently reorders the feed.
+    expect(
+      BULLETIN_FEED_ORDER_BY.every((clause) => Object.values(clause)[0] === "desc")
+    ).toBe(true);
+  });
+
+  it("keeps purging the other paths when one revalidation throws", async () => {
+    // Before the fix a single try wrapped the whole loop, so a throw on "/"
+    // skipped the rest while the action still reported success. The harness
+    // mock cannot fail on its own, so the failure has to be injected or the
+    // behaviour is untested and a regression is invisible.
+    revalidatePathSpy.mockImplementationOnce(() => {
+      throw new Error("revalidate failed for /");
+    });
+    sessionMock.getCurrentSession.mockResolvedValue(CONTENT_EDITOR);
+    const { createBulletinAction } = await import("@/actions/bulletins");
+
+    const res = await createBulletinAction(formInput());
+
+    expect(res.success).toBe(true);
+    const purged = getRevalidatedPaths().map((p) => p.path);
+    expect(purged).toEqual(
+      expect.arrayContaining(["/pets", "/bulletins", "/admin/bulletins"])
+    );
+  });
+
+  it("accepts every depth the `**.` wildcard allows, and nothing above it", () => {
+    // The first fix rewrote hostMatches for `**.` and left `*.` falling through
+    // to an exact comparison no hostname can satisfy. Both forms are handled
+    // now; this pins the form the list actually carries.
+    expect(isAllowedBulletinImageUrl("https://one.supabase.co/x.png")).toBe(true);
+    expect(isAllowedBulletinImageUrl("https://a.b.supabase.co/x.png")).toBe(true);
+    expect(isAllowedBulletinImageUrl("https://supabase.co/x.png")).toBe(false);
+    expect(isAllowedBulletinImageUrl("https://evilsupabase.co/x.png")).toBe(false);
+  });
+
+  it("strips the URL of the unselected media type from the parsed output", () => {
+    // Not merely ignored: the output type must be unable to carry it, so a
+    // future caller writing values.videoEmbedUrl directly cannot ship a
+    // javascript: URL into an <iframe src> on three public pages.
+    const res = bulletinFormSchema.safeParse(
+      formInput({
+        mediaType: "none",
+        mediaUrl: "https://evil.example.com/x.png",
+        videoEmbedUrl: "javascript:alert(1)",
+      })
+    );
+    expect(res.success).toBe(true);
+    expect(res.data?.mediaUrl).toBeUndefined();
+    expect(res.data?.videoEmbedUrl).toBeUndefined();
+    expect(JSON.stringify(res.data)).not.toContain("evil.example.com");
+    expect(JSON.stringify(res.data)).not.toContain("javascript:");
+  });
+
+  it("keeps the URL that does belong to the selected type", () => {
+    const res = bulletinFormSchema.safeParse(
+      formInput({ mediaType: "image", mediaUrl: ALLOWED_IMAGE })
+    );
+    expect(res.success).toBe(true);
+    expect(res.data?.mediaUrl).toBe(ALLOWED_IMAGE);
+  });
+
+  it("accepts a year below 0100 rather than calling it impossible", () => {
+    // Date.UTC maps two-digit years into 1900+, so the round-trip refused every
+    // year 0000-0099 with a message that was untrue.
+    expect(
+      bulletinFormSchema.safeParse(formInput({ publishedAt: "0099-01-01" })).success
+    ).toBe(true);
+  });
+
+  it("retires the index it once created, so no database is left in drift", () => {
+    // Deleting the CREATE is not enough: anyone who ran the previous revision
+    // has the index while the schema does not, which check-drift classifies as
+    // destructive drift and which blocks `npm run db:push`.
+    const sql = readFileSync(
+      join(process.cwd(), "prisma/migrations/manual/20260922_community_bulletins/migration.sql"),
+      "utf8"
+    );
+    expect(sql).toContain('DROP INDEX IF EXISTS "bulletins_publishedAt_idx"');
+    expect(sql).not.toContain('CREATE INDEX IF NOT EXISTS "bulletins_publishedAt_idx"');
+    // The index the model DOES declare must still be created.
+    expect(sql).toContain("bulletins_isPublished_targetPage_isPinned_publishedAt_idx");
   });
 });

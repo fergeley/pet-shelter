@@ -19,6 +19,10 @@ import {
   BulletinFormValues,
 } from "@/lib/validations/bulletin";
 import { toPublicEmbedUrl, toPublicMediaUrl } from "@/lib/domain/bulletinMedia";
+import {
+  BULLETIN_FEED_ORDER_BY,
+  sortBulletinsForFeed,
+} from "@/lib/domain/bulletinOrdering";
 import { recordAuditLog } from "@/lib/domain/auditLog";
 import { SessionUser } from "@/lib/security/session";
 import { prisma } from "@/lib/server/prisma";
@@ -191,21 +195,6 @@ function toBulletin(record: BulletinRecord): Bulletin {
   };
 }
 
-/** Pinned first, then newest. The only ordering this type has. */
-function sortForFeed<T extends { id: string; isPinned: boolean; publishedAt: string }>(
-  items: T[]
-): T[] {
-  return [...items].sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-    const byDate = b.publishedAt.localeCompare(a.publishedAt);
-    if (byDate !== 0) return byDate;
-    // The same tiebreaker the query uses, so the two paths cannot disagree
-    // about which notices a limited feed shows. Relying on sort stability would
-    // tie the answer to fixture order instead.
-    return a.id.localeCompare(b.id);
-  });
-}
-
 function matchesTarget(record: { targetPage: BulletinTargetPage }, page: BulletinTargetPage) {
   if (page === "all") return true;
   return record.targetPage === "all" || record.targetPage === page;
@@ -243,12 +232,9 @@ export async function getPublicBulletins(
             ? undefined
             : { in: ["all", targetPage] as PrismaBulletinTargetPage[] },
       },
-      // `id` breaks the tie. publishedAt is a calendar day, so two notices
-      // posted the same day are the normal case, not an edge case: without a
-      // tiebreaker Postgres may return either order, and with `take` that means
-      // a different pair on each ISR regeneration — a notice can go missing
-      // from the home page with nobody having edited anything.
-      orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }, { id: "asc" }],
+      // One declaration, shared with the in-memory path below, so the two
+      // cannot drift apart and have an outage silently reorder the feed.
+      orderBy: [...BULLETIN_FEED_ORDER_BY],
       // `limit !== undefined`, not `limit ?`: a caller computing the count can
       // legitimately pass 0, and `limit ?` would read that as "no limit" and
       // render the entire published archive.
@@ -259,10 +245,14 @@ export async function getPublicBulletins(
     handlePersistenceError("Bulletin read", err);
   }
 
-  const fallback = sortForFeed(
+  // Slice before projecting: `toBulletin` runs the URL allow-list, which builds
+  // a `URL` per field, and there is no reason to do that for rows about to be
+  // discarded. The query path already gets this right by pushing `take` down.
+  const ordered = sortBulletinsForFeed(
     serverBulletins.filter((b) => b.isPublished && matchesTarget(b, targetPage))
-  ).map(toBulletin);
-  return limit !== undefined ? fallback.slice(0, limit) : fallback;
+  );
+  const limited = limit !== undefined ? ordered.slice(0, limit) : ordered;
+  return limited.map(toBulletin);
 }
 
 /**
@@ -275,9 +265,9 @@ export async function getPublicBulletins(
  */
 export async function listBulletinRecords(): Promise<BulletinRecord[]> {
   const rows = await prisma.bulletin.findMany({
-    // Same tiebreaker as the public read, so the editor sees notices in the
+    // Same ordering as the public read, so the editor sees notices in the
     // order visitors do rather than an order that shifts between page loads.
-    orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }, { id: "asc" }],
+    orderBy: [...BULLETIN_FEED_ORDER_BY],
   });
   return (rows as unknown as DbBulletinRow[]).map(mapDbBulletin);
 }

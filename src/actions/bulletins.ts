@@ -50,13 +50,19 @@ export interface ActionResult<T = undefined> {
 }
 
 /**
- * Every public surface that renders a bulletin.
+ * Every surface that renders a bulletin: the three public feeds, plus the
+ * editor itself.
  *
- * All three are listed for the reason `LEDGER_PATHS` gives in
+ * The three public ones are listed for the reason `LEDGER_PATHS` gives in
  * `src/actions/transparency.ts`: an editor who fixes a notice and watches only
  * `/bulletins` update would otherwise believe the home page was stale for five
  * minutes by design, with nothing saying so. `/` carries `revalidate = 300`,
  * which is exactly that window.
+ *
+ * `/admin/bulletins` is the fourth and is NOT public. It is `force-dynamic`, so
+ * purging it is a no-op today; it is listed so that the list stays "everywhere
+ * a bulletin is rendered" rather than becoming a list someone has to re-derive
+ * if that page ever gains caching.
  */
 const BULLETIN_PATHS = ["/", "/pets", "/bulletins", "/admin/bulletins"];
 

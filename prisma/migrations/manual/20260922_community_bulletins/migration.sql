@@ -1,7 +1,9 @@
 -- Community bulletins: three enums, the `bulletins` table, one index.
 --
 -- Applied with `npm run db:migrate:bulletins`, which runs this file and then
--- upserts src/data/bulletins.json. Written by hand rather than applied with
+-- INSERTS src/data/bulletins.json, leaving any row that already exists alone —
+-- a re-run cannot revert a notice staff have edited. Written by hand rather than
+-- applied with
 -- `prisma db push` for the reason 20260903_faq_knowledge_base/migration.sql
 -- gives, and for one more that is specific to today:
 --
@@ -29,15 +31,29 @@
 --   * BEGIN/COMMIT live in this file so it behaves the same whether it is run
 --     by the script above or by `prisma db execute --file`.
 --
--- There are no DROPs. Unlike the FAQ migration, no earlier revision of this
--- branch ever created a `bulletins` table: before this change bulletins lived
--- only in each visitor's localStorage, so there is nothing in any database to
--- reconcile or lose.
+-- There is ONE DROP, and it drops an index rather than data. An earlier
+-- revision of this branch created `bulletins_publishedAt_idx`; review showed it
+-- could not serve the query its comment named, because the admin list sorts by
+-- `isPinned` first, so Postgres sorted anyway and the index cost a write on
+-- every create, edit, pin and publish. The model no longer declares it.
+--
+-- Dropping it HERE rather than just deleting the CREATE is the point. Anyone who
+-- already ran the previous revision — `npm run db:migrate:bulletins:local` landed
+-- one commit before it changed — has the index in their database and not in the
+-- schema. `scripts/check-drift.ts` classifies a stray index as destructive drift
+-- and `npm run db:push` is `check-drift && prisma db push`, so push would be
+-- blocked, with guidance blaming another worktree's branch. Re-running a
+-- CREATE-only file never clears it.
+--
+-- No table or column is dropped. Before this change bulletins lived only in each
+-- visitor's localStorage, so there is nothing in any database to reconcile or
+-- lose.
 --
 -- To undo (there is no Prisma down path; this is the counterpart to run by hand):
 --
 --   BEGIN;
 --   SELECT pg_advisory_xact_lock(4210771001);
+--   DROP INDEX IF EXISTS "bulletins_publishedAt_idx";
 --   DROP TABLE IF EXISTS "bulletins";
 --   DROP TYPE IF EXISTS "BulletinCategory";
 --   DROP TYPE IF EXISTS "BulletinTargetPage";
@@ -111,5 +127,11 @@ CREATE TABLE IF NOT EXISTS "bulletins" (
 -- see the model comment in prisma/schema.prisma.
 CREATE INDEX IF NOT EXISTS "bulletins_isPublished_targetPage_isPinned_publishedAt_idx"
   ON "bulletins"("isPublished", "targetPage", "isPinned", "publishedAt");
+
+-- DropIndex
+-- Retires the index an earlier revision of this file created. Guarded by
+-- IF EXISTS so this is a no-op on a database that never saw that revision,
+-- which is every database except a developer's local one. See the header.
+DROP INDEX IF EXISTS "bulletins_publishedAt_idx";
 
 COMMIT;

@@ -55,29 +55,52 @@ export const BULLETIN_IMAGE_HOSTS = [
  * because it is what the shipped fixture uses and what staff should prefer — it
  * does not set tracking cookies on a visitor who never plays the video.
  */
-export const BULLETIN_EMBED_RULES: ReadonlyArray<{
-  host: string;
-  /** The path an embeddable URL on that host must start with. */
-  prefix: string;
-}> = [
+export const BULLETIN_EMBED_RULES = [
   { host: "www.youtube-nocookie.com", prefix: "/embed/" },
   { host: "youtube-nocookie.com", prefix: "/embed/" },
   { host: "www.youtube.com", prefix: "/embed/" },
   { host: "youtube.com", prefix: "/embed/" },
   { host: "player.vimeo.com", prefix: "/video/" },
-];
+] as const satisfies ReadonlyArray<{ host: string; prefix: string }>;
 
-/** Host names only, for the messages that tell staff what is accepted. */
-export const BULLETIN_EMBED_HOSTS = BULLETIN_EMBED_RULES.map((r) => r.host);
+/**
+ * Host names only, for the messages that tell staff what is accepted.
+ *
+ * `readonly`, because this module is imported by `BulletinFormDialog`, which is
+ * a `"use client"` component: a mutable array here ships to the browser bundle
+ * where anything could push onto it and change what the form claims is allowed.
+ * The enforcing check reads `BULLETIN_EMBED_RULES`, so that would mislead
+ * rather than bypass — but a list that is only ever read should say so.
+ */
+export const BULLETIN_EMBED_HOSTS: readonly string[] = BULLETIN_EMBED_RULES.map(
+  (r) => r.host
+);
 
+/**
+ * Matches a hostname against one `remotePatterns`-style pattern.
+ *
+ * Both wildcard forms are handled, because `next.config.ts` accepts both and a
+ * pattern this function does not recognise would fall through to an exact
+ * string comparison that no real hostname can satisfy — refusing every URL on
+ * that host, silently, while the config allowed them.
+ *
+ *   `**.` one or more leading labels  (`a.b.supabase.co` matches)
+ *   `*.`  exactly one leading label   (`a.b.supabase.co` does not)
+ *
+ * In both cases the suffix carries its dot, so the match lands on a label
+ * boundary: a bare `supabase.co` and an `evilsupabase.co` both fail.
+ */
 function hostMatches(host: string, pattern: string): boolean {
-  if (pattern.startsWith("**.")) {
-    const suffix = pattern.slice(2); // ".supabase.co"
+  for (const [marker, multi] of [
+    ["**.", true],
+    ["*.", false],
+  ] as const) {
+    if (!pattern.startsWith(marker)) continue;
+    const suffix = pattern.slice(marker.length - 1); // ".supabase.co"
     if (!host.endsWith(suffix)) return false;
-    // One or more labels in front, matching Next's `**`. A bare "supabase.co"
-    // and an "evilsupabase.co" both still fail: the suffix carries its dot, so
-    // the match lands on a label boundary rather than on the string's tail.
-    return host.length > suffix.length;
+    const head = host.slice(0, -suffix.length);
+    if (head.length === 0) return false;
+    return multi ? true : !head.includes(".");
   }
   return host === pattern;
 }
@@ -126,7 +149,9 @@ export function isAllowedBulletinEmbedUrl(url: string): boolean {
   const parsed = parseSafeUrl(url);
   if (!parsed) return false;
   return BULLETIN_EMBED_RULES.some(
-    (rule) => parsed.hostname === rule.host && parsed.pathname.startsWith(rule.prefix)
+    // Through `hostMatches`, not `===`, so an embed host may carry a wildcard
+    // on the same terms as an image host if one is ever added.
+    (rule) => hostMatches(parsed.hostname, rule.host) && parsed.pathname.startsWith(rule.prefix)
   );
 }
 
