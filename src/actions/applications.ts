@@ -127,30 +127,33 @@ export async function submitApplication(
     // 2. The target animal: it must exist, not be archived, and be adoptable.
     //
     // The first two lines are `getPetById`'s guard in `src/actions/pets.ts`, deliberately
-    // identical: the async reader because the synchronous one answers from the `src/data/pets.json`
-    // mirror, and the exact-id comparison because Postgres matches ids case-sensitively while that
-    // mirror does not. **That comment is the long form of both** — it is not restated here, so the
-    // two copies cannot drift into disagreeing explanations of the same three lines. This is the
-    // second site carrying it; a third wants `findVisiblePetById` in the repository instead, which
-    // is the argument `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`
-    // already makes.
+    // identical, and **that comment is the long form of both** — not restated here, so the two
+    // copies cannot drift into disagreeing explanations of the same three lines. This is the
+    // second site carrying it; a third wants `findVisiblePetById` in the repository instead.
     //
     // Placed after the rate limits on purpose. This is a database query on an unauthenticated
     // POST; the mirror read it replaces was free, so leaving it above the budgets would hand
     // an anonymous caller one `findUnique` per request with nothing bounding it.
     //
-    // What this does not close, and what it costs when it does not: the mirror answers under the
-    // very id posted, so the comparison cannot fire and `isArchived`/`status` come off the
-    // fixture. Two ways in — the database answering "no such row" for an id that *is* in
-    // `pets.json` (the entry above; a parallel branch closes this one), and the query *throwing*,
-    // which `handlePersistenceError` swallows outside `STRICT_PERSISTENCE` — and that swallow is
-    // required, per
-    // `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`.
-    // In both, the application is then written against an id the `Pet` table does not hold, so the
-    // insert raises P2003, `insertServerApplication` swallows that too, and the applicant is
-    // returned `success: true` with a reference code for a row that reached no database. So:
-    // checked against the database whenever the database answers, and silently fixture-backed
-    // when it cannot — `tasks/open/an-application-can-succeed-against-no-database-row.md`.
+    // The exact-id comparison is **not** redundant, though what it covers narrowed when
+    // `findServerPetByIdAsync` began returning null after a successful empty read (#89). Where the
+    // database answers, a case-variant is now simply not found. Where it does not — no database
+    // configured, or a read that threw and was swallowed — the mirror still answers, and its
+    // lookup lowercases while Postgres does not, so `PET-001` resolves to fixture `pet-001`,
+    // Available and unarchived there. That is the one route left to this comparison, and it is
+    // load-bearing on it: deleting the comparison leaves the strict-mode suite entirely green.
+    // `tests/integration/adoptionSubmissionGuards.test.ts` covers it on the mirror route for
+    // exactly that reason.
+    //
+    // What none of this closes: on those same mirror routes the fixture answers under the very id
+    // posted, so the comparison cannot fire and `isArchived`/`status` are read off `pets.json`.
+    // The application is then written against an id the `Pet` table does not hold, the insert
+    // raises P2003, `insertServerApplication` swallows it, and the applicant is returned
+    // `success: true` with a reference code for a row that reached no database. So: checked
+    // against the database whenever the database answers, and silently fixture-backed when it
+    // cannot — `tasks/open/an-application-can-succeed-against-no-database-row.md`, alongside
+    // `tasks/open/an-outage-serves-and-bills-fixture-animals.md`, which is the same route costing
+    // the sponsorship path money.
     const requestedPetId = validated.petId.trim();
     const pet = await findServerPetByIdAsync(requestedPetId);
     if (!pet || pet.id !== requestedPetId) {

@@ -7,15 +7,21 @@ archived or not adoptable. When the database cannot answer, `findServerPetByIdAs
 the `src/data/pets.json` mirror, which answers under the exact id that was posted — so the guard's
 exact-id comparison cannot fire, and `isArchived` and `status` are read off the fixture.
 
-Two ways in:
+**The missing-row half is closed.** PR #89 made `findServerPetByIdAsync` return `null` after a
+successful query that found nothing, so an id absent from a populated database is now simply not
+found. What remains is the `catch` path and the no-database path: `handlePersistenceError` rethrows
+only under `STRICT_PERSISTENCE`, which nothing outside `vitest.config.mts` and one npm script sets,
+so in every deployed environment a swallowed read failure hands back the mirror. That fallback is
+deliberate and must stay — a swallowed database error must not fail the mutation
+(`tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`).
 
-- the database answers "no such row" for an id that *is* in `pets.json` — a row never seeded, or
-  removed out of band. This is the missing-row half, and a parallel branch closes it by returning
-  `null` after a successful empty read;
-- the query *throws*. `handlePersistenceError` rethrows only under `STRICT_PERSISTENCE`, which
-  nothing outside `vitest.config.mts` and one npm script sets. In production the mirror answers.
-  This half is deliberate and must stay — a swallowed database error must not fail the mutation
-  (`tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`).
+**This is the adoption-write twin of
+`tasks/open/an-outage-serves-and-bills-fixture-animals.md`**, which records the same route serving
+a demo animal on the public profile and *billing* a sponsorship against it. That entry asks
+whether a fixture animal may be served and billed during an outage; this one adds what the write
+path does afterwards, which is the part that differs and the reason it is a separate entry rather
+than a paragraph there: the profile serves something wrong and recovers, while the application is
+accepted, acknowledged with a reference code, and then lost.
 
 **What it costs is worse than applying for a demo animal.** `AdoptionApplication.petId` carries a
 foreign key to `Pet.id` (`prisma/schema.prisma:174-175`). An application accepted against an id the

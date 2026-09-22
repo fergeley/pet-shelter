@@ -6,9 +6,11 @@
 
     serverPets = [pet, ...serverPets.filter((p) => p.id.toLowerCase() !== norm)];
 
-`tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md` already records that an
-anonymous GET of a profile therefore mutates shared state, and calls it cosmetic. Two things make
-it less so.
+That an anonymous GET of a profile therefore mutates shared state was already recorded, and called
+cosmetic, in `pet-profile-falls-back-to-a-fixture-the-database-lacks.md` — settled and deleted by
+PR #89, whose reasoning is in
+`tasks/decisions/2026-09-22-a-pet-the-database-lacks-is-a-missing-pet.md`. Two things make it less
+cosmetic than that note assumed.
 
 **It is now reachable by POST.** `submitApplication` resolves its target through that reader, so an
 unauthenticated submission moves an animal to the head of the mirror — including a submission the

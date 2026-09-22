@@ -103,11 +103,13 @@ describe("submitApplication under strict persistence", () => {
       expect(prismaDouble.adoptionApplication.create).not.toHaveBeenCalled();
     });
 
-    it("rejects a case-variant of a real id rather than falling through to the fixture", async () => {
-      // `findUnique` is case-sensitive and finds no `PET-001`; the repository then falls through
-      // to the mirror, whose lookup lowercases — and the mirror, seeded from `src/data/pets.json`,
-      // holds `pet-001` Available and unarchived. So the database's archive was enforced for
-      // `pet-001` and bypassed for `PET-001`.
+    it("rejects a case-variant when the database is authoritative", async () => {
+      // Scope stated honestly, because it changed under this test's feet. `findUnique` is
+      // case-sensitive and finds no `PET-001`; since `findServerPetByIdAsync` began returning
+      // null after a successful empty read, that is the whole story and this is refused by the
+      // `!pet` branch. It no longer reaches the exact-id comparison at all — deleting
+      // `pet.id !== requestedPetId` leaves this test green. The test below is the one that
+      // covers the comparison.
       givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", isArchived: true }));
       const { submitApplication } = await import("@/actions/applications");
 
@@ -116,6 +118,50 @@ describe("submitApplication under strict persistence", () => {
       expect(result.success).toBe(false);
       expect(result.error).toMatch(/could not find that animal/i);
       expect(prismaDouble.adoptionApplication.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects a case-variant on the mirror route, where the fixture still answers", async () => {
+      // The route the exact-id comparison exists for, and the only one that still reaches it.
+      //
+      // With no database configured — every offline deployment, and the shape an outage falls
+      // back to — `findServerPetByIdAsync` never queries and hands straight to the mirror, whose
+      // lookup lowercases. `src/data/pets.json` holds `pet-001` as Available and unarchived, so a
+      // posted `PET-001` resolves to fixture Bella under an id that is *not* the one requested.
+      // Without the comparison the submission is accepted against her.
+      //
+      // `isStrictPersistence()` reads the flag on every call rather than capturing it at import,
+      // which is what makes this stub work inside an already-loaded module — see
+      // `src/lib/persistenceMode.ts`.
+      vi.stubEnv("STRICT_PERSISTENCE", "false");
+      try {
+        const { submitApplication } = await import("@/actions/applications");
+
+        const result = await submitApplication(applicationFor("PET-001"));
+
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/could not find that animal/i);
+        // Proves the mirror answered rather than the database: this is the path where a pet
+        // comes back and its id differs from the one posted.
+        expect(prismaDouble.pet.findUnique).not.toHaveBeenCalled();
+        expect(prismaDouble.adoptionApplication.create).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it("still accepts the exact id on that same route", async () => {
+      // The comparison must not have cost the offline deployment its adoptions.
+      vi.stubEnv("STRICT_PERSISTENCE", "false");
+      try {
+        const { submitApplication } = await import("@/actions/applications");
+
+        const result = await submitApplication(applicationFor("pet-001"));
+
+        expect(result.success).toBe(true);
+        expect(result.data?.petName).toBe("Bella");
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
   });
 
