@@ -126,38 +126,31 @@ export async function submitApplication(
 
     // 2. The target animal: it must exist, not be archived, and be adoptable.
     //
-    // `findServerPetByIdAsync`, not `findServerPetById`. The synchronous reader only searches
-    // the in-memory mirror, which a cold process seeds from `src/data/pets.json` — so the
-    // archive check below read the *fixture's* `isArchived` rather than the database's, and an
-    // animal the shelter had archived kept accepting applications. That is the defect
-    // `getPetById` fixed for `/pets/[id]`, sitting in the write path beside it; see
-    // `tasks/lessons/2026-09-10-a-predicate-is-only-as-true-as-the-read-underneath-it.md`.
-    //
-    // And an exact id match, not merely a found one. Postgres matches ids case-sensitively and
-    // the mirror does not, so a posted `PET-001` missed the database, fell through to fixture
-    // `pet-001` — Available and unarchived there — and the application was accepted against an
-    // animal the database had archived. Refusing any result whose id is not exactly the one
-    // posted makes both readers agree without assuming anything about id casing.
+    // The first two lines are `getPetById`'s guard in `src/actions/pets.ts`, deliberately
+    // identical: the async reader because the synchronous one answers from the `src/data/pets.json`
+    // mirror, and the exact-id comparison because Postgres matches ids case-sensitively while that
+    // mirror does not. **That comment is the long form of both** — it is not restated here, so the
+    // two copies cannot drift into disagreeing explanations of the same three lines. This is the
+    // second site carrying it; a third wants `findVisiblePetById` in the repository instead, which
+    // is the argument `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`
+    // already makes.
     //
     // Placed after the rate limits on purpose. This is a database query on an unauthenticated
     // POST; the mirror read it replaces was free, so leaving it above the budgets would hand
     // an anonymous caller one `findUnique` per request with nothing bounding it.
     //
-    // What this does not close — two cases, both the repository's fallback policy rather than
-    // this action's, and neither caught by the id comparison, because the fixture answers under
-    // the very id that was posted:
-    //
-    //  - the database answers "no such row" for an id that *is* in `pets.json`. Tracked in
-    //    `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`, of which this
-    //    is the third caller guarding itself rather than the policy being settled.
-    //  - the query *throws*. `handlePersistenceError` rethrows only under `STRICT_PERSISTENCE`,
-    //    which nothing outside `vitest.config.mts` and one npm script sets, so in production an
-    //    outage returns the mirror and an application is accepted against a fixture animal at
-    //    the fixture's status. That fallback is deliberate — a swallowed database error must not
-    //    fail the mutation, per
-    //    `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`
-    //    — so "checked against the database" holds whenever the database answers, and not when
-    //    it cannot.
+    // What this does not close, and what it costs when it does not: the mirror answers under the
+    // very id posted, so the comparison cannot fire and `isArchived`/`status` come off the
+    // fixture. Two ways in — the database answering "no such row" for an id that *is* in
+    // `pets.json` (the entry above; a parallel branch closes this one), and the query *throwing*,
+    // which `handlePersistenceError` swallows outside `STRICT_PERSISTENCE` — and that swallow is
+    // required, per
+    // `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`.
+    // In both, the application is then written against an id the `Pet` table does not hold, so the
+    // insert raises P2003, `insertServerApplication` swallows that too, and the applicant is
+    // returned `success: true` with a reference code for a row that reached no database. So:
+    // checked against the database whenever the database answers, and silently fixture-backed
+    // when it cannot — `tasks/open/an-application-can-succeed-against-no-database-row.md`.
     const requestedPetId = validated.petId.trim();
     const pet = await findServerPetByIdAsync(requestedPetId);
     if (!pet || pet.id !== requestedPetId) {
@@ -214,8 +207,15 @@ export async function submitApplication(
         // naming a popular animal it was not for could therefore close that animal's real
         // applications on approval, and flip the wrong pet to Adopted when it sorted earlier in
         // the mirror.
+        // `petBreed` for the same reason, and it was not being written at all. The column's own
+        // comment in `prisma/schema.prisma` says "Snapshot of the pet's breed at application
+        // time. Same rationale as petName" — it exists so the record survives `petId` going null
+        // under `onDelete: SetNull`. Leaving it null meant the tracking portal's
+        // `pet?.breed || app.petBreed` was carried entirely by re-reading the live animal, and
+        // showed no breed at all once that animal was gone, which is the case the column is for.
         petId: pet.id,
         petName: pet.name,
+        petBreed: pet.breed,
         applicantName: validated.applicantName,
         email: validated.email,
         phone: validated.phone,

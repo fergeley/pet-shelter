@@ -38,8 +38,10 @@ Record active multi-step work streams below.
 - [x] Updated the `PetGallery` comment that cited the deleted ledger entry as its open reason.
 - [x] Ledger: decision entry, two new open entries, one lesson. The neighbouring fixture-fallback
       entry is deliberately left untouched — see Explicitly NOT done.
-- [x] `/code-review high` on the whole diff. Five findings, all four checked by probe and all
-      upheld; two fixed in code, three filed. See Review.
+- [x] `/code-review high` on the whole diff. Five findings, each checked by probe and all upheld;
+      two fixed in code, three filed. See Review.
+- [x] `/code-review high` again on the fix commit, which is where this repo's last three defects
+      were. Five more findings, all upheld: one fixed (`petBreed`), four filed.
 
 ## Review
 
@@ -101,6 +103,32 @@ Five findings, each verified by probe before being accepted:
 
 Both code fixes are pinned by new tests that were mutation-checked: reverting `pet.id` and
 `pet.name` turns exactly those two red and nothing else.
+
+**The second review paid for itself, which is the whole argument for reviewing fix commits.** It
+found five more, none of them in the guard:
+
+- **`petBreed` was never written at all** — not by this change, by anything. The column's schema
+  comment calls it a snapshot with "the same rationale as petName", existing so the record survives
+  `petId` going null under `onDelete: SetNull`; the tracking portal's `pet?.breed || app.petBreed`
+  was carried entirely by re-reading the live animal, so it showed nothing once that animal was
+  gone — precisely the case the column is for. Fixed and mutation-checked. Same class as the first
+  review's two findings: I had fixed the fields it named and not asked what else the draft owed the
+  verified row.
+- **The silent-success shape is worse than "a fixture animal can be applied for."** When the mirror
+  answers, the application is written against an id the `Pet` table does not hold, the insert raises
+  P2003, `insertServerApplication` swallows it, and the applicant gets `success: true` and a
+  reference code for a row that reached no database. Disclosed at the guard and filed as
+  `tasks/open/an-application-can-succeed-against-no-database-row.md`, with the observation that
+  treating P2003 like P2002 is probably the smaller fix.
+- **A public POST can now reorder the pet mirror**, because the reader rewrites it before any check
+  runs, and `markCachedPetAdopted` takes the first entry matching *either* id or name. Two animals
+  sharing a name and an approval can flip the wrong one. Filed rather than fixed: the repair is in
+  `petRepository.ts`, which a parallel session was editing at the time.
+- **The guard duplicates `getPetById`** — and so did my comment, three paragraphs of it. The
+  comment now points at that one instead of restating it, so the two copies cannot drift into
+  disagreeing explanations. Left as two copies deliberately; `AGENTS.md` says wait for a third.
+- **The client store keeps what it posted** while the server records what it verified. Folded into
+  the form entry.
 
 **Rejecting `Pending` is a product call, and it was already made.**
 `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md` files Pending in the

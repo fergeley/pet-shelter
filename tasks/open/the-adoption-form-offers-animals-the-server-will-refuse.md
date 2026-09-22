@@ -27,6 +27,16 @@ None of this accepts a bad application — the server is the boundary and it hol
 wasted five minutes and a confusing error, which is a better failure than the one it replaced
 (the application used to be *accepted* against an adopted animal) but is not the right one.
 
+**A fourth, from the same review.** On success the controller calls `addApplication(input)` with
+what it posted, while the server now records the *verified* animal's id, name and breed. The two
+disagree whenever they differ — a posted id with surrounding whitespace, or an animal staff renamed
+between the page render and the submission — so the applicant's local list and the success screen
+name something other than the record their reference code points at. `res.data` holds the written
+record and is already read one line above for the reference code; it is scoped inside the `try`,
+so using it means hoisting that binding rather than changing one argument, and
+`addApplication` takes an `ApplicationFormInput` rather than the record. Worth doing with the rest
+of this entry rather than alone.
+
 Not fixed with the server guard deliberately. Narrowing the select to the adoptable list is not
 one line: the control must still contain whatever `selectedPet` put in the field, or the value and
 the options disagree again in a new way — case 2 above puts a non-adoptable animal there on

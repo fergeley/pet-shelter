@@ -229,6 +229,25 @@ describe("submitApplication under strict persistence", () => {
       );
     });
 
+    it("snapshots the animal's breed, which the record is supposed to keep", async () => {
+      // `petBreed` was never written at all. The column exists so the record survives `petId`
+      // going null under `onDelete: SetNull` — `prisma/schema.prisma` calls it a snapshot with
+      // the "same rationale as petName" — and the tracking portal's `pet?.breed || app.petBreed`
+      // was carried entirely by re-reading the live animal, so it showed nothing once that
+      // animal was gone, which is exactly the case the column is for.
+      givenPersistedPet(
+        makeDbPet({ id: "pet-001", name: "Bella", breed: "Kampung Mix", status: "Available" })
+      );
+      const { submitApplication } = await import("@/actions/applications");
+
+      const result = await submitApplication(applicationFor("pet-001"));
+
+      expect(result.success).toBe(true);
+      expect(prismaDouble.adoptionApplication.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ petBreed: "Kampung Mix" }) })
+      );
+    });
+
     it("accepts an animal that exists only in the database", async () => {
       // The converse of the mirror defect: an animal absent from `pets.json` must not be refused
       // as unknown just because a cold process has not loaded the catalogue.
