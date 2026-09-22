@@ -1,4 +1,4 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 76 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. 92 checks.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -17,7 +17,7 @@
 // and an orphan from a crashed run blocks nothing. Set REHEARSAL_PORT to pin one.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped -- loudly, and the run then exits non-zero -- and the other sixty-nine
+// they are skipped -- loudly, and the run then exits non-zero -- and the other eighty-five
 // still run.
 
 import { readFileSync, mkdtempSync, existsSync } from "node:fs";
@@ -44,10 +44,16 @@ try {
 // port the next run wants. Pairs with the mkdtemp data directory below.
 const PORT = Number(process.env.REHEARSAL_PORT || 55000 + Math.floor(Math.random() * 4000));
 
-// initdb inherits the host locale, which on this machine means WIN1252. Neon is UTF8, and both
-// [[:space:]] and \M are encoding-dependent -- a non-breaking space in an age parses under WIN1252
-// and is refused under UTF8 -- so every check below runs against a database created UTF8 rather
-// than against whatever initdb happened to default to.
+// initdb inherits the host locale, which on this machine means WIN1252; Neon is UTF8. A
+// non-breaking space between a number and its unit parses under WIN1252 and is refused under
+// UTF8, so the encoding is pinned rather than inherited.
+//
+// Pinned, not matched: [[:space:]] and \M are decided by LC_CTYPE, not by the encoding, and this
+// sets ctype to C because a Windows initdb cannot be relied on for C.UTF-8. Neon's branches run a
+// UTF-8 ctype, so the word-boundary and whitespace results below are taken under a ctype
+// production does not have. glibc excludes U+00A0 from `space` under C, C.UTF-8 and en_US.UTF-8
+// alike, so the M2 result should hold there too -- but that is reasoning, not measurement, and
+// anyone re-taking it on a Linux host should pin LC_CTYPE 'C.UTF-8' and say so.
 const BOOTSTRAP_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/postgres`;
 const DB_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/rehearsal_utf8`;
 
@@ -108,6 +114,51 @@ CREATE TABLE "public"."pets" (
 );
 CREATE INDEX "pets_species_status_isArchived_idx" ON "public"."pets"("species","status","isArchived");
 CREATE INDEX "pets_isArchived_status_idx" ON "public"."pets"("isArchived","status");
+
+-- The relations PET_INCLUDE pulls. getServerPetsAsync does not call a bare findMany: it calls
+-- findMany({ include: { updates, medicalTimeline: { include: { vet } } } }), so the query this
+-- migration is meant to fix touches pet_updates, medical_timeline_events and veterinarians too.
+-- Without these tables P3 would prove a simpler query works than the one production runs.
+CREATE TABLE "public"."veterinarians" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "licenseNumber" TEXT NOT NULL UNIQUE,
+  "clinicName" TEXT,
+  "phone" TEXT,
+  "email" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "public"."pet_updates" (
+  "id" TEXT PRIMARY KEY,
+  "petId" TEXT NOT NULL REFERENCES "public"."pets"("id") ON DELETE CASCADE,
+  "date" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "titleMs" TEXT,
+  "content" TEXT NOT NULL,
+  "contentMs" TEXT,
+  "image" TEXT,
+  "category" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "public"."medical_timeline_events" (
+  "id" TEXT PRIMARY KEY,
+  "petId" TEXT NOT NULL REFERENCES "public"."pets"("id") ON DELETE CASCADE,
+  "date" TEXT NOT NULL,
+  "title" TEXT NOT NULL,
+  "titleMs" TEXT,
+  "category" TEXT NOT NULL,
+  "description" TEXT NOT NULL,
+  "descriptionMs" TEXT,
+  "veterinarian" TEXT,
+  "vetId" TEXT REFERENCES "public"."veterinarians"("id") ON DELETE SET NULL,
+  "verified" BOOLEAN NOT NULL DEFAULT false,
+  "badge" TEXT,
+  "badgeMs" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 `;
 
 // The ten src/data/pets.json animals: id, age prose, intakeDate, and the birthDate that file
@@ -291,7 +342,7 @@ const REFUSALS = [
   // run beside the unit token, so "1.5 years" yields 5 -- a birthday three and a half years out,
   // passing the plausibility bound and firing no notice. These must abort, not round.
   ["C9 a decimal age aborts instead of reading the digits beside the unit", [["bad-9", "1.5 years", "2026-01-01"]], /fractional/],
-  ["C10 a comma decimal aborts", [["bad-10", "1,5 tahun", "2026-01-01"]], /fractional/],
+  ["C10 a comma decimal aborts", [["bad-10", "1,5 years", "2026-01-01"]], /fractional/],
   ["C11 a written fraction aborts", [["bad-11", "1 1/2 years", "2026-01-01"]], /fractional/],
 ];
 for (const [name, rows, expect] of REFUSALS) {
@@ -322,10 +373,10 @@ for (const [name, rows, expect] of REFUSALS) {
 // ------------------------------------------------------ E. unit and language coverage
 {
   const CASES = [
-    ["e-1", "2 tahun", "2026-06-12", "2024-06-12"],
-    ["e-2", "3 thn", "2026-06-12", "2023-06-12"],
-    ["e-3", "4 bulan", "2026-06-12", "2026-02-12"],
-    ["e-4", "6 bln", "2026-06-12", "2025-12-12"],
+    ["e-1", "2 yrs", "2026-06-12", "2024-06-12"],
+    ["e-2", "3 year", "2026-06-12", "2023-06-12"],
+    ["e-3", "4 mo", "2026-06-12", "2026-02-12"],
+    ["e-4", "6 mths", "2026-06-12", "2025-12-12"],
     ["e-5", "1 year 6 months", "2026-06-12", "2025-06-12"],
     ["e-6", "2y", "2026-06-12", "2024-06-12"],
     ["e-7", "18 months", "2026-06-12", "2024-12-12"],
@@ -343,14 +394,14 @@ for (const [name, rows, expect] of REFUSALS) {
   // says so. The English cases do agree with the app. These expectations are calendar arithmetic
   // stated by hand, which is what they should be: deriving them from the app would make the
   // check agree with whatever the app does, including its bugs.
-  check("E1 English and Malay units, and years-before-months, derive the stated calendar date", wrong.length === 0, wrong.length ? JSON.stringify(wrong) : `${r.rows.length}/${r.rows.length}`);
+  check("E1 every English unit spelling, and years-before-months, derives the stated date", wrong.length === 0, wrong.length ? JSON.stringify(wrong) : `${r.rows.length}/${r.rows.length}`);
 }
 
 // ------------------------------------------------------ F. month-end clamping is reported
 {
   const CASES = [
-    ["f-1", "1 month", "2026-03-31", "2026-02-28"],
-    ["f-2", "1 year", "2024-02-29", "2023-02-28"],
+    ["f-1", "1 month", "2026-03-31", "2026-03-03"],
+    ["f-2", "1 year", "2024-02-29", "2023-03-01"],
     ["f-3", "2 years", "2026-06-12", "2024-06-12"],
   ];
   await fresh(c, CASES);
@@ -358,11 +409,11 @@ for (const [name, rows, expect] of REFUSALS) {
   c.on("notice", (n) => notices.push(n.message));
   await c.query(MIGRATION);
   const got = Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
-  check("F1 2026-03-31 minus 1 month clamps to 2026-02-28", got["f-1"] === "2026-02-28", got["f-1"]);
-  check("F2 2024-02-29 minus 1 year clamps to 2023-02-28", got["f-2"] === "2023-02-28", got["f-2"]);
-  const clampNotice = notices.find((n) => /clamped to the end of the month/.test(n)) || "";
-  check("F3 both clamped rows are named in a NOTICE", /f-1/.test(clampNotice) && /f-2/.test(clampNotice));
-  check("F4 the row that did not clamp is not named", !/f-3/.test(clampNotice));
+  check("F1 2026-03-31 minus 1 month rolls to 2026-03-03, as the app does", got["f-1"] === "2026-03-03", got["f-1"]);
+  check("F2 2024-02-29 minus 1 year rolls to 2023-03-01, as the app does", got["f-2"] === "2023-03-01", got["f-2"]);
+  const clampNotice = notices.find((n) => /rolled into the following month/.test(n)) || "";
+  check("F3 both rolled rows are named in a NOTICE", /f-1/.test(clampNotice) && /f-2/.test(clampNotice));
+  check("F4 the row that did not roll is not named", !/f-3/.test(clampNotice));
   c.removeAllListeners("notice");
 }
 
@@ -521,7 +572,7 @@ for (const [name, rows, expect] of REFUSALS) {
   // table, so a false positive here would block the catalogue fix over a recorded weight.
   const OK = [
     ["l-5", "2 years, 12.5 kg", "2026-06-12", "2024-06-12"],
-    ["l-6", "3 tahun (lahir 12/06/2023)", "2026-06-12", "2023-06-12"],
+    ["l-6", "3 years (lahir 12/06/2023)", "2026-06-12", "2023-06-12"],
   ];
   await fresh(c, OK);
   await c.query(MIGRATION);
@@ -550,7 +601,7 @@ for (const [name, rows, expect] of REFUSALS) {
   // the young/adult band boundary, with `age` scheduled to be dropped. Same shape as "1.5 years",
   // which the file already refused; only the separator class was too narrow to see it.
   for (const [id, age] of [
-    ["m-1", "3-4 years"], ["m-2", "1-2 tahun"], ["m-3", "6-8 months"],
+    ["m-1", "3-4 years"], ["m-2", "1-2 years"], ["m-3", "6-8 months"],
     ["m-4", "approx. 2-3 yrs"], ["m-5", "2–3 years"], ["m-6", "2—3 years"],
   ]) {
     await fresh(c, [[id, age, "2026-06-12"]]);
@@ -601,6 +652,133 @@ for (const [name, rows, expect] of REFUSALS) {
                                   FROM pg_attribute a
                                  WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age'`)).rows[0].d;
   check("M5 and rollback puts that comment back exactly", after === "staff-entered prose, do not drop", JSON.stringify(after));
+}
+
+// ---- O. THE INVARIANT: every stored date equals what approximateBirthDate would compute
+//
+// This is the property the contract migration depends on, so it is checked here rather than
+// asserted in prose. `appRule` is a transcription of src/lib/domain/petAge.ts
+// `approximateBirthDate` -- a copy, and therefore capable of drifting from it. O1 pins the
+// transcription against src/data/pets.json, whose birthDate values came from the real function;
+// if the transcription drifts, O1 fails before O2 can pass for the wrong reason.
+function appRule(ageStr, intakeStr) {
+  const norm = String(ageStr).toLowerCase().trim();
+  const intake = new Date(intakeStr);
+  if (isNaN(intake.getTime())) return null;
+  const y = norm.match(/(\d+)\s*y/);
+  if (y) {
+    const d = new Date(intake);
+    d.setFullYear(d.getFullYear() - parseInt(y[1], 10));
+    return d.toISOString().split("T")[0];
+  }
+  const m = norm.match(/(\d+)\s*m/);
+  if (m) {
+    const d = new Date(intake);
+    d.setMonth(d.getMonth() - parseInt(m[1], 10));
+    return d.toISOString().split("T")[0];
+  }
+  return intakeStr;
+}
+{
+  const drifted = FIXTURES.filter(([, age, intake, birth]) => appRule(age, intake) !== birth);
+  check(
+    "O1 the transcribed app rule reproduces every pets.json birthDate, so it has not drifted",
+    drifted.length === 0,
+    drifted.length ? JSON.stringify(drifted) : `${FIXTURES.length}/${FIXTURES.length}`
+  );
+}
+{
+  const CORPUS = [
+    ["o-1", "2 years", "2026-06-12"], ["o-2", "4 months", "2026-07-22"],
+    ["o-3", "1 month", "2026-03-31"], ["o-4", "1 year", "2024-02-29"],
+    ["o-5", "18 months", "2026-06-12"], ["o-6", "2y", "2026-06-12"],
+    ["o-7", "About 3 years old", "2026-06-12"], ["o-8", "0 months", "2026-06-12"],
+    ["o-9", "1 year 6 months", "2026-06-12"], ["o-10", "8 yrs", "2026-03-15"],
+    ["o-11", "5 mo", "2026-08-01"], ["o-12", "1 month", "2026-01-31"],
+  ];
+  await fresh(c, CORPUS);
+  await c.query(MIGRATION);
+  const got = Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
+  const bad = CORPUS.filter(([id, age, intake]) => got[id] !== appRule(age, intake))
+    .map(([id, age, intake]) => `${id} "${age}": sql=${got[id]} app=${appRule(age, intake)}`);
+  check(
+    "O2 every date this file stores is exactly what approximateBirthDate computes",
+    bad.length === 0,
+    bad.length ? JSON.stringify(bad) : `${CORPUS.length}/${CORPUS.length}`
+  );
+}
+{
+  for (const [id, age] of [["o-13", "2 tahun"], ["o-14", "3 thn"], ["o-15", "4 bulan"], ["o-16", "6 bln"]]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(`O3 "${age}" is refused, not translated: the app reads it as the intake date`, r.failed && new RegExp(id).test(r.message), r.failed ? "" : "it was accepted");
+  }
+}
+
+// ------------- N. spaced and worded ranges, and the guards that only looked at tight spellings
+{
+  // The first range fix required the two numbers to sit either side of the separator with no
+  // space. Every natural spelling of a range puts spaces there, or a word.
+  for (const [id, age] of [
+    ["n2-1", "1 - 2 years"], ["n2-2", "3 – 4 years"], ["n2-3", "6 to 8 months"],
+    ["n2-4", "between 2 and 3 years"], ["n2-5", "2 or 3 years"],
+  ]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(`N1 "${age}" is refused rather than silently taking one bound`, r.failed && /fractional/.test(r.message), r.failed ? "" : "it was accepted");
+  }
+}
+{
+  // ...without breaking the round-2 cases, where the extra number sits after the unit.
+  const OK = [
+    ["n2-6", "2 years, 12.5 kg", "2026-06-12", "2024-06-12"],
+    ["n2-7", "3 years (lahir 12/06/2023)", "2026-06-12", "2023-06-12"],
+    ["n2-8", "1 year 6 months", "2026-06-12", "2025-06-12"],
+  ];
+  await fresh(c, OK);
+  await c.query(MIGRATION);
+  const got = Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
+  check("N2 a number after the unit is still not a range", OK.every(([id, , , w]) => got[id] === w), JSON.stringify(got));
+}
+{
+  // The pre-check tested both unit bounds independently while the file picks one unit; a string
+  // matching both read implausible here and was accepted there.
+  await fresh(c, [["n2-9", "2 years 800 months", "2026-06-12"]]);
+  const r = await expectFail(c, MIGRATION);
+  check("N3 a both-units string is treated the same way by pre-check and file", !r.failed, r.message.split("\n")[0]);
+}
+{
+  // rollback.sql must not drop columns migration.sql did not create.
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2019-01-01'`);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT false`);
+  await c.query(MIGRATION); // takes the "already has both" branch, adds nothing
+  const notices = [];
+  c.on("notice", (n) => notices.push(n.message));
+  await c.query(ROLLBACK);
+  c.removeAllListeners("notice");
+  const cols = await columns(c);
+  check(
+    "N4 rollback does not drop a birthDate this migration never created",
+    !!cols.birthDate && notices.some((n) => /carries no marker/.test(n)),
+    cols.birthDate ? "kept" : "DROPPED"
+  );
+  const kept = await c.query(`SELECT count(*)::int n FROM "public"."pets" WHERE "birthDate" = '2019-01-01'`);
+  check("N5 and the birthdays in it survive", kept.rows[0].n === FIXTURES.length, String(kept.rows[0].n));
+}
+{
+  // The marker must not nest when a column is relaxed twice.
+  await fresh(c);
+  await c.query(`COMMENT ON COLUMN "public"."pets"."age" IS 'staff-entered prose, do not drop'`);
+  await c.query(MIGRATION);
+  await c.query(`UPDATE "public"."pets" SET "age" = coalesce("age", '2 years')`);
+  await c.query(`ALTER TABLE "public"."pets" ALTER COLUMN "age" SET NOT NULL`); // re-tighten by hand
+  await c.query(MIGRATION); // relaxes again; must not wrap the marker in a marker
+  await c.query(ROLLBACK);
+  const after = (await c.query(`SELECT col_description('"public"."pets"'::regclass, a.attnum) d
+                                  FROM pg_attribute a
+                                 WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age'`)).rows[0].d;
+  check("N6 a twice-relaxed column still gets its original comment back, not a nested marker", after === "staff-entered prose, do not drop", JSON.stringify(after));
 }
 
 // ---------------------------------- J. the header's own pre-check query, as the owner runs it
@@ -681,7 +859,7 @@ for (const [name, rows, expect] of REFUSALS) {
     for (const n of ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]) skip(`${n} Prisma-level check`, why);
   }
 
-  if (PrismaClient) {
+  if (PrismaClient && PrismaPg) {
     await fresh(c, [FIXTURES[0]]);
     const client = () => new PrismaClient({ adapter: new PrismaPg({ connectionString: DB_URL }) });
     const newPet = {
@@ -689,12 +867,19 @@ for (const [name, rows, expect] of REFUSALS) {
       adoptionFee: "RM100", description: "d", rescueStory: "r", image: "/i.jpg", intakeDate: "2026-09-22",
     };
 
+    // PET_INCLUDE, not a bare findMany: this is the shape petRepository.ts:65 sends, and the
+    // relations it pulls are why PROD_SHAPE creates three more tables.
+    const PET_INCLUDE = {
+      updates: { orderBy: { date: "asc" } },
+      medicalTimeline: { orderBy: { date: "asc" }, include: { vet: true } },
+    };
+
     let p = client();
     try {
-      await p.pet.findMany();
-      check("P1 before: prisma.pet.findMany fails on a production-shaped pets", false, "it succeeded");
+      await p.pet.findMany({ include: PET_INCLUDE });
+      check("P1 before: prisma.pet.findMany with PET_INCLUDE fails on a production-shaped pets", false, "it succeeded");
     } catch (e) {
-      check("P1 before: prisma.pet.findMany fails on a production-shaped pets", /birthDate/.test(e.message), (e.message.match(/The column [^\n]*/) || [""])[0]);
+      check("P1 before: prisma.pet.findMany with PET_INCLUDE fails on a production-shaped pets", /birthDate/.test(e.message), (e.message.match(/The column [^\n]*/) || [""])[0]);
     }
     try {
       await p.pet.create({ data: { id: "pet-new", ...newPet } });
@@ -707,8 +892,11 @@ for (const [name, rows, expect] of REFUSALS) {
     await c.query(MIGRATION);
 
     p = client();
-    const rows = await p.pet.findMany();
-    check("P3 after: prisma.pet.findMany returns the real row", rows.length === 1 && rows[0].id === FIXTURES[0][0]);
+    const rows = await p.pet.findMany({ include: PET_INCLUDE });
+    check(
+      "P3 after: prisma.pet.findMany with PET_INCLUDE returns the real row",
+      rows.length === 1 && rows[0].id === FIXTURES[0][0] && Array.isArray(rows[0].updates) && Array.isArray(rows[0].medicalTimeline)
+    );
     check("P4 after: the backfilled birthDate is intakeDate minus age", rows[0]?.birthDate === FIXTURES[0][3], rows[0]?.birthDate);
     const created = await p.pet.create({ data: { id: "pet-new", ...newPet, birthDate: "2025-09-22", birthDateIsEstimate: false } });
     check("P5 after: prisma.pet.create succeeds without age/ageCategory", created.id === "pet-new");

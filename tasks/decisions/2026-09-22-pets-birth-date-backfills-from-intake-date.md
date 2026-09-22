@@ -2,6 +2,11 @@
 
 **Decided:** 2026-09-22
 
+> **Choices 4 and 6 were reversed the same day.** Month-end clamping and the Malay tokens
+> are superseded by `tasks/decisions/2026-09-22-expand-stores-only-what-the-app-computes.md`:
+> the file now stores only what `approximateBirthDate` computes, so the contract migration
+> can verify it by re-derivation. The reasoning below is left as it was written.
+
 `prisma/migrations/manual/20260922_pets_birth_date/` closes the `pets.age` half of
 `tasks/open/production-schema-has-drifted-ahead-of-master.md`. Eight choices in it are reversible
 and are written down here rather than only in the file's header.
@@ -157,7 +162,7 @@ row, the migration then refuses the table over it, and it applies once that row 
 
 ## What was rehearsed
 
-Seventy-six checks, all passing, on a throwaway embedded PostgreSQL 18.4 **created UTF8**, as
+Eighty-six checks, all passing, on a throwaway embedded PostgreSQL 18.4 **created UTF8**, as
 Neon is, started by
 `prisma/migrations/manual/20260922_pets_birth_date/rehearse.mjs` with its connection string inline
 — never against production, and resolving nothing from `.env.local` or `prisma.config.ts`. **The
@@ -278,3 +283,37 @@ than reading the header.
 
 Three review rounds, seventeen findings, every one real. The rehearsal was green before each of
 them.
+
+## The fourth review round
+
+Seven more. The pattern held: the round that fixed ranges had fixed only the *tight* spellings.
+
+1. **Spaced and worded ranges.** The guard required the two numbers either side of the separator
+   with no space, so `"1 - 2 years"`, `"3 – 4 years"`, `"6 to 8 months"` and
+   `"between 2 and 3 years"` all slipped through and took the upper bound. The rule is now "a
+   second number within five non-digit characters before the unit", which catches every spelling
+   tried and still lets `"2 years, 12.5 kg"` through, because there the extra number is *after*
+   the unit.
+2. **`rollback.sql` dropped `birthDate` unconditionally**, including when `migration.sql` had
+   taken its "already has both columns, nothing added" branch — destroying birthdays this pair
+   never wrote. It is the same asymmetry the NOT NULL marker exists to prevent, and the columns
+   deserved it more, because they hold the data. They are marked now too.
+3. **The Prisma checks drove a bare `findMany`**, not the `include: PET_INCLUDE` that
+   `petRepository.ts:65` actually sends, so "the catalogue serves real rows" did not follow from
+   P3. `PROD_SHAPE` now creates `pet_updates`, `medical_timeline_events` and `veterinarians`, and
+   P1/P3 drive the real query.
+4. **The marker could nest**, and rollback would then restore the inner marker as somebody's
+   comment. It unwraps now (N6).
+5. **A partial Prisma import** left `PrismaClient` bound, so the run printed seven skips and then
+   crashed anyway. Gated on both.
+6. **The UTF8 claim was about the wrong thing.** `[[:space:]]` and `\M` come from `LC_CTYPE`, not
+   the encoding, and the harness pins ctype `C` — not what Neon runs. The comment now says what
+   was pinned, what production has, and why the result is expected to hold anyway, marked as
+   reasoning rather than measurement.
+7. **Pre-check and file disagreed** on a string matching both units with an implausible months
+   figure. The pre-check now tests each bound only for the unit it would pick.
+
+Four rounds, twenty-four findings, every one real, and the rehearsal was green before each round.
+Three of the four rounds found a defect *in the previous round's fix*. That is the argument for
+reviewing the fix commit rather than the first draft, and it is why this file is described as
+reviewed rather than finished.

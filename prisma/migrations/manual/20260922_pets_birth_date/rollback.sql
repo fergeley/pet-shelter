@@ -31,6 +31,12 @@
 --
 --       UPDATE "public"."pets" SET "age" = '2 years' WHERE "id" = '...';   -- whole units only
 --
+-- IT UNDOES ONLY WHAT migration.sql DID. Both columns are dropped only if they carry that
+-- file's marker; a `birthDate` created by something else -- a stray `db push`, a hand-applied
+-- fix -- is left alone and said so, because dropping it would destroy birthdays this pair never
+-- wrote. If migration.sql took its "already has both columns, nothing added" branch, this file
+-- correctly does nothing to them.
+--
 -- The NOT NULLs come back only where migration.sql removed them. It marks each column it
 -- relaxes with a comment; this file restores the constraint only on a marked column, then
 -- clears the mark. Production's nullability was never measured, so if `age` was already nullable
@@ -71,6 +77,7 @@ DECLARE
   was_mine  boolean;
   marked    text;
   prior     text;
+  mine      boolean;
 BEGIN
   PERFORM set_config('lock_timeout', '5s', true);
 
@@ -99,8 +106,24 @@ BEGIN
     END IF;
   END IF;
 
-  ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDate";
-  ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDateIsEstimate";
+  -- Drop only what migration.sql added. It marks each column it creates; a `birthDate` that
+  -- carries no marker was made by something else -- a stray `db push`, a hand-applied fix -- and
+  -- dropping it here would destroy every exact birthday a human has typed since, none of which
+  -- this pair put there. That is the same asymmetry the NOT NULL marker exists to prevent, and
+  -- the columns deserve it more, because they hold the data.
+  SELECT coalesce(col_description('"public"."pets"'::regclass, a.attnum), '')
+           = 'added by 20260922_pets_birth_date'
+    INTO mine
+    FROM pg_attribute a
+   WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'birthDate';
+
+  IF mine IS NOT TRUE THEN
+    RAISE NOTICE
+      'pets."birthDate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. Nothing has been undone. Remove the columns by hand if that is really what you want, after exporting them.';
+  ELSE
+    ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDate";
+    ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDateIsEstimate";
+  END IF;
 
   FOREACH col IN ARRAY ARRAY['age', 'ageCategory'] LOOP
     CONTINUE WHEN NOT EXISTS (

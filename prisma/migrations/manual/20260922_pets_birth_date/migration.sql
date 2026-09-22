@@ -63,25 +63,39 @@
 -- is true for every backfilled row without exception: a date derived from prose is an estimate,
 -- whatever the prose claimed.
 --
--- Two units are recognised, in English and Malay:
---   years   [0-9]+ followed by y | yr | year | thn | tahun
---   months  [0-9]+ followed by m | mo | month | bln | bulan
--- Years are tried first, so "1 year 6 months" backfills as 1 year -- which is what the app does
--- with the same string. Anything else is not guessed at; see "Safety".
+-- Two units are recognised, and only in the spellings the app itself reads:
+--   years   [0-9]+ followed by year | years | yr | yrs | y
+--   months  [0-9]+ followed by month | months | mth | mths | mo | mos | m
+-- Each must end at a word boundary, so "3 minggu" (Malay for three weeks) is refused rather
+-- than read as three months on its leading `m`. Years are tried first, so "1 year 6 months"
+-- backfills as 1 year -- which is what the app does with the same string.
 --
--- **The Malay tokens are wider than master's app, deliberately.** `approximateBirthDate` on
--- master matches only /(\d+)\s*y/ and /(\d+)\s*m/, so it reads "2 years" and "4 months" but not
--- "2 tahun", "3 thn", "4 bulan" or "6 bln" -- for those it falls through and returns the intake
--- date itself, i.e. "born the day we took it in". PR #42 (feat/pet-form-birth-date) widens the
--- app to exactly the token set above; this file does not wait for it, because reading "2 tahun"
--- as two years is right whether or not that PR lands, and storing intake-day-as-birthday is
--- wrong either way. So for a Malay-worded age this file and today's app disagree, and this file
--- is the one to trust. That is a second place -- alongside month-end clamping below -- where the
--- backfilled value is not what master's arithmetic would produce today. Those two are the only
--- places a value differs. This file is also stricter than the app in three places where it
--- stores nothing at all rather than a value it cannot stand behind: a fractional or hyphenated
--- age, an implausible one, and a unit it does not recognise. The app would happily produce a
--- number for each.
+-- THE INVARIANT THIS FILE KEEPS
+--
+--   For every row it writes, the stored birthDate is exactly what
+--   src/lib/domain/petAge.ts `approximateBirthDate(age, intakeDate)` computes.
+--
+-- That is the property the contract migration depends on: it re-derives every row with the
+-- app's own function and compares before it drops `age`, so a mismatch stops the drop instead
+-- of discovering it afterwards. Two consequences follow, and both are deliberate.
+--
+-- **Malay age words are refused, not translated.** `approximateBirthDate` matches only
+-- /(\d+)\s*y/ and /(\d+)\s*m/, so "2 tahun", "3 thn", "4 bulan" and "6 bln" match nothing
+-- there and it returns the intake date itself -- "born the day we took it in". Reading them as
+-- years and months would be *more correct* and was this file's first behaviour, but it would
+-- store a value the app does not compute, and the contract migration would then refuse the
+-- whole table. So they are refused here and named in the pre-check instead, for a human to
+-- rewrite in the same sitting. If your rows carry Malay ages, this is the normalisation to run
+-- first -- read it, then run it yourself; this file will not do it for you:
+--
+--   UPDATE "public"."pets" SET "age" = regexp_replace("age", '(tahun|thn)\M', 'years', 'gi')
+--    WHERE "age" ~* '[0-9]+[[:space:]]*(tahun|thn)\M';
+--   UPDATE "public"."pets" SET "age" = regexp_replace("age", '(bulan|bln)\M', 'months', 'gi')
+--    WHERE "age" ~* '[0-9]+[[:space:]]*(bulan|bln)\M';
+--
+-- **The date rolls forward rather than clamping.** See the note beside the UPDATE below.
+-- Widening the app to read Malay is PR #42's business, and once it lands this file can widen
+-- with it -- but the app has to move first, or the invariant breaks.
 --
 -- Scope: `pets` only, and only the two added columns plus the two relaxed constraints. The
 -- drop of `age`/`ageCategory` is deliberately NOT here. It destroys the only record of what
@@ -98,12 +112,13 @@
 --     is not a real calendar date, aborts the file naming that row's id and both values. The
 --     column's '2024-01-01' default is never allowed to stand as an answer.
 --   * Implausible ages abort too: over 60 years or 720 months is a typo or junk, not an animal.
---   * A fractional or hyphenated age aborts, rather than being rounded or narrowed. These are
---     the inputs that parse cleanly and mean something else: the rule takes the digit run
---     beside the unit, so "1.5 years" reads as 5 and "3-4 years" reads as 4, and nothing
---     downstream could tell. Choosing a number for either is a claim about an animal nobody
---     here has met. Any two digit runs separated by . , / - or a dash, immediately before a
---     unit, are refused and named.
+--   * A fractional or ranged age aborts, rather than being rounded or narrowed. These are the
+--     inputs that parse cleanly and mean something else: the rule takes the digit run beside
+--     the unit, so "1.5 years" reads as 5 and "3-4 years" reads as 4, and nothing downstream
+--     could tell. Choosing a number for either is a claim about an animal nobody here has met.
+--     Any second number within five non-digit characters before the unit -- "1.5", "3-4",
+--     "1 - 2", "6 to 8", "between 2 and 3" -- is refused and named. A number *after* the unit
+--     is not a range, so "2 years, 12.5 kg" backfills normally.
 --   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
 --     this file will not overwrite a date a human has since corrected through the admin form.
 --     The two DROP NOT NULLs are no-ops the second time. A table carrying only one of the pair
@@ -122,6 +137,12 @@
 --   * `lock_timeout` is set inside the DO block, not with SET LOCAL at the top, so it holds
 --     even if an editor runs each statement in its own transaction.
 --   * Every table is named with its schema, so the result does not depend on search_path.
+--   * The Prisma-level checks drive findMany({ include: PET_INCLUDE }) -- the query
+--     petRepository.ts:65 actually sends, relations and all -- not a simpler bare findMany.
+--   * The invariant above is checked, not asserted: every date this file stores is compared
+--     against approximateBirthDate's own output across twelve shapes, both rollover cases
+--     included, and the transcribed rule is itself pinned against src/data/pets.json so a
+--     drifted copy fails first.
 --   * The scratch table is TEMP and ON COMMIT DROP. It never exists in `public`.
 --   * If a statement does fail, an editor that sends this whole file as one query skips the
 --     rest of it, so the COMMIT on the last line never runs and the session is left holding an
@@ -145,18 +166,19 @@
 --                                               substr(left("intakeDate",10),6,2)::int, 1)
 --                                     + interval '1 month' - interval '1 day')) THEN 'bad intakeDate'
 --            WHEN lower(coalesce("age",''))
---                 ~ '[0-9][.,/–—-][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+--                 ~ '[0-9][^0-9]{1,5}[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M'
 --                 THEN 'fractional age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
---                 AND (regexp_match(lower("age"),
---                       '([0-9]+)[[:space:]]*(?:tahun|thn|years|year|yrs|yr|y)\M'))[1]::numeric > 60
---                 THEN 'implausible age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
---                 AND (regexp_match(lower("age"),
---                       '([0-9]+)[[:space:]]*(?:bulan|bln|months|month|mths|mth|mos|mo|m)\M'))[1]::numeric > 720
---                 THEN 'implausible age'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'  THEN 'ok: years'
---            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M' THEN 'ok: months'
+--            -- Years first and each bound tested only for the unit it belongs to, because that is
+--            -- what the file does. Testing both bounds independently made "2 years 800 months"
+--            -- read implausible here and backfill as 2 years there.
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(years|year|yrs|yr|y)\M'
+--                 THEN CASE WHEN (regexp_match(lower("age"),
+--                       '([0-9]+)[[:space:]]*(?:years|year|yrs|yr|y)\M'))[1]::numeric > 60
+--                      THEN 'implausible age' ELSE 'ok: years' END
+--            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M'
+--                 THEN CASE WHEN (regexp_match(lower("age"),
+--                       '([0-9]+)[[:space:]]*(?:months|month|mths|mth|mos|mo|m)\M'))[1]::numeric > 720
+--                      THEN 'implausible age' ELSE 'ok: months' END
 --            ELSE 'unparseable age'
 --          END AS verdict
 --     FROM "public"."pets"
@@ -218,7 +240,7 @@
 -- "PetStatus" as the owner applied on 2026-09-18, `intakeDate` as text, and every other scalar
 -- master's Pet model declares, so a Prisma select differs from it in exactly the two columns.
 --
--- Seventy-six checks, all passing. Sixty-nine at the SQL level and seven driving master's own
+-- Ninety-two checks, all passing. Eighty-five at the SQL level and seven driving master's own
 -- generated Prisma client. They are listed in
 -- tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md. In summary:
 --   * The ten src/data/pets.json animals backfill to the exact `birthDate` that file carries,
@@ -231,15 +253,19 @@
 --   * Every refusal leaves the table untouched: unparseable age, NULL age, empty age, a
 --     non-date intakeDate, 2024-02-31, month 13, "500 years", a fourteen-digit age, the three
 --     fractional shapes "1.5 years", "1,5 tahun" and "1 1/2 years", the vulgar fraction
---     "1<1/2> years", the ranges "3-4 years", "1-2 tahun", "6-8 months" and their en- and
---     em-dash spellings, a non-breaking space between number and unit, and "3 minggu" /
---     "5 hari" / "3 weeks" -- units this file does not read.
+--     "1<1/2> years", every range spelling tried -- "3-4 years", "1 - 2 years", "3 - 4 years"
+--     with an en dash, "6 to 8 months", "between 2 and 3 years", "2 or 3 tahun" -- a
+--     non-breaking space between number and unit, and "3 minggu" / "5 hari" / "3 weeks",
+--     units this file does not read.
 --   * A decimal elsewhere in the string is not a fractional age: "2 years, 12.5 kg" and
 --     "3 tahun (lahir 12/06/2023)" both backfill normally rather than blocking the table.
 --   * rollback.sql does not tighten a column this file found already nullable, and it names the
 --     rows a rollback would strand with neither a birthday nor an age.
 --   * A comment already on `age` or `ageCategory` is carried inside the marker and put back by
---     rollback.sql, rather than overwritten.
+--     rollback.sql, rather than overwritten -- and it survives a column being relaxed twice.
+--   * rollback.sql drops `birthDate` only if this file's marker says this file created it. A
+--     column somebody else added is left alone and said so, because dropping it would destroy
+--     birthdays this pair never wrote.
 --   * The rehearsal database is created UTF8, as Neon is, rather than inheriting the host
 --     locale: [[:space:]] and \M are encoding-dependent, and a non-breaking space between the
 --     number and the unit parses under WIN1252 and is refused under UTF8.
@@ -347,7 +373,10 @@ BEGIN
                           + interval '1 month' - interval '1 day'))
                 THEN make_date(substr(s.intake_txt, 1, 4)::int,
                                substr(s.intake_txt, 6, 2)::int,
-                               substr(s.intake_txt, 9, 2)::int) END AS intake
+                               substr(s.intake_txt, 9, 2)::int) END AS intake,
+           substr(s.intake_txt, 1, 4)::int AS iy,
+           substr(s.intake_txt, 6, 2)::int AS im,
+           substr(s.intake_txt, 9, 2)::int AS id_
       FROM (
         SELECT p."id",
                p."age",
@@ -359,21 +388,21 @@ BEGIN
                -- digit run that sits next to the unit token, so "1.5 years" would yield 5, not
                -- 1 -- a birthday three and a half years wrong, with every other check passing.
                lower(coalesce(p."age", ''))
-                 ~ '[0-9][.,/–—-][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+                 ~ '[0-9][^0-9]{1,5}[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M'
                  AS fractional,
                CASE
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(years|year|yrs|yr|y)\M'
                    THEN 'years'
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M'
                    THEN 'months'
                END AS unit,
                CASE
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(years|year|yrs|yr|y)\M'
                    THEN (regexp_match(lower(p."age"),
-                          '([0-9]+)[[:space:]]*(?:tahun|thn|years|year|yrs|yr|y)\M'))[1]::numeric
-                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+                          '([0-9]+)[[:space:]]*(?:years|year|yrs|yr|y)\M'))[1]::numeric
+                 WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M'
                    THEN (regexp_match(lower(p."age"),
-                          '([0-9]+)[[:space:]]*(?:bulan|bln|months|month|mths|mth|mos|mo|m)\M'))[1]::numeric
+                          '([0-9]+)[[:space:]]*(?:months|month|mths|mth|mos|mo|m)\M'))[1]::numeric
                END AS qty
           FROM "public"."pets" p
       ) s;
@@ -422,11 +451,28 @@ BEGIN
     ALTER TABLE "public"."pets" ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01';
     ALTER TABLE "public"."pets" ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT true;
 
+    -- Marked for the same reason the NOT NULLs are: rollback.sql must undo what this file did and
+    -- nothing else. Without a marker, a rollback run against columns somebody else created -- a
+    -- stray `db push`, a hand-applied fix -- would drop them and every exact birthday a human has
+    -- since typed, none of which this file put there.
+    COMMENT ON COLUMN "public"."pets"."birthDate" IS 'added by 20260922_pets_birth_date';
+    COMMENT ON COLUMN "public"."pets"."birthDateIsEstimate" IS 'added by 20260922_pets_birth_date';
+
+    -- Roll forward, not clamp. approximateBirthDate builds the date with
+    -- Date.UTC(year - n, month, day), so 2026-03-31 minus one month is 2026-03-03 and
+    -- 2024-02-29 minus one year is 2023-03-01: the day of month is kept and the overflow spills
+    -- into the next month. make_date(target month, 1) + (day - 1) reproduces exactly that.
+    -- Neither date is more correct -- every row here is an estimate and the two rules differ by
+    -- a day or three. What decides it is that this one can be CHECKED: the contract migration
+    -- re-derives every row with the app's own function and compares, which is a check that can
+    -- fail. A clamped date could only ever be compared against hand-typed constants.
     UPDATE "public"."pets" p
        SET "birthDate" = to_char(
-             b.intake - make_interval(
-               years  => CASE WHEN b.unit = 'years'  THEN b.qty::int ELSE 0 END,
-               months => CASE WHEN b.unit = 'months' THEN b.qty::int ELSE 0 END),
+             CASE WHEN b.unit = 'years'
+                  THEN make_date(b.iy - b.qty::int, b.im, 1)
+                  ELSE make_date((b.iy * 12 + b.im - 1 - b.qty::int) / 12,
+                                 ((b.iy * 12 + b.im - 1 - b.qty::int) % 12) + 1, 1)
+             END + (b.id_ - 1),
              'YYYY-MM-DD'),
            "birthDateIsEstimate" = true
       FROM _pets_birth_backfill b
@@ -439,26 +485,23 @@ BEGIN
     END IF;
     RAISE NOTICE 'backfilled % pets from "age"', updated;
 
-    -- PostgreSQL clamps 2026-03-31 minus one month to 2026-02-28; the app's JS rolls it forward
-    -- to 2026-03-03 instead. The two rules differ only when the day of month cannot survive the
-    -- subtraction, and exactly those rows are named here. Clamping is the answer kept: a date
-    -- inside the intended month beats one in the next.
-    SELECT string_agg(
-             format('%L: %s - %s = %s', "id", intake_txt, "age",
-                    to_char(intake - make_interval(
-                      years  => CASE WHEN unit = 'years'  THEN qty::int ELSE 0 END,
-                      months => CASE WHEN unit = 'months' THEN qty::int ELSE 0 END),
-                    'YYYY-MM-DD')),
-             E'\n    ' ORDER BY "id")
+    -- A day of month that cannot survive the subtraction spills into the next month:
+    -- 2026-03-31 minus one month is 2026-03-03. That is what the app computes and so what is
+    -- stored, but it is the one case where the stored month is not the month a reader expects,
+    -- so those rows are named rather than left to be noticed later.
+    SELECT string_agg(format('%L: %s - %s = %s', b."id", b.intake_txt, b."age", p."birthDate"),
+                      E'
+    ' ORDER BY b."id")
       INTO clamped
-      FROM _pets_birth_backfill
-     WHERE extract(day FROM (intake - make_interval(
-             years  => CASE WHEN unit = 'years'  THEN qty::int ELSE 0 END,
-             months => CASE WHEN unit = 'months' THEN qty::int ELSE 0 END)))
-           <> extract(day FROM intake);
+      FROM _pets_birth_backfill b
+      JOIN "public"."pets" p ON p."id" = b."id"
+     WHERE substr(p."birthDate", 6, 2)::int
+           <> CASE WHEN b.unit = 'years' THEN b.im
+                   ELSE ((b.iy * 12 + b.im - 1 - b.qty::int) % 12) + 1 END;
 
     IF clamped IS NOT NULL THEN
-      RAISE NOTICE E'clamped to the end of the month (the app''s JS would roll these forward instead):\n    %', clamped;
+      RAISE NOTICE E'these rolled into the following month, as the app''s own arithmetic does:
+    %', clamped;
     END IF;
   END IF;
 
@@ -482,9 +525,15 @@ BEGIN
     -- Any comment already on the column is carried inside the marker, not overwritten: this is
     -- the one place an otherwise strictly non-destructive file writes over something, and
     -- rollback.sql puts the original back when it clears the marker.
+    -- Unwrap rather than nest: a column relaxed, re-tightened by hand without clearing the
+    -- comment, then relaxed again would otherwise carry a marker inside a marker, and rollback
+    -- would restore the inner marker as if it were somebody's note.
     SELECT col_description('"public"."pets"'::regclass, a.attnum) INTO prior
       FROM pg_attribute a
      WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age';
+    IF prior LIKE 'NOT NULL removed by 20260922_pets_birth_date%' THEN
+      prior := substring(prior FROM ' \| previous comment: (.*)$');
+    END IF;
     -- COMMENT ON takes a literal, not an expression, so the text is built first.
     EXECUTE format(
       'COMMENT ON COLUMN "public"."pets".%I IS %L', 'age',
@@ -501,6 +550,9 @@ BEGIN
     SELECT col_description('"public"."pets"'::regclass, a.attnum) INTO prior
       FROM pg_attribute a
      WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'ageCategory';
+    IF prior LIKE 'NOT NULL removed by 20260922_pets_birth_date%' THEN
+      prior := substring(prior FROM ' \| previous comment: (.*)$');
+    END IF;
     -- COMMENT ON takes a literal, not an expression, so the text is built first.
     EXECUTE format(
       'COMMENT ON COLUMN "public"."pets".%I IS %L', 'ageCategory',

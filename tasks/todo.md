@@ -27,7 +27,7 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 76 checks on a throwaway embedded PostgreSQL 18.4 created UTF8,
+- [x] `rehearse.mjs` beside it — 92 checks on a throwaway embedded PostgreSQL 18.4 created UTF8,
       all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
@@ -44,7 +44,11 @@ Record active multi-step work streams below.
 - [ ] Owner (one minute, worth doing first): open `/pets` on the live site. Exactly the ten
       fixture animals at ids `pet-001`…`pet-010` confirms the catalogue is serving
       `src/data/pets.json`; anything else means the read works and the drift wants re-reading.
-- [ ] Later, its own file: drop `age`/`ageCategory` — the contract half. Not written on purpose.
+- [x] Later, its own file: drop `age`/`ageCategory` — the contract half. **Not written here on
+      purpose, and now owned by PR #94** (`worktree-pet-birth-date-migration`), which archives
+      `age`, `ageCategory` and `birthDateIsEstimate` before dropping and verifies this
+      branch's dates by re-derivation. Sequence: expand (here) → soak → contract (#94).
+- [ ] Owner: decide the soak length between applying this and applying #94's contract.
 
 ## Review
 
@@ -148,7 +152,43 @@ run and shown a stack trace instead of a failing check.
 each round.** That is the argument for the review step, and for mutation-testing a suite rather
 than trusting its colour.
 
-The fix rounds are `00e75f4`, `75b44a4`, `b6cd717` and the commit after them; all are reviewed.
+**A fourth review found seven more**, the top two being: every *spaced* range spelling
+(`"1 - 2 years"`, `"6 to 8 months"`, `"between 2 and 3 years"`) still slipped past the range guard
+the round before had just added, because it required the numbers to sit tight against the
+separator; and `rollback.sql` dropped `birthDate` even when `migration.sql` had added nothing,
+which would destroy birthdays this pair never wrote. Both fixed, with the columns now marked the
+same way the NOT NULLs are. It also caught that the Prisma checks drove a bare `findMany` rather
+than the `include: PET_INCLUDE` production sends — the harness now builds the three relation
+tables and drives the real query.
+
+**Four rounds, twenty-four findings, every one real. Three of the four found a defect in the
+previous round's fix.** The file is reviewed, not finished: see "Deliberately not done".
+
+The fix rounds are `00e75f4`, `75b44a4`, `b6cd717`, `77510c5` and the commit after them.
+
+**Then the session holding the contract half made contact, and two of this branch's answers were
+wrong.** PR #94 (`worktree-pet-birth-date-migration`) has the drop; this branch has the expand.
+They proposed expand → soak → contract and one arithmetic change, and the argument was better than
+the one it replaced: standardise on the app's roll-forward, not because either date is more
+correct — both are estimates differing by a day or three — but because roll-forward can be
+**checked by re-derivation against the app's own function**, and clamping can only be compared to
+constants typed by whoever wrote the SQL. Their contract re-derives every row and compares before
+dropping `age`, so a wrong date stops the drop.
+
+Taking that argument seriously forced a second reversal they had not asked for: this branch also
+read Malay age words, which the app does not, so a `"2 tahun"` row would have stored a value their
+re-derivation could never match — the whole table refused at contract time. Malay is now refused
+and named in the pre-check, with the normalisation `UPDATE` in the header for the owner to run
+knowingly. **Refusing more is safe; storing differently is not** — a refused row is never
+backfilled, so nothing downstream can disagree about it. That is also why the `minggu` anchoring
+stays even though the app has that bug.
+
+Settled in `tasks/decisions/2026-09-22-expand-stores-only-what-the-app-computes.md`, which
+supersedes choices 4 and 6 of the first decision entry. The invariant is now executable: **O2**
+asserts every stored date equals `approximateBirthDate`'s output across twelve shapes including
+both rollover cases, and **O1** pins the transcribed rule against `src/data/pets.json` so a
+drifted copy fails first. One of their factual points was already fixed here (the Malay/app
+equivalence claim, corrected in round 3) and I told them so rather than silently agreeing.
 
 **Deliberately not done:**
 - **Putting this on PR #42, as the brief asked.** Three reasons. That branch cannot host the
