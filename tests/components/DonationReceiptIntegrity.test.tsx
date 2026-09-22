@@ -21,6 +21,11 @@ import { renderWithLanguage, setupUser, makePet } from "./support/render";
  * printable receipt. The donor would then hold a tax document for a gift the
  * shelter has no record of, carrying a number that may already belong to a real
  * receipt. These tests exist so that fallback cannot come back.
+ *
+ * Since 2026-09-22 the guard is stronger still: this screen has no receipt on it
+ * at all. Submitting the form records a pending pledge, and the Section 44(6)
+ * receipt is issued from the coordinator's queue once the transfer is matched. So
+ * `RECEIPT_NUMBER` must not appear here on *any* path, success included.
  */
 const RECEIPT_NUMBER = /HFS-DON-\d{6}-\d{4}/;
 
@@ -95,12 +100,11 @@ describe("the browser never invents a receipt number", () => {
     expect(screen.queryByText(RECEIPT_NUMBER)).toBeNull();
   });
 
-  it("renders the receipt number the ledger issued, unchanged", async () => {
+  it("renders the pledge reference the ledger recorded, and no receipt", async () => {
     mockedSubmit.mockResolvedValue({
       success: true,
       data: {
-        receiptNumber: "HFS-DON-202609-0007",
-        date: "2 Sep 2026, 11:30 pm",
+        pledgeRef: "HFS-GFT-20260922-123456",
         donorName: "Aisyah Rahman",
         donorEmail: "aisyah@example.com",
         tierId: "vaccine",
@@ -108,15 +112,20 @@ describe("the browser never invents a receipt number", () => {
         amountMYR: 50,
         frequency: "one_time",
         paymentMethod: "duitnow_qr",
-        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-        shelterRegistrationNo: "PPM-021-10-18082021",
+        status: "PENDING_PAYMENT",
+        reconciliationNotice:
+          "Your official receipt is issued once our coordinator matches your transfer against the shelter bank statement.",
       },
     });
 
     renderWidget();
     await submitAGift();
 
-    expect(await screen.findByText("HFS-DON-202609-0007")).toBeInTheDocument();
+    expect(await screen.findByText("HFS-GFT-20260922-123456")).toBeInTheDocument();
+    // The boundary, asserted on the success path: a donor who has sent nothing yet
+    // must not be looking at a receipt number.
+    expect(screen.queryByText(RECEIPT_NUMBER)).toBeNull();
+    expect(screen.getByText(/not a receipt/i)).toBeInTheDocument();
   });
 });
 
@@ -126,8 +135,10 @@ describe("the browser never invents a receipt number", () => {
  * tax-deductible while carrying nothing to deduct against.
  *
  * The checkbox is what reconciles the two. It gates the *identifier*, never the
- * receipt: a receipt is issued for every gift, because the ledger is the shelter's
- * record of money received rather than of claims made.
+ * gift: every gift is recorded, because the ledger is the shelter's record of
+ * money received rather than of claims made. Since 2026-09-22 the identifier is
+ * snapshotted onto the pending pledge and copied onto the receipt at
+ * reconciliation, so what it gates here is what the eventual receipt can claim.
  */
 describe("Section 44(6) relief is opt-in", () => {
   beforeEach(() => {
@@ -205,12 +216,11 @@ describe("Section 44(6) relief is opt-in", () => {
     });
   });
 
-  it("does not call a receipt tax-exempt when it carries no identifier", async () => {
+  it("claims no tax relief on the acknowledgement, whatever the donor ticked", async () => {
     mockedSubmit.mockResolvedValue({
       success: true,
       data: {
-        receiptNumber: "HFS-DON-202609-0008",
-        date: "8 Sep 2026, 10:00 am",
+        pledgeRef: "HFS-GFT-20260922-000008",
         donorName: "Aisyah Rahman",
         donorEmail: "aisyah@example.com",
         tierId: "vaccine",
@@ -218,21 +228,21 @@ describe("Section 44(6) relief is opt-in", () => {
         amountMYR: 50,
         frequency: "one_time",
         paymentMethod: "duitnow_qr",
-        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-        shelterRegistrationNo: "PPM-021-10-18082021",
-        // No taxIdOrIc — the donor declined relief.
+        status: "PENDING_PAYMENT",
+        reconciliationNotice:
+          "Your official receipt is issued once our coordinator matches your transfer.",
       },
     });
 
     renderWidget();
     await submitAGift();
 
-    // The whole point of the opt-in: a document that announces itself as deductible
-    // while carrying nothing to deduct against is the defect, and unticking the box
-    // is now the default path into it.
-    expect(await screen.findByText("HFS-DON-202609-0008")).toBeInTheDocument();
+    // A document that announces itself as deductible while carrying nothing to
+    // deduct against is the original defect. The pledge screen cannot have it: it
+    // says outright that it is not a receipt, and prints no exemption reference.
+    expect(await screen.findByText("HFS-GFT-20260922-000008")).toBeInTheDocument();
     expect(
-      screen.getByText(/cannot be claimed against a return/i),
+      screen.getByText(/cannot be filed for a tax deduction/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/tax-exempt e-Receipt/i)).not.toBeInTheDocument();
     expect(
@@ -244,8 +254,7 @@ describe("Section 44(6) relief is opt-in", () => {
     mockedSubmit.mockResolvedValue({
       success: true,
       data: {
-        receiptNumber: "HFS-DON-202609-0009",
-        date: "8 Sep 2026, 10:00 am",
+        pledgeRef: "HFS-GFT-20260922-000009",
         donorName: "Aisyah Rahman",
         donorEmail: "aisyah@example.com",
         tierId: "vaccine",
@@ -253,9 +262,9 @@ describe("Section 44(6) relief is opt-in", () => {
         amountMYR: 50,
         frequency: "one_time",
         paymentMethod: "duitnow_qr",
-        taxIdOrIc: "920512-10-5432",
-        taxDeductibleRef: "LHDN.01/35/42/51/179-6.4912",
-        shelterRegistrationNo: "PPM-021-10-18082021",
+        status: "PENDING_PAYMENT",
+        reconciliationNotice:
+          "Your official receipt is issued once our coordinator matches your transfer.",
       },
     });
 
@@ -275,7 +284,7 @@ describe("Section 44(6) relief is opt-in", () => {
       screen.getByRole("button", { name: /complete donation pledge/i }),
     );
 
-    await screen.findByText("HFS-DON-202609-0009");
+    await screen.findByText("HFS-GFT-20260922-000009");
     await user.click(screen.getByRole("button", { name: /another donation/i }));
 
     // handleReset cleared taxIdOrIc but not the box, so the field came back required
