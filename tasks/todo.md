@@ -40,11 +40,52 @@ and P-D for `Bulletin` in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md:193`.
 - [x] Public "Staff Admin Access" toggle, `AdminBulletinModal` and `bulletinStore.ts` deleted.
 - [x] Media host allow-lists, enforced on write *and* on read.
 - [x] `src/data/bulletins.json` reshaped; the `dQw4w9WgXcQ` embed removed from shipped content.
-- [ ] Test suite, `/code-review`, merge-check, PR.
+- [x] Test suite: 100 cases, four load-bearing claims checked against mutants.
+- [x] Merge `origin/master` 4782ff2 (#88's AST guard) and re-run every gate.
 
 ## Review
 
-*(filled in at close)*
+**Verified.** `npm run check` clean (typecheck, lint 0 errors, docs:check OK). `npm run test:all`
+1911 passed across 116 files, on the tree with master merged. `npm run build` run in the worktree
+after `npm ci`, with throwaway secrets inline. The migration was rehearsed against real
+PostgreSQL 18.4, not reasoned: its DDL produces objects identical to `prisma db push`, re-running
+it is a no-op, and the enum rejects an out-of-vocabulary category.
+
+**The tests were checked against mutants, not trusted.** Dropping the `MANAGE_CONTENT` gate,
+returning `videoEmbedUrl` unfiltered, treating an empty result as an outage, and taking the byline
+from anywhere but the session — all four failed the suite. A suite that passes proves nothing
+about code nobody broke on purpose.
+
+**Deliberately not done:**
+
+- **The feed is still English-only.** `titleMs`/`contentMs` exist, the editor writes them, the
+  reader resolves English into them — but nothing renders them.
+  `tasks/open/home-page-text-stays-english-on-the-malay-site.md` owns the render side and is
+  untouched. The columns landed now because adding them later means a *second* hand-run DDL
+  migration against a branch with no down path.
+- **Nothing was applied to production.** The deliverable is
+  `prisma/migrations/manual/20260922_community_bulletins/migration.sql` plus
+  `npm run db:migrate:bulletins`, for the owner to run. `npm run db:push` must NOT be used: it
+  reconciles the whole schema and three destructive statements still stand between master and the
+  production branch. Until the owner applies it, the live feeds serve the committed fixture
+  through the repository's outage fallback — which is the same content visitors see today, so
+  there is no window where the site is worse than before.
+- **No `displayOrder` column**, and no reordering UI. Pinned-first-then-newest is the feed's real
+  ordering; a manual column would be a second one to keep in step by hand. If staff ask to hand-
+  order notices, that is a new column and a new decision, not an oversight.
+- **The `/bulletins` archive is unpaginated.** Marked with a `ceiling:` comment. Fine at shelter
+  scale; page it if the archive outgrows a few hundred, which is also when the page stops being
+  readable.
+- **No component test for `BulletinFeed`.** It is now a pure Server Component with no branching
+  beyond media type, and the repository tests already pin the data it receives. A render test
+  would assert that React renders props.
+- **`src/actions/faqs.ts` still gates on a legacy role list** rather than `MANAGE_CONTENT`. Left
+  alone deliberately — the 2026-09-18 decision kept it there, and changing it is not this task.
+
+**One thing a reviewer should look at hardest:** this change *raises* the stakes. Before it, the
+public editor could only damage the visitor's own browser. Now there is a real store behind real
+pages, so the `requirePermission` calls in `src/actions/bulletins.ts` are the only thing standing
+between an anonymous POST and the shelter's public notices. That is where the denial tests point.
 
 # Sponsor portal production activation — audit, run, close
 
