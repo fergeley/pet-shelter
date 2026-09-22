@@ -24,6 +24,13 @@
 > index, alongside the sponsor and donation tables. Raw output, now kept rather than paraphrased:
 > `tasks/decisions/2026-09-16-sponsor-portal-activation-applies-nothing-to-production.md`.
 
+> **2026-09-22: the remaining pet drift is losing reads, not just blocking a push.** The deployed
+> client asks for `pets.birthDate` on every catalogue read, production has no such column, and the
+> failure is swallowed — so the public pet list is being served from `src/data/pets.json`, not from
+> the database. Same shape as the application-insert finding below, one table over. See "The pet
+> catalogue is being served from the fixture" at the end of this file. The migration that fixes it
+> now exists, rehearsed, unapplied: `prisma/migrations/manual/20260922_pet_birth_date/`.
+
 `npm run db:push` resolves through `prisma.config.ts` → `resolveDatabaseUrl()` → `.env.local`,
 which holds `NEON_BRANCH=production`. Unlike the seed, **push has no local-only guard**:
 `prisma/env.ts` protects `db:seed` with `assertSeedTargetIsLocal`, and nothing protects push.
@@ -185,6 +192,13 @@ Either a single reviewed migration reconciles the two remaining conversions with
 `prisma migrate` with a migrations directory so the reconciliation is recorded rather than
 re-derived each time.
 
+**As of 2026-09-22 the only thing left is the applying.** The `ApplicationStatus` cast was applied
+by the owner on 2026-09-18. The `pets.birthDate` backfill and the additive remainder are written
+and rehearsed (see the two sections above); nothing further can be authored from here, because an
+agent cannot reach the database. This entry settles when the owner has run both files and
+`npm run db:check-drift` from the main checkout reports zero destructive and zero additive
+statements — which, per the note above, requires `cleanup.sql` as well as the two migrations.
+
 **Until then, treat `npm run db:push` as destructive against production.** The safe loop is
 `migrate diff` → read the SQL → apply only what you intended with `prisma db execute` — the apply
 typed by a human, per the deny above.
@@ -213,3 +227,59 @@ Against 2026-09-16's 3 destructive and 6 additive statements, the following are 
 The `pets` statement is truncated at 160 characters, so whether `pets.status` still converts
 inside it is not answered by this run. The indexes on `pets(…status…)` being present suggests it
 does not. The `pets.age` → `birthDate` migration and the `shelter_settings` columns remain.
+
+## The pet catalogue is being served from the fixture (established 2026-09-22)
+
+The `pets.age` → `birthDate` conversion was left on the "destructive, needs a human" list and
+treated as pending hygiene. It is the same class of live failure as the application inserts above,
+and it affects reads, which no amount of write-path care can route around.
+
+- **What Prisma asks for, captured with no database.** A `pg` pool whose `query` records the SQL
+  and throws, with the client generated from master's schema:
+
+      SELECT "public"."pets"."id", "public"."pets"."name", "public"."pets"."species",
+             "public"."pets"."breed", "public"."pets"."birthDate",
+             "public"."pets"."birthDateIsEstimate", "public"."pets"."gender", ...
+             FROM "public"."pets" WHERE 1=1 ORDER BY "public"."pets"."createdAt" DESC OFFSET $1
+
+  `getServerPetsAsync` (`src/lib/server/petRepository.ts:64`) passes `orderBy` and `include` but
+  no `select`, so Prisma requests every scalar column of the model.
+- **Production has neither column.** Not measured afresh here — read from the 2026-09-18 run
+  above, which is still being offered `ADD COLUMN "birthDate"`. This session had no production
+  access. If production has gained the column since, this conclusion is void.
+- **Swallowed.** `handlePersistenceError("Prisma pet query", err, "read")` rethrows only under
+  `STRICT_PERSISTENCE=true`, which only the integration tiers set. Otherwise it warns and
+  `getServerPetsAsync` returns `serverPets` — the in-memory mirror, initialised from
+  `src/data/pets.json`.
+- **So:** every pet the shelter has added or edited since the schema change is invisible on the
+  live site, which shows ten fixture animals instead. This also answers, in the affirmative, the
+  question the retired `pets-json-fallback-reach-unverified.md` asked — the fallback is not merely
+  reached in production, it is the only path.
+- **And writes fail from the other side.** Production's `age` and `ageCategory` are `TEXT NOT NULL`
+  with no default (`git show 6108d82^:prisma/schema.prisma`), and the deployed client never
+  supplies them, so a pet insert cannot satisfy them either.
+
+## The remaining drift now has a rehearsed migration for every statement (2026-09-22)
+
+Authored, rehearsed on embedded PostgreSQL 17, **not applied** — agents are denied production
+access and `npx prisma migrate*`/`db execute*`. The owner applies these in the Neon SQL editor,
+following each file's header, in this order:
+
+1. `prisma/migrations/manual/20260922_pet_birth_date/migration.sql` — archives `age` and
+   `ageCategory` to `pets_age_archive_20260922`, backfills `birthDate` per row from that row's own
+   intake date and age prose (a transcription of `approximateBirthDate` in
+   `src/lib/domain/petAge.ts`, checked row-for-row against it), flags every backfilled row
+   `birthDateIsEstimate = true`, then drops the two columns. No row receives the `'2024-01-01'`
+   column default. `rollback.sql` and `cleanup.sql` sit beside it.
+2. `prisma/migrations/manual/20260922_settings_and_defaults/migration.sql` — the seven
+   `shelter_settings` email and storage columns, and the `notification_preferences.updatedAt`
+   `DROP DEFAULT`. Nothing here is urgent; it is the remainder.
+
+Rationale, rejected alternatives and the full rehearsal record:
+`tasks/decisions/2026-09-22-pet-birth-date-backfill-derives-from-intake-and-age.md`.
+
+**Expect drift to read one statement, not zero, immediately after applying both.** The archive
+table is not declared in `prisma/schema.prisma`, so `db:check-drift` will offer
+`DROP TABLE "pets_age_archive_20260922"`. That is the price of a rollback that can actually restore
+the original prose. Running `cleanup.sql` — after reading the archive's `ageParsed` rows — drops it
+and takes drift to zero, and is the point at which the conversion stops being reversible.
