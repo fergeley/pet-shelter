@@ -1,0 +1,932 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  BULLETIN_EMBED_HOSTS,
+  BULLETIN_IMAGE_HOSTS,
+  isAllowedBulletinEmbedUrl,
+  isAllowedBulletinImageUrl,
+  toPublicEmbedUrl,
+  toPublicMediaUrl,
+} from "@/lib/domain/bulletinMedia";
+import {
+  BULLETIN_CATEGORIES,
+  BULLETIN_MEDIA_TYPES,
+  BULLETIN_TARGET_PAGES,
+  bulletinFormSchema,
+  type BulletinFormInput,
+} from "@/lib/validations/bulletin";
+import type { SessionUser } from "@/lib/security/session";
+import fixtureJson from "@/data/bulletins.json";
+import { getRevalidatedPaths } from "../setup/nextMocks";
+
+/**
+ * Community bulletins: media allow-list, authorisation, fallback policy.
+ *
+ * `DATABASE_URL` points at a Neon PRODUCTION branch, so Prisma is mocked for the
+ * whole file — no test here can reach a database. The mock is per-test
+ * configurable so the database code path is genuinely exercised rather than
+ * skipped, which is what lets the empty-vs-outage pair below mean anything.
+ *
+ * Every module that touches `@/lib/server/prisma` is imported **dynamically,
+ * inside the test body**. A static import would instantiate the repository — and
+ * the real client — before `vi.mock` registers, and the spies below would then
+ * observe zero calls while this file reported green.
+ */
+const prismaMock = vi.hoisted(() => {
+  const model = () => ({
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    upsert: vi.fn(),
+    delete: vi.fn(),
+    groupBy: vi.fn(),
+  });
+  return {
+    bulletin: model(),
+    auditLog: { create: vi.fn(() => Promise.resolve({})) },
+  };
+});
+
+vi.mock("@/lib/server/prisma", () => ({ prisma: prismaMock }));
+
+const sessionMock = vi.hoisted(() => ({ getCurrentSession: vi.fn() }));
+vi.mock("@/lib/security/session", () => sessionMock);
+
+// The actions resolve their principal through the DAL, which re-reads the member's row.
+// Answered here as a reachable database would answer for an active member holding the
+// cookie's role. Without it the mocked Prisma above has no `user` model, the lookup throws,
+// and every authorisation test in this file would pass through the DAL's database-outage
+// path instead — the right answers for the wrong reason.
+vi.mock("@/lib/server/memberStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/memberStore")>()),
+  findMemberAuthStateById: vi.fn(async (id: string) => {
+    const session = await sessionMock.getCurrentSession();
+    return session && session.id === id
+      ? { role: session.role, status: "ACTIVE", name: session.name, email: session.email }
+      : null;
+  }),
+}));
+
+/* -------------------------------------------------------------------------- */
+/* Fixtures                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const ADMIN: SessionUser = {
+  id: "usr-admin-01",
+  email: "admin@hopeforstrays.org",
+  name: "Admin",
+  role: "SUPER_ADMIN" as const,
+  expiresAt: Date.now() + 3_600_000,
+};
+const CONTENT_EDITOR: SessionUser = {
+  ...ADMIN,
+  id: "usr-editor-01",
+  name: "Content Editor",
+  email: "editor@hopeforstrays.org",
+  role: "CONTENT_EDITOR" as const,
+};
+// Legacy alias: normalises to SUPER_ADMIN, so it keeps access.
+const LEGACY_ADMIN: SessionUser = { ...ADMIN, id: "usr-legacy-01", role: "ADMIN" as const };
+const COORDINATOR: SessionUser = { ...ADMIN, id: "usr-coord-01", role: "COORDINATOR" as const };
+const STAFF: SessionUser = { ...ADMIN, id: "usr-staff-01", role: "STAFF" as const };
+const VOLUNTEER: SessionUser = { ...ADMIN, id: "usr-vol-01", role: "VOLUNTEER" as const };
+
+const ALLOWED_IMAGE = "https://images.unsplash.com/photo-1628009368231-7bb7cfcb0def";
+const ALLOWED_EMBED = "https://www.youtube-nocookie.com/embed/abc";
+const HOSTILE_EMBED = "https://evil.example.com/embed/x";
+const HOSTILE_IMAGE = "https://evil.example.com/tracker.png";
+
+/** The minimum a form must carry; every other field has a schema default. */
+function formInput(over: Partial<BulletinFormInput> = {}): BulletinFormInput {
+  return {
+    category: "announcement",
+    title: "Clinic day moved to Sunday",
+    content: "The microchip clinic moves to Sunday morning this week.",
+    publishedAt: "2026-08-14",
+    ...over,
+  } as BulletinFormInput;
+}
+
+/** One database row, shaped as Prisma returns it (`Date`s, not strings). */
+interface DbRow {
+  id: string;
+  title: string;
+  content: string;
+  titleMs: string | null;
+  contentMs: string | null;
+  category: string;
+  targetPage: string;
+  mediaType: string;
+  mediaUrl: string | null;
+  videoEmbedUrl: string | null;
+  isPinned: boolean;
+  isPublished: boolean;
+  authorName: string;
+  publishedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function dbRow(over: Partial<DbRow> = {}): DbRow {
+  return {
+    id: "bulletin-db-1",
+    title: "A notice from the database",
+    content: "Body copy long enough to be a real notice.",
+    titleMs: null,
+    contentMs: null,
+    category: "announcement",
+    targetPage: "all",
+    mediaType: "none",
+    mediaUrl: null,
+    videoEmbedUrl: null,
+    isPinned: false,
+    isPublished: true,
+    authorName: "Shelter Team",
+    publishedAt: new Date("2026-08-14T00:00:00.000Z"),
+    createdAt: new Date("2026-08-01T00:00:00.000Z"),
+    updatedAt: new Date("2026-08-01T00:00:00.000Z"),
+    ...over,
+  };
+}
+
+type AnySpy = { mock: { calls: unknown[][] } };
+
+/** The `data` object of the most recent Prisma write, without an `any` cast at each site. */
+function lastWriteData(spy: AnySpy): Record<string, unknown> {
+  const call = spy.mock.calls.at(-1);
+  return (call?.[0] as { data: Record<string, unknown> }).data;
+}
+
+/** The first argument of the most recent Prisma read. */
+function lastQuery(spy: AnySpy): Record<string, unknown> {
+  return (spy.mock.calls.at(-1)?.[0] ?? {}) as Record<string, unknown>;
+}
+
+/** Makes every bulletin query reject the way an unreachable server does. */
+function makeDatabaseUnreachable(): void {
+  const unreachable = () => {
+    const err = new Error("Can't reach database server") as Error & { code: string };
+    err.name = "PrismaClientKnownRequestError";
+    err.code = "P1001";
+    return Promise.reject(err);
+  };
+  for (const fn of Object.values(prismaMock.bulletin)) {
+    (fn as ReturnType<typeof vi.fn>).mockImplementation(unreachable);
+  }
+}
+
+/** Answers every bulletin write, echoing the payload back as a stored row. */
+function makeDatabaseWritable(): void {
+  prismaMock.bulletin.findMany.mockResolvedValue([]);
+  prismaMock.bulletin.findUnique.mockResolvedValue(dbRow());
+  prismaMock.bulletin.create.mockImplementation((args: { data: Partial<DbRow> }) =>
+    Promise.resolve({ ...dbRow(), id: "bulletin-created", ...args.data })
+  );
+  prismaMock.bulletin.update.mockImplementation((args: { data: Partial<DbRow> }) =>
+    Promise.resolve({ ...dbRow(), ...args.data })
+  );
+  prismaMock.bulletin.delete.mockResolvedValue(dbRow());
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  // Not strict, so the repository's documented fallback runs. The integration
+  // tier sets STRICT_PERSISTENCE=true; `persistenceMode` reads it per call.
+  vi.stubEnv("STRICT_PERSISTENCE", "false");
+  makeDatabaseWritable();
+  sessionMock.getCurrentSession.mockResolvedValue(null);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+/* -------------------------------------------------------------------------- */
+/* K5a — the host allow-list itself                                            */
+/* -------------------------------------------------------------------------- */
+
+describe("bulletin media allow-list", () => {
+  it.each([
+    ["an https image host on the list", ALLOWED_IMAGE, true],
+    ["a bare unknown host", HOSTILE_IMAGE, false],
+    ["a javascript: URL", "javascript:alert(1)", false],
+    ["a data: URL", "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=", false],
+    ["http rather than https", "http://images.unsplash.com/x.png", false],
+    ["a suffix look-alike host", "https://images.unsplash.com.evil.com/x.png", false],
+    ["a relative path", "/local/x.png", false],
+    ["credentials smuggled into the authority", "https://a:b@images.unsplash.com/x.png", false],
+  ])("isAllowedBulletinImageUrl rejects or admits %s", (_label, url, expected) => {
+    expect(isAllowedBulletinImageUrl(url as string)).toBe(expected);
+  });
+
+  it.each([
+    ["youtube-nocookie", ALLOWED_EMBED, true],
+    ["player.vimeo.com", "https://player.vimeo.com/video/12345", true],
+    ["an arbitrary third-party frame", HOSTILE_EMBED, false],
+    ["a javascript: URL", "javascript:alert(1)", false],
+    ["http rather than https", "http://www.youtube.com/embed/x", false],
+    ["a suffix look-alike host", "https://www.youtube.com.evil.com/embed/x", false],
+  ])("isAllowedBulletinEmbedUrl rejects or admits %s", (_label, url, expected) => {
+    expect(isAllowedBulletinEmbedUrl(url as string)).toBe(expected);
+  });
+
+  it("keeps the embed list narrower than the image list", () => {
+    // An image host can serve the wrong picture; an embed host runs code in the
+    // shelter's frame. Anything that widens the embed list to an image CDN
+    // should have to change this line on purpose.
+    for (const host of BULLETIN_EMBED_HOSTS) {
+      expect(BULLETIN_IMAGE_HOSTS as readonly string[]).not.toContain(host);
+    }
+  });
+
+  it("reads `*.` as exactly one label", () => {
+    expect(isAllowedBulletinImageUrl("https://myproject.supabase.co/x.png")).toBe(true);
+    // The apex itself is not a project bucket, and two labels deep is a host
+    // nobody provisioned through Supabase's own naming.
+    expect(isAllowedBulletinImageUrl("https://supabase.co/x.png")).toBe(false);
+    expect(isAllowedBulletinImageUrl("https://a.b.supabase.co/x.png")).toBe(false);
+    expect(isAllowedBulletinImageUrl("https://evilsupabase.co/x.png")).toBe(false);
+  });
+
+  it("passes an allowed URL through and drops everything else", () => {
+    expect(toPublicMediaUrl(ALLOWED_IMAGE)).toBe(ALLOWED_IMAGE);
+    expect(toPublicMediaUrl(HOSTILE_IMAGE)).toBeUndefined();
+    expect(toPublicMediaUrl(null)).toBeUndefined();
+    expect(toPublicMediaUrl(undefined)).toBeUndefined();
+    expect(toPublicMediaUrl("")).toBeUndefined();
+
+    expect(toPublicEmbedUrl(ALLOWED_EMBED)).toBe(ALLOWED_EMBED);
+    expect(toPublicEmbedUrl(HOSTILE_EMBED)).toBeUndefined();
+    expect(toPublicEmbedUrl(null)).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* K5b — the write side: bulletinFormSchema                                    */
+/* -------------------------------------------------------------------------- */
+
+describe("bulletinFormSchema", () => {
+  const parse = (over: Partial<BulletinFormInput>) => bulletinFormSchema.safeParse(formInput(over));
+
+  it("accepts the minimum an editor must type, with defaults filled in", () => {
+    const res = bulletinFormSchema.safeParse(formInput());
+    expect(res.success).toBe(true);
+    expect(res.data?.targetPage).toBe("all");
+    expect(res.data?.mediaType).toBe("none");
+    expect(res.data?.isPublished).toBe(true);
+    expect(res.data?.isPinned).toBe(false);
+  });
+
+  it.each([
+    ["an arbitrary third-party frame", HOSTILE_EMBED],
+    ["a javascript: URL", "javascript:alert(1)"],
+    ["http rather than https", "http://www.youtube.com/embed/x"],
+    ["a suffix look-alike host", "https://www.youtube.com.evil.com/embed/x"],
+  ])("rejects a videoEmbedUrl that is %s", (_label, url) => {
+    const res = parse({ mediaType: "video", videoEmbedUrl: url });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues.some((i) => i.path.includes("videoEmbedUrl"))).toBe(true);
+  });
+
+  it("accepts a youtube-nocookie embed", () => {
+    const res = parse({ mediaType: "video", videoEmbedUrl: ALLOWED_EMBED });
+    expect(res.success).toBe(true);
+    expect(res.data?.videoEmbedUrl).toBe(ALLOWED_EMBED);
+  });
+
+  it.each([
+    ["an unknown host", HOSTILE_IMAGE],
+    ["a javascript: URL", "javascript:alert(1)"],
+    ["http rather than https", "http://images.unsplash.com/x.png"],
+    ["a suffix look-alike host", "https://images.unsplash.com.evil.com/x.png"],
+    ["two labels under the Supabase wildcard", "https://a.b.supabase.co/x.png"],
+    ["the bare Supabase apex", "https://supabase.co/x.png"],
+  ])("rejects a mediaUrl that is %s", (_label, url) => {
+    const res = parse({ mediaType: "image", mediaUrl: url });
+    expect(res.success).toBe(false);
+    expect(res.error?.issues.some((i) => i.path.includes("mediaUrl"))).toBe(true);
+  });
+
+  it.each([
+    ["an allow-listed CDN", ALLOWED_IMAGE],
+    ["one label under the Supabase wildcard", "https://myproject.supabase.co/x.png"],
+  ])("accepts a mediaUrl on %s", (_label, url) => {
+    const res = parse({ mediaType: "image", mediaUrl: url });
+    expect(res.success).toBe(true);
+    expect(res.data?.mediaUrl).toBe(url);
+  });
+
+  it("refuses a media type whose URL is missing", () => {
+    // A card renders media only when `mediaType` says so, so a type without its
+    // URL is a notice whose picture silently never appears.
+    const image = parse({ mediaType: "image" });
+    expect(image.success).toBe(false);
+    expect(image.error?.issues.some((i) => i.path.includes("mediaUrl"))).toBe(true);
+
+    const video = parse({ mediaType: "video" });
+    expect(video.success).toBe(false);
+    expect(video.error?.issues.some((i) => i.path.includes("videoEmbedUrl"))).toBe(true);
+  });
+
+  it("accepts mediaType none carrying a stray URL", () => {
+    // Accepted at the schema, discarded at the repository — see the write-payload
+    // test below. The editor who switched a card back to None is not shown an error.
+    const res = parse({ mediaType: "none", mediaUrl: ALLOWED_IMAGE, videoEmbedUrl: ALLOWED_EMBED });
+    expect(res.success).toBe(true);
+  });
+
+  it("requires a YYYY-MM-DD notice date", () => {
+    expect(parse({ publishedAt: "14/08/2026" }).success).toBe(false);
+    expect(parse({ publishedAt: "2026-8-14" }).success).toBe(false);
+    expect(parse({ publishedAt: "2026-08-14T00:00:00Z" }).success).toBe(false);
+    expect(parse({ publishedAt: "2026-08-14" }).success).toBe(true);
+  });
+
+  it("keeps the vocabularies it publishes in step with the type union", () => {
+    for (const category of BULLETIN_CATEGORIES) {
+      expect(parse({ category }).success).toBe(true);
+    }
+    for (const targetPage of BULLETIN_TARGET_PAGES) {
+      expect(parse({ targetPage }).success).toBe(true);
+    }
+    expect(BULLETIN_MEDIA_TYPES).toEqual(["none", "image", "video"]);
+    expect(parse({ category: "gossip" as BulletinFormInput["category"] }).success).toBe(false);
+    expect(parse({ targetPage: "admin" as BulletinFormInput["targetPage"] }).success).toBe(false);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* K4 — authorisation                                                          */
+/* -------------------------------------------------------------------------- */
+
+/** One invocation per write action, so each is gated on its own evidence. */
+const WRITE_ACTIONS: Array<[string, () => Promise<{ success: boolean; error?: string }>]> = [
+  [
+    "createBulletinAction",
+    async () => (await import("@/actions/bulletins")).createBulletinAction(formInput()),
+  ],
+  [
+    "updateBulletinAction",
+    async () =>
+      (await import("@/actions/bulletins")).updateBulletinAction("bulletin-db-1", formInput()),
+  ],
+  [
+    "setBulletinPublishedAction",
+    async () =>
+      (await import("@/actions/bulletins")).setBulletinPublishedAction("bulletin-db-1", true),
+  ],
+  [
+    "setBulletinPinnedAction",
+    async () => (await import("@/actions/bulletins")).setBulletinPinnedAction("bulletin-db-1", true),
+  ],
+  [
+    "deleteBulletinAction",
+    async () => (await import("@/actions/bulletins")).deleteBulletinAction("bulletin-db-1"),
+  ],
+];
+
+describe("bulletin actions - authorisation", () => {
+  it.each(WRITE_ACTIONS)("refuses %s from an unauthenticated visitor", async (_name, invoke) => {
+    sessionMock.getCurrentSession.mockResolvedValue(null);
+
+    const res = await invoke();
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/sign in|Authentication/i);
+    // The gate has to stop the write, not merely report on it afterwards.
+    expect(prismaMock.bulletin.create).not.toHaveBeenCalled();
+    expect(prismaMock.bulletin.update).not.toHaveBeenCalled();
+    expect(prismaMock.bulletin.delete).not.toHaveBeenCalled();
+  });
+
+  // The gate is the MANAGE_CONTENT capability, held only by SUPER_ADMIN and
+  // CONTENT_EDITOR. COORDINATOR normalises to VOLUNTEER_COORDINATOR, which does
+  // not hold it: a coordinator may review applications, not publish notices to
+  // every public page under the shelter's name.
+  const DENIED: Array<[string, SessionUser]> = [
+    ["STAFF", STAFF],
+    ["VOLUNTEER", VOLUNTEER],
+    ["COORDINATOR", COORDINATOR],
+  ];
+
+  it.each(
+    DENIED.flatMap(([role, user]) =>
+      WRITE_ACTIONS.map(([name, invoke]) => [role, name, user, invoke] as const)
+    )
+  )("refuses %s calling %s", async (_role, _name, user, invoke) => {
+    sessionMock.getCurrentSession.mockResolvedValue(user);
+
+    const res = await invoke();
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not authorized/i);
+    expect(prismaMock.bulletin.create).not.toHaveBeenCalled();
+    expect(prismaMock.bulletin.update).not.toHaveBeenCalled();
+    expect(prismaMock.bulletin.delete).not.toHaveBeenCalled();
+  });
+
+  const ALLOWED: Array<[string, SessionUser]> = [
+    ["SUPER_ADMIN", ADMIN],
+    ["CONTENT_EDITOR", CONTENT_EDITOR],
+    ["ADMIN (legacy alias for SUPER_ADMIN)", LEGACY_ADMIN],
+  ];
+
+  it.each(
+    ALLOWED.flatMap(([role, user]) =>
+      WRITE_ACTIONS.map(([name, invoke]) => [role, name, user, invoke] as const)
+    )
+  )("allows %s to call %s", async (_role, _name, user, invoke) => {
+    sessionMock.getCurrentSession.mockResolvedValue(user);
+
+    const res = await invoke();
+
+    expect(res.error).toBeUndefined();
+    expect(res.success).toBe(true);
+  });
+
+  it("gates the admin list, so a draft is not readable without MANAGE_CONTENT", async () => {
+    // The one row the database holds is unpublished — staff-only by definition.
+    prismaMock.bulletin.findMany.mockResolvedValue([
+      dbRow({ id: "bulletin-draft", title: "Embargoed: clinic closure", isPublished: false }),
+    ]);
+    const { listBulletinsAction } = await import("@/actions/bulletins");
+
+    const anonymous = await listBulletinsAction();
+    expect(anonymous.success).toBe(false);
+    expect(anonymous.error).toMatch(/sign in|Authentication/i);
+    expect(anonymous.data).toBeUndefined();
+
+    for (const [, user] of DENIED) {
+      sessionMock.getCurrentSession.mockResolvedValue(user);
+      const denied = await listBulletinsAction();
+      expect(denied.success).toBe(false);
+      expect(denied.error).toMatch(/not authorized/i);
+      expect(denied.data).toBeUndefined();
+    }
+
+    // The gate runs before the query, so the draft never left the database.
+    expect(prismaMock.bulletin.findMany).not.toHaveBeenCalled();
+
+    sessionMock.getCurrentSession.mockResolvedValue(CONTENT_EDITOR);
+    const allowed = await listBulletinsAction();
+    expect(allowed.success).toBe(true);
+    expect(allowed.data?.map((r) => r.id)).toEqual(["bulletin-draft"]);
+    expect(allowed.data?.[0].isPublished).toBe(false);
+  });
+
+  it("surfaces an outage to the editor instead of serving fixture rows", async () => {
+    // The admin list has no fixture fallback on purpose: those ids need not
+    // exist in the database, so every Edit and Delete on them would fail with
+    // "not found" while the table insisted the data was there.
+    sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
+    makeDatabaseUnreachable();
+    const { listBulletinsAction } = await import("@/actions/bulletins");
+
+    const res = await listBulletinsAction();
+
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/database is unavailable/i);
+    expect(res.data).toBeUndefined();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* K4b — the byline cannot be forged                                           */
+/* -------------------------------------------------------------------------- */
+
+describe("bulletin byline", () => {
+  it("takes authorName from the session, never from the form", async () => {
+    sessionMock.getCurrentSession.mockResolvedValue(CONTENT_EDITOR);
+    const { createBulletinAction } = await import("@/actions/bulletins");
+
+    const res = await createBulletinAction(
+      // A hostile client posts whatever it likes; the action is the only thing
+      // between that and a notice published under a colleague's name.
+      { ...formInput(), authorName: "Someone Else" } as BulletinFormInput
+    );
+
+    expect(res.success).toBe(true);
+    const data = lastWriteData(prismaMock.bulletin.create);
+    expect(data.authorName).toBe(CONTENT_EDITOR.name);
+    expect(JSON.stringify(data)).not.toContain("Someone Else");
+  });
+
+  it("does not reassign the byline on an edit", async () => {
+    // Correcting a colleague's typo must not put your name on their notice, so
+    // the update payload carries no `authorName` at all.
+    sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
+    const { updateBulletinAction } = await import("@/actions/bulletins");
+
+    const res = await updateBulletinAction("bulletin-db-1", {
+      ...formInput({ title: "Clinic day moved to Monday" }),
+      authorName: "Someone Else",
+    } as BulletinFormInput);
+
+    expect(res.success).toBe(true);
+    const data = lastWriteData(prismaMock.bulletin.update);
+    expect(Object.keys(data)).not.toContain("authorName");
+    expect(JSON.stringify(data)).not.toContain("Someone Else");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Write payload: media discipline and the notice date                         */
+/* -------------------------------------------------------------------------- */
+
+describe("bulletin write payload", () => {
+  beforeEach(() => {
+    sessionMock.getCurrentSession.mockResolvedValue(ADMIN);
+  });
+
+  it("keeps a URL only for the media type that will render it", async () => {
+    const { createBulletinAction } = await import("@/actions/bulletins");
+
+    await createBulletinAction(
+      formInput({ mediaType: "none", mediaUrl: ALLOWED_IMAGE, videoEmbedUrl: ALLOWED_EMBED })
+    );
+    const none = lastWriteData(prismaMock.bulletin.create);
+    // Not merely unrendered — not stored, so switching the card back to Image
+    // later cannot resurrect an embed URL nobody re-reviewed.
+    expect(none.mediaUrl).toBeNull();
+    expect(none.videoEmbedUrl).toBeNull();
+
+    await createBulletinAction(
+      formInput({ mediaType: "image", mediaUrl: ALLOWED_IMAGE, videoEmbedUrl: ALLOWED_EMBED })
+    );
+    const image = lastWriteData(prismaMock.bulletin.create);
+    expect(image.mediaUrl).toBe(ALLOWED_IMAGE);
+    expect(image.videoEmbedUrl).toBeNull();
+
+    await createBulletinAction(
+      formInput({ mediaType: "video", mediaUrl: ALLOWED_IMAGE, videoEmbedUrl: ALLOWED_EMBED })
+    );
+    const video = lastWriteData(prismaMock.bulletin.create);
+    expect(video.mediaUrl).toBeNull();
+    expect(video.videoEmbedUrl).toBe(ALLOWED_EMBED);
+  });
+
+  it("round-trips a notice date without timezone drift", async () => {
+    const { createBulletinAction, listBulletinsAction } = await import("@/actions/bulletins");
+
+    await createBulletinAction(formInput({ publishedAt: "2026-08-14" }));
+
+    const stored = lastWriteData(prismaMock.bulletin.create).publishedAt as Date;
+    expect(stored).toBeInstanceOf(Date);
+    // Midnight UTC exactly. A `new Date("2026-08-14T00:00:00")` without the Z
+    // would be midnight *local* — 2026-08-13T16:00Z in Malaysia — and the clinic
+    // announced for Friday would print as Thursday.
+    expect(stored.toISOString()).toBe("2026-08-14T00:00:00.000Z");
+
+    // And back out through the repository's own mapping, not just the parser.
+    prismaMock.bulletin.findMany.mockResolvedValue([dbRow({ publishedAt: stored })]);
+    const listed = await listBulletinsAction();
+    expect(listed.data?.[0].publishedAt).toBe("2026-08-14");
+  });
+
+  it("revalidates every public surface that renders a bulletin", async () => {
+    const { createBulletinAction } = await import("@/actions/bulletins");
+
+    await createBulletinAction(formInput());
+
+    const paths = getRevalidatedPaths().map((p) => p.path);
+    // `/` carries revalidate = 300, so an omission here is a corrected notice
+    // staying wrong on the home page for five minutes with nothing saying so.
+    expect(paths).toContain("/");
+    expect(paths).toContain("/pets");
+    expect(paths).toContain("/bulletins");
+    expect(paths).toContain("/admin/bulletins");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* K5c — the render side, and K3 — empty is an answer                          */
+/* -------------------------------------------------------------------------- */
+
+describe("getPublicBulletins", () => {
+  it("strips a hostile embed URL a row carried past the action", async () => {
+    // Rows reach this table without passing the action: `prisma/seed.ts` inserts
+    // fixtures and the manual migration is applied by hand. This is the
+    // enforcing half of the allow-list, and the only one those rows meet.
+    prismaMock.bulletin.findMany.mockResolvedValue([
+      dbRow({
+        id: "bulletin-smuggled",
+        mediaType: "video",
+        videoEmbedUrl: HOSTILE_EMBED,
+        title: "Seeded past the action",
+      }),
+    ]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const [bulletin] = await getPublicBulletins("all");
+
+    expect(bulletin.videoEmbedUrl).toBeUndefined();
+    // The words still publish: one bad URL must not blank the feed, or nobody
+    // could reach the admin screen to fix it.
+    expect(bulletin.title).toBe("Seeded past the action");
+  });
+
+  it("strips a hostile image URL a row carried past the action", async () => {
+    prismaMock.bulletin.findMany.mockResolvedValue([
+      dbRow({ id: "bulletin-smuggled-img", mediaType: "image", mediaUrl: HOSTILE_IMAGE }),
+    ]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const [bulletin] = await getPublicBulletins("all");
+
+    expect(bulletin.mediaUrl).toBeUndefined();
+    expect(bulletin.content).toBe(dbRow().content);
+  });
+
+  it("keeps an allow-listed URL rather than stripping everything", async () => {
+    // The other half of the guard: a reader that returned `undefined` for every
+    // URL would pass the two tests above and render no media at all.
+    prismaMock.bulletin.findMany.mockResolvedValue([
+      dbRow({ mediaType: "image", mediaUrl: ALLOWED_IMAGE, videoEmbedUrl: ALLOWED_EMBED }),
+    ]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const [bulletin] = await getPublicBulletins("all");
+
+    expect(bulletin.mediaUrl).toBe(ALLOWED_IMAGE);
+    expect(bulletin.videoEmbedUrl).toBe(ALLOWED_EMBED);
+  });
+
+  it("returns nothing when the query succeeds with no rows", async () => {
+    // Staff have unpublished everything, or nothing targets this page. That is
+    // an answer. Substituting the fixture would resurrect retracted notices and
+    // leave no admin action able to empty the feed.
+    prismaMock.bulletin.findMany.mockResolvedValue([]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const bulletins = await getPublicBulletins("all");
+
+    expect(bulletins).toEqual([]);
+    expect(bulletins).toHaveLength(0);
+    // Stated separately so the failure names the fixture if the `catch`-only
+    // fallback is ever changed back to a count check.
+    expect(fixtureJson.length).toBeGreaterThan(0);
+  });
+
+  it("still falls back to the fixture when the query fails", async () => {
+    // The other half: asserting only that empty stays empty would also pass
+    // against a reader that had lost its fallback altogether.
+    makeDatabaseUnreachable();
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    const bulletins = await getPublicBulletins("all");
+
+    expect(bulletins.map((b) => b.id)).toEqual([
+      // Pinned first, then newest.
+      "bulletin-001",
+      "bulletin-002",
+      "bulletin-003",
+      "bulletin-004",
+    ]);
+  });
+
+  it("asks the database for published rows, this page's targets, pinned first", async () => {
+    // The Prisma path delegates ordering and filtering to the database, so the
+    // query itself is the only thing a test can hold to the contract.
+    prismaMock.bulletin.findMany.mockResolvedValue([]);
+    const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+    await getPublicBulletins("home", 2);
+    const scoped = lastQuery(prismaMock.bulletin.findMany);
+    expect(scoped.where).toEqual({ isPublished: true, targetPage: { in: ["all", "home"] } });
+    expect(scoped.orderBy).toEqual([{ isPinned: "desc" }, { publishedAt: "desc" }]);
+
+    await getPublicBulletins("all");
+    expect(lastQuery(prismaMock.bulletin.findMany).where).toEqual({
+      isPublished: true,
+      targetPage: undefined,
+    });
+  });
+
+  describe("ordering and target filtering (fixture path)", () => {
+    beforeEach(() => {
+      makeDatabaseUnreachable();
+    });
+
+    it("includes the page's own notices and the ones targeting every page", async () => {
+      const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+      const home = await getPublicBulletins("home");
+      // bulletin-001 targets "all", bulletin-002 targets "home".
+      expect(home.map((b) => b.id)).toEqual(["bulletin-001", "bulletin-002"]);
+      // bulletin-003 is bulletins-only and bulletin-004 is pets-only.
+      expect(home.map((b) => b.id)).not.toContain("bulletin-003");
+      expect(home.map((b) => b.id)).not.toContain("bulletin-004");
+
+      const pets = await getPublicBulletins("pets");
+      expect(pets.map((b) => b.id)).toEqual(["bulletin-001", "bulletin-004"]);
+    });
+
+    it("sorts pinned first, then newest, and applies the limit afterwards", async () => {
+      // The shipped fixture cannot discriminate "pinned first" from "newest
+      // first": its two pinned rows are also its two newest, so both orderings
+      // produce the same list. `sortForFeed` is module-private and the fallback
+      // store has no writer, so the one way to put a newer *unpinned* notice in
+      // front of it is to add a row to the fixture the store clones on reset.
+      await withExtraFixtureRow(
+        {
+          id: "bulletin-newest-unpinned",
+          title: "Newest, but not pinned",
+          content: "Posted after the pinned notices, and must still sort below them.",
+          titleMs: null,
+          contentMs: null,
+          category: "announcement",
+          targetPage: "home",
+          mediaType: "none",
+          mediaUrl: null,
+          videoEmbedUrl: null,
+          isPinned: false,
+          isPublished: true,
+          authorName: "Shelter Team",
+          publishedAt: "2026-12-31",
+        },
+        async () => {
+          const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+
+          const home = await getPublicBulletins("home");
+          expect(home.map((b) => b.id)).toEqual([
+            "bulletin-001", // pinned, 2026-08-14
+            "bulletin-002", // pinned, 2026-08-12
+            "bulletin-newest-unpinned", // 2026-12-31, but unpinned
+          ]);
+
+          // The limit is applied after sorting, so the page gets the two
+          // notices it would have shown — not the first two off the array.
+          const limited = await getPublicBulletins("home", 2);
+          expect(limited.map((b) => b.id)).toEqual(["bulletin-001", "bulletin-002"]);
+        }
+      );
+    });
+
+    it("hides an unpublished notice from the public feed", async () => {
+      await withExtraFixtureRow(
+        {
+          id: "bulletin-draft",
+          title: "Embargoed until the vet confirms",
+          content: "Draft copy that no visitor may see on any public page.",
+          titleMs: null,
+          contentMs: null,
+          category: "announcement",
+          targetPage: "all",
+          mediaType: "none",
+          mediaUrl: null,
+          videoEmbedUrl: null,
+          isPinned: true,
+          isPublished: false,
+          authorName: "Shelter Team",
+          publishedAt: "2026-12-31",
+        },
+        async () => {
+          const { getPublicBulletins } = await import("@/lib/server/bulletinRepository");
+          const all = await getPublicBulletins("all");
+          expect(all.map((b) => b.id)).not.toContain("bulletin-draft");
+        }
+      );
+    });
+  });
+});
+
+/**
+ * Runs `fn` with one extra row in the fallback fixture, then restores it.
+ *
+ * The fallback store clones `src/data/bulletins.json` on every `resetBulletins()`,
+ * and the harness's global `beforeEach` calls that through `resetServerStore()`,
+ * so the row is gone by the next test whether or not the `finally` runs.
+ */
+async function withExtraFixtureRow(row: unknown, fn: () => Promise<void>): Promise<void> {
+  const rows = fixtureJson as unknown as unknown[];
+  const { resetBulletins } = await import("@/lib/server/bulletinRepository");
+  // Prepended rather than appended: a reader that applied `limit` BEFORE sorting
+  // would then cut this row instead of the pinned ones, which is the only
+  // arrangement that tells the two orders apart.
+  rows.unshift(row);
+  resetBulletins();
+  try {
+    await fn();
+  } finally {
+    rows.shift();
+    resetBulletins();
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* K6 — the shipped fixture                                                    */
+/* -------------------------------------------------------------------------- */
+
+describe("src/data/bulletins.json", () => {
+  const rows = fixtureJson as unknown as Array<Record<string, unknown>>;
+
+  it("ships rows at all", () => {
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it("carries every key BulletinFixtureRow requires", () => {
+    const required = [
+      "id",
+      "title",
+      "content",
+      "titleMs",
+      "contentMs",
+      "category",
+      "targetPage",
+      "mediaType",
+      "mediaUrl",
+      "videoEmbedUrl",
+      "isPinned",
+      "isPublished",
+      "authorName",
+      "publishedAt",
+    ];
+    for (const row of rows) {
+      for (const key of required) {
+        expect(Object.keys(row), `row ${String(row.id)} is missing ${key}`).toContain(key);
+      }
+      expect(typeof row.title).toBe("string");
+      expect(typeof row.content).toBe("string");
+      expect(typeof row.authorName).toBe("string");
+      expect(typeof row.isPinned).toBe("boolean");
+      expect(typeof row.isPublished).toBe("boolean");
+      expect(String(row.title).trim().length).toBeGreaterThan(0);
+      expect(String(row.content).trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses only the declared vocabularies", () => {
+    for (const row of rows) {
+      expect(BULLETIN_CATEGORIES as readonly string[]).toContain(row.category);
+      expect(BULLETIN_TARGET_PAGES as readonly string[]).toContain(row.targetPage);
+      expect(BULLETIN_MEDIA_TYPES as readonly string[]).toContain(row.mediaType);
+    }
+  });
+
+  it("dates every notice as a plain calendar day", () => {
+    for (const row of rows) {
+      expect(String(row.publishedAt)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+  });
+
+  it("gives every row a unique id", () => {
+    const ids = rows.map((r) => String(r.id));
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("carries no media URL that the allow-list would strip", () => {
+    // This is what stops someone re-adding an arbitrary embed to the shipped
+    // data: a fixture URL off the list renders as nothing, and the row would
+    // look broken in production with no error anywhere.
+    for (const row of rows) {
+      if (row.mediaUrl) {
+        expect(
+          isAllowedBulletinImageUrl(String(row.mediaUrl)),
+          `row ${String(row.id)} mediaUrl is not on BULLETIN_IMAGE_HOSTS`
+        ).toBe(true);
+      }
+      if (row.videoEmbedUrl) {
+        expect(
+          isAllowedBulletinEmbedUrl(String(row.videoEmbedUrl)),
+          `row ${String(row.id)} videoEmbedUrl is not on BULLETIN_EMBED_HOSTS`
+        ).toBe(true);
+      }
+      // A declared media type with no URL is a card that renders nothing.
+      if (row.mediaType === "image") expect(row.mediaUrl).toBeTruthy();
+      if (row.mediaType === "video") expect(row.videoEmbedUrl).toBeTruthy();
+    }
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* K7 — the two copies of the host list must agree                             */
+/* -------------------------------------------------------------------------- */
+
+describe("BULLETIN_IMAGE_HOSTS agrees with next.config.ts", () => {
+  // Read as TEXT, not imported: `next.config.ts` is build configuration, and
+  // importing it here would be the very coupling `bulletinMedia.ts` refuses.
+  const source = readFileSync(join(process.cwd(), "next.config.ts"), "utf8");
+  const remotePatterns = source.slice(source.indexOf("remotePatterns"));
+  const configured = Array.from(remotePatterns.matchAll(/hostname:\s*"([^"]+)"/g)).map(
+    (m) => m[1]
+  );
+
+  it("finds hostnames to compare at all", () => {
+    // Without this, a renamed key would make every assertion below vacuous.
+    expect(configured.length).toBeGreaterThan(0);
+  });
+
+  it.each(BULLETIN_IMAGE_HOSTS)("lists %s in images.remotePatterns", (host) => {
+    // Next reads `**.` as the wildcard; this module writes `*.` and means one
+    // label. An image host missing from next.config answers 400 from the
+    // optimizer, so the card is broken with nothing in the app to say why.
+    const expected = host.startsWith("*.") ? `**${host.slice(1)}` : host;
+    expect(configured).toContain(expected);
+  });
+});
