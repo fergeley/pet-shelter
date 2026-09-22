@@ -169,8 +169,25 @@ export function hasAgeUnit(ageStr: string): boolean {
 }
 
 /**
- * Approximates a birth date from a legacy age string (e.g. "2 years", "4 months", "2 tahun")
- * relative to an intake date. Timezone-invariant UTC arithmetic.
+ * Builds a UTC day, clamping the day of month to the target month's last day instead of letting
+ * `Date.UTC` roll it forward. Without this, subtracting one month from the 31st lands in the
+ * month *after* the one asked for — 2026-03-31 less a month gave 2026-03-03, a 28-day "month" —
+ * and a year off 2024-02-29 gave 2023-03-01. A month of error moves an animal across an
+ * `AGE_BAND_MIN_MONTHS` boundary, so the band shown to adopters changes.
+ */
+function utcDayClamped(year: number, month: number, day: number): Date {
+  const lastDayOfMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(day, lastDayOfMonth)));
+}
+
+/**
+ * Approximates a birth date from an age string (e.g. "2 years", "4 months", "2 tahun") relative
+ * to the given reference day. Timezone-invariant UTC arithmetic, clamped at month ends.
+ *
+ * The reference is the caller's to choose and the two callers differ on purpose: the admin
+ * dialog passes *today*, because the age an operator types is the animal's age now, while
+ * `deriveBirthDate` passes the intake date, because a legacy row's `age` string was whatever was
+ * written down when the animal arrived.
  */
 export function approximateBirthDate(
   ageStr: string,
@@ -185,14 +202,14 @@ export function approximateBirthDate(
   const yearMatch = norm.match(AGE_YEARS_PATTERN);
   if (yearMatch) {
     const years = parseInt(yearMatch[1], 10);
-    const d = new Date(Date.UTC(parts.year - years, parts.month, parts.day));
+    const d = utcDayClamped(parts.year - years, parts.month, parts.day);
     return { birthDate: d.toISOString().split("T")[0], isEstimate: true };
   }
 
   const monthMatch = norm.match(AGE_MONTHS_PATTERN);
   if (monthMatch) {
     const months = parseInt(monthMatch[1], 10);
-    const d = new Date(Date.UTC(parts.year, parts.month - months, parts.day));
+    const d = utcDayClamped(parts.year, parts.month - months, parts.day);
     return { birthDate: d.toISOString().split("T")[0], isEstimate: true };
   }
 

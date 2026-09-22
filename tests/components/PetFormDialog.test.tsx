@@ -7,7 +7,7 @@ import {
   computeAgeCategory,
   formatAgeString,
 } from "@/lib/domain/petAge";
-import { renderWithLanguage } from "./support/render";
+import { makePet, renderWithLanguage } from "./support/render";
 
 /**
  * Tier 4 cover for the birth-date/age coupling in the admin pet form.
@@ -143,6 +143,31 @@ describe("PetFormDialog birth date and age", () => {
     expect(birthDateInput().value).not.toBe(
       approximateBirthDate("3 years 2 months", intakeDate).birthDate
     );
+  });
+
+  it("reckons a typed age from today, not from the intake date", async () => {
+    // An animal resident since January 2023, whose birthday is still only a guess. Six years is
+    // chosen so the derived birthday lands *before* intake and the cross-field rule stays quiet:
+    // the subject here is which day the arithmetic counts back from, nothing else.
+    const editingPet = makePet({
+      intakeDate: "2023-01-10",
+      birthDate: "2020-01-10",
+      birthDateIsEstimate: true,
+    });
+    renderDialog({ editingPet });
+    await waitFor(() => expect(birthDateInput().value).toBe("2020-01-10"));
+
+    fireEvent.change(ageInput(), { target: { value: "6 years" } });
+
+    const fromToday = approximateBirthDate("6 years", todayUtc()).birthDate;
+    const fromIntake = approximateBirthDate("6 years", editingPet.intakeDate).birthDate;
+    expect(fromToday).not.toBe(fromIntake);
+
+    await waitFor(() => expect(birthDateInput().value).toBe(fromToday));
+    // Naming the value the intake-anchored arithmetic produced: an operator who types the age
+    // the animal is *now* must not have it stored as the age it was when it arrived, which is
+    // the drift the birth date field exists to end.
+    expect(birthDateInput().value).not.toBe(fromIntake);
   });
 
   it("reads Malay age units the same as English ones", async () => {

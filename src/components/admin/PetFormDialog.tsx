@@ -272,8 +272,13 @@ export function PetFormDialog({
     const currentBirthDate = getValues("birthDate");
     const isEstimate = getValues("birthDateIsEstimate");
     if ((!currentBirthDate || isEstimate) && hasAgeUnit(typedAge)) {
-      const intakeDate = getValues("intakeDate") || new Date().toISOString().split("T")[0];
-      const approx = approximateBirthDate(typedAge, intakeDate);
+      // Reckoned from today, not from the intake date. This field is the animal's age *now* —
+      // it is what the site renders and what `withDerivedAge` recomputes from the birthday on
+      // save. Anchoring to intake would place the birthday `age` years before the animal
+      // arrived, so a pet taken in three years ago and entered as "3 years" saved as six, and
+      // the record walked a further year away from the typed text every year. That drift is
+      // what `tasks/open/pet-form-has-no-birth-date-field.md` was opened about.
+      const approx = approximateBirthDate(typedAge, new Date().toISOString().split("T")[0]);
       setValue("birthDate", approx.birthDate, { shouldDirty: true, shouldValidate: true });
       setValue("birthDateIsEstimate", true, { shouldDirty: true });
       setValue("ageCategory", computeAgeCategory(approx.birthDate), { shouldValidate: true, shouldDirty: true });

@@ -279,11 +279,32 @@ export async function updatePet(
     const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
     const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
+    // Omitting `birthDate` leaves the stored birthday alone; sending an empty string is the
+    // operator clearing it. Assigning `validated.birthDate || undefined` unconditionally would
+    // discard a recorded birthday on any payload that simply did not mention one — and
+    // `withDerivedAge` would then quietly re-derive it from the age text.
+    //
+    // The flag follows the same fork rather than `??`: `petFormSchema` gives
+    // `birthDateIsEstimate` a default of `true`, so the parsed value is never `undefined` and a
+    // `?? existing.birthDateIsEstimate` arm can never run. Reading it only when the payload
+    // actually carried a birthday is what keeps an exact record from being downgraded to an
+    // estimate by an update that said nothing about it. `petStore.updatePet` splits it the same
+    // way; the two are meant to answer identically for the same submission.
+    const submittedBirthDate = validated.birthDate !== undefined;
+    const nextBirthDate = submittedBirthDate
+      ? validated.birthDate || undefined
+      : existing.birthDate;
+    const nextBirthDateIsEstimate = !nextBirthDate
+      ? true
+      : submittedBirthDate
+        ? validated.birthDateIsEstimate
+        : existing.birthDateIsEstimate ?? true;
+
     const updated: Pet = withDerivedAge({
       ...existing,
       ...validated,
-      birthDate: validated.birthDate || undefined,
-      birthDateIsEstimate: validated.birthDate ? (validated.birthDateIsEstimate ?? existing.birthDateIsEstimate ?? true) : true,
+      birthDate: nextBirthDate,
+      birthDateIsEstimate: nextBirthDateIsEstimate,
       // The submitted form is authoritative for rehabilitation progress: omitting the
       // fields clears them, so a cleared animal cannot keep a stale progress bar.
       rehabStage: validated.rehabStage,

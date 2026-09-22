@@ -251,6 +251,44 @@ describe("Pet Birth Date (PS-114)", () => {
     });
   });
 
+  describe("Review findings (PR #42)", () => {
+    it("keeps an exact birthday when an update omits the birth date", async () => {
+      const created = await createPet({
+        ...basePetInput,
+        name: "Mochi Omitted",
+        birthDate: "2023-05-10",
+        birthDateIsEstimate: false,
+      });
+      expect(created.success).toBe(true);
+      const petId = created.data!.id;
+
+      // `basePetInput` carries no `birthDate` key at all, which is the payload shape that
+      // matters: `PetFormInput` makes the field optional, so an update that simply does not
+      // mention the birthday must not be read as a request to erase it.
+      const updated = await updatePet(petId, { ...basePetInput, name: "Mochi Renamed" });
+
+      expect(updated.success).toBe(true);
+      expect(updated.data?.birthDate).toBe("2023-05-10");
+      // The flag has a schema default of `true`, so an update that says nothing would downgrade
+      // a known birthday to an estimate if the default were trusted over the stored value.
+      expect(updated.data?.birthDateIsEstimate).toBe(false);
+
+      const stored = await getPetById(petId);
+      expect(stored?.birthDate).toBe("2023-05-10");
+      expect(stored?.birthDateIsEstimate).toBe(false);
+    });
+
+    it("clamps a month-end reference day instead of rolling past it", () => {
+      // 31 March less one month has no 31st to land on. Rolling over gave 2026-03-03 — a
+      // 28-day "month" that leaves the animal in the month it started from.
+      expect(approximateBirthDate("1 month", "2026-03-31").birthDate).toBe("2026-02-28");
+      // A leap day less a year has no 29 February to land on.
+      expect(approximateBirthDate("1 year", "2024-02-29").birthDate).toBe("2023-02-28");
+      // Days that exist in the target month are untouched.
+      expect(approximateBirthDate("1 month", "2026-03-15").birthDate).toBe("2026-02-15");
+    });
+  });
+
   describe("approximateBirthDate & withDerivedAge Edge Cases", () => {
     it("handles Malay terms correctly and symmetrically with English", () => {
       const intake = "2026-06-12";
