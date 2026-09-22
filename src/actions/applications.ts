@@ -40,7 +40,8 @@ import {
   combineInterviewDateTime,
   splitInterviewDateTime,
 } from "@/lib/domain/applicationWorkflow";
-import { findServerPetById } from "@/lib/server/petRepository";
+import { findServerPetById, findServerPetByIdAsync } from "@/lib/server/petRepository";
+import { getPetStatusPresentation } from "@/lib/presentation/petStatusPresentation";
 import {
   sendApplicationConfirmationEmail,
   sendStaffApplicationAlert,
@@ -104,15 +105,6 @@ export async function submitApplication(
   try {
     const validated = applicationFormSchema.parse(data);
 
-    // Verify target pet exists and is not archived
-    const pet = findServerPetById(validated.petId);
-    if (pet && pet.isArchived) {
-      return {
-        success: false,
-        error: "This animal is currently archived and is no longer accepting new adoption applications.",
-      };
-    }
-
     // 1. Rate limiting — two independent budgets, neither keyed on the other's input.
     // The address budget is the one that actually bounds an attacker; the email
     // budget bounds spam against one mailbox but is trivially bypassed by varying
@@ -132,7 +124,62 @@ export async function submitApplication(
       };
     }
 
-    // 2. Idempotency Wrapper
+    // 2. The target animal: it must exist, not be archived, and be adoptable.
+    //
+    // `findServerPetByIdAsync`, not `findServerPetById`. The synchronous reader only searches
+    // the in-memory mirror, which a cold process seeds from `src/data/pets.json` — so the
+    // archive check below read the *fixture's* `isArchived` rather than the database's, and an
+    // animal the shelter had archived kept accepting applications. That is the defect
+    // `getPetById` fixed for `/pets/[id]`, sitting in the write path beside it; see
+    // `tasks/lessons/2026-09-10-a-predicate-is-only-as-true-as-the-read-underneath-it.md`.
+    //
+    // And an exact id match, not merely a found one. Postgres matches ids case-sensitively and
+    // the mirror does not, so a posted `PET-001` missed the database, fell through to fixture
+    // `pet-001` — Available and unarchived there — and the application was accepted against an
+    // animal the database had archived. Refusing any result whose id is not exactly the one
+    // posted makes both readers agree without assuming anything about id casing.
+    //
+    // Placed after the rate limits on purpose. This is a database query on an unauthenticated
+    // POST; the mirror read it replaces was free, so leaving it above the budgets would hand
+    // an anonymous caller one `findUnique` per request with nothing bounding it.
+    //
+    // What this does not close: a database that answers "no such row" for an id that *is* in
+    // `pets.json` still falls through to the fixture, so a fixture animal the database never
+    // held can still be applied for. That is the repository's fallback policy, not this
+    // action's — `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`, of
+    // which this is now the third caller guarding itself rather than the policy being settled.
+    const requestedPetId = validated.petId.trim();
+    const pet = await findServerPetByIdAsync(requestedPetId);
+    if (!pet || pet.id !== requestedPetId) {
+      // The comment above the old check said "verify target pet exists"; the code read
+      // `pet && pet.isArchived`, which skipped the check entirely when nothing matched, so any
+      // id the mirror did not hold — including one that exists nowhere — was accepted.
+      return {
+        success: false,
+        error: "We could not find that animal. Please choose one from the adoption gallery and try again.",
+      };
+    }
+    if (pet.isArchived) {
+      return {
+        success: false,
+        error: "This animal is currently archived and is no longer accepting new adoption applications.",
+      };
+    }
+    const presentation = getPetStatusPresentation(pet.status);
+    if (!presentation.isAdoptable) {
+      // `isAdoptable` rather than a status comparison here, so this agrees with the gallery's
+      // preselect and the detail page's button by construction. It is true for `Available`
+      // alone: `Pending` is a stage of the adoption track whose button already renders
+      // disabled, and that is the product call recorded in
+      // `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md`.
+      // An unrecognised status resolves to the `pending` presentation, so it fails closed.
+      return {
+        success: false,
+        error: `${pet.name} is not currently accepting adoption applications (${presentation.labelFallback}).`,
+      };
+    }
+
+    // 3. Idempotency Wrapper
     return await withIdempotency(idempotencyKey, async () => {
       const today = new Date().toISOString().split("T")[0];
 

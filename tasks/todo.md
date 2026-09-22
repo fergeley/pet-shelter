@@ -15,6 +15,89 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Adoption submissions validate their target animal
+
+**Branch:** `worktree-adoption-submit-guards` · opened 2026-09-22 · base `8d36ace`
+**Settles:** `tasks/open/submit-application-checks-a-fixture-and-no-status.md` (deleted with this work)
+
+## Items
+
+- [x] Audit the brief against the tree before implementing. All three server gaps and both client
+      halves confirmed live at `src/actions/applications.ts:107-114` and
+      `src/hooks/useAdoptionFormController.ts:60-61`. Nothing in flight on either file.
+- [x] Gap 1 — `findServerPetByIdAsync`, so the archive flag comes from Postgres, not `pets.json`.
+- [x] Gap 2 — reject a pet that is not found, **and** one whose id is not exactly the one posted.
+      The swap alone does not close this; see Review.
+- [x] Gap 3 — reject any pet whose `getPetStatusPresentation(status).isAdoptable` is false.
+- [x] Moved the lookup behind both rate-limit budgets — it became a database query.
+- [x] `resolveDefaultPet` uses `isAdoptable` and drops the `allPets[0]` last resort; the
+      controller's `availablePets`, one line below, had the same raw comparison and now matches.
+- [x] `tests/integration/adoptionSubmissionGuards.test.ts` — 10 strict-persistence tests.
+- [x] `tests/unit/adoption/resolveDefaultPet.test.ts` — 7 tests; the function had none before.
+- [x] Mutation-tested: four independent reverts, each turning red exactly the tests that name it.
+- [x] Updated the `PetGallery` comment that cited the deleted ledger entry as its open reason.
+- [x] Ledger: decision entry, one new open entry, one lesson. The neighbouring fixture-fallback
+      entry is deliberately left untouched — see Explicitly NOT done.
+
+## Review
+
+**The brief's step 1 was insufficient as written, and that is the finding.** Swapping
+`findServerPetById` for `findServerPetByIdAsync` does not by itself make the check read the
+database. That reader falls through to the `pets.json` mirror after a *successful* query that
+found no row, and the mirror matches ids case-insensitively where Postgres does not — so a posted
+`PET-001` missed the database, matched fixture `pet-001` (Available, unarchived there), and the
+application was accepted against an animal the database had archived. The exact-id guard is what
+closes it, which is what `getPetById` already does. The brief named exact-id matching; what it did
+not say is that without it the swap is close to cosmetic.
+
+**A regression the fix would have introduced.** The pet lookup ran *above* the rate limits, which
+was free while it scanned an in-memory array and is a Postgres round trip once it does not.
+Swapping in place would have handed an anonymous POST one `findUnique` per request with no budget
+in front of it. Moved behind both budgets and pinned by a test that exhausts the email budget and
+asserts `findUnique` was never called. That test is the one that goes red if someone moves it back.
+
+**Every test discriminates.** Each rejection case is arranged under `pet-001` — a real row in
+`src/data/pets.json`, Available and unarchived there — because an `itest-` id is absent from the
+mirror too, so the assertions would pass against the broken action for the wrong reason. Proven by
+probe rather than asserted: restoring `origin/master`'s action turns 6 of 10 red; disabling only
+the status check turns exactly the 3 status tests red; removing only the exact-id match turns
+exactly the case-variant test red; moving the lookup back above the budgets turns exactly the
+rate-limit test red; restoring `|| allPets[0]` turns 3 of the 7 unit tests red.
+
+**Rejecting `Pending` is a product call, and it was already made.**
+`tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md` files Pending in the
+adoptable *track* while the detail page renders its button disabled on purpose. `isAdoptable` is
+true for `Available` alone, so the server now agrees with the button rather than deciding anew.
+
+## Explicitly NOT done
+
+- **The repository-level fallback fix.** `findServerPetByIdAsync` still serves the fixture for an
+  id a populated database lacks, so a `pets.json` animal can still be applied for. That residual
+  is stated in a comment at the guard. Not fixed here because it changes every caller at once,
+  including `src/actions/sponsorships.ts` — a public write path with no covering test — inside a
+  change whose claim is about adoption. A parallel session is landing exactly that fix
+  (`worktree-pet-missing-row-is-an-answer`, `97df591`), which also *closes* that ledger entry by
+  deleting it. The two branches were merged locally and verified together: typecheck clean, unit
+  1589, integration 79. A note recording "third guarded caller" was drafted onto that entry and
+  then withdrawn — modifying a file the other branch deletes is a modify/delete conflict, and a
+  conflicted PR gets no CI run at all. The relationship is recorded in the decision entry instead.
+  The remaining collision is `tasks/todo.md`, which both branches prepend to; that is the known
+  defect named in this file's own header, and whoever lands second resolves it.
+- **The form's stale `petId`.** Dropping `allPets[0]` makes `null` reachable in one more case, and
+  the form only syncs its fields when handed a real pet, so a reopen inside the close animation can
+  still carry the previous animal's id. The dangerous half is closed — the server refuses it — and
+  the confusing half is `tasks/open/adoption-form-keeps-a-stale-pet-id-when-it-opens-on-nobody.md`.
+  Not fixed blind: both obvious repairs discard a half-filled form or submit for an unchosen
+  animal, and no test covers that path.
+- **`lookupApplicationStatusAction`'s mirror read** at the same file's line 505. Read-only display
+  enrichment that already falls back to the application's stored `petBreed`; a mirror hit costs a
+  stale breed and photo, not a wrong write.
+- **`selectedPet` is still returned without a status check.** Opening the form from an animal's own
+  page should headline that animal; the server is the boundary that refuses the submission.
+- **No component test for the `defaultPet === null` render.** The dialog title already branched on
+  it and `allPets` is empty on a cold `/adopt` render, so the state was reachable before this
+  change; the new behaviour is covered at the unit level instead.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
