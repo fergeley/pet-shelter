@@ -172,6 +172,9 @@ describe("soft-delete filtering under strict persistence", () => {
       // no fixture, so *every* reader returns null for it and this test cannot tell a correct
       // action from a broken one. It used to be named "returns null when the row does not
       // exist", which read as coverage of the fallback case below. It is not.
+      //
+      // The case it looks like it covers — an id the database lacks and the *fixture holds* —
+      // lives in `petMissingRowIsAnAnswer.test.ts`, which uses `pet-001` for that reason.
       givenPersistedPet(null);
       const { getPetById } = await import("@/actions/pets");
 
