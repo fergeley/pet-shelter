@@ -59,6 +59,27 @@ unmodified file in the main checkout); `npm run docs:check` OK.
 The type change did the work of finding the callers: `tsc` failed in exactly three test files
 whose form fixtures still supplied `age`/`ageCategory`, and nowhere in `src/`.
 
+## Three corrections from `/code-review`
+
+- **`max` no longer locks an operator out of a pet.** It was bound to the intake date flat, so any
+  row whose stored birthday was already later — the shape `@default("2024-01-01")` produces for an
+  animal that arrived before 2024 — could not be submitted at all. A `rangeOverflow` never reaches
+  `errors.birthDate`, so the whole form silently refused to save that animal's name, status or
+  photos, with only a native bubble to say why. The bound is now the later of the intake date and
+  the stored value: a new date still cannot be typed past intake, and an existing bad one can be
+  corrected instead of trapping the record.
+- **A blank field now says "Birth date is required"** rather than "Date must be in YYYY-MM-DD
+  format", which is what an empty string earns from the regex and is not what the operator did
+  wrong. `z.string().min(1, …).pipe(isoDateSchema)`.
+- **The read-only readout is no longer an orphan.** Its `<Label>` had no `htmlFor` and wrapped no
+  control, so a screen reader announced "Age Stage" attached to nothing and the computed age with
+  no name. The label carries an `id` and the readout an `aria-labelledby`.
+
+The same review noted that `birthDateIsEstimate` is stored end to end and read by nothing —
+filed as `tasks/open/birth-date-estimate-flag-is-stored-but-never-shown.md` rather than fixed,
+because displaying it touches seven components and needs a Malay string for every English one,
+which runs straight into the open bilingual-age entry.
+
 ## What was deliberately not done
 
 - **`Pet.age` was not made bilingual.** `formatAgeString` returns `{ en, ms }` and every caller

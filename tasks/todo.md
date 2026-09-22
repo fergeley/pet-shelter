@@ -44,8 +44,13 @@ Record active multi-step work streams below.
       derived read-only; `createPet`, `updatePet` and the client store carry the date through.
 - [x] Gates: `typecheck`, `test` (1580), `test:components`, `test:integration` (59), `lint`
       (0 errors, no new warnings), `docs:check`.
-- [x] Ledger: two decisions, three lessons, `pet-form-has-no-birth-date-field.md` deleted, the
-      drift entry updated and left open.
+- [x] `/code-review high` on the whole diff. Six findings, five fixed, one filed. The medium one
+      defeated the migration's headline promise: against a table where someone had already added
+      `birthDate` by hand to stop the read storm, the file derived every date, discarded it,
+      dropped `age` and reported success. Now refuses with a remediation hint the rehearsal
+      executes. Rehearsal 42 → 46 checks.
+- [x] Ledger: two decisions, five lessons, two new open entries,
+      `pet-form-has-no-birth-date-field.md` deleted, the drift entry updated and left open.
 - [ ] **Owner decides between this migration and the parallel one**, or applies them as
       expand → soak → contract. They derive different dates for month-end rows until that
       divergence is settled — see the decision entry.

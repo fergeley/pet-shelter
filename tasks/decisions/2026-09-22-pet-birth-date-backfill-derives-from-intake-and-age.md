@@ -90,7 +90,7 @@ Seeded with the ten `src/data/pets.json` animals plus ten deliberately awkward r
 intake, two month-end intakes, `"2 years 3 months"`, `"18 months"`, `"3y"`, `"2 YEARS"`, prose with
 no figure, an empty string, and an unparseable intake date.
 
-**42 checks, all passed**, and the harness is committed beside the SQL as `rehearse.mjs` — run it
+**46 checks, all passed**, and the harness is committed beside the SQL as `rehearse.mjs` — run it
 with `npx tsx prisma/migrations/manual/20260922_pet_birth_date/rehearse.mjs`. It is committed
 rather than thrown away because a rehearsal that can only be re-read is a claim, not evidence.
 
@@ -126,6 +126,30 @@ application rolls it.
 These two cases deliberately diverge from `approximateBirthDate`, which would roll `2024-02-31`
 to March 2 and compute the 1526 date without comment. Rolling an intake date is a data correction;
 a migration should not make one silently.
+
+## A third refusal, from `/code-review`, which defeated the file's headline promise
+
+The review probed a state neither the author nor the earlier comparison had considered: a
+`pets` table where **`birthDate` already holds values while `age` is still present**. The way in is
+the obvious emergency fix for the read storm — `ALTER TABLE pets ADD COLUMN "birthDate" TEXT NOT
+NULL DEFAULT '2024-01-01', ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT true`, which
+is `db push`'s own statement with the drops left off, and exactly what someone would reach for at
+2am to stop the catalogue serving fixtures.
+
+Applied to that table, this migration derived every date correctly, wrote them to the archive,
+**discarded them** (the backfill is `WHERE p."birthDate" IS NULL`), dropped `age` and
+`ageCategory`, and reported success — leaving every animal on the invented 2024-01-01 while the
+header promised "no existing ROW ever receives it". `still_null` was 0, so nothing aborted. The
+review reproduced it on pglite before reporting it.
+
+It now refuses, naming the row count, with a `HINT` giving both ways forward: drop `age` by hand
+to keep the existing dates, or null the column and re-run to derive them. The rehearsal asserts
+the refusal, that `age` survives it, and that the HINT's remediation actually works — a hint that
+has never been executed is a guess.
+
+This is the second time on this branch that running the file beat reading it. The two earlier
+defects came from an adversarial comparison that executed both candidate migrations; this one from
+a review that did the same. No amount of re-reading the SQL produced any of the three.
 
 **Not rehearsed:** production's actual rows, and any view or constraint there referencing `age`.
 Either aborts the transaction rather than damaging anything.
