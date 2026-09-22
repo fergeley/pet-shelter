@@ -193,6 +193,42 @@ describe("submitApplication under strict persistence", () => {
       expect(prismaDouble.adoptionApplication.create).toHaveBeenCalledTimes(1);
     });
 
+    it("stores the verified animal's own id, not the string that was posted", async () => {
+      // `applicationFormSchema` does not trim, and the guard compares `validated.petId.trim()`.
+      // Writing the request's copy meant a posted `" pet-001 "` passed every check and was then
+      // written with its whitespace into a column carrying a foreign key to `Pet.id`. Prisma
+      // raises P2003, which `handlePersistenceError(…, "write")` swallows outside strict mode, so
+      // the row never reached the database while the applicant was told `success: true`.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", status: "Available" }));
+      const { submitApplication } = await import("@/actions/applications");
+
+      const result = await submitApplication(applicationFor("  pet-001  "));
+
+      expect(result.success).toBe(true);
+      expect(result.data?.petId).toBe("pet-001");
+      expect(prismaDouble.adoptionApplication.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ petId: "pet-001" }) })
+      );
+    });
+
+    it("stores the verified animal's own name, not the one that was posted", async () => {
+      // `petName` is not decoration downstream. `atomicUpdateApplicationStatus` auto-rejects other
+      // open applications matching on `petName` as well as `petId`, and `markCachedPetAdopted`
+      // marks the first pet matching *either* id or name — so an application naming an animal it
+      // was not for could close that animal's real applications on approval and flip the wrong
+      // pet to Adopted.
+      givenPersistedPet(makeDbPet({ id: "pet-001", name: "Bella", status: "Available" }));
+      const { submitApplication } = await import("@/actions/applications");
+
+      const result = await submitApplication(applicationFor("pet-001", "Max"));
+
+      expect(result.success).toBe(true);
+      expect(result.data?.petName).toBe("Bella");
+      expect(prismaDouble.adoptionApplication.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ petName: "Bella" }) })
+      );
+    });
+
     it("accepts an animal that exists only in the database", async () => {
       // The converse of the mirror defect: an animal absent from `pets.json` must not be refused
       // as unknown just because a cold process has not loaded the catalogue.

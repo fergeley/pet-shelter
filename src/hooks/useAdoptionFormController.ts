@@ -99,8 +99,13 @@ export function useAdoptionFormController({
   const [stepIndex, setStepIndex] = useState(0);
   const [referenceCode, setReferenceCode] = useState<string | null>(null);
 
-  // Same predicate as `resolveDefaultPet`, for the same reason: the animal this list offers and
-  // the animal the form opens on must not be able to disagree about what "adoptable" means.
+  // Same predicate as `resolveDefaultPet`, so the two cannot disagree about what "adoptable"
+  // means. That is the only claim made here: **nothing consumes this list today.** It is returned
+  // in `state` and never destructured, and `AdoptionWizard`'s pet `<select>` renders `allPets`,
+  // so the form still offers animals the server now refuses — see
+  // `tasks/open/the-adoption-form-offers-animals-the-server-will-refuse.md`. Kept rather than
+  // deleted because a reviewer calling this dead once cost this file a real defect; see
+  // `tasks/lessons/2026-09-16-a-review-calling-code-dead-is-a-claim-to-check-against-its-consumers.md`.
   const availablePets = allPets.filter((p) => getPetStatusPresentation(p.status).isAdoptable);
   const defaultPet = resolveDefaultPet(selectedPet, allPets);
 

@@ -107,6 +107,27 @@ that would make the dialog title disagree with the page that opened it.
 The widened `null` window leaves the form's stale-`petId` path more reachable, which is now
 `tasks/open/adoption-form-keeps-a-stale-pet-id-when-it-opens-on-nobody.md`.
 
+## The record is written from the verified animal, not from the request
+
+Added after review, and the reason it belongs in this entry rather than a follow-up: a guard that
+validates one copy of a value while the write uses another has not validated the write.
+
+`petId` was written untrimmed while the guard compared `validated.petId.trim()`. The column carries
+a foreign key to `Pet.id`, so a posted `" pet-001 "` cleared every check and then raised P2003 on
+insert — swallowed outside strict mode, leaving the application in the in-memory mirror only, with
+`success: true` and a reference code returned to the applicant.
+
+`petName` was written from the request while the resolved animal sat in scope. That is not
+cosmetic, which is what an earlier draft of this work assumed: `atomicUpdateApplicationStatus`
+auto-rejects other open applications matching on `petName` as well as `petId`, and
+`markCachedPetAdopted` marks the first pet matching **either** id or name. A submission naming an
+animal it was not for could therefore close that animal's real applications when approved, and
+flip the wrong pet to Adopted.
+
+Both now come from `pet`. The alternative — trimming in the schema — was rejected because it fixes
+one field and leaves the general shape, which is that the action holds the authoritative row and
+should use it.
+
 ## Not done
 
 `lookupApplicationStatusAction` reads `findServerPetById(app.petId)` at the same file's line 505.

@@ -36,8 +36,10 @@ Record active multi-step work streams below.
 - [x] `tests/unit/adoption/resolveDefaultPet.test.ts` — 7 tests; the function had none before.
 - [x] Mutation-tested: four independent reverts, each turning red exactly the tests that name it.
 - [x] Updated the `PetGallery` comment that cited the deleted ledger entry as its open reason.
-- [x] Ledger: decision entry, one new open entry, one lesson. The neighbouring fixture-fallback
+- [x] Ledger: decision entry, two new open entries, one lesson. The neighbouring fixture-fallback
       entry is deliberately left untouched — see Explicitly NOT done.
+- [x] `/code-review high` on the whole diff. Five findings, all four checked by probe and all
+      upheld; two fixed in code, three filed. See Review.
 
 ## Review
 
@@ -73,6 +75,33 @@ setup hooks keep the 10s default. Nothing here was a real failure — every file
 — but the first instinct was to suspect this diff. A parallel session has filed the run counts;
 not duplicated here. Rule of thumb: one failure each across unrelated files means load, not you.
 
+**The review found the defects in what gets *written*, not in the check.** The guard itself held up.
+Five findings, each verified by probe before being accepted:
+
+- **The record stored the request's `petId`, untrimmed, while the guard compared the trimmed
+  copy.** `applicationFormSchema` is `z.string().min(1)` with no `.trim()`, and the column carries
+  a foreign key to `Pet.id`. A posted `" pet-001 "` passed every new check, then hit P2003 on
+  insert — which `handlePersistenceError(…, "write")` swallows outside strict mode. The row never
+  reached the database, lived in the mirror until the next restart, and the applicant got
+  `success: true` and a reference code. Pre-existing, but the trim I added made it reachable
+  through a guard that had just declared the animal valid. Fixed: write `pet.id`.
+- **The record stored the request's `petName` too** — and I had filed that as "low severity",
+  which was wrong. `atomicUpdateApplicationStatus` auto-rejects other open applications matching
+  on `petName` *as well as* `petId`, and `markCachedPetAdopted` marks the first pet matching
+  **either** id or name. So a submission naming a popular animal it was not for could close that
+  animal's real applications on approval and flip the wrong pet to Adopted. Fixed: write
+  `pet.name`; the open entry I had filed is deleted as settled. This is the finding that would
+  have stopped the merge — it changed what my own ledger entry claimed.
+- **My `availablePets` comment was false.** It claimed the list the form offers and the animal it
+  opens on cannot disagree; the list has no consumer at all, and the wizard's `<select>` renders
+  `allPets`. Comment corrected to say so rather than deleting the variable — this is the file where
+  calling something dead cost a real defect once already.
+- **Two form gaps** — `/adopt?petId=` preselects any public animal with no status filter, and a
+  null `defaultPet` leaves the field empty while the select still lists every animal. Both filed.
+
+Both code fixes are pinned by new tests that were mutation-checked: reverting `pet.id` and
+`pet.name` turns exactly those two red and nothing else.
+
 **Rejecting `Pending` is a product call, and it was already made.**
 `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md` files Pending in the
 adoptable *track* while the detail page renders its button disabled on purpose. `isAdoptable` is
@@ -103,10 +132,12 @@ true for `Available` alone, so the server now agrees with the button rather than
 - **`lookupApplicationStatusAction`'s mirror read** at the same file's line 505. Read-only display
   enrichment that already falls back to the application's stored `petBreed`; a mirror hit costs a
   stale breed and photo, not a wrong write.
-- **The stored `petName` is still the one the caller posted**, although the resolved animal is in
-  scope one block above. One line to repair, and the suites would stay green, but it changes what a
-  public write path *stores* inside a change whose claim is that the target is *checked*. Filed as
-  `tasks/open/an-application-stores-the-pet-name-the-caller-posted.md`.
+- **Narrowing the form's pet `<select>` to adoptable animals.** The server refuses them now, but
+  the wizard still renders `allPets`, so the refusal lands after four steps rather than at the
+  point of choice. Not one line: the control must still hold whatever `selectedPet` put in the
+  field, and `/adopt?petId=` puts a non-adoptable animal there on purpose. Filed with the two
+  related form gaps as
+  `tasks/open/the-adoption-form-offers-animals-the-server-will-refuse.md`.
 - **The outage half of the fixture fallback.** The guard reads the database whenever the database
   answers. When the query *throws*, `handlePersistenceError` swallows it outside strict mode and
   the mirror answers under the posted id, so an outage still accepts applications against fixture

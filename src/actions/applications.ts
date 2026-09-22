@@ -195,8 +195,27 @@ export async function submitApplication(
 
       const draft: Omit<AdoptionApplicationRecord, "referenceCode"> = {
         id: `app-${Date.now()}`,
-        petId: validated.petId,
-        petName: validated.petName,
+        // The verified row's own id and name, not the request's. Both matter, and neither is
+        // cosmetic:
+        //
+        // `petId` — the guard above compares `validated.petId.trim()`, while this used to write
+        // the untrimmed string. `applicationFormSchema` does not trim, so a posted `" pet-001 "`
+        // passed every check and was then written with its whitespace into a column carrying a
+        // foreign key to `Pet.id`. Prisma raises P2003, `insertServerApplication` hands it to
+        // `handlePersistenceError(…, "write")`, and outside strict mode that swallows anything
+        // but P2002 — so the row never reached the database, survived only in the in-memory
+        // mirror until the next restart, and the applicant was still told `success: true` and
+        // given a reference code.
+        //
+        // `petName` — it was taken from the request while the resolved animal sat in scope, and
+        // two places downstream treat that name as identifying. `atomicUpdateApplicationStatus`
+        // auto-rejects other open applications matching on `petName` as well as `petId`, and
+        // `markCachedPetAdopted` marks the first pet matching *either* id or name. A submission
+        // naming a popular animal it was not for could therefore close that animal's real
+        // applications on approval, and flip the wrong pet to Adopted when it sorted earlier in
+        // the mirror.
+        petId: pet.id,
+        petName: pet.name,
         applicantName: validated.applicantName,
         email: validated.email,
         phone: validated.phone,
