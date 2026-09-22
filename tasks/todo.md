@@ -15,6 +15,37 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Bulletins get a server-side store (#76)
+
+**Branch:** `worktree-bulletins-76` · opened 2026-09-22 · GRAVE lane
+**Settles:** `tasks/open/bulletins-are-a-per-browser-demo-anyone-can-edit.md` (issue #76),
+and P-D for `Bulletin` in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md:193`.
+
+## Items
+
+- [x] Audit the brief against `origin/master` 8d36ace before building. Every line of the ledger
+      entry's evidence re-verified at that commit; no in-flight PR overlaps (only #42, birth-date).
+- [x] Put P-D to the owner with three costed options, including one the brief did not name
+      (server-render the fixture read-only). Owner chose (a), the full model. Recorded in
+      `tasks/decisions/2026-09-22-bulletins-get-a-server-side-store.md`.
+- [x] Claim and five kill conditions written before the spike (`tasks/open/CLAIM-bulletins-76.md`).
+- [x] K1: the embedded-postgres rung recovered and `npm run db:push:local` run verbatim against
+      real PostgreSQL 18.4. Did not fire — the migration is rehearsed, not asserted.
+- [x] Migration rehearsed: hand-written DDL produces objects identical to `prisma db push`,
+      is idempotent, and the enum rejects an out-of-vocabulary category.
+- [x] `Bulletin` model, three enums, two indexes; `src/lib/server/bulletinRepository.ts`;
+      `src/actions/bulletins.ts` behind `requirePermission(MANAGE_CONTENT)`.
+- [x] `/admin/bulletins` editor; admin nav repointed and the `permissions: null` opt-out removed.
+- [x] K2: `BulletinFeed` is a Server Component with zero client state. Did not fire.
+- [x] Public "Staff Admin Access" toggle, `AdminBulletinModal` and `bulletinStore.ts` deleted.
+- [x] Media host allow-lists, enforced on write *and* on read.
+- [x] `src/data/bulletins.json` reshaped; the `dQw4w9WgXcQ` embed removed from shipped content.
+- [ ] Test suite, `/code-review`, merge-check, PR.
+
+## Review
+
+*(filled in at close)*
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane

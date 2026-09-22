@@ -1,0 +1,110 @@
+# Bulletins get a Prisma model and a staff editor, not a removal
+
+**Decided:** 2026-09-22
+
+This is the answer to **P-D for `Bulletin`** in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md:193`,
+which asked for a per-type decision on four typed concepts with no persistence and had gone
+unanswered since 2026-08-27. It settles
+`tasks/open/bulletins-are-a-per-browser-demo-anyone-can-edit.md` (issue #76).
+
+## The choice
+
+Three options were costed and put to the owner before anything was built:
+
+- **(a) A real server-side store** — a `Bulletin` Prisma model, writes only through a
+  `MANAGE_CONTENT`-guarded server action, a staff editor at `/admin/bulletins`.
+- **(b) Take the feed off the public pages** until (a) happens.
+- **(c)** — not in the brief, offered as a third path — **server-render the committed fixture
+  read-only**: delete the client store, the modal and the toggle, read `src/data/bulletins.json`
+  through a `src/lib/server/` reader, keep the feed on all three pages. This fixes all three
+  observed defects with no schema change and no production risk, and staff post by deploy.
+
+**The owner chose (a).** (c) was recommended on cost grounds and declined; the deciding factor is
+the one thing (c) does not deliver — staff posting a notice without a deploy, which is the actual
+job the feed exists to do. An urgent-foster notice that waits for a deploy is not an urgent-foster
+notice.
+
+Recording (c) here because it remains the cheap reversal: if the table turns out to be a
+maintenance burden nobody uses, the way back is not (b) but (c) — keep the reader, drop the
+writer.
+
+## What the model does differently from `Faq`, and why
+
+`Faq` was the template, but two departures are deliberate and a reviewer will ask:
+
+- **No `displayOrder`.** FAQ answers have no natural sequence, so they need manual ordering. A
+  bulletin feed has one: pinned first, then newest, which `isPinned` + `publishedAt` already
+  express. A `displayOrder` column would be a second, conflicting ordering staff would have to
+  keep in step with the dates by hand.
+- **`publishedAt` is separate from `createdAt`.** The card prints a notice date, and an editor
+  must be able to correct it or post-date a clinic announcement without lying about when the row
+  was written. `ExpenseItem.date` splits the same way.
+
+**`titleMs`/`contentMs` are added now although nothing renders them.** The public feed stays
+English-only — that half belongs to
+`tasks/open/home-page-text-stays-english-on-the-malay-site.md`, which owns the render side. The
+columns exist now because adding them later means a *second* hand-run DDL migration against a
+production branch with no Prisma down path, and P-C in the same target doc warns specifically
+about baking a violation into columns. The editor writes them; the reader resolves English into
+them; only the rendering waits.
+
+## The byline is taken, not given
+
+`authorName` is set by the action from the verified session and is absent from the form schema.
+An edit does not reassign it. Two reasons: a free-text byline lets any `CONTENT_EDITOR` publish
+under a colleague's name, and correcting someone's typo should not silently put your name on
+their notice. It is a point-in-time snapshot in the same sense as
+`AdoptionApplication.petName` — it must survive the staff member's row being deleted and must not
+change when someone is renamed. Accountability for who actually wrote it lives in the audit log,
+which records `actorId`.
+
+## Media URLs are checked on the way out, not just on the way in
+
+`videoEmbedUrl` is interpolated into an `<iframe src>` on three public pages and had no allow-list
+at all. `bulletinFormSchema` now rejects a non-allowlisted host on write, and
+`src/lib/domain/bulletinMedia.ts` filters again on read.
+
+**The read-side check is the enforcing one**, and it is not redundant: rows reach this table
+without passing the action. `prisma/seed.ts` inserts fixtures and
+`prisma/migrations/manual/20260922_community_bulletins` is applied by hand against a branch this
+code never sees. A write-time check alone would be a guard on the one path already trusted.
+
+The image allow-list is a deliberate copy of `next.config.ts` `images.remotePatterns` rather than
+an import — build configuration should not enter the runtime bundle — and a test asserts the two
+agree, which is what AGENTS.md "Boundaries and duplication" asks for when two copies must.
+
+## The admin nav loses its ungated-tab escape hatch
+
+`src/app/admin/layout.tsx` had `permissions: null` on exactly one tab — "Community Bulletins",
+pointing at the **public** `/bulletins` page. That is how the tab was shown to every role
+including Volunteer, and how staff were sent to a page whose "editing" wrote to their own browser.
+The tab is now `/admin/bulletins` gated on `MANAGE_CONTENT`, and **the `null` opt-out is removed
+from the filter** so a future tab must name a permission. Removing the shape of the mistake, not
+just its instance.
+
+## The rickroll
+
+`src/data/bulletins.json`'s `bulletin-003` embedded YouTube `dQw4w9WgXcQ` under the title "Video
+Update: Toby Settling into His New Home" — sample content live on the public `/bulletins` page.
+It is now an image notice with the same copy and the same photo, and no fixture row carries an
+embed URL. The embed path is exercised by tests rather than by shipped content. Nothing invented
+a replacement video, because there isn't one.
+
+## How this reaches production
+
+**Not with `npm run db:push`.** That reconciles the whole schema, and
+`tasks/open/production-schema-has-drifted-ahead-of-master.md` records three destructive statements
+currently standing between master's schema and the production branch — two of which lose data and
+have nothing to do with bulletins. Running push to add this table would execute those too.
+
+The deliverable is `prisma/migrations/manual/20260922_community_bulletins/migration.sql`, applied
+by `npm run db:migrate:bulletins`. It is purely additive — three `CREATE TYPE`, one `CREATE TABLE`,
+two `CREATE INDEX` — so it cannot participate in that drift in either direction. Its `DROP`
+counterpart is written into the file's header comment, because `db push` has no down path and the
+undo has to exist somewhere a human can find it.
+
+**It was rehearsed, not reasoned.** Against PostgreSQL 18.4 from `embedded-postgres`: the
+hand-written SQL produces objects byte-identical to what `prisma db push` created, re-running it
+is a no-op, and the database rejects an out-of-vocabulary category. See
+`tasks/lessons/2026-09-22-a-published-npm-tarball-is-not-what-npm-extracted.md` for the one thing
+that nearly stopped the rehearsal.
