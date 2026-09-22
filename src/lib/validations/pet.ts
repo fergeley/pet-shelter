@@ -308,6 +308,30 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
     });
   }
 
+  // An absolute bound as well, because the relative one above is skipped whenever `intakeDate` is
+  // malformed — it is only `z.string().min(4)`, so `"2026"` passes it and disables the check. On
+  // the action path a Server Action argument is untrusted input, and a birthday in 2099 would
+  // otherwise validate and render as a plausible "1 month", since `computeAgeInMonths` clamps a
+  // negative age to zero. That is the failure this rule exists to stop, so it must not depend on
+  // another field being well formed.
+  //
+  // `intakeDate` is deliberately NOT tightened to `isoDateSchema` here. Its stored values in
+  // production are unknown, and every edit to a pet re-validates the whole form, so a stricter
+  // rule would strand any record whose intake date is not already ISO — the same trap that made a
+  // pet uneditable when the birth-date `max` was bound flat to it.
+  //
+  // Compared against tomorrow in UTC, not today: no timezone on earth is more than 14 hours ahead
+  // of UTC, so a day of slack is what stops an animal born this morning in Kuala Lumpur being
+  // refused because UTC is still on yesterday's date.
+  const tomorrowUtc = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  if (data.birthDate > tomorrowUtc) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["birthDate"],
+      message: `Birth date ${data.birthDate} is in the future`,
+    });
+  }
+
   if (isRehabilitationStatus(data.status)) return;
 
   for (const field of REHAB_FIELDS) {

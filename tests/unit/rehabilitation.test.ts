@@ -278,6 +278,37 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       }
     });
 
+    it("should reject a birth date in the future even when intakeDate is unusable", () => {
+      // The relative rule above is skipped when intakeDate fails its shape test, and intakeDate is
+      // only `z.string().min(4)`. On the action path that leaves a Server Action argument free to
+      // carry a birthday in 2099, which renders as a plausible "1 month" because
+      // computeAgeInMonths clamps a negative age to zero. Found by review.
+      const parsed = petFormSchema.safeParse({
+        ...baseForm,
+        intakeDate: "2026",
+        birthDate: "2099-01-01",
+      });
+
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ["birthDate"],
+            message: "Birth date 2099-01-01 is in the future",
+          })
+        );
+      }
+    });
+
+    it("should accept a birth date of today, whatever the session's timezone", () => {
+      // The bound is tomorrow in UTC, not today, so an animal born this morning in Kuala Lumpur
+      // is not refused because UTC has not caught up.
+      const today = new Date().toISOString().slice(0, 10);
+      expect(
+        petFormSchema.safeParse({ ...baseForm, intakeDate: today, birthDate: today }).success
+      ).toBe(true);
+    });
+
     it("should accept a birth date on the intake date itself", () => {
       // An animal born the day it arrived is a real case — a litter surrendered at birth — so the
       // boundary is inclusive, and pinning it stops a later `>=` from quietly refusing them.

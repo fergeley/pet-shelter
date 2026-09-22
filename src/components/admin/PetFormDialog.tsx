@@ -228,11 +228,15 @@ export function PetFormDialog({
    * later one.
    *
    * Without that exception a row whose stored birthday is out of range — the shape that
-   * `@default("2024-01-01")` produces for anything that arrived before 2024 — becomes wholly
-   * uneditable. The browser refuses the submit on `rangeOverflow` before the resolver runs, and a
-   * `rangeOverflow` never reaches `errors.birthDate`, so the operator cannot change that pet's
-   * name, status or photos and is told only by a native bubble. Widening to the stored value
-   * keeps the form usable and still stops anyone typing a *new* date past intake.
+   * `@default("2024-01-01")` produces for anything that arrived before 2024 — is refused by the
+   * browser on `rangeOverflow` before the resolver ever runs, and a `rangeOverflow` never reaches
+   * `errors.birthDate`. The operator gets a native bubble and no in-page explanation.
+   *
+   * This does not make such a record savable as-is, and an earlier version of this comment
+   * claimed it did. `petFormSchema` still rejects `birthDate > intakeDate`, so the save is still
+   * blocked — but now by the schema, with the reason rendered under the field, and with the
+   * picker willing to show the offending date so it can be corrected in the same form. The gain
+   * is a legible refusal and a path to fix it, not permission to keep it.
    */
   const birthDateMax = useMemo(() => {
     if (!watchedIntakeDate) return undefined;
