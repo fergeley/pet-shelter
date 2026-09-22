@@ -248,14 +248,20 @@ export function generateReceiptsCsvString(
         rows.push([
           (d.receiptNumber as string) || entry.entityId || "N/A",
           formattedDate,
-          (d.donorName as string) || "Anonymous Donor",
-          // The donor's own email first, the actor's only as a fallback. These two
-          // were the same value while a donation was audited by the donor who made
-          // it. Since 2026-09-22 a general gift's `DONATION_RECEIVED` row is written
-          // by the coordinator who confirmed the transfer, so preferring `actorEmail`
-          // would print staff addresses in the "Donor Email" column of a tax export.
-          // Older rows carry no `details.donorEmail` and still resolve to `actorEmail`.
-          (d.donorEmail as string) || entry.actorEmail || "",
+          (d.donorName as string) || (d.sponsorName as string) || "Anonymous Donor",
+          // The supporter's own address first, the actor's only as a last resort.
+          // The two were the same value while a contribution was audited by the
+          // person who made it. They no longer are: a reconciled row is written by
+          // the coordinator who confirmed the transfer, so preferring `actorEmail`
+          // prints staff addresses in the "Donor Email" column of a tax export.
+          //
+          // Both spellings are checked because both kinds of row land here — a
+          // general gift's `DONATION_RECEIVED` carries `donorEmail`, and a
+          // `SPONSORSHIP_RECONCILED` row is classified as a donation by the
+          // `receiptNumber` test above and carries `sponsorEmail`. Rows older than
+          // 2026-09-22 carry neither and still resolve to `actorEmail`, which for
+          // them is correct.
+          (d.donorEmail as string) || (d.sponsorEmail as string) || entry.actorEmail || "",
           (d.donorPhone as string) || "",
           (d.taxIdOrIc as string) || "",
           formattedAmount,

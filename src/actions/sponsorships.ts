@@ -394,6 +394,11 @@ export async function reconcilePetSponsorshipAction(
       pledgeRef: ref.data,
       receiptNumber: donation.receiptNumber,
       petName: record.petName,
+      // Carried so the LHDN CSV fallback can name the supporter. This row is
+      // classified as a donation by `exportCsv` (it has a `receiptNumber`), and
+      // without these two it exported as "Anonymous Donor" with the reconciling
+      // coordinator's address in the donor column.
+      sponsorName: record.sponsorName,
       sponsorEmail: record.sponsorEmail,
       amountSen: record.amountSen as number,
       amountDisplay: formatMYR(record.amountSen),

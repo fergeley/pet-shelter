@@ -105,6 +105,29 @@ before it was accepted. One was medium and the rest low; all six are fixed:
 6. `prisma/schema.prisma` and the boundary test cited the open entry this branch deletes. Both now
    point at the decision file.
 
+A second `/code-review high` over the fix commit returned six more, again each probed:
+
+1. **Receipt dating.** The receipt now carries the confirmation date, not the gift date, so a
+   year-end gift can land in the next tax year. Kept — it matches `settleSponsorship`, and
+   back-dating would grow a month's gapless series after it was filed — but named as a `ceiling:`
+   and written into the decision file rather than left to be discovered by a donor.
+2. **`hasMore` was computed and never rendered**, so both queues truncated silently at 200 on a
+   queue fed by an unauthenticated form. Now surfaced, which fixes the sponsorship lane too.
+3. **`/donate` hardcodes `duitnow_qr`** while publishing the Maybank account, so a bank-transfer
+   donor's receipt and queue row both name the wrong rail. Pre-existing; this change gives it a
+   second consumer. Not fixed here — it needs a rail selector on the public form — and recorded as
+   its own open entry.
+4. **A `pledgeRef` collision lost the gift.** The reference is a 6-digit daily random, so ~200
+   gifts a day carries roughly a 2% daily chance of a collision, which surfaced as "we could not
+   confirm" — losing a real submission and telling the donor not to retry. Now redraws once, with
+   three tests covering the retry, the second collision, and the `receiptNumber` unique that must
+   *not* be retried.
+5. **The donor-email fix was incomplete**: `SPONSORSHIP_RECONCILED` rows are classified as
+   donations by the `receiptNumber` test and carry `sponsorEmail`, so they still exported the
+   coordinator. Both spellings are now checked, and `sponsorName` was added to that audit row so
+   the export stops calling reconciled sponsors "Anonymous Donor".
+6. **Deploy ordering** — already tracked; see the open entry and the PR description.
+
 ### Deliberately not done
 
 - **No payment webhook.** The open entry offered it as the other fork. There is no processor

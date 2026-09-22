@@ -17,7 +17,7 @@ import {
   recordAuditLog,
   type AuditEntryInput,
 } from "@/lib/domain/auditLog";
-import type { DonationPledgeStatus } from "@/lib/domain/donationPledge";
+import { generateGiftRef, type DonationPledgeStatus } from "@/lib/domain/donationPledge";
 
 /**
  * Repository for general gifts awaiting reconciliation.
@@ -183,7 +183,58 @@ export async function recordDonationPledge(
   }
 
   try {
-    const row = await prisma.donationPledge.create({
+    return toRecord(await createPledgeRow(draft, draft.pledgeRef, when));
+  } catch (err) {
+    // A reference collision is the one failure here that is not a failure. The
+    // series is a 6-digit random scoped to a UTC day, so two gifts on a busy day
+    // can draw the same number: ~200 gifts gives roughly a 2% chance per day.
+    // Reported as an unconfirmed write, that costs a real donor their submission
+    // *and* tells them not to retry. A fresh reference and one retry fixes it,
+    // and a second collision is not a coincidence, so it propagates.
+    if (isPledgeRefCollision(err)) {
+      try {
+        return toRecord(await createPledgeRow(draft, generateGiftRef(when), when));
+      } catch (retryErr) {
+        throw new DonationPledgeWriteError(
+          "Could not record the donation pledge after a reference collision",
+          retryErr
+        );
+      }
+    }
+    // Everything else is genuinely a failure. Unlike `recordSponsorshipPledge`
+    // there is no foreign-key recovery to attempt: this table has no relations.
+    throw new DonationPledgeWriteError("Could not record the donation pledge", err);
+  }
+}
+
+/**
+ * A unique violation on `donation_pledges.pledgeRef`, and nothing else.
+ *
+ * Scoped by model *and* target: the table's other unique is `receiptNumber`, and
+ * retrying a collision on that with a fresh pledge reference would write a second
+ * row for money that already has a receipt. Prisma reports the model in
+ * `meta.modelName` and the constraint's columns in `meta.target`.
+ */
+function isPledgeRefCollision(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const { code, meta } = err as {
+    code?: unknown;
+    meta?: { modelName?: unknown; target?: unknown };
+  };
+  if (code !== "P2002" || meta?.modelName !== "DonationPledge") return false;
+
+  const target = meta?.target;
+  const columns = Array.isArray(target) ? target : typeof target === "string" ? [target] : [];
+  return columns.some((c) => typeof c === "string" && c.includes("pledgeRef"));
+}
+
+/** The insert itself, so the collision retry can re-run it with a new reference. */
+async function createPledgeRow(
+  draft: DonationPledgeDraft,
+  pledgeRef: string,
+  when: Date
+) {
+  return prisma.donationPledge.create({
       data: {
         donorName: draft.donorName,
         donorEmail: draft.donorEmail,
@@ -198,18 +249,10 @@ export async function recordDonationPledge(
         status: "PENDING_PAYMENT",
         targetPetName: draft.targetPetName ?? null,
         notes: draft.notes ?? null,
-        pledgeRef: draft.pledgeRef,
+        pledgeRef,
         createdAt: when,
       },
     });
-    return toRecord(row);
-  } catch (err) {
-    // No recovery branch, unlike `recordSponsorshipPledge`. That one retries a
-    // foreign-key violation because its optional pet and sponsor relations can
-    // disappear between checkout and the insert; this table has no relations at
-    // all, so every failure here is genuinely a failure.
-    throw new DonationPledgeWriteError("Could not record the donation pledge", err);
-  }
 }
 
 // --------------------------------------------------------------- transitions
@@ -347,6 +390,25 @@ function receiptDraftFor(
  *
  * **This is the only path in the application that turns a general gift into a
  * receipt.** `recordDonationPledge` deliberately has no way to do it.
+ *
+ * ## The receipt is dated when it is issued, not when the gift was made
+ *
+ * `when` defaults to now, so `issuedAt` and the month the serial is drawn from
+ * both follow the confirmation rather than the transfer. A gift sent on 30
+ * December and matched on 2 January is receipted in January, and a donor cannot
+ * file it against the year they actually paid. `settleSponsorship` has behaved
+ * this way since 2026-09-14 and this is deliberately its twin.
+ *
+ * Back-dating to `DonationPledge.createdAt` would be worse, not better: the
+ * serial is gapless *per month*, so writing a January confirmation into
+ * December's series would grow a month that has already been filed. A correct
+ * fix needs the value date from the bank statement and a policy for receipts
+ * that cross a tax year — a decision for the shelter, not a default for this
+ * function to pick.
+ *
+ * ceiling: receipts are dated at confirmation. If year-end gifts must carry the
+ * transfer date, take the value date as an argument here and decide what the
+ * series does across a year boundary before changing anything.
  */
 export async function settleDonationPledge(
   pledgeRef: string,

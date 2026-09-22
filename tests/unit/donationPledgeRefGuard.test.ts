@@ -25,7 +25,51 @@ const prismaDouble = vi.hoisted(() => ({
   // rather than mocked away. Mocking the ledger instead would remove the very
   // behaviour under test.
   $transaction: vi.fn(async (work: (tx: unknown) => Promise<unknown>) => work({})),
+  donationPledge: { create: vi.fn() },
 }));
+
+/** What Prisma raises for a unique violation, in the shape the ledger inspects. */
+function uniqueViolation(modelName: string, target: string[]) {
+  return Object.assign(new Error("Unique constraint failed"), {
+    code: "P2002",
+    meta: { modelName, target },
+  });
+}
+
+/** A row the create double returns, shaped like the Prisma model. */
+function pledgeRow(pledgeRef: string) {
+  return {
+    id: "gift-1",
+    donorName: "Probe Donor",
+    donorEmail: "probe@example.test",
+    donorPhone: null,
+    taxIdOrIc: null,
+    tierId: "kibble",
+    tierName: "Kibble Fund",
+    amountSen: 5000,
+    currency: "MYR",
+    frequency: "one_time",
+    paymentMethod: "online_banking",
+    status: "PENDING_PAYMENT",
+    targetPetName: null,
+    notes: null,
+    pledgeRef,
+    receiptNumber: null,
+    createdAt: new Date("2026-09-22T04:00:00.000Z"),
+  };
+}
+
+const DRAFT = {
+  donorName: "Probe Donor",
+  donorEmail: "probe@example.test",
+  tierId: "kibble" as const,
+  tierName: "Kibble Fund",
+  amountSen: 5000 as never,
+  currency: "MYR",
+  frequency: "one_time" as const,
+  paymentMethod: "online_banking" as const,
+  pledgeRef: "HFS-GFT-20260922-111111",
+};
 
 vi.mock("@/lib/server/prisma", () => ({
   prisma: prismaDouble,
@@ -37,6 +81,7 @@ beforeEach(() => {
   // the point of the test is the branch the real function selects.
   vi.stubEnv("DATABASE_URL", "postgresql://probe:probe@localhost:5432/probe");
   prismaDouble.$transaction.mockClear();
+  prismaDouble.donationPledge.create.mockReset();
 });
 
 afterEach(() => {
@@ -77,5 +122,64 @@ describe("a malformed pledge reference fails as a TypeError on the Postgres path
         "coordinator@example.test"
       )
     ).rejects.toThrow(TypeError);
+  });
+});
+
+/**
+ * A pledge reference is a 6-digit random scoped to a UTC day, so two gifts on a
+ * busy day can draw the same one. Left unhandled it surfaces as an unconfirmed
+ * write, which loses a real donor's submission *and* tells them not to retry --
+ * the worst available outcome for a claim nobody else is recording.
+ */
+describe("a colliding pledge reference is retried, not reported as a lost gift", () => {
+  it("redraws the reference once and keeps the gift", async () => {
+    const { recordDonationPledge } = await import("@/lib/server/donationPledgeLedger");
+
+    prismaDouble.donationPledge.create
+      .mockRejectedValueOnce(uniqueViolation("DonationPledge", ["pledgeRef"]))
+      .mockImplementationOnce(async (args: { data: { pledgeRef: string } }) =>
+        pledgeRow(args.data.pledgeRef)
+      );
+
+    const record = await recordDonationPledge(DRAFT);
+
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(2);
+    // A *fresh* reference, not the one that collided.
+    expect(record.pledgeRef).toMatch(/^HFS-GFT-\d{8}-\d{6}$/);
+    expect(record.pledgeRef).not.toBe(DRAFT.pledgeRef);
+    expect(record.status).toBe("PENDING_PAYMENT");
+    expect(record.receiptNumber).toBeNull();
+  });
+
+  it("does not retry a collision on receiptNumber", async () => {
+    const { recordDonationPledge, DonationPledgeWriteError } = await import(
+      "@/lib/server/donationPledgeLedger"
+    );
+
+    // The table's other unique. Redrawing the reference and inserting again would
+    // write a second row for money that already has a receipt.
+    prismaDouble.donationPledge.create.mockRejectedValue(
+      uniqueViolation("DonationPledge", ["receiptNumber"])
+    );
+
+    await expect(recordDonationPledge(DRAFT)).rejects.toBeInstanceOf(
+      DonationPledgeWriteError
+    );
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a second collision rather than looping", async () => {
+    const { recordDonationPledge, DonationPledgeWriteError } = await import(
+      "@/lib/server/donationPledgeLedger"
+    );
+
+    prismaDouble.donationPledge.create.mockRejectedValue(
+      uniqueViolation("DonationPledge", ["pledgeRef"])
+    );
+
+    await expect(recordDonationPledge(DRAFT)).rejects.toBeInstanceOf(
+      DonationPledgeWriteError
+    );
+    expect(prismaDouble.donationPledge.create).toHaveBeenCalledTimes(2);
   });
 });

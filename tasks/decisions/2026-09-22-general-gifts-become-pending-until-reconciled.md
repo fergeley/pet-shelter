@@ -98,6 +98,30 @@ is now no in-app view of an issued receipt; it arrives by email from
 someone wants a donor-facing receipt view later, it belongs behind the sponsor portal, keyed on a
 receipt that exists.
 
+## Two consequences of moving the boundary, named rather than discovered later
+
+**The receipt is dated when it is issued, not when the gift was made.** `settleDonationPledge`
+defaults `when` to now, so `issuedAt` and the month the serial is drawn from both follow the
+coordinator's confirmation. A gift sent on 30 December and matched on 2 January is receipted in
+January, and the donor cannot file it against the year they paid. This is exactly what
+`settleSponsorship` has done since 2026-09-14, so the two lanes agree — but for general gifts it
+is a change: they used to be dated at submission.
+
+Back-dating to `DonationPledge.createdAt` is not the fix. The serial is gapless *per month*, so a
+January confirmation written into December's series would grow a month that has already been
+filed, which is a worse statutory defect than a late date. A correct fix needs the value date from
+the bank statement and a shelter policy for gifts that straddle a tax year. Marked as a `ceiling:`
+on `settleDonationPledge`.
+
+**A coordinator now sees, and the receipt now states, a payment rail the donor never chose.**
+`/donate` hardcodes `paymentMethod: "duitnow_qr"` while the same screen also publishes the
+shelter's Maybank corporate account, so a donor who pays by direct transfer is recorded as having
+used DuitNow QR. That predates this change — the value went straight onto the receipt before — but
+this change gives it a second consumer: the reconciliation queue renders it as the rail to match
+against the bank statement. Left alone here because fixing it means adding a rail selector to the
+public form, which is its own change; recorded in
+`tasks/open/donate-form-records-a-payment-rail-the-donor-never-chose.md`.
+
 ## What would reverse this
 
 Integrating a real payment provider. A verified, signature-checked callback is a stronger

@@ -346,6 +346,20 @@ export function ReconciliationQueue({ source }: { source: ReconciliationQueueSou
         </Notice>
       )}
 
+      {/*
+        Truncation is observed, not inferred: the action asks the ledger for one
+        row more than it returns, exactly as the statutory export does. Computing
+        that and never showing it was the whole defect in the export this repo
+        already fixed — a cap nobody is told about is a silent one, and this queue
+        is oldest-first, so what falls off the end is the newest genuine gifts.
+      */}
+      {hasMore && !loadError && (
+        <Notice role="status" tone="warning" icon={AlertCircle}>
+          More than {rows.length} {plural} are awaiting confirmation. Only the oldest are
+          shown — settle or dismiss some, then refresh, to see the rest.
+        </Notice>
+      )}
+
       {settled.length > 0 && (
         <div className="tone-soft tone-success rounded-xl border p-4 space-y-2">
           <p className="eyebrow flex items-center gap-1.5">
