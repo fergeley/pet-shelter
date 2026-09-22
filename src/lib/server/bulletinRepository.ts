@@ -138,7 +138,8 @@ function toDateString(value: Date | string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function parseNoticeDate(value: string): Date {
+/** Local to this module: the write path is the only thing that needs it. */
+function parseNoticeDate(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
@@ -213,7 +214,9 @@ function matchesTarget(record: { targetPage: BulletinTargetPage }, page: Bulleti
  * `limit` is pushed into the query rather than sliced afterwards: the ordering
  * is the database's, so `take` returns the notices a page would have shown
  * without reading the rest. The fixture path below has to sort in memory
- * instead, which is why `sortForFeed` exists at all.
+ * instead, through `sortBulletinsForFeed` in `@/lib/domain/bulletinOrdering`,
+ * which shares `BULLETIN_FEED_ORDER_BY` with the query so the two cannot
+ * answer differently.
  *
  * ceiling: an unlimited call (`/bulletins`) reads every published row in one
  * payload. Fine at shelter scale — tens of notices — but page it if the archive
