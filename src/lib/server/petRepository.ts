@@ -107,8 +107,24 @@ export async function getStoredGalleryImages(id: string): Promise<string[] | nul
  *
  * **"No such row" is an answer, not an outage.** A successful query that found
  * nothing returns `null`; the mirror is reached only when the query *threw*, or
- * when no database is configured at all. This is the same trigger
- * `getServerPetsAsync` above uses, and `getServerFaqsAsync` beside it.
+ * when no database is configured at all.
+ *
+ * That is the same *policy* `getServerPetsAsync` above and `getServerFaqsAsync`
+ * follow — an empty result is an answer — but not the same trigger, and the
+ * difference is worth knowing before you copy one into the other. Those two
+ * always issue their query and reach the fixture only from `catch`. This one is
+ * additionally gated on `isDatabasePersistent()`, because a single-row read has
+ * a third case they do not: no database configured at all, where there is
+ * nothing to ask and the mirror is the whole store.
+ *
+ * **What this does not close: the `catch` path still serves fixtures.** A
+ * transient read failure in non-strict mode — which is every deployed
+ * environment; `STRICT_PERSISTENCE` is set only by `vitest.config.mts` — falls
+ * back to the mirror, and for an id that really is in `pets.json` that means
+ * the demo animal, at its exact URL, with `getPetById`'s exact-id guard
+ * satisfied. Deliberate, because serving a stale read beats serving an error,
+ * and recorded in `tasks/open/an-outage-serves-and-bills-fixture-animals.md`
+ * because on this path it is also what a sponsorship pledge gets billed to.
  *
  * It used to fall through to the mirror on both exits, which published demo
  * data: an id present in `src/data/pets.json` but absent from a populated

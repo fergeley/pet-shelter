@@ -57,10 +57,16 @@ export interface PrismaDouble {
  * Empty means "the database holds nothing", and every reader here now takes that
  * as an answer rather than as a cue to serve fixtures: `getServerPetsAsync`
  * returns `[]`, `findServerPetByIdAsync` returns `null`, `getServerFaqsAsync`
- * returns `[]`. All three fall back only from their `catch`. So a test that
- * forgets to arrange its rows sees an empty shelter, not bundled demo animals —
- * and a test that *wants* the fallback has to provoke a failure, which is the
- * arrangement that actually exercises it.
+ * returns `[]`. So a test that forgets to arrange its rows sees an empty
+ * shelter, not bundled demo animals — and a test that *wants* the fallback has
+ * to provoke a failure, which is the arrangement that actually exercises it.
+ *
+ * The two list readers fall back only from their `catch`. `findServerPetByIdAsync`
+ * has one more door: it is gated on `isDatabasePersistent()` and serves the
+ * mirror without querying at all when no database is configured, which
+ * `petMissingRowIsAnAnswer.test.ts` pins. It does not apply under this double —
+ * the integration project sets `STRICT_PERSISTENCE` — but do not carry
+ * "only from their `catch`" across to that reader; it is not true of it.
  *
  * This default once carried the opposite rationale, because the pet catalogue
  * gated its fallback on `rows.length > 0` and the single-pet read fell through

@@ -127,16 +127,24 @@ describe("the repository distinguishes a missing row from an unreachable databas
     expect(await findServerPetByIdAsync(FIXTURE_ID)).toBeNull();
   });
 
-  it("leaves the mirror holding the fixture it declined to serve", async () => {
+  it("declines to serve the fixture rather than having no fixtures", async () => {
     double.pet.findUnique.mockResolvedValue(null);
     const { findServerPetByIdAsync, getServerPets } = await import("@/lib/server/petRepository");
 
     await findServerPetByIdAsync(FIXTURE_ID);
 
-    // The reader declined to serve the fixture, rather than the mirror happening to be
-    // empty. Without this, the test above would pass against a reader that had simply
-    // lost its fixtures — a much worse change that looks identical from outside.
-    expect(getServerPets().some((p) => p.id === FIXTURE_ID)).toBe(true);
+    // Without this, the test above would pass against a reader that had simply lost its
+    // fixtures — a much worse change that looks identical from outside.
+    //
+    // Asserted on a *different* fixture id than the one just queried, on purpose. Asserting
+    // that `pet-001` survives would also pin that the reader may never evict the row the
+    // database just denied — and evicting it is the natural fix for the residual in
+    // `tasks/open/an-outage-serves-and-bills-fixture-animals.md`, where a later outage
+    // serves that same stale fixture. A test should not forbid the repair for a defect it
+    // is not about.
+    const mirror = getServerPets();
+    expect(mirror.length).toBeGreaterThan(0);
+    expect(mirror.some((p) => p.id === "pet-002")).toBe(true);
   });
 
   it("still falls back to the mirror when the query fails", async () => {

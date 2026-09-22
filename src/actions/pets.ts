@@ -134,11 +134,15 @@ export async function getPetById(id: string): Promise<Pet | null> {
   // *is* in `pets.json` used to fall through and publish the demo animal; the repository now
   // returns null for that, and reaches the mirror only from its `catch` or with no database
   // configured (`tasks/decisions/2026-09-22-a-pet-the-database-lacks-is-a-missing-pet.md`).
-  // The guard below covers what that does not: *both* remaining routes to the mirror, whose
-  // lookup lowercases. With no database configured, and equally during a non-strict outage —
-  // the `catch` also returns `findServerPetById(id)` — `/pets/PET-001` still matches fixture
-  // `pet-001`, and only the exact-id comparison refuses it. Do not delete this guard on the
-  // grounds that the repository "returns null now"; it does not, on either of those paths.
+  // Two routes to the mirror remain — no database configured, and a non-strict outage, whose
+  // `catch` also returns `findServerPetById(id)` — and on both the mirror's lookup lowercases.
+  // The guard below is what refuses `/pets/PET-001` there. Be precise about what that buys:
+  // it refuses a *case-variant* of a fixture id, and nothing more. `/pets/pet-001`, spelled
+  // exactly as `pets.json` spells it, satisfies `pet.id === requested` and is served from the
+  // fixture on either route. That residual is deliberate and recorded in
+  // `tasks/open/an-outage-serves-and-bills-fixture-animals.md`. So: do not delete this guard on
+  // the grounds that the repository "returns null now" — it does not, on those two paths — and
+  // do not read it as closing them.
   const requested = id.trim();
   const pet = await findServerPetByIdAsync(requested);
   if (!pet || pet.id !== requested || pet.isArchived) return null;

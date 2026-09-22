@@ -50,6 +50,15 @@ Named so the next person meets it as a decision rather than as a bug:
   row returns `null` would also pass against a reader that had lost its fallback entirely, so
   `petMissingRowIsAnAnswer.test.ts` pins both halves plus the no-database path.
 
+  **Stated as a virtue above; it is also a residual, and the first draft of this entry said only
+  the first half.** Preserving the fallback means that during a real outage `/pets/pet-001` still
+  renders the demo animal and checkout still bills a pledge against it — the same exposure this
+  entry is named for, reached by the other door. No deployed environment sets
+  `STRICT_PERSISTENCE`, so that is production behaviour, not a test-only path. Filed as
+  `tasks/open/an-outage-serves-and-bills-fixture-animals.md`. The review of this change caught
+  the omission; it is recorded here rather than quietly widened, because "the outage path is
+  untouched" and "the outage path is fine" are different claims and only the first is true.
+
 ## Not closed by this
 
 - **Sponsorship checkout still accepts an *archived* animal.** The entry this settles named the

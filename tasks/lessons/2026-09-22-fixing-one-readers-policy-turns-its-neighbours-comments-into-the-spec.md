@@ -23,9 +23,35 @@ The tell: a comment in file A asserting a fact about file B. Nothing recompiles 
 covers it, and the next reader treats it as more authoritative than the code because it reads
 like intent.
 
+## Then I did it again, in the commit that shipped this lesson
+
+The replacement comments were wrong in the same way, and a review caught all three:
+
+- `petRepository.ts`: "This is the same trigger `getServerPetsAsync` above uses." It is not.
+  `getServerPetsAsync` has no `isDatabasePersistent()` gate — it always issues the query and
+  reaches the fixture only from `catch`. The reader I was documenting has a third door the other
+  two lack. Same *policy*, different *trigger*, asserted as identical.
+- `prismaDouble.ts`: "All three fall back only from their `catch`" — false for the same reason,
+  and contradicted by a test in the very same commit, `"serves the mirror without querying when
+  no database is configured"`.
+- `actions/pets.ts`: claimed the exact-id guard "covers" the two remaining mirror routes. It
+  refuses a case-variant and nothing else; `/pets/pet-001` spelled exactly is still served from
+  the fixture on both.
+
+Writing the lesson did not stop me repeating it an hour later, because the failure is not
+forgetfulness. Each sentence was a claim about *another* function, written from memory of having
+read it, at the moment I was busy with a third thing. That is indistinguishable, at writing time,
+from knowing it.
+
 **Rule:** when you change a policy that another file's comment, doc or ledger entry cites as
 precedent, `grep` the function's name across `src/`, `tests/` and `tasks/` and fix every prose
 copy in the same commit — the same "once two copies have diverged, fix both" that `AGENTS.md`
-applies to code. And when a nearby reader looks deliberately inconsistent with its siblings,
-check the *code* of the precedent being cited before accepting it; a cross-file claim is
-[[a-predicate-is-only-as-true-as-the-read-underneath-it]] applied to comments.
+applies to code.
+
+**And treat a comment that names another symbol as a claim requiring a read, not a recollection.**
+Before writing "the same as X" or "X does Y", open X. If the sentence survives, keep it; if
+opening X is not worth it, the sentence is not worth writing — delete it rather than ship an
+unchecked cross-file assertion. "Same policy, different mechanism" is the specific shape that
+slips through, because the sentence feels true and the reader has no way to tell. A cross-file
+claim is [[a-predicate-is-only-as-true-as-the-read-underneath-it]] applied to comments, and the
+read underneath a comment is the one nobody ever runs.
