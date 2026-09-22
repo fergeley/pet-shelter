@@ -45,6 +45,20 @@ Two consequences, and the second is the worse one:
    Postgres on 5432 — a colleague's local instance, a container left running from `npm run db:up`,
    another agent's sandbox — is a write target for a test tier that believes it is offline.
 
+## This is one cause, not the cause
+
+`tasks/open/unit-suite-is-order-dependent-in-both-directions.md`, opened the same day by a
+different session, records the broader instability: the same 98-file project reporting `1580
+passed` under one schedule and 54 red under another, with disjoint failing sets and a
+`hookTimeout` shape that this entry does not explain.
+
+This entry is narrower and correspondingly more actionable — a named mechanism with a one-command
+check. It does not account for the authorization failures that entry saw on `master` with none of
+this branch's changes. **Check the port first** because it takes seconds and rules one cause in or
+out; then read that entry for the rest. Two entries rather than one because they settle
+differently: this one closes when the unit tier stops reaching the network, that one when the
+ordering interference is found.
+
 ## What this is not
 
 Not the `integration` tier's problem: `test:integration` sets `STRICT_PERSISTENCE=true`

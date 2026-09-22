@@ -73,6 +73,18 @@ closing. The honest reading of a green run today is "green, or not yet unlucky".
 real time: this was investigated twice from scratch, by two sessions, each as a suspected
 regression in an unrelated change.
 
+**One named mechanism, added 2026-09-22 by a third session investigating the same thing a third
+time.** `tasks/open/unit-tests-write-to-whatever-is-on-localhost-5432.md` identifies a cause that
+is specific, reproducible on demand, and produces failures of exactly this shape: with no
+`DATABASE_URL`, `createPrismaClient` falls back to a hardcoded `localhost:5432` string and
+`insertServerPet` writes to the database *before* the mirror regardless of what
+`isDatabasePersistent()` says. So the unit tier's offline behaviour depends on nothing listening
+on that port — and on a machine running several agents, something often is. Port open: six
+`Unique constraint failed on the fields: (id)` failures in `petCatalog`. Port closed, same commit:
+green. That is not the whole of this entry — it does not explain the authorization failures in
+runs 2 and 3, or the `hookTimeout` shape — but it is one real cause, and it is testable in seconds
+(`Get-NetTCPConnection -LocalPort 5432`) before anyone re-derives the rest.
+
 **Settles when:** someone runs the two repros above — they need no setup and take under a minute
 each — decides whether these are one defect or two, and fixes them; then runs the full unit
 project three times *under load* and confirms the counts match. Until then, a green `npm test` in
