@@ -45,8 +45,11 @@ English-only — that half belongs to
 `tasks/open/home-page-text-stays-english-on-the-malay-site.md`, which owns the render side. The
 columns exist now because adding them later means a *second* hand-run DDL migration against a
 production branch with no Prisma down path, and P-C in the same target doc warns specifically
-about baking a violation into columns. The editor writes them; the reader resolves English into
-them; only the rendering waits.
+about baking a violation into columns. The editor writes them; **nothing reads them yet**, and
+the repository does *not* resolve English into them — a first draft of this entry and three code
+comments all claimed it did. Whoever settles the multilingual entry adds the fields to `Bulletin`
+and the `titleMs ?? title` fallback together; adding the field alone ships a blank Malay title for
+every untranslated row.
 
 ## The byline is taken, not given
 
@@ -99,7 +102,7 @@ have nothing to do with bulletins. Running push to add this table would execute 
 
 The deliverable is `prisma/migrations/manual/20260922_community_bulletins/migration.sql`, applied
 by `npm run db:migrate:bulletins`. It is purely additive — three `CREATE TYPE`, one `CREATE TABLE`,
-two `CREATE INDEX` — so it cannot participate in that drift in either direction. Its `DROP`
+one `CREATE INDEX` — so it cannot participate in that drift in either direction. Its `DROP`
 counterpart is written into the file's header comment, because `db push` has no down path and the
 undo has to exist somewhere a human can find it.
 
@@ -108,3 +111,36 @@ hand-written SQL produces objects byte-identical to what `prisma db push` create
 is a no-op, and the database rejects an out-of-vocabulary category. See
 `tasks/lessons/2026-09-22-a-published-npm-tarball-is-not-what-npm-extracted.md` for the one thing
 that nearly stopped the rehearsal.
+
+## The review round
+
+`/code-review` against `origin/master` returned **fourteen findings**, and most were real. They are
+recorded here rather than only in the commit because two of them changed a decision above.
+
+**The admin-only index is gone, not fixed.** `@@index([publishedAt])` could not serve the query
+its own comment named — `listBulletinRecords` sorts by `isPinned` first — so Postgres seq-scanned
+and sorted regardless, and the index cost a write on every create, edit, pin and publish. At
+shelter scale the scan is correct; the index was write amplification with a comment claiming
+otherwise. A `ceiling:` on the model says when to add `@@index([isPinned, publishedAt])` back.
+
+**The migration script inserts and no longer upserts.** It advertised itself as the safe way to
+reach a hosted branch while its `ON CONFLICT DO UPDATE` would silently revert staff edits to any
+seeded notice — through `pg`, so with no audit entry. The fixture is launch content; once a notice
+exists the editor owns it. `prisma/seed.ts` keeps its upsert, because `assertSeedTargetIsLocal`
+means it cannot reach anything but localhost, and refreshing a dev database is what a seed is for.
+
+Three findings were **documentation lying about code**: the repository, the schema and the type all
+claimed the English copy is resolved into missing Malay fields. It is not, and `Bulletin` has no
+Malay fields at all. That one would have cost the next person real time — they would have added
+`titleMs` to the interface, trusted the fallback, and shipped a blank Malay title for every
+untranslated row, which today is all of them.
+
+One finding was **declined**: `toDateString` duplicates a private `toDayString` in
+`applicationRepository`. True, but the pattern has twenty pre-existing sites across `src/`, so
+lifting a shared helper is a repo-wide refactor and does not belong inside a security change.
+AGENTS.md asks for a third occurrence before abstracting; this is the note that it has arrived.
+
+Every correction carries a test, and each of those tests was checked against a mutant of the code
+it covers — see
+`tasks/lessons/2026-09-22-a-mutation-probe-must-never-restore-over-uncommitted-work.md` for the
+way that check went wrong the first time and what it now requires.

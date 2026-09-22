@@ -40,8 +40,10 @@ and P-D for `Bulletin` in `docs/tasks/TARGET_SCHEMA_TYPE_INTEGRITY.md:193`.
 - [x] Public "Staff Admin Access" toggle, `AdminBulletinModal` and `bulletinStore.ts` deleted.
 - [x] Media host allow-lists, enforced on write *and* on read.
 - [x] `src/data/bulletins.json` reshaped; the `dQw4w9WgXcQ` embed removed from shipped content.
-- [x] Test suite: 100 cases, four load-bearing claims checked against mutants.
+- [x] Test suite: 114 cases, eight claims checked against mutants.
 - [x] Merge `origin/master` 4782ff2 (#88's AST guard) and re-run every gate.
+- [x] `/code-review`: fourteen findings, ten fixed, one declined with a reason, three were
+      documentation contradicting the code. Migration re-rehearsed after the index change.
 
 ## Review
 
