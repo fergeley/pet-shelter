@@ -27,15 +27,17 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 66 checks on a throwaway embedded PostgreSQL 18.4, all passing,
+- [x] `rehearse.mjs` beside it — 76 checks on a throwaway embedded PostgreSQL 18.4 created UTF8,
+      all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
 - [x] `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md` — the backfill
       rule, the expand/contract split, and the full check list.
 - [x] Drift entry updated with the 2026-09-22 measurement, and one earlier claim in it corrected.
-- [x] Five lessons: the lenient-parser trap, the superseded NOT NULLs, the stray-process sweep,
-      the regex that finds a number beside a unit rather than the number, and the token list
-      whose one-letter alternative became a prefix match when it gained a second language.
+- [x] Six lessons: the lenient-parser trap, the superseded NOT NULLs, the stray-process sweep,
+      the regex that finds a number beside a unit rather than the number, the token list whose
+      one-letter alternative became a prefix match when it gained a second language, and the
+      check that asserts a literal and hides the crash it was written for.
 - [x] The `#46`/`#47` stream's one genuinely stale line: the enum migration is applied.
 - [ ] **Owner: apply `20260922_pets_birth_date/migration.sql` in the Neon SQL editor.** Run the
       header's "before" query first — it names any row the file would refuse. Needs no merge.
@@ -130,7 +132,23 @@ One claim in that review did not survive checking, and is recorded as such: it h
 would read as 1 year. It does not — the vulgar fraction is not `[0-9]`, no unit pattern matches,
 and the row is refused as underivable. Check L3 pins it.
 
-The fix rounds are `00e75f4`, `75b44a4` and the commit after them; all are themselves reviewed.
+**A third review, on the second round's fixes, found five more.** Ranges (`"3-4 years"` took 4 —
+the same defect as `1.5 years`, one separator away from the fix that had just landed); the
+pre-check sorting three of its four refusal verdicts *below* the accepted rows, so the one row
+needing attention sat under the scroll; the rehearsal database being WIN1252 rather than Neon's
+UTF8, which is the encoding the `\M` and `[[:space:]]` evidence depended on; the marker comment
+overwriting any comment already on the column; and `check("A3 …", true)` — a literal assertion,
+twice over, with no crash-safe teardown.
+
+Rewriting A3 immediately caught a regression introduced minutes earlier in that same round:
+`COMMENT ON COLUMN ... IS 'literal' || expr` is a syntax error. The old A3 would have crashed the
+run and shown a stack trace instead of a failing check.
+
+**Three review rounds, seventeen findings, every one real, and the rehearsal was green before
+each round.** That is the argument for the review step, and for mutation-testing a suite rather
+than trusting its colour.
+
+The fix rounds are `00e75f4`, `75b44a4`, `b6cd717` and the commit after them; all are reviewed.
 
 **Deliberately not done:**
 - **Putting this on PR #42, as the brief asked.** Three reasons. That branch cannot host the

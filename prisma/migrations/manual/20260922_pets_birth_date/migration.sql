@@ -77,7 +77,11 @@
 -- as two years is right whether or not that PR lands, and storing intake-day-as-birthday is
 -- wrong either way. So for a Malay-worded age this file and today's app disagree, and this file
 -- is the one to trust. That is a second place -- alongside month-end clamping below -- where the
--- backfilled value is not what master's arithmetic would produce today. There are no others.
+-- backfilled value is not what master's arithmetic would produce today. Those two are the only
+-- places a value differs. This file is also stricter than the app in three places where it
+-- stores nothing at all rather than a value it cannot stand behind: a fractional or hyphenated
+-- age, an implausible one, and a unit it does not recognise. The app would happily produce a
+-- number for each.
 --
 -- Scope: `pets` only, and only the two added columns plus the two relaxed constraints. The
 -- drop of `age`/`ageCategory` is deliberately NOT here. It destroys the only record of what
@@ -94,10 +98,12 @@
 --     is not a real calendar date, aborts the file naming that row's id and both values. The
 --     column's '2024-01-01' default is never allowed to stand as an answer.
 --   * Implausible ages abort too: over 60 years or 720 months is a typo or junk, not an animal.
---   * A fractional age aborts, rather than being rounded. It is the one input that parses
---     cleanly and means something else: the rule takes the digits beside the unit, so
---     "1.5 years" reads as 5 and nothing downstream could tell. Rounding it in either
---     direction is a claim about an animal nobody here has met.
+--   * A fractional or hyphenated age aborts, rather than being rounded or narrowed. These are
+--     the inputs that parse cleanly and mean something else: the rule takes the digit run
+--     beside the unit, so "1.5 years" reads as 5 and "3-4 years" reads as 4, and nothing
+--     downstream could tell. Choosing a number for either is a claim about an animal nobody
+--     here has met. Any two digit runs separated by . , / - or a dash, immediately before a
+--     unit, are refused and named.
 --   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
 --     this file will not overwrite a date a human has since corrected through the admin form.
 --     The two DROP NOT NULLs are no-ops the second time. A table carrying only one of the pair
@@ -129,7 +135,8 @@
 -- Before -- this is the pre-check, and it is the one step not to skip. It names every row this
 -- file would refuse, without changing anything:
 --
---   SELECT "id", "name", "age", "intakeDate",
+--   SELECT * FROM (
+--        SELECT "id", "name", "age", "intakeDate",
 --          CASE
 --            WHEN left(coalesce("intakeDate",''),10)
 --                 !~ '^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$' THEN 'bad intakeDate'
@@ -138,7 +145,7 @@
 --                                               substr(left("intakeDate",10),6,2)::int, 1)
 --                                     + interval '1 month' - interval '1 day')) THEN 'bad intakeDate'
 --            WHEN lower(coalesce("age",''))
---                 ~ '[0-9][.,/][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+--                 ~ '[0-9][.,/–—-][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
 --                 THEN 'fractional age'
 --            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
 --                 AND (regexp_match(lower("age"),
@@ -152,15 +159,24 @@
 --            WHEN lower(coalesce("age",'')) ~ '[0-9]+[[:space:]]*(bulan|bln|months|month|mths|mth|mos|mo|m)\M' THEN 'ok: months'
 --            ELSE 'unparseable age'
 --          END AS verdict
---     FROM "public"."pets" ORDER BY 5 DESC, 1;
+--     FROM "public"."pets"
+--        ) v
+--    ORDER BY (verdict LIKE 'ok:%'), verdict, "id";
 --
 -- Every row should read `ok: years` or `ok: months`. The other four verdicts are the four things
 -- this file refuses, and each is a row to correct by hand first, or it will abort naming that row:
 --
 --   bad intakeDate    not a real calendar date; fix the date
---   fractional age    "1.5 years" reads as 5; rewrite in whole units, "18 months"
+--   fractional age    "1.5 years" reads as 5 and "3-4 years" reads as 4; pick one whole
+--                     number -- "18 months", "3 years" -- or say which bound you mean
 --   implausible age   over 60 years or 720 months; a typo, not an animal
 --   unparseable age   no number-and-unit the rule recognises; rewrite as "2 years", "4 months"
+--
+-- **Read the `age` column itself, not only the verdict.** The rule reads a number and a unit; it
+-- cannot read a qualifier around them. "less than 1 year" is taken as exactly 1 year, "2 bulan
+-- setengah" as exactly 2 months, "about 3 years" as exactly 3. Each is an estimate stored as an
+-- estimate, so none is refused -- but if a row's prose hedges in a direction that matters to
+-- someone who knows the animal, this listing is the last chance to say so in whole units.
 --
 -- Keep the output. After the follow-up file drops `age`, it is the only record of what it held.
 --
@@ -202,7 +218,7 @@
 -- "PetStatus" as the owner applied on 2026-09-18, `intakeDate` as text, and every other scalar
 -- master's Pet model declares, so a Prisma select differs from it in exactly the two columns.
 --
--- Sixty-six checks, all passing. Fifty-nine at the SQL level and seven driving master's own
+-- Seventy-six checks, all passing. Sixty-nine at the SQL level and seven driving master's own
 -- generated Prisma client. They are listed in
 -- tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md. In summary:
 --   * The ten src/data/pets.json animals backfill to the exact `birthDate` that file carries,
@@ -215,11 +231,18 @@
 --   * Every refusal leaves the table untouched: unparseable age, NULL age, empty age, a
 --     non-date intakeDate, 2024-02-31, month 13, "500 years", a fourteen-digit age, the three
 --     fractional shapes "1.5 years", "1,5 tahun" and "1 1/2 years", the vulgar fraction
---     "1<1/2> years", and "3 minggu" / "5 hari" / "3 weeks" -- units this file does not read.
+--     "1<1/2> years", the ranges "3-4 years", "1-2 tahun", "6-8 months" and their en- and
+--     em-dash spellings, a non-breaking space between number and unit, and "3 minggu" /
+--     "5 hari" / "3 weeks" -- units this file does not read.
 --   * A decimal elsewhere in the string is not a fractional age: "2 years, 12.5 kg" and
 --     "3 tahun (lahir 12/06/2023)" both backfill normally rather than blocking the table.
 --   * rollback.sql does not tighten a column this file found already nullable, and it names the
 --     rows a rollback would strand with neither a birthday nor an age.
+--   * A comment already on `age` or `ageCategory` is carried inside the marker and put back by
+--     rollback.sql, rather than overwritten.
+--   * The rehearsal database is created UTF8, as Neon is, rather than inheriting the host
+--     locale: [[:space:]] and \M are encoding-dependent, and a non-breaking space between the
+--     number and the unit parses under WIN1252 and is refused under UTF8.
 --   * The pre-check in this header returns the right verdict for each of those, and each
 --     verdict matches what the file then actually does -- so a clean pre-check is not
 --     followed by an abort.
@@ -252,6 +275,7 @@ DECLARE
   clamped          text;
   updated          integer;
   total            integer;
+  prior            text;
 BEGIN
   -- Give up rather than queue: an ALTER waiting behind a long-open transaction holds every
   -- later read of the table behind it, the live site's included.
@@ -335,7 +359,7 @@ BEGIN
                -- digit run that sits next to the unit token, so "1.5 years" would yield 5, not
                -- 1 -- a birthday three and a half years wrong, with every other check passing.
                lower(coalesce(p."age", ''))
-                 ~ '[0-9][.,/][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
+                 ~ '[0-9][.,/–—-][0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y|bulan|bln|months|month|mths|mth|mos|mo|m)\M'
                  AS fractional,
                CASE
                  WHEN lower(coalesce(p."age", '')) ~ '[0-9]+[[:space:]]*(tahun|thn|years|year|yrs|yr|y)\M'
@@ -455,8 +479,17 @@ BEGIN
        AND column_name = 'age' AND is_nullable = 'NO'
   ) THEN
     ALTER TABLE "public"."pets" ALTER COLUMN "age" DROP NOT NULL;
-    COMMENT ON COLUMN "public"."pets"."age" IS
-      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it';
+    -- Any comment already on the column is carried inside the marker, not overwritten: this is
+    -- the one place an otherwise strictly non-destructive file writes over something, and
+    -- rollback.sql puts the original back when it clears the marker.
+    SELECT col_description('"public"."pets"'::regclass, a.attnum) INTO prior
+      FROM pg_attribute a
+     WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age';
+    -- COMMENT ON takes a literal, not an expression, so the text is built first.
+    EXECUTE format(
+      'COMMENT ON COLUMN "public"."pets".%I IS %L', 'age',
+      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it'
+      || coalesce(' | previous comment: ' || nullif(prior, ''), ''));
   END IF;
 
   IF has_age_category AND EXISTS (
@@ -465,8 +498,14 @@ BEGIN
        AND column_name = 'ageCategory' AND is_nullable = 'NO'
   ) THEN
     ALTER TABLE "public"."pets" ALTER COLUMN "ageCategory" DROP NOT NULL;
-    COMMENT ON COLUMN "public"."pets"."ageCategory" IS
-      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it';
+    SELECT col_description('"public"."pets"'::regclass, a.attnum) INTO prior
+      FROM pg_attribute a
+     WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'ageCategory';
+    -- COMMENT ON takes a literal, not an expression, so the text is built first.
+    EXECUTE format(
+      'COMMENT ON COLUMN "public"."pets".%I IS %L', 'ageCategory',
+      'NOT NULL removed by 20260922_pets_birth_date; rollback.sql restores it'
+      || coalesce(' | previous comment: ' || nullif(prior, ''), ''));
   END IF;
 END $$;
 

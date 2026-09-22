@@ -50,8 +50,9 @@
 -- Rehearsed 2026-09-22 alongside migration.sql on a throwaway embedded PostgreSQL 18.4: it
 -- returns `pets` to its pre-migration shape with every `age` and `ageCategory` value kept,
 -- migration.sql applies again cleanly afterwards, a post-migration row whose `age` is NULL keeps
--- the column nullable and is named rather than aborting, and a table whose `age` was already
--- nullable before migration.sql is left nullable rather than tightened.
+-- the column nullable and is named rather than aborting, a table whose `age` was already
+-- nullable before migration.sql is left nullable rather than tightened, and a column that
+-- carried a comment before any of this gets that comment back.
 
 BEGIN;
 
@@ -68,6 +69,8 @@ DECLARE
   col       text;
   nulls     bigint;
   was_mine  boolean;
+  marked    text;
+  prior     text;
 BEGIN
   PERFORM set_config('lock_timeout', '5s', true);
 
@@ -124,7 +127,19 @@ BEGIN
 
     IF nulls = 0 THEN
       EXECUTE format('ALTER TABLE "public"."pets" ALTER COLUMN %I SET NOT NULL', col);
-      EXECUTE format('COMMENT ON COLUMN "public"."pets".%I IS NULL', col);
+      -- Put back whatever comment the column carried before migration.sql marked it. The marker
+      -- carries the original after ' | previous comment: '; with nothing after that separator,
+      -- there was no comment and the column goes back to having none.
+      SELECT d.description INTO marked
+        FROM pg_attribute a
+        LEFT JOIN pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum
+       WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = col;
+      prior := nullif(substring(marked FROM ' \| previous comment: (.*)$'), '');
+      IF prior IS NULL THEN
+        EXECUTE format('COMMENT ON COLUMN "public"."pets".%I IS NULL', col);
+      ELSE
+        EXECUTE format('COMMENT ON COLUMN "public"."pets".%I IS %L', col, prior);
+      END IF;
     ELSE
       RAISE NOTICE
         'pets."%" left nullable: % row(s) created since migration.sql have no value for it, and this file will not invent one.',

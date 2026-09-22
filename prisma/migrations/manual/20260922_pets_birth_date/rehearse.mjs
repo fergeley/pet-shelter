@@ -1,4 +1,4 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 66 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. 76 checks.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -13,10 +13,11 @@
 // prisma.config.ts, DATABASE_URL or any other environment, so it cannot reach production or the
 // local dev database however this repo is configured -- which is the point of
 // tasks/lessons/2026-09-11-a-rehearsal-that-resolves-its-target-from-config-rehearses-nothing.md.
-// Set REHEARSAL_PORT to move it off 55433 if that is taken.
+// It picks a random port and a fresh mkdtemp directory each run, so two of these can run at once
+// and an orphan from a crashed run blocks nothing. Set REHEARSAL_PORT to pin one.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped -- loudly, and the run then exits non-zero -- and the other fifty-nine
+// they are skipped -- loudly, and the run then exits non-zero -- and the other sixty-nine
 // still run.
 
 import { readFileSync, mkdtempSync, existsSync } from "node:fs";
@@ -39,8 +40,16 @@ try {
   process.exit(2);
 }
 
-const PORT = Number(process.env.REHEARSAL_PORT || 55433);
-const DB_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/postgres`;
+// Per run, not a fixed 55433: an orphaned cluster from a crashed run must not be able to hold the
+// port the next run wants. Pairs with the mkdtemp data directory below.
+const PORT = Number(process.env.REHEARSAL_PORT || 55000 + Math.floor(Math.random() * 4000));
+
+// initdb inherits the host locale, which on this machine means WIN1252. Neon is UTF8, and both
+// [[:space:]] and \M are encoding-dependent -- a non-breaking space in an age parses under WIN1252
+// and is refused under UTF8 -- so every check below runs against a database created UTF8 rather
+// than against whatever initdb happened to default to.
+const BOOTSTRAP_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/postgres`;
+const DB_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/rehearsal_utf8`;
 
 let failures = 0;
 let skipped = 0;
@@ -159,10 +168,35 @@ const server = new EmbeddedPostgres({
 await server.initialise();
 await server.start();
 
+const bootstrap = new pg.Client({ connectionString: BOOTSTRAP_URL });
+await bootstrap.connect();
+await bootstrap.query(
+  `CREATE DATABASE rehearsal_utf8 WITH ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0`
+);
+await bootstrap.end();
+
 const c = new pg.Client({ connectionString: DB_URL });
 await c.connect();
+
+// Clean up even on an unhandled rejection. A top-level await that throws would otherwise kill the
+// process before the teardown at the end of this file and leave a cluster running -- which is the
+// situation tasks/lessons/2026-09-22-scope-a-stray-process-sweep-to-your-own-job-directory.md is
+// about, and the per-run port above is the other half of not causing it.
+const shutdown = async () => {
+  try { await c.end(); } catch {}
+  try { await server.stop(); } catch {}
+};
+for (const ev of ["uncaughtException", "unhandledRejection"]) {
+  process.on(ev, async (e) => {
+    console.error(`\n${ev}:`, e);
+    await shutdown();
+    process.exit(1);
+  });
+}
+
 console.log(`\nTarget: ${DB_URL}  (throwaway, started by this process)`);
-console.log(`${(await c.query("select version()")).rows[0].version}\n`);
+console.log(`${(await c.query("select version()")).rows[0].version}`);
+console.log(`server_encoding: ${(await c.query("SELECT current_setting('server_encoding') AS e")).rows[0].e}\n`);
 
 // ------------------------------------------------------------------ A. the happy path
 await fresh(c);
@@ -180,8 +214,13 @@ await fresh(c);
   check("A2 before: insert without age fails 23502 not-null", r.failed && r.code === "23502", r.code || "");
 }
 
-await c.query(MIGRATION);
-check("A3 migration.sql applies", true);
+// Not `check(..., true)`. A3 exists to catch a migration that stops applying, and a bare
+// `await c.query(MIGRATION)` would throw past the check and kill the run instead of failing it --
+// the same literal-assertion defect the comment above J3 describes.
+{
+  const r = await expectFail(c, MIGRATION);
+  check("A3 migration.sql applies", !r.failed, r.message.split("\n")[0]);
+}
 
 {
   const cols = await columns(c);
@@ -221,8 +260,10 @@ check("A3 migration.sql applies", true);
 }
 
 // ------------------------------------------------------- B. idempotence / re-run safety
-await c.query(MIGRATION);
-check("B1 re-running migration.sql does not error", true);
+{
+  const r = await expectFail(c, MIGRATION);
+  check("B1 re-running migration.sql does not error", !r.failed, r.message.split("\n")[0]);
+}
 {
   const r = await c.query(`SELECT "birthDate" FROM "public"."pets" WHERE "id"=$1`, [FIXTURES[0][0]]);
   check("B2 re-run leaves the backfilled dates alone", r.rows[0].birthDate === FIXTURES[0][3], r.rows[0].birthDate);
@@ -503,11 +544,70 @@ for (const [name, rows, expect] of REFUSALS) {
   );
 }
 
+// ------------- M. a range is the same defect as a fraction: the captured run is not the meant one
+{
+  // "3-4 years" captures the run beside the unit -- 4 -- so a 1-2 year old lands as 2, crossing
+  // the young/adult band boundary, with `age` scheduled to be dropped. Same shape as "1.5 years",
+  // which the file already refused; only the separator class was too narrow to see it.
+  for (const [id, age] of [
+    ["m-1", "3-4 years"], ["m-2", "1-2 tahun"], ["m-3", "6-8 months"],
+    ["m-4", "approx. 2-3 yrs"], ["m-5", "2–3 years"], ["m-6", "2—3 years"],
+  ]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(`M1 "${age}" is refused rather than silently taking one bound`, r.failed && /fractional/.test(r.message), r.failed ? "" : "it was accepted");
+  }
+}
+{
+  // Under UTF8 -- which is what Neon is and what this harness now creates -- a non-breaking space
+  // is not [[:space:]], so the age does not parse and the row is refused rather than guessed at.
+  await fresh(c, [["m-7", "2 years", "2026-06-12"]]);
+  const r = await expectFail(c, MIGRATION);
+  check("M2 a non-breaking space in the age is refused under UTF8", r.failed && /m-7/.test(r.message), r.failed ? "" : "it was accepted");
+}
+{
+  // The pre-check's job is to put what the owner must act on where they will see it. Sorting the
+  // verdict text descending buried three of the four refusals below every ok row.
+  const lines = MIGRATION.split("\n");
+  const from = lines.findIndex((l) => l.includes("SELECT * FROM ("));
+  const to = lines.findIndex((l) => l.includes(`ORDER BY (verdict LIKE 'ok:%'), verdict, "id";`));
+  const PRECHECK = lines.slice(from, to + 1).map((l) => l.replace(/^--\s?/, "")).join("\n");
+  await fresh(c, [
+    ["n-1", "2 years", "2026-06-12"], ["n-2", "4 months", "2026-06-12"],
+    ["n-3", "unknown", "2026-06-12"], ["n-4", "2 years", "not-a-date"],
+    ["n-5", "500 years", "2026-06-12"], ["n-6", "1.5 years", "2026-06-12"],
+  ]);
+  const order = (await c.query(PRECHECK)).rows.map((x) => x.verdict);
+  const lastRefusal = order.map((v) => !v.startsWith("ok:")).lastIndexOf(true);
+  const firstOk = order.findIndex((v) => v.startsWith("ok:"));
+  check(
+    "M3 the pre-check lists every refusal above the rows it accepts",
+    lastRefusal < firstOk && firstOk !== -1,
+    JSON.stringify(order)
+  );
+}
+{
+  // The marker comment is the only place this otherwise non-destructive file writes over
+  // something. A comment someone else left must survive apply and come back on rollback.
+  await fresh(c);
+  await c.query(`COMMENT ON COLUMN "public"."pets"."age" IS 'staff-entered prose, do not drop'`);
+  await c.query(MIGRATION);
+  const during = (await c.query(`SELECT col_description('"public"."pets"'::regclass, a.attnum) d
+                                   FROM pg_attribute a
+                                  WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age'`)).rows[0].d;
+  check("M4 the marker carries the previous comment rather than discarding it", /staff-entered prose/.test(during || ""), during);
+  await c.query(ROLLBACK);
+  const after = (await c.query(`SELECT col_description('"public"."pets"'::regclass, a.attnum) d
+                                  FROM pg_attribute a
+                                 WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'age'`)).rows[0].d;
+  check("M5 and rollback puts that comment back exactly", after === "staff-entered prose, do not drop", JSON.stringify(after));
+}
+
 // ---------------------------------- J. the header's own pre-check query, as the owner runs it
 {
   const lines = MIGRATION.split("\n");
-  const from = lines.findIndex((l) => l.includes('SELECT "id", "name", "age", "intakeDate",'));
-  const to = lines.findIndex((l) => l.includes('FROM "public"."pets" ORDER BY 5 DESC, 1;'));
+  const from = lines.findIndex((l) => l.includes("SELECT * FROM ("));
+  const to = lines.findIndex((l) => l.includes(`ORDER BY (verdict LIKE 'ok:%'), verdict, "id";`));
   if (from < 0 || to < from) throw new Error("pre-check block not found in migration.sql header");
   const PRECHECK = lines.slice(from, to + 1).map((l) => l.replace(/^--\s?/, "")).join("\n");
 

@@ -3,7 +3,7 @@
 **Decided:** 2026-09-22
 
 `prisma/migrations/manual/20260922_pets_birth_date/` closes the `pets.age` half of
-`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Seven choices in it are reversible
+`tasks/open/production-schema-has-drifted-ahead-of-master.md`. Eight choices in it are reversible
 and are written down here rather than only in the file's header.
 
 ## 1. `birthDate := intakeDate - age`, not `today - age`
@@ -82,7 +82,7 @@ claim of equivalence: for a Malay-worded age this file and today's app disagree,
 this file is the one to trust. Those two — month-end clamping and Malay tokens — are the only
 places they differ.
 
-## 5. A fractional age is refused, not rounded
+## 5. A fractional *or hyphenated* age is refused, not rounded or narrowed
 
 `"1.5 years"` is exactly the prose an intake volunteer types, and it is the one input that parses
 cleanly and means something else. The unit patterns take the digit run that sits *next to the unit
@@ -97,7 +97,20 @@ Rounding in either direction is a claim about an animal nobody here has met, so 
 and names the row, and the pre-check names it in advance. `"18 months"` says what `"1.5 years"`
 meant, and the rule reads it.
 
-Found by `/code-review`, not by the rehearsal, which had no fractional fixture.
+**The same defect covers ranges, and the first fix missed them.** `-` was not in the guard's
+separator class, so `"3-4 years"` took the run beside the unit — **4** — and `"1-2 years"` became
+2, which also crosses the `young`/`adult` band boundary at 12 months, filing the animal under the
+wrong catalogue filter with `age` scheduled for deletion. The guard's discriminator was already
+right (a second number *immediately before a unit token*, which is why `"2 years, 12.5 kg"` is
+accepted); only the class was too narrow. It now covers `. , / -` and the en- and em-dashes.
+
+The rule cannot read a qualifier *around* the number, and does not pretend to: `"less than 1
+year"` is taken as exactly 1 year, `"2 bulan setengah"` as exactly 2 months. Each is an estimate
+stored as an estimate, so neither is refused — the header instead tells the owner to read the
+`age` prose in the pre-check output, not only the verdict.
+
+Found by `/code-review` across two rounds, not by the rehearsal, whose age fixtures were all
+single well-formed quantities.
 
 ## 6. A unit token has to be a whole word
 
@@ -144,7 +157,8 @@ row, the migration then refuses the table over it, and it applies once that row 
 
 ## What was rehearsed
 
-Sixty-six checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
+Seventy-six checks, all passing, on a throwaway embedded PostgreSQL 18.4 **created UTF8**, as
+Neon is, started by
 `prisma/migrations/manual/20260922_pets_birth_date/rehearse.mjs` with its connection string inline
 — never against production, and resolving nothing from `.env.local` or `prisma.config.ts`. **The
 script is kept beside the migration**, which the `20260917_status_enums` rehearsal did not do: its
@@ -237,3 +251,30 @@ One claim in that review did not survive checking: it held that `"1½ years"` wo
 year. It is not — the vulgar fraction is not `[0-9]`, so no unit pattern matches and the row is
 refused as underivable. L3 pins that, because the reasoning is subtle enough to be worth a test
 rather than a paragraph.
+
+## The third review round, on the second round's fixes
+
+Five more, all real, and this round ran the rehearsal itself and probed it adversarially rather
+than reading the header.
+
+1. **Ranges** — choice 5 above. The same defect the round before had "fixed", one separator away.
+2. **The pre-check buried its own refusals.** `ORDER BY 5 DESC` sorts the verdict text, and
+   `unparseable age` > `ok: years` > `ok: months` > `implausible age` > `fractional age` >
+   `bad intakeDate` — so three of the four refusals sorted *below* every accepted row. On a
+   40-pet table in the Neon editor the one bad row sits under the scroll while the top looks
+   clean. Refusals are now grouped first.
+3. **The rehearsal database was WIN1252**, inherited from the Windows locale, while Neon is UTF8 —
+   and `[[:space:]]` and `\M` are encoding-dependent. A non-breaking space between number and
+   unit *parsed* under WIN1252 and is *refused* under UTF8, so the evidence for choice 6 had been
+   taken under the wrong encoding. The harness now creates its database UTF8 and prints
+   `server_encoding`, and M2 pins the non-breaking-space case.
+4. **The marker comment overwrote any comment already on the column** — the one place this
+   otherwise non-destructive file destroyed something. The marker now carries the original text
+   and rollback puts it back (M4, M5).
+5. **`check("A3 …", true)`** — a literal assertion, twice, plus no crash-safe teardown. See
+   `tasks/lessons/2026-09-22-a-check-that-asserts-a-literal-hides-the-crash-it-was-written-for.md`.
+   Rewriting A3 caught a regression introduced minutes earlier in this same round: `COMMENT ON
+   COLUMN ... IS 'literal' || expr` is a syntax error. The old A3 would have crashed the run.
+
+Three review rounds, seventeen findings, every one real. The rehearsal was green before each of
+them.
