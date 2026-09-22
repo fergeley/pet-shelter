@@ -4,7 +4,7 @@ import { BulletinDataTable } from "@/components/admin/BulletinDataTable";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { hasPermission } from "@/lib/security/rbac";
 import { PERMISSIONS } from "@/lib/security/permissions";
-import { listBulletinRecords } from "@/lib/server/bulletinRepository";
+import { listBulletinsAction } from "@/actions/bulletins";
 import type { BulletinRecord } from "@/types/bulletin";
 
 export const dynamic = "force-dynamic";
@@ -44,17 +44,24 @@ export default async function AdminBulletinsPage() {
   }
 
   /**
-   * `listBulletinRecords` has no fixture fallback on purpose — an editor must not
-   * be shown rows whose ids the database does not have, because every Edit and
-   * Delete on them would fail with "not found" while the table insisted the data
-   * was there. So an outage throws, and it is caught HERE to say so plainly
-   * rather than rendering the framework's error page, which tells an editor
+   * Read through the action rather than reaching past it into the repository.
+   *
+   * The check above decides what this page *renders*; `listBulletinsAction`
+   * re-asserts `MANAGE_CONTENT` on the server and is what actually permits the
+   * read, so the drafts below are gated by the same call a client would face.
+   * `tests/unit/bulletins.test.ts` holds that gate to anonymous, STAFF,
+   * VOLUNTEER and COORDINATOR, and proves the query never runs for them.
+   *
+   * The underlying reader has no fixture fallback on purpose — an editor must
+   * not be shown rows whose ids the database does not have, because every Edit
+   * and Delete on them would fail with "not found" while the table insisted the
+   * data was there. So an outage arrives as `success: false` and is reported
+   * plainly, rather than as the framework's error page, which tells an editor
    * nothing about whether their previous save survived.
    */
-  let bulletins: BulletinRecord[];
-  try {
-    bulletins = await listBulletinRecords();
-  } catch {
+  const result = await listBulletinsAction();
+
+  if (!result.success || !result.data) {
     return (
       <div className="max-w-xl border border-border bg-background rounded-2xl p-8 space-y-3">
         <DatabaseZap className="size-7 text-destructive" />
@@ -62,13 +69,15 @@ export default async function AdminBulletinsPage() {
           Bulletins are unavailable
         </h1>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          The database could not be reached, so the bulletin list cannot be shown.
-          The public feeds are still serving the last committed notices. Nothing
-          has been lost — try again once the database is reachable.
+          {result.error ?? "The bulletin list could not be loaded."} The public
+          feeds are still serving the last committed notices, so nothing visitors
+          see has changed.
         </p>
       </div>
     );
   }
+
+  const bulletins: BulletinRecord[] = result.data;
 
   return (
     <div className="space-y-6">
