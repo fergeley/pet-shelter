@@ -15,6 +15,79 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# `pets.age` → `birthDate`: the production migration — the other half of the schema drift
+
+**Branch:** `fix/pets-birth-date-production-migration` · opened 2026-09-22 · cut from
+`origin/master` 4782ff2, **not** from PR #42 — see "Deliberately not done" for why.
+
+- [x] Audit the brief before implementing it. Three of its four premises did not survive: see the
+      Review below.
+- [x] `prisma/migrations/manual/20260922_pets_birth_date/migration.sql` — adds `birthDate` and
+      `birthDateIsEstimate`, backfills both from the prose `age` production still carries, and
+      relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
+- [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
+      written to. Its header says plainly what it costs after go-live.
+- [x] `rehearse.mjs` beside it — 49 checks on a throwaway embedded PostgreSQL 18.4, all passing,
+      7 of them driving master's own generated Prisma client. **Kept, unlike the
+      `20260917_status_enums` script**, so a reviewer can re-take the measurement.
+- [x] `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md` — the backfill
+      rule, the expand/contract split, and the full check list.
+- [x] Drift entry updated with the 2026-09-22 measurement, and one earlier claim in it corrected.
+- [x] The `#46`/`#47` stream's one genuinely stale line: the enum migration is applied.
+- [ ] **Owner: apply `20260922_pets_birth_date/migration.sql` in the Neon SQL editor.** Run the
+      header's "before" query first — it names any row the file would refuse. Needs no merge.
+- [ ] Owner (one minute, worth doing first): open `/pets` on the live site. Exactly the ten
+      fixture animals at ids `pet-001`…`pet-010` confirms the catalogue is serving
+      `src/data/pets.json`; anything else means the read works and the drift wants re-reading.
+- [ ] Later, its own file: drop `age`/`ageCategory` — the contract half. Not written on purpose.
+
+## Review
+
+**The brief asked for two things. One was already done, and the other was bigger than described.**
+
+- **Item 2 was already fixed.** It asked to correct `tasks/todo.md:21-22`, where `#72`/`#73` were
+  said to be open. On master that line already reads "merged 2026-09-21" — the edit existed
+  uncommitted in the main checkout when this session started and has since been committed. It also
+  could not have been done where the brief said to do it: PR #42's branch predates the whole
+  `#46`/`#47` stream, and its `tasks/todo.md` ends at line 17. What *was* stale in that stream is
+  the enum-migration checkbox, ticked above.
+- **The migration is not a rename.** The drift statement bundles an add+backfill (reversible) with
+  a drop of `age`/`ageCategory` (not). Only the first half is data-preserving, so only the first
+  half is here. `db:check-drift` will still report one destructive `pets` statement afterwards, and
+  that is correct rather than a failure.
+- **Adding `birthDate` alone would have left writes broken.** `age`/`ageCategory` are NOT NULL with
+  no default in the schema production was built from, and the release writes neither, so pet
+  creation would still fail — as `Null constraint violation on the (not available)`, naming no
+  column. This is the part the brief's framing missed entirely, and check P7 exists to stop a later
+  reviewer deleting the two `DROP NOT NULL`s as tidying.
+- **The drift is very likely breaking reads right now, not just blocking a push.** Reproduced, not
+  reasoned: master's own client answers `The column pets.birthDate does not exist in the current
+  database.` against a production-shaped table, and `handlePersistenceError(…, "read")` swallows
+  that into the `pets.json` mirror. ASSERTED for production itself — the `/pets` probe above is
+  what would settle it, and nobody has run it.
+
+**Two defects the rehearsal found in this session's own first draft**, both fixed and both written
+up as lessons: `to_date` raises on `2024-02-31` rather than rolling it forward, so the validation
+built on a round-trip comparison aborted without naming the row; and a failing multi-statement file
+leaves the editor session in an aborted transaction, which the header now tells the reader to
+expect.
+
+**Deliberately not done:**
+- **Putting this on PR #42, as the brief asked.** Three reasons. That branch cannot host the
+  `todo.md` half at all (above). The migration shares no file with PR #42, so coupling a production
+  fix to a conflicted UI PR only delays it. And two other sessions were working PR #42 live while
+  this ran (`pr-42-birth-date` and `pet-birth-date-migration` worktrees) — merging master into it
+  from here would have collided with their conflict resolution. The two files cherry-pick cleanly
+  onto that branch later if it is still wanted there.
+- **Resolving PR #42's conflict** (`src/actions/pets.ts`, one file). That is the other session's
+  lane.
+- **Dropping `age`/`ageCategory`.** The contract half, above.
+- **Applying anything to production, or reading it.** Not permitted to this session, and the owner
+  applies migrations themselves.
+- **Reopening `tasks/archive/pets-json-fallback-reach-unverified.md`**, whose 2026-08-28
+  settlement cites a measurement that does not exist in any commit. Recorded inside the drift entry
+  instead of moving files another session may be holding.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
@@ -101,7 +174,11 @@ Record active multi-step work streams below.
       application; settled `tasks/decisions/2026-09-18-every-email-names-its-audit-entity.md`.
 - [x] Owner: runbook §4 or §5 in production, then merge #46 (merged 2026-09-21; the production
       steps are the owner's report, not observable from here).
-- [ ] Owner: apply the enum migration in the Neon SQL editor (needs no merge).
+- [x] Owner: apply the enum migration in the Neon SQL editor (needed no merge) — reported
+      done and confirmed 2026-09-18 by `db:check-drift` from the main checkout: the
+      `adoption_applications` conversion, both `CREATE TYPE`s and the three status indexes
+      all left the diff. Recorded in
+      `tasks/open/production-schema-has-drifted-ahead-of-master.md`, "Re-measured 2026-09-18".
 - [ ] Owner: decide on `SESSION_SECRET` rotation, now that the cookie-only actions are known.
 - [ ] Owner: decide how to correct the three 2026-09-14 test receipts (offsetting record).
 
