@@ -181,19 +181,34 @@ export function findServerPetById(id: string): Pet | null {
  * Pinned by `tests/integration/approvalMarksTheAnimalItAsksFor.test.ts`;
  * settled in `tasks/decisions/2026-09-22-an-approval-marks-the-id-it-asks-for.md`.
  *
- * The name fallback stays: applications predating the `petId` column reach here
- * with an empty string, and the name is the only identifier they carry. It is
- * now what it always read as — a fallback — rather than a competing match.
+ * The name fallback stays, but only for an application that carries **no id at
+ * all** — the ones predating the `petId` column, where the name is the only
+ * identifier there is. An id that was supplied and did not match resolves to
+ * `null` rather than to a name match, because `petId` is unvalidated public
+ * input and "the id you named does not exist, so here is someone with the same
+ * name" is how the attack survives a fix that only reorders the two lookups.
  *
  * Replace-on-write: the mirror array is never mutated in place, so concurrent
  * readers never observe a partially-updated entry.
  */
 export function markCachedPetAdopted(petId: string, petName: string): Pet | null {
-  // Name comparison left exactly as it was — `toLowerCase`, no trim. Widening it is a separate
-  // question from which identifier wins, and this change is only about the latter.
-  const target =
-    (petId ? serverPets.find((p) => p.id === petId) : undefined) ??
-    serverPets.find((p) => p.name.toLowerCase() === petName.toLowerCase());
+  // An id that was given and does not match resolves to nothing. It must not fall through to
+  // the name: `petId` is unvalidated public input — `applicationFormSchema` asks only for a
+  // non-empty string — so a submission naming a pet that does not exist would otherwise be
+  // resolved by name against whatever the caller floated to the head of the mirror. The
+  // database update is keyed on the same id and matches 0 rows, so that path marks an animal
+  // adopted, and audits it, for an adoption Postgres never performed.
+  //
+  // `findServerPetById` rather than a `===` comparison, because it is the lookup this file
+  // already uses and it normalises (`trim().toLowerCase()`). An exact match would miss a
+  // `petId` of `" pet-001 "`, which nothing on the submit path trims, and drop it into the
+  // name fallback — the same hole reopened without any forgery.
+  const requestedId = petId.trim();
+  const target = requestedId
+    ? findServerPetById(requestedId)
+    : // No id at all: applications predating the `petId` column, where the name is the only
+      // identifier there is. Name comparison left exactly as it was — `toLowerCase`, no trim.
+      serverPets.find((p) => p.name.toLowerCase() === petName.toLowerCase());
   if (!target) return null;
   const adopted = { ...target, status: "Adopted" as const };
   serverPets = serverPets.map((p) => (p.id === target.id ? adopted : p));

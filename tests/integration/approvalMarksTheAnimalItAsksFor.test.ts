@@ -103,20 +103,51 @@ describe("approval marks the animal the application names", () => {
     expect(mirror.find((p) => p.id === "itest-bella-decoy")?.status).not.toBe("Adopted");
   });
 
-  it("still matches on name when the application carries no usable id", async () => {
+  it("still matches on name when the application carries no id at all", async () => {
     // Applications predating the `petId` column reach this with an empty string, and the name is
-    // the only identifier there is. Narrowing to an exact id must not stop those resolving.
+    // the only identifier there is. Narrowing must not stop those resolving.
+    //
+    // Asserted on the *id*, not the name. Both mirror entries are called Bella, so
+    // `?.name === "Bella"` is satisfied by either and would stay green if this picked the decoy
+    // — the exact outcome this file exists to prevent. With no id to disambiguate, first wins,
+    // and `givenMirrorHoldsBothBellas` loads them in a known order.
     await givenMirrorHoldsBothBellas();
     const { markCachedPetAdopted } = await import("@/lib/server/petRepository");
 
-    expect(markCachedPetAdopted("", "Bella")?.name).toBe("Bella");
+    expect(markCachedPetAdopted("", "Bella")?.id).toBe("itest-bella-asked-for");
   });
 
-  it("falls back to the name when the id names an animal the mirror does not hold", async () => {
+  it("refuses an id the mirror does not hold rather than guessing by name", async () => {
+    // The hole a reordering-only fix leaves open, and the reason this is not merely a tidier
+    // lookup. `applicationFormSchema` validates `petId` as a non-empty string and nothing else,
+    // and `submitApplication` accepts an unknown one, so this argument is attacker-chosen.
+    //
+    // Falling back to the name here would let a submission for a pet that does not exist be
+    // resolved against whichever same-named animal the attacker floated to the front — and
+    // `atomicUpdateApplicationStatus` keys its `tx.pet.updateMany` on that same missing id, so
+    // the database matches 0 rows while the mirror and the audit log record an adoption.
+    await givenMirrorHoldsBothBellas();
+    const { findServerPetByIdAsync, markCachedPetAdopted } = await import(
+      "@/lib/server/petRepository"
+    );
+
+    double.pet.findUnique.mockResolvedValue(BELLA_DECOY);
+    await findServerPetByIdAsync("itest-bella-decoy");
+
+    expect(markCachedPetAdopted("itest-no-such-pet", "Bella")).toBeNull();
+  });
+
+  it("normalises the id it is given, the way every other reader here does", async () => {
+    // `findServerPetById` and `findServerPetByIdAsync` both `trim().toLowerCase()`, and nothing
+    // on the submit path trims `petId`. An exact `===` would miss a padded or miscased id that
+    // passed the submit-time archive check — and drop it into the name fallback, reopening the
+    // case above with no forgery at all.
     await givenMirrorHoldsBothBellas();
     const { markCachedPetAdopted } = await import("@/lib/server/petRepository");
 
-    expect(markCachedPetAdopted("itest-not-in-the-mirror", "Bella")?.name).toBe("Bella");
+    expect(markCachedPetAdopted("  ITEST-Bella-Asked-For  ", "Bella")?.id).toBe(
+      "itest-bella-asked-for"
+    );
   });
 
   it("returns null when neither the id nor the name matches", async () => {

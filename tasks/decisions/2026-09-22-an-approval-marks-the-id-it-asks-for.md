@@ -35,19 +35,34 @@ once through the public path, `markCachedPetAdopted("itest-bella-asked-for", "Be
 
 ## The fix
 
-Try the id against the whole array first; fall back to the name only when it yields nothing.
+An id that was given decides the answer alone. The name is consulted only when there is no id.
 
-    const target =
-      (petId ? serverPets.find((p) => p.id === petId) : undefined) ??
-      serverPets.find((p) => p.name.toLowerCase() === petName.toLowerCase());
+    const requestedId = petId.trim();
+    const target = requestedId
+      ? findServerPetById(requestedId)
+      : serverPets.find((p) => p.name.toLowerCase() === petName.toLowerCase());
 
-Three lines. The name comparison itself is untouched — no trim added — because widening *how*
-names match is a different question from which identifier wins, and only the latter was broken.
+**Reordering the two lookups was not enough, and the first draft of this change stopped there.**
+Review caught it. `applicationFormSchema` validates `petId` as `z.string().min(1)` and nothing
+more, and `submitApplication` accepts an id matching no animal — `if (pet && pet.isArchived)`
+lets a `null` pet through. So an attacker who cannot beat a *real* id simply supplies a fake one:
+float the decoy to the head of the mirror, submit `petId: "no-such-pet"`, `petName: "Bella"`, and
+an id-first lookup misses and hands the decision straight back to the name. The approval then
+runs `tx.pet.updateMany({ where: { id: "no-such-pet" } })` against **0 rows** while the mirror
+marks the decoy adopted and the audit log records it. Same wrong permanent record, same
+unauthenticated chooser, for an adoption the database never performed.
 
-**The name fallback stays.** Applications predating the `petId` column arrive with an empty
-string, and the name is the only identifier they carry; `atomicUpdateApplicationStatus` passes
-`currentApp.petId ?? ""` precisely for them. The change makes the name what it always read as — a
-fallback — rather than a competing match.
+Gating the fallback on "no id supplied" closes that, and matches what the fallback was always
+justified by.
+
+**`findServerPetById` rather than an exact `===`.** Every other id read in this file normalises
+with `trim().toLowerCase()`, and nothing on the submit path trims `petId`. An exact comparison
+would miss `" pet-001 "` — which passes the submit-time archive check, because *that* lookup does
+normalise — and drop it into the name fallback, reopening the hole above with no forgery at all.
+Reusing the lookup that already exists is also the cheaper rung of `AGENTS.md`'s ladder.
+
+**The name fallback stays** for applications predating the `petId` column, which arrive with an
+empty string; `atomicUpdateApplicationStatus` passes `currentApp.petId ?? ""` precisely for them.
 
 Pinned by `tests/integration/approvalMarksTheAnimalItAsksFor.test.ts`, five tests, including the
 public reorder performed the way a visitor would and an arrangement assertion proving the reorder
@@ -61,12 +76,17 @@ so recency-first is the behaviour that lets a recently viewed animal survive a d
 Removing it is a product decision about outage ordering, and it would not have fixed the defect
 anyway — two same-named animals with no id match are still resolved by position.
 
-**What therefore remains open:** with an empty or unmatched `petId` *and* two animals sharing a
-name, order still decides which is marked. That is inherent — nothing distinguishes them — and it
-is no longer attacker-*directed* at a specific victim, because an attacker cannot make the wrong
-animal win when the right id is present. Recorded here rather than filed again, because there is
-no action that closes it short of refusing ambiguous name matches outright, which would break the
-legacy applications the fallback exists for.
+**What therefore remains open:** with **no** `petId` at all *and* two animals sharing a name,
+order still decides which is marked. That is inherent — nothing distinguishes them.
+
+An earlier draft of this entry said the residual was "no longer attacker-directed at a specific
+victim, because an attacker cannot make the wrong animal win when the right id is present." That
+was wrong, and it is corrected here rather than quietly deleted because it shipped to review in
+that form: nothing requires an attacker to present a right id. That hole is what the `!petId`
+gate closes, and the sentence was true only of the weaker fix it was written against. What is
+left needs an application carrying no id at all, which no current submit path produces —
+`applicationFormSchema` requires a non-empty `petId` — so it is reachable only by the legacy rows
+already in the table, not by anything a visitor can send today.
 
 ## Correcting the earlier entry
 
