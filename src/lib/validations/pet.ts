@@ -112,14 +112,31 @@ export const PET_UPDATE_CATEGORY_VALUES = [
 ] as const satisfies readonly NonNullable<PetUpdate["category"]>[];
 
 /**
- * A calendar day with no time component, stored as `YYYY-MM-DD`. The regex
- * pins the shape; `Date.parse` rejects impossible days such as `2026-02-30`,
- * which the regex alone would let through.
+ * A calendar day with no time component, stored as `YYYY-MM-DD`. The regex pins the shape; the
+ * round-trip rejects impossible days such as `2026-02-30`, which the regex alone lets through.
+ *
+ * This used to test `!Number.isNaN(Date.parse(value))` and claimed, in this comment, to reject
+ * exactly that case. It does not: `Date.parse("2026-02-30")` returns a number on V8, silently
+ * rolling the day forward to 2026-03-02, so the only thing it caught was an out-of-range *month*.
+ * Measured on Node 26.4.0, 2026-09-22. Reading the parsed date back and comparing all three
+ * components is what actually refuses a day that does not exist — a rolled-over date differs from
+ * the input in at least one of them.
+ *
+ * UTC throughout, because `YYYY-MM-DD` is parsed as UTC midnight; `getFullYear()` here would
+ * compare against a local-time reading of that instant and disagree west of Greenwich.
  */
 const isoDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format")
-  .refine((value) => !Number.isNaN(Date.parse(value)), "Date is not a real calendar day");
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    );
+  }, "Date is not a real calendar day");
 
 /** One clinical event on a pet's medical history. */
 export const medicalTimelineEventSchema = z.object({
@@ -193,8 +210,23 @@ export const petBaseFormSchema = z.object({
   name: z.string().min(1, "Pet name is required").max(60, "Name is too long"),
   species: z.enum(SPECIES_VALUES),
   breed: z.string().min(1, "Breed is required"),
-  age: z.string().min(1, "Age description is required (e.g. '2 years')"),
-  ageCategory: z.enum(AGE_BANDS),
+
+  /**
+   * The animal's birthday, and the only age input there is.
+   *
+   * `age` prose and an `ageCategory` band used to be collected here and were then thrown away:
+   * `buildPetPersistencePayload` stored `intakeDate − age` and `mapDbPetToPet` recomputed both
+   * from that date, so a typed "2 years" drifted a year further from the truth every year and the
+   * chosen band was never read back at all (`tasks/open/pet-form-has-no-birth-date-field.md`).
+   * Collecting the birthday instead makes the stored value the one the operator actually saw, and
+   * leaves age and band derived everywhere, once, in `src/lib/domain/petAge.ts`.
+   *
+   * `birthDateIsEstimate` is the honesty flag: false only when someone knows the real date, which
+   * for a rescue is the exception. It defaults to true for that reason.
+   */
+  birthDate: isoDateSchema,
+  birthDateIsEstimate: z.boolean().optional().default(true),
+
   gender: z.enum(GENDER_VALUES),
   size: z.enum(SIZE_VALUES),
   weight: z.string().min(1, "Weight is required (e.g. '18 kg')"),
@@ -210,9 +242,7 @@ export const petBaseFormSchema = z.object({
 
   /// Dedicated donation QR for this animal's medical fund drive.
   customQrUrl: optionalQrImageUrl,
-  birthDate: z.string().optional(),
-  birthDateIsEstimate: z.boolean().optional().default(true),
-  
+
   // Medical
   vaccinated: z.boolean().default(true),
   microchipped: z.boolean().default(true),
@@ -261,6 +291,18 @@ export const petFormSchema = petBaseFormSchema.superRefine((data, ctx) => {
         message: `Duplicate '${field}' id '${id}' — history event ids must be unique`,
       });
     }
+  }
+
+  // An animal cannot have been born after it arrived. Worth pinning because the derivation this
+  // field replaced could not produce such a date — `intakeDate − age` is always on or before
+  // intake — so a typed birthday is the first way one can enter the system, and a future date
+  // renders as a plausible "1 month" rather than as an error.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(data.intakeDate) && data.birthDate > data.intakeDate) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["birthDate"],
+      message: `Birth date ${data.birthDate} is after the intake date ${data.intakeDate}`,
+    });
   }
 
   if (isRehabilitationStatus(data.status)) return;

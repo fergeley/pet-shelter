@@ -204,8 +204,8 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       name: "Tuah",
       species: "dog" as const,
       breed: "Malaysian Local Mixed",
-      age: "1 year",
-      ageCategory: "young" as const,
+      birthDate: "2025-06-02",
+      birthDateIsEstimate: true,
       gender: "Male" as const,
       size: "Medium" as const,
       weight: "14 kg",
@@ -258,6 +258,51 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       expect(petFormSchema.safeParse({ ...baseForm, rehabProgressPercent: -1 }).success).toBe(false);
       expect(petFormSchema.safeParse({ ...baseForm, rehabProgressPercent: 101 }).success).toBe(false);
       expect(petFormSchema.safeParse({ ...baseForm, rehabProgressPercent: 12.5 }).success).toBe(false);
+    });
+
+    // The form cannot reach these: `PetFormDialog` binds max={intakeDate} on the date input, so
+    // the browser's own constraint validation refuses the submit before the resolver runs. This
+    // rule guards the action layer, where a Server Action argument is untrusted input and the
+    // `max` attribute does not exist. Specified here because nothing else specifies it.
+    it("should reject a birth date after the intake date", () => {
+      const parsed = petFormSchema.safeParse({ ...baseForm, birthDate: "2026-08-01" });
+
+      expect(parsed.success).toBe(false);
+      if (!parsed.success) {
+        expect(parsed.error.issues).toContainEqual(
+          expect.objectContaining({
+            path: ["birthDate"],
+            message: "Birth date 2026-08-01 is after the intake date 2026-06-02",
+          })
+        );
+      }
+    });
+
+    it("should accept a birth date on the intake date itself", () => {
+      // An animal born the day it arrived is a real case — a litter surrendered at birth — so the
+      // boundary is inclusive, and pinning it stops a later `>=` from quietly refusing them.
+      expect(
+        petFormSchema.safeParse({ ...baseForm, birthDate: baseForm.intakeDate }).success
+      ).toBe(true);
+    });
+
+    it("should require the birth date to be a real calendar day", () => {
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2 years" }).success).toBe(false);
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "" }).success).toBe(false);
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2025-13-01" }).success).toBe(false);
+    });
+
+    it("should refuse a day that does not exist rather than rolling it forward", () => {
+      // `Date.parse("2025-02-30")` returns a number on V8 — it rolls to 2025-03-02 — so the
+      // previous `!Number.isNaN(Date.parse(...))` check accepted this and the stored birthday
+      // was two days off the one that was typed. Measured on Node 26.4.0.
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2025-02-30" }).success).toBe(false);
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2025-02-29" }).success).toBe(false);
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2025-04-31" }).success).toBe(false);
+
+      // The discriminator: a real leap day must still be accepted, or the fix is just stricter,
+      // not more correct.
+      expect(petFormSchema.safeParse({ ...baseForm, birthDate: "2024-02-29" }).success).toBe(true);
     });
 
     it("should reject rehabilitation details on a pet that is not under care", () => {
@@ -385,8 +430,8 @@ describe("Rehabilitation Status Lifecycle & Persistence", () => {
       name: "Tuah",
       species: "dog" as const,
       breed: "Malaysian Local Mixed",
-      age: "1 year",
-      ageCategory: "young" as const,
+      birthDate: "2025-06-02",
+      birthDateIsEstimate: true,
       gender: "Male" as const,
       size: "Medium" as const,
       weight: "14 kg",

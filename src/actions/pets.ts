@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import { matchesPetSearch } from "@/lib/domain/petSearch";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
@@ -172,13 +173,15 @@ export async function createPet(
     const actor = await getAdminActorOrThrow();
     const validated = petFormSchema.parse(data);
 
-    const newPet: Pet = {
+    // `age` and `ageCategory` are derived, never submitted: the form now collects the birthday,
+    // and `withDerivedAge` is the single place either is computed from it.
+    const newPet: Pet = withDerivedAge({
       id: `pet-${Date.now()}`,
       name: validated.name,
       species: validated.species,
       breed: validated.breed,
-      age: validated.age,
-      ageCategory: validated.ageCategory,
+      birthDate: validated.birthDate,
+      birthDateIsEstimate: validated.birthDateIsEstimate,
       gender: validated.gender,
       size: validated.size,
       weight: validated.weight,
@@ -211,7 +214,7 @@ export async function createPet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await insertServerPet(newPet, actor);
 
@@ -277,7 +280,10 @@ export async function updatePet(
     const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
     const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
-    const updated: Pet = {
+    // Wrapped, not spread: `existing` still carries the `age` and `ageCategory` the previous read
+    // derived, and a submitted birthday must re-derive both rather than leave last read's prose in
+    // place. `withDerivedAge` recomputes them from whatever `birthDate` ends up on the object.
+    const updated: Pet = withDerivedAge({
       ...existing,
       ...validated,
       // The submitted form is authoritative for rehabilitation progress: omitting the
@@ -306,7 +312,7 @@ export async function updatePet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await updateServerPet(id, updated, actor);
 
