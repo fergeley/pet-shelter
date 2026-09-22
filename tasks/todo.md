@@ -168,7 +168,7 @@ true for `Available` alone, so the server now agrees with the button rather than
 
 **Branches:** `fix/refuse-published-staff-passwords` (#46), `fix/local-e2e-off-remote-databases` (#47)
 · opened 2026-09-16 · #47 merged 2026-09-18 (squash `561ec62`), #46 merged 2026-09-21 (merge commit
-`a6d1007`) · follow-ups #72 (this branch, now targeting master) and #73, both open
+`a6d1007`) · follow-ups #72 (`9a50c8c`) and #73 (`a8847d5`) merged 2026-09-21
 
 - [x] #46: `loginAction` refuses repo-published staff passwords in production; register and invite
       acceptance refuse them everywhere; `/admin/login` drops the pre-fill and, in production, the
@@ -178,6 +178,10 @@ true for `Available` alone, so the server now agrees with the button rather than
 - [x] #47: local e2e cannot reach a non-local database or send mail; `seed.ts` and `migrate-faqs.ts`
       use `resolveDatabaseSsl`; Neon TLS entry closed.
 - [x] #47: `prisma/migrations/manual/20260917_status_enums/` — rehearsed locally, 29 checks.
+- [x] #72: `fix/admin-actions-honour-suspension` — transparency & FAQ actions check staff suspension;
+      settled `tasks/decisions/2026-09-18-content-actions-honour-suspension.md`.
+- [x] #73: `fix/email-audit-entities` — audit log rows record the concrete entity rather than generic
+      application; settled `tasks/decisions/2026-09-18-every-email-names-its-audit-entity.md`.
 - [x] Owner: runbook §4 or §5 in production, then merge #46 (merged 2026-09-21; the production
       steps are the owner's report, not observable from here).
 - [ ] Owner: apply the enum migration in the Neon SQL editor (needs no merge).
