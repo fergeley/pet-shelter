@@ -207,15 +207,15 @@ model AdoptionApplication {
   /// UNDER_REVIEW, so progress and decision are independent axes. Setting one
   /// of these is what lights a step in the public tracking portal — which
   /// previously had to recover the same facts by regex from `adminReviewNotes`.
-  interviewAt          DateTime?
-  interviewLocation    String?
-  interviewMeetingType String?
-  homeVisitAt          DateTime?
-  adminNotes           String?   @db.Text
-  adminReviewNotes     String?   @db.Text
-  reviewedBy           String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  interviewAt           DateTime?
+  interviewLocation     String?
+  interviewMeetingType  String?
+  homeVisitAt           DateTime?
+  adminNotes            String?           @db.Text
+  adminReviewNotes      String?           @db.Text
+  reviewedBy            String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
 
   @@index([petId, status])
   @@index([email, petId])
