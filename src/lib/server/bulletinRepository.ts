@@ -88,10 +88,12 @@ interface BulletinFixtureRow {
 }
 
 function freshBulletins(): BulletinRecord[] {
-  // The same formatter the database path uses. An ISO timestamp here and a
-  // YYYY-MM-DD there would make every consumer of these two fields behave
-  // differently depending on whether the database was reachable.
-  const epoch = toDateString(new Date(0));
+  // A full ISO instant, matching what `mapDbBulletin` produces. These two are
+  // timestamps, not notice dates, and truncating them to a day made the
+  // `createdAt` tiebreaker structurally dead: every fixture row compared equal
+  // while Postgres was ordering on TIMESTAMP(3), so the two paths could not
+  // agree no matter what the comments claimed.
+  const epoch = new Date(0).toISOString();
   return (structuredClone(initialBulletinsData) as BulletinFixtureRow[]).map((row) => ({
     ...row,
     createdAt: epoch,
@@ -126,16 +128,26 @@ interface DbBulletinRow {
 }
 
 /**
- * A notice date is a day, not an instant.
+ * A NOTICE DATE is a day, not an instant — this is for `publishedAt` only.
  *
- * Stored as midnight UTC and read back in UTC so the string an editor typed is
- * the string every reader sees. Formatting in local time would move a clinic
- * announced for Saturday onto Friday for anyone west of the shelter, which is
- * the whole content of the notice.
+ * Read back in UTC so the string an editor typed is the string every reader
+ * sees. Formatting in local time would move a clinic announced for Saturday
+ * onto Friday for anyone west of the shelter, which is the whole content of the
+ * notice.
+ *
+ * `createdAt` and `updatedAt` are deliberately NOT put through this. They are
+ * instants, and truncating them to a day discards the ordering the feed's
+ * tiebreaker depends on: two notices written at 09:00 and 14:00 on one day tie
+ * in memory and do not tie in the query.
  */
 function toDateString(value: Date | string): string {
   const date = typeof value === "string" ? new Date(value) : value;
   return date.toISOString().slice(0, 10);
+}
+
+/** Full ISO instant, for the timestamp columns. */
+function toInstant(value: Date | string): string {
+  return (typeof value === "string" ? new Date(value) : value).toISOString();
 }
 
 /** Local to this module: the write path is the only thing that needs it. */
@@ -159,8 +171,8 @@ function mapDbBulletin(row: DbBulletinRow): BulletinRecord {
     isPublished: row.isPublished,
     authorName: row.authorName,
     publishedAt: toDateString(row.publishedAt),
-    createdAt: toDateString(row.createdAt),
-    updatedAt: toDateString(row.updatedAt),
+    createdAt: toInstant(row.createdAt),
+    updatedAt: toInstant(row.updatedAt),
   };
 }
 

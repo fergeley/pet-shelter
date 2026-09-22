@@ -10,6 +10,13 @@
  * It must stay in step with the `orderBy` in `getPublicBulletins` and
  * `listBulletinRecords`. Where they disagree, an outage silently reorders the
  * feed — which is a worse failure than an outage, because nothing reports it.
+ * `BULLETIN_FEED_ORDER_BY` below is the shared declaration; the repository
+ * spreads it rather than writing its own literal.
+ *
+ * `createdAt` is compared as a full ISO instant, which is what
+ * `BulletinRecord` carries. An earlier revision truncated it to `YYYY-MM-DD`
+ * for "consistency" with `publishedAt` and thereby made this tiebreaker dead:
+ * every row compared equal here while Postgres ordered on `TIMESTAMP(3)`.
  */
 
 export interface BulletinOrderable {
@@ -23,11 +30,17 @@ export interface BulletinOrderable {
 /**
  * Descending string compare.
  *
- * Plain `>` rather than `localeCompare`: the query orders by the column's
- * Postgres collation, while `localeCompare` uses Node's ICU locale, which
- * treats punctuation as ignorable at the primary level. For lowercase cuids the
- * two agree, but the whole point of this function is to answer the same
- * question the query answers, so it should not depend on that agreement.
+ * Plain `>` compares UTF-16 code units. Be honest about what that buys: it
+ * matches Postgres exactly only under `C` collation, and under the usual
+ * `en_US.UTF-8` an `ORDER BY id DESC` applies ICU rules that weaken case and
+ * punctuation. For the lowercase-alphanumeric cuids this table actually holds,
+ * code-unit order and ICU order agree, so the two paths agree in practice.
+ *
+ * It is still preferred over `localeCompare`, which is locale-sensitive at
+ * runtime and so could differ between two machines running this same code. The
+ * residual gap is ids outside that character set, which nothing produces today;
+ * if one ever does, the tiebreaker should move to a column whose ordering is
+ * collation-independent rather than this comment growing another paragraph.
  */
 function desc(a: string, b: string): number {
   if (a === b) return 0;

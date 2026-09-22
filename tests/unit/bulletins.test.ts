@@ -19,7 +19,11 @@ import {
 } from "@/lib/validations/bulletin";
 import type { SessionUser } from "@/lib/security/session";
 import fixtureJson from "@/data/bulletins.json";
-import { presentBulletinCategory } from "@/lib/presentation/bulletinPresentation";
+import {
+  isKnownBulletinCategory,
+  normaliseBulletinCategory,
+  presentBulletinCategory,
+} from "@/lib/presentation/bulletinPresentation";
 import { getRevalidatedPaths, revalidatePathSpy } from "../setup/nextMocks";
 import {
   BULLETIN_FEED_ORDER_BY,
@@ -727,8 +731,6 @@ describe("getPublicBulletins", () => {
     await getPublicBulletins("home", 2);
     const scoped = lastQuery(prismaMock.bulletin.findMany);
     expect(scoped.where).toEqual({ isPublished: true, targetPage: { in: ["all", "home"] } });
-    // `id` last: publishedAt is a calendar day, so ties are the normal case, and
-    // without a tiebreaker `take` returns a different pair on each regeneration.
     // Every tiebreaker DESC. `publishedAt` is a calendar day, so ties are
     // ordinary; an ASC tiebreaker resolves a tied day to the OLDEST notice and
     // a two-item feed would then drop the newest — the failure the tiebreaker
@@ -1109,6 +1111,13 @@ describe("corrections from review", () => {
 /* -------------------------------------------------------------------------- */
 
 describe("corrections from the review of the fixes", () => {
+  /**
+   * The shape `BulletinRecord` actually carries: `publishedAt` is a calendar
+   * day, `createdAt` a full ISO instant. An earlier revision truncated
+   * `createdAt` to a day, which made this tiebreaker dead — every row compared
+   * equal here while Postgres ordered on TIMESTAMP(3). Tests that supplied ISO
+   * values could not see it, because the system did not produce them.
+   */
   const row = (
     over: Partial<{ id: string; isPinned: boolean; publishedAt: string; createdAt: string }>
   ) => ({
@@ -1232,5 +1241,69 @@ describe("corrections from the review of the fixes", () => {
     expect(sql).not.toContain('CREATE INDEX IF NOT EXISTS "bulletins_publishedAt_idx"');
     // The index the model DOES declare must still be created.
     expect(sql).toContain("bulletins_isPublished_targetPage_isPinned_publishedAt_idx");
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/* Third review round                                                          */
+/* -------------------------------------------------------------------------- */
+
+describe("corrections from the third review", () => {
+  it("keeps createdAt as a full instant, so the tiebreaker is not dead", async () => {
+    // The defect the round-2 fix left behind: truncating createdAt to a day
+    // made every row compare equal in memory while Postgres ordered on
+    // TIMESTAMP(3) — the two paths could not agree whatever the comments said.
+    prismaMock.bulletin.findMany.mockResolvedValue([]);
+    const { listBulletinRecords } = await import("@/lib/server/bulletinRepository");
+    prismaMock.bulletin.findMany.mockResolvedValue([
+      dbRow({ id: "b1", createdAt: new Date("2026-09-22T14:30:45.123Z") }),
+    ]);
+
+    const [record] = await listBulletinRecords();
+
+    expect(record.createdAt).toBe("2026-09-22T14:30:45.123Z");
+    // publishedAt is a notice date and stays a day.
+    expect(record.publishedAt).toBe("2026-08-14");
+  });
+
+  it("refuses year zero, which Postgres cannot store", () => {
+    // Accepting it traded a clear field message for `date/time field value out
+    // of range` surfaced as the action's generic failure with nothing named.
+    expect(
+      bulletinFormSchema.safeParse(formInput({ publishedAt: "0000-01-01" })).success
+    ).toBe(false);
+    // The years the previous fix was right about still pass.
+    expect(
+      bulletinFormSchema.safeParse(formInput({ publishedAt: "0001-01-01" })).success
+    ).toBe(true);
+  });
+
+  it("matches embed hosts exactly, with no wildcard widening", () => {
+    // Widening this list was speculative — no rule carries a wildcard — and it
+    // gates an <iframe src> on three public pages, where a later one-character
+    // slip would admit a subdomain the exact match refuses.
+    expect(isAllowedBulletinEmbedUrl("https://www.youtube.com/embed/abc")).toBe(true);
+    expect(isAllowedBulletinEmbedUrl("https://evil.www.youtube.com/embed/abc")).toBe(false);
+    expect(isAllowedBulletinEmbedUrl("https://a.player.vimeo.com/video/1")).toBe(false);
+  });
+
+  it("freezes the host list it ships to the browser", () => {
+    // `readonly` is erased at compile time; the comment claimed a runtime
+    // guard, so there has to be one.
+    expect(Object.isFrozen(BULLETIN_EMBED_HOSTS)).toBe(true);
+    expect(() => {
+      (BULLETIN_EMBED_HOSTS as string[]).push("evil.example.com");
+    }).toThrow();
+  });
+
+  it("normalises an unknown category for display, and names it unknown for editing", () => {
+    // Two different answers on purpose. Rendering falls back so a row is still
+    // readable; editing must NOT, because a silent rewrite is worse than a
+    // refusal — the select would otherwise jump to the first option and save
+    // "announcement" over whatever the row held.
+    expect(normaliseBulletinCategory("not_a_real_category")).toBe("announcement");
+    expect(normaliseBulletinCategory("clinic")).toBe("clinic");
+    expect(isKnownBulletinCategory("not_a_real_category")).toBe(false);
+    expect(isKnownBulletinCategory("clinic")).toBe(true);
   });
 });

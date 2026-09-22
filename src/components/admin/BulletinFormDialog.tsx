@@ -15,6 +15,7 @@ import {
 import {
   BULLETIN_CATEGORY_PRESENTATION,
   BULLETIN_TARGET_PAGE_LABELS,
+  isKnownBulletinCategory,
 } from "@/lib/presentation/bulletinPresentation";
 import { BULLETIN_EMBED_HOSTS, BULLETIN_IMAGE_HOSTS } from "@/lib/domain/bulletinMedia";
 import { BulletinRecord } from "@/types/bulletin";
@@ -150,6 +151,22 @@ export function BulletinFormDialog({
 
   const mediaType = watch("mediaType");
 
+  /**
+   * A stored category this build does not carry.
+   *
+   * Reachable from the hand-run migration or a rolling deploy. The `<select>`
+   * has no matching `<option>`, so the browser falls back to the first one —
+   * and saving would then rewrite the row's category to "announcement" with an
+   * audit entry recording it as intentional. Surfacing the value keeps the
+   * select on it and makes the save fail loudly at validation instead, which
+   * is the honest outcome: an editor is told, rather than quietly overwriting
+   * a category they never looked at.
+   */
+  const unknownCategory =
+    editingBulletin && !isKnownBulletinCategory(editingBulletin.category)
+      ? editingBulletin.category
+      : null;
+
   const submit = handleSubmit(async (values) => {
     await onSave(values);
   });
@@ -177,12 +194,23 @@ export function BulletinFormDialog({
                 {...register("category")}
                 className={selectClass}
               >
+                {unknownCategory && (
+                  <option value={unknownCategory}>
+                    {unknownCategory} — not recognised by this version
+                  </option>
+                )}
                 {BULLETIN_CATEGORIES.map((value) => (
                   <option key={value} value={value}>
                     {BULLETIN_CATEGORY_PRESENTATION[value].label}
                   </option>
                 ))}
               </select>
+              {unknownCategory && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  This notice uses a category this version does not know. Saving
+                  requires choosing one above — it will not be kept.
+                </p>
+              )}
               <FieldError message={errors.category?.message} />
             </div>
 

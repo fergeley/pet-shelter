@@ -66,14 +66,16 @@ export const BULLETIN_EMBED_RULES = [
 /**
  * Host names only, for the messages that tell staff what is accepted.
  *
- * `readonly`, because this module is imported by `BulletinFormDialog`, which is
- * a `"use client"` component: a mutable array here ships to the browser bundle
- * where anything could push onto it and change what the form claims is allowed.
- * The enforcing check reads `BULLETIN_EMBED_RULES`, so that would mislead
- * rather than bypass — but a list that is only ever read should say so.
+ * Frozen, not merely `readonly`. This module is imported by
+ * `BulletinFormDialog`, a `"use client"` component, so the array ships to the
+ * browser — and `readonly` is a compile-time annotation that erases to an
+ * ordinary `Array`, which anything on the page can still `push` onto. That
+ * would change what the form tells staff is allowed while the enforcing check
+ * (`BULLETIN_EMBED_RULES`) stayed put: misleading rather than a bypass, but a
+ * comment claiming a runtime guard should be backed by one.
  */
-export const BULLETIN_EMBED_HOSTS: readonly string[] = BULLETIN_EMBED_RULES.map(
-  (r) => r.host
+export const BULLETIN_EMBED_HOSTS: readonly string[] = Object.freeze(
+  BULLETIN_EMBED_RULES.map((r) => r.host)
 );
 
 /**
@@ -149,9 +151,13 @@ export function isAllowedBulletinEmbedUrl(url: string): boolean {
   const parsed = parseSafeUrl(url);
   if (!parsed) return false;
   return BULLETIN_EMBED_RULES.some(
-    // Through `hostMatches`, not `===`, so an embed host may carry a wildcard
-    // on the same terms as an image host if one is ever added.
-    (rule) => hostMatches(parsed.hostname, rule.host) && parsed.pathname.startsWith(rule.prefix)
+    // Exact host match, deliberately. No rule here carries a wildcard, and this
+    // list gates what reaches an `<iframe src>` on three public pages: a future
+    // one-character slip in a pattern (`*.youtube.com`) would silently admit
+    // `evil.youtube.com`, where `===` refuses it. Widening this "in case a
+    // wildcard is ever added" is the speculative need AGENTS.md's ladder says
+    // to skip — add it with the rule that needs it, not before.
+    (rule) => parsed.hostname === rule.host && parsed.pathname.startsWith(rule.prefix)
   );
 }
 

@@ -122,9 +122,11 @@ CREATE TABLE IF NOT EXISTS "bulletins" (
 );
 
 -- CreateIndex
--- One index, for the public read. The admin list reads every row and sorts by
--- isPinned before publishedAt, so an index on publishedAt alone cannot serve it;
--- see the model comment in prisma/schema.prisma.
+-- One index, and it serves the public read's PREDICATE (isPublished, then
+-- targetPage IN (…)) rather than its sort. The admin list has no predicate and
+-- leads its sort with isPinned, so no single-column index helps it at all --
+-- which is why the one below is dropped and this one is kept. See the model
+-- comment in prisma/schema.prisma.
 CREATE INDEX IF NOT EXISTS "bulletins_isPublished_targetPage_isPinned_publishedAt_idx"
   ON "bulletins"("isPublished", "targetPage", "isPinned", "publishedAt");
 

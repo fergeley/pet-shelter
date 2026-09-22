@@ -51,6 +51,30 @@ export function presentBulletinCategory(
   return BULLETIN_CATEGORY_PRESENTATION[category] ?? BULLETIN_CATEGORY_PRESENTATION.announcement;
 }
 
+/**
+ * True when this build carries the category, i.e. when it can round-trip.
+ *
+ * A row can hold a value this bundle does not know: the hand-run migration
+ * writes directly, and a rolling deploy can leave an older bundle reading rows
+ * a newer one wrote. Callers that *render* such a row fall back
+ * (`presentBulletinCategory`); callers that *edit* one must not — silently
+ * rewriting it is worse than refusing.
+ */
+export function isKnownBulletinCategory(value: string): value is BulletinCategory {
+  return Object.prototype.hasOwnProperty.call(BULLETIN_CATEGORY_PRESENTATION, value);
+}
+
+/**
+ * The category this build will actually render a row as.
+ *
+ * Used by anything that filters or groups, so the answer agrees with the badge
+ * `presentBulletinCategory` produces. A filter comparing the raw value would
+ * hide the very row whose badge it just matched.
+ */
+export function normaliseBulletinCategory(value: string): BulletinCategory {
+  return isKnownBulletinCategory(value) ? value : "announcement";
+}
+
 /** Where a notice appears, for the admin editor's select and its table column. */
 export const BULLETIN_TARGET_PAGE_LABELS: Record<BulletinTargetPage, string> = {
   all: "Every feed",

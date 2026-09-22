@@ -36,6 +36,7 @@ import {
 import {
   BULLETIN_CATEGORY_PRESENTATION,
   BULLETIN_TARGET_PAGE_LABELS,
+  normaliseBulletinCategory,
   presentBulletinCategory,
 } from "@/lib/presentation/bulletinPresentation";
 import { BULLETIN_CATEGORIES, BulletinFormInput } from "@/lib/validations/bulletin";
@@ -47,19 +48,6 @@ type PublishedFilter = "all" | "published" | "draft";
 
 const selectClass =
   "bg-background border border-input px-3 py-2 text-sm text-foreground focus:ring-2 focus:ring-foreground";
-
-/**
- * The category this build will actually render a row as.
- *
- * `presentBulletinCategory` falls back to `announcement` for a value this
- * bundle does not carry, so the filter has to agree with it or the badge and
- * the toolbar disagree about the same row.
- */
-function normaliseCategory(category: BulletinRecord["category"]) {
-  return BULLETIN_CATEGORIES.includes(category as (typeof BULLETIN_CATEGORIES)[number])
-    ? category
-    : "announcement";
-}
 
 /** Matches a record against the toolbar query, across both languages. */
 function matches(bulletin: BulletinRecord, query: string): boolean {
@@ -135,7 +123,8 @@ export function BulletinDataTable({ initialBulletins }: BulletinDataTableProps) 
         // category this build does not carry badges as "Notice" via the
         // presenter, and comparing raw would then hide it when the editor
         // filtered for Notice — the row the badge had just called one.
-        if (category !== "all" && normaliseCategory(b.category) !== category) return false;
+        if (category !== "all" && normaliseBulletinCategory(b.category) !== category)
+          return false;
         if (published === "published" && !b.isPublished) return false;
         if (published === "draft" && b.isPublished) return false;
         return matches(b, search);

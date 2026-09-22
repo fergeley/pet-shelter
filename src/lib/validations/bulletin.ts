@@ -63,6 +63,10 @@ const optionalUrl = () =>
  */
 function isRealCalendarDay(value: string): boolean {
   const [year, month, day] = value.split("-").map(Number);
+  // Postgres has no year zero, so accepting it trades a clear "that date does
+  // not exist" on the date field for `date/time field value out of range` from
+  // the driver, surfaced as the action's generic failure with no field named.
+  if (year < 1) return false;
   // `Date.UTC(99, ...)` means 1999, not year 99 — the two-digit-year mapping is
   // older than the API. Without setUTCFullYear the round-trip below would fail
   // for every year 0000-0099 and refuse a syntactically valid date with "that
@@ -184,10 +188,14 @@ export const bulletinFormSchema = z
    * that takes `BulletinFormValues` and writes `values.videoEmbedUrl`, which
    * lands in an `<iframe src>` on three public pages.
    *
-   * Stripping here makes the output type unable to hold one. The repository
-   * still nulls the column, and that redundancy is deliberate: one of the two
-   * is a type-level guarantee and the other covers rows that never pass through
-   * this schema at all.
+   * Stripping here means nothing that comes *out of this schema* carries one.
+   * Note what that is not: `BulletinFormValues` is a flat object, not a union
+   * discriminated on `mediaType`, so the compiler still permits someone to
+   * hand-construct `{ mediaType: "none", videoEmbedUrl: "javascript:…" }`. A
+   * `z.discriminatedUnion` would make it a type-level guarantee; this is a
+   * runtime one. The repository's nulling therefore remains load-bearing rather
+   * than redundant, and it also covers rows that never pass through this schema
+   * at all — the seed and the hand-run migration.
    */
   .transform((v) => ({
     ...v,

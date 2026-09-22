@@ -965,17 +965,21 @@ model Bulletin {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// The public read: isPublished, then targetPage IN (…), ordered pinned-first
-  /// then newest. Column order matches that predicate so the index serves the
-  /// whole query rather than just its first term.
+  /// Serves the public read's PREDICATE — `isPublished = true`, then
+  /// `targetPage IN (…)`. It does not serve the sort, and the claim that it
+  /// served "the whole query" was wrong: the feed orders by isPinned,
+  /// publishedAt, createdAt, id, and the last two are not in the index, so
+  /// Postgres sorts after filtering either way. Narrowing the rows before that
+  /// sort is the whole of its value, and that is worth one index.
   @@index([isPublished, targetPage, isPinned, publishedAt])
   ///
-  /// There is deliberately NO second index for the admin list. It reads every
-  /// row and sorts by isPinned before publishedAt, so an index on publishedAt
-  /// alone — which an earlier revision of this model carried, with a comment
-  /// claiming it served that query — cannot supply the ordering. Postgres
-  /// seq-scans and sorts either way, and the index was pure write amplification
-  /// on every create, edit, pin and publish.
+  /// There is deliberately NO second index for the admin list. That list has no
+  /// predicate at all — it reads every row — so an index could only serve its
+  /// ordering, and an index on publishedAt alone (which an earlier revision of
+  /// this model carried, with a comment claiming it served that query) cannot:
+  /// the sort leads with isPinned. So it narrowed nothing and ordered nothing,
+  /// which is the difference from the index above, and it cost a write on every
+  /// create, edit, pin and publish.
   ///
   /// ceiling: a sequential scan of the whole table on each admin page load.
   /// Correct at shelter scale (tens of notices). If the archive reaches a few
