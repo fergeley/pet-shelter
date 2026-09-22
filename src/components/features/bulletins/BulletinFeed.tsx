@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Bulletin, BulletinCategory, BulletinFormData, BulletinTargetPage } from "@/types/bulletin";
 import { useBulletins } from "@/lib/client/bulletinStore";
+import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AdminBulletinModal } from "./AdminBulletinModal";
 import { Button } from "@/components/ui/button";
 
@@ -30,20 +31,40 @@ interface BulletinFeedProps {
  * because `clinic` already owns green, and two categories sharing a colour makes the
  * badge legend unreadable.
  */
-const CATEGORY_LABELS: Record<BulletinCategory, { label: string; toneClass: string }> = {
-  urgent_need: { label: "Urgent Foster / Need", toneClass: "tone-danger" },
-  clinic: { label: "Clinic / Vaccine", toneClass: "tone-success" },
-  event: { label: "Event", toneClass: "tone-info" },
-  happy_tail: { label: "Adoption Update", toneClass: "tone-highlight" },
-  announcement: { label: "Notice", toneClass: "tone-neutral" },
+const CATEGORY_LABELS: Record<
+  BulletinCategory,
+  { labelKey: string; labelEn: string; toneClass: string }
+> = {
+  urgent_need: {
+    labelKey: "bulletins.categoryUrgentNeed",
+    labelEn: "Urgent Foster / Need",
+    toneClass: "tone-danger",
+  },
+  clinic: {
+    labelKey: "bulletins.categoryClinic",
+    labelEn: "Clinic / Vaccine",
+    toneClass: "tone-success",
+  },
+  event: { labelKey: "bulletins.categoryEvent", labelEn: "Event", toneClass: "tone-info" },
+  happy_tail: {
+    labelKey: "bulletins.categoryHappyTail",
+    labelEn: "Adoption Update",
+    toneClass: "tone-highlight",
+  },
+  announcement: {
+    labelKey: "bulletins.categoryAnnouncement",
+    labelEn: "Notice",
+    toneClass: "tone-neutral",
+  },
 };
 
 export function BulletinFeed({
   targetPage = "all",
-  title = "Shelter Bulletins & Updates",
+  title,
   maxItems,
   compact = false,
 }: BulletinFeedProps) {
+  const { t } = useLanguage();
   const {
     bulletins,
     isAdminMode,
@@ -84,7 +105,7 @@ export function BulletinFeed({
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-6">
         <div>
           <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {title}
+            {title ?? t("home.bulletinsTitle", "Shelter Bulletins & Updates")}
           </h2>
         </div>
 
@@ -99,9 +120,20 @@ export function BulletinFeed({
             }`}
           >
             {isAdminMode ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
-            {isAdminMode ? "Admin Mode Active" : "Staff Admin Access"}
+            {isAdminMode
+              ? t("bulletins.adminModeActive", "Admin Mode Active")
+              : t("bulletins.staffAccess", "Staff Admin Access")}
           </Button>
 
+          {/*
+            Everything gated on `isAdminMode` below is deliberately left in
+            English. It belongs to the per-browser demo editor that
+            `tasks/open/bulletins-are-a-per-browser-demo-anyone-can-edit.md`
+            settles by removing — translating it would commission Malay for
+            copy that entry deletes. The toggle above is translated because a
+            visitor sees it without clicking anything. Recorded in
+            tasks/decisions/2026-09-22-home-page-malay-stops-at-the-bulletin-admin-chrome.md.
+          */}
           {isAdminMode && (
             <>
               <Button
@@ -181,12 +213,12 @@ export function BulletinFeed({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className={`tone-chip px-3 py-1 ${catInfo.toneClass}`}>
-                          {catInfo.label}
+                          {t(catInfo.labelKey, catInfo.labelEn)}
                         </span>
 
                         {bulletin.isPinned && (
                           <span className="tone-chip tone-warning px-3 py-1">
-                            <Pin className="size-3" /> Pinned
+                            <Pin className="size-3" /> {t("bulletins.pinned", "Pinned")}
                           </span>
                         )}
                       </div>
@@ -211,7 +243,7 @@ export function BulletinFeed({
 
                 {/* Footer / Author & Admin Actions */}
                 <div className="p-6 pt-0 border-t border-border/40 mt-3 flex items-center justify-between text-sm text-muted-foreground">
-                  <span>Posted by: <strong className="text-foreground">{bulletin.author}</strong></span>
+                  <span>{t("bulletins.postedBy", "Posted by:")} <strong className="text-foreground">{bulletin.author}</strong></span>
 
                   {isAdminMode && (
                     <div className="flex items-center gap-1.5">
@@ -251,7 +283,9 @@ export function BulletinFeed({
         </div>
       ) : (
         <div className="border border-dashed border-border bg-muted/10 p-8 text-center space-y-3">
-          <p className="text-sm text-muted-foreground">No updates or bulletins posted for this section.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("bulletins.noUpdates", "No updates or bulletins posted for this section.")}
+          </p>
           {isAdminMode && (
             <Button size="sm" onClick={handleCreate} className="text-sm font-semibold">
               <Plus className="size-3.5 mr-1" /> Post First Update

@@ -12,12 +12,59 @@ import {
   ArrowRight,
   Stethoscope,
   GraduationCap,
+  Loader2,
   Scissors,
   CheckCircle2,
   Package
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+
+/**
+ * The two strings `src/app/page.tsx` used to render itself.
+ *
+ * They live here because `page.tsx` is a Server Component under
+ * `revalidate = 300`, and the reader's language is client state —
+ * `LanguageProvider` reads `localStorage`, and its `getServerSnapshot` returns
+ * `null`, so a server render can only ever produce English. Reading the
+ * language cookie in the page would make it render per request and give up
+ * ISR, which is the trade `src/app/api/sponsor/pet-media/[petId]/route.ts`
+ * already declined. Moving the literals across the client boundary costs
+ * nothing and lets them call `t()`.
+ *
+ * Like every other Malay string on the site, these switch after hydration: the
+ * served HTML is English because the server cannot know the language. That is
+ * tracked separately — `<html lang>` is hardcoded `"en"` in `layout.tsx`.
+ */
+export function HomeGalleryLoading() {
+  const { isMs } = useLanguage();
+
+  return (
+    <div className="flex items-center justify-center py-20 text-muted-foreground">
+      <Loader2 className="size-6 animate-spin mr-2" />
+      <span>{isMs ? "Memuatkan haiwan reskue..." : "Loading rescue animals..."}</span>
+    </div>
+  );
+}
+
+export function HomeViewAllPetsLink() {
+  const { t } = useLanguage();
+
+  return (
+    <div className="flex justify-center pt-6">
+      <Link
+        href="/pets"
+        className={buttonVariants({
+          variant: "outline",
+          className: "text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl gap-2",
+        })}
+      >
+        {t("home.viewAllPets", "View All Adoptable Pets")}
+        <ArrowRight className="size-4" />
+      </Link>
+    </div>
+  );
+}
 
 /**
  * FE-03: "Our Work" — The 3 Core Pillars of Hope for Strays UM:
