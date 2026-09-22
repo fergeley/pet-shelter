@@ -15,6 +15,100 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Donation receipts wait for reconciliation
+
+**Branch:** `worktree-donation-receipt-reconciliation-boundary` · opened 2026-09-22
+**Settles:** `tasks/open/general-donations-issue-receipts-before-payment-is-reconciled.md` (issue #56)
+
+## The brief, and where it was wrong
+
+The brief asked to "store the donation record in a pending status without assigning an official
+receipt number" — i.e. a `status` column on `Donation`. That is unimplementable against
+production and forbidden by this repo's own schema:
+
+- `donations_no_mutation` has been live on the production branch since 2026-09-21
+  (`tasks/decisions/2026-09-21-production-receipts-are-append-only.md`). It refuses every UPDATE
+  and DELETE on `donations`. A pending row inserted there could never be updated to attach its
+  receipt number, so the reconciliation step would fail in production and nowhere else.
+- `prisma/schema.prisma` already rejects the idea in prose, where `PetSponsorship` explains why it
+  is not a `Donation`: "Modelling it as a mutable `Donation` would have meant putting a status
+  column on a statutory document, which is exactly what that model's comment forbids."
+
+So the pending state goes in a new `donation_pledges` table, mirroring the shipped
+`PetSponsorship` → `settleSponsorship` pattern. This makes the brief's item 4 stronger than it
+asked for: the LHDN export reads `donations`, so an unconfirmed pledge is structurally invisible
+to it. There is no filter to forget.
+
+The brief's "or webhook callback" is **not built**. No payment processor is integrated, `card` is
+refused before rate limiting, and `grep -ril webhook src/ prisma/` returns nothing. Adding a
+public POST endpoint that mints statutory receipts, with no signature to verify, would be a worse
+hazard than the one being closed. Staff reconciliation is the boundary; the webhook is recorded
+as the deferred option.
+
+## Items
+
+- [x] `DonationPledge` model + hand-written idempotent migration (never `db push`), with
+      `rollback.sql`. **Applied nowhere** - see the new open entry.
+- [x] `src/lib/server/donationPledgeLedger.ts`: pledge, settle, reject, pending queue
+- [x] `submitDonationPledgeAction` returns a pledge, not a receipt
+- [x] Staff actions: list / reconcile / reject, behind the existing reconciliation permission
+- [x] Audit: `DONATION_PLEDGED` at submit (no `receiptNumber` in details), `DONATION_RECEIVED`
+      moves to reconciliation
+- [x] Tax-neutral acknowledgement email at pledge; receipt email only at reconciliation
+- [x] Admin queue renders pending gifts beside pending sponsorships, via one extracted
+      `ReconciliationQueue` rather than a second copy
+- [x] Donor-facing acknowledgement replaces the receipt screen (EN + MS)
+- [x] Tests: no receipt before reconciliation, idempotent double-confirm, export blind to pledges
+- [x] Settle the open entry into `tasks/decisions/`
+
+## Review
+
+**Verification.** `typecheck` clean. `test` (unit) 99 files / 1596 tests, all green. `test:components`
+11 / 170 green. `test:integration` 6 / 59 green. `lint` 0 errors, 13 warnings, every one of them
+pre-existing and in a file this branch never touched. `docs:check` and the layer graph both OK.
+`build` succeeded with throwaway secrets inline, after `npm ci` in the worktree.
+
+**The one gate that could not run: `npm run test:db`.** Docker will not start on this machine
+(`unable to get image 'postgres:16-alpine': failed to connect to the docker API at
+npipe:////./pipe/dockerDesktopLinuxEngine`), so Tier 3b never executed and
+`tests/integration/db/donationPledgeLedger.postgres.test.ts` is new, typechecked, and **never
+run**. It is the only coverage of the row-lock guard, the serial rolling back with a loser's
+transaction, and the unique index behind them. Recorded as
+`tasks/open/donation-pledges-table-is-unapplied-and-its-postgres-probe-unrun.md` with the command.
+
+**A transient local Postgres made an earlier run look far worse than it was.** Midway through the
+session a native server was listening on `localhost:5432`; `src/lib/server/prisma.ts` falls back to
+a hardcoded localhost URL when `DATABASE_URL` is unset, so unit suites written for the in-memory
+branch hit it and failed on leftover rows - 65 tests across 16 files, reproduced identically in the
+pristine main checkout at `b44f857` before concluding anything. It had stopped by the final run,
+which is green. Worth knowing before anyone reads a red unit run here as a regression.
+
+### Deliberately not done
+
+- **No payment webhook.** The open entry offered it as the other fork. There is no processor
+  integrated anywhere, `card` is refused before rate limiting, and `grep -ril webhook src/ prisma/`
+  is empty. An unauthenticated public POST that mints statutory receipts, with no signature to
+  verify, is a worse hazard than the one being closed. `settleDonationPledge` is the single funnel
+  a callback would later call.
+- **`pet_sponsorships` was not generalised to carry general gifts.** It was the smaller-looking
+  option and it is rejected in the decision file with the reasons: `petName` is `NOT NULL` and read
+  across ~10 files in the sponsor portal, and a sentinel pet name would land in
+  `Donation.targetPetName`, which is a dedication.
+- **No in-app view of an issued receipt.** Both printable dossiers rendered at *submission* time,
+  which was the defect, so both are gone rather than relocated. The receipt now arrives by email,
+  exactly as the sponsorship lane has always worked. A donor-facing receipt view belongs behind the
+  sponsor portal, keyed on a receipt that exists; that is not built.
+- **`--receipt-panel` is left declared with no consumer.** Removing the two dead component classes
+  orphaned that one token. The repo's own guard polices `@layer components`, not `@theme` tokens,
+  and the rest of the `receipt-*` family is still in use by the sponsor certificate; pulling one
+  token out of a coherent family is churn into the design system for ~40 bytes.
+- **`useSponsorshipStore.saveDonationReceipt` now has no caller.** Left in place: it is the client
+  receipt store, and the right fix is a portal receipt view, not deleting the store on the way past.
+- **The idempotency `ceiling:` is inherited, not closed.** A same-actor retry after a lost commit
+  acknowledgement still reports uncertainty rather than guessing. Closing it needs an operation id
+  on the row, and it should be closed for `settleSponsorship` at the same time - both functions
+  carry the note.
+
 # Sponsor portal production activation — audit, run, close
 
 **Branch:** `worktree-sponsor-portal-production-activation` · opened 2026-09-16 · GRAVE lane
