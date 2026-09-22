@@ -351,5 +351,51 @@ check(
 );
 await edge.close();
 
+// --- Scenario 3: someone already stopped the read storm by hand ------------------------------
+//
+// The emergency fix for the 42703 storm is `db push`'s own statement minus the drops. It leaves
+// `age` in place and every row on the invented 2024-01-01. Without a guard this file derives every
+// date, archives it, discards it and drops `age` anyway, reporting success. Found by review.
+
+console.log("\n== 9. refuses a table where birthDate was already filled in by hand");
+const patched = await freshDb();
+await insertPet(patched, "p1", "2 years", "2026-06-12");
+await insertPet(patched, "p2", "1 year", "2020-03-04");
+await patched.exec(
+  `ALTER TABLE "public"."pets"
+     ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01',
+     ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT true;`
+);
+let patchedErr = "";
+try {
+  await patched.exec(PET_MIG);
+} catch (err) {
+  patchedErr = String(err?.message ?? err);
+  await patched.exec("ROLLBACK").catch(() => {});
+}
+check("refuses rather than discarding the derived dates", /already have a birthDate/.test(patchedErr), patchedErr);
+const patchedCols = byName(await cols(patched, "pets"));
+check("  ...and leaves age in place", patchedCols.has("age") && patchedCols.has("ageCategory"));
+check(
+  "  ...and no row was silently left on 2024-01-01 with age gone",
+  (await patched.query(`SELECT count(*)::int AS n FROM "public"."pets" WHERE "birthDate" = '2024-01-01'`))
+    .rows[0].n === 2 && patchedCols.has("age")
+);
+
+// The remediation the error's HINT gives must actually work.
+await patched.exec(`ALTER TABLE "public"."pets" ALTER COLUMN "birthDate" DROP NOT NULL;`);
+await patched.exec(`UPDATE "public"."pets" SET "birthDate" = NULL;`);
+await patched.exec(PET_MIG);
+const healed = new Map(
+  (await patched.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((r) => [r.id, r.birthDate])
+);
+check(
+  "the HINT's remediation lets the file proceed and derive correctly",
+  healed.get("p1") === approximateBirthDate("2 years", "2026-06-12").birthDate &&
+    healed.get("p2") === approximateBirthDate("1 year", "2020-03-04").birthDate,
+  `${healed.get("p1")} / ${healed.get("p2")}`
+);
+await patched.close();
+
 console.log(`\n=== ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

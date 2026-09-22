@@ -65,7 +65,12 @@
 --     aborts the file rather than falling back to a constant.
 --   * Safe to re-run. Already-migrated columns are detected and the file becomes a no-op; the
 --     archive insert is ON CONFLICT DO NOTHING; the backfill only touches NULL "birthDate".
---   * Takes the same advisory lock key as the other manual migrations, so appliers queue.
+--   * Takes the same advisory lock key as the other manual migrations, so appliers queue — but
+--     only when the file is run as ONE transaction. `pg_advisory_xact_lock` is held for the
+--     transaction that took it, so an editor running each statement separately commits that
+--     SELECT immediately and releases the lock before the DO block below ever starts. The
+--     5-second `lock_timeout` still holds in that mode, because it is set inside the block; the
+--     serialisation against other manual migrations does not. Paste the whole file at once.
 --   * ALTER TABLE takes an ACCESS EXCLUSIVE lock. `pets` holds tens of rows; expect milliseconds.
 --     The 5-second lock_timeout is set with set_config(..., true) inside the block rather than
 --     SET LOCAL at the top, so it still holds if an editor runs each statement in its own
@@ -135,6 +140,7 @@ DECLARE
   archived_count bigint;
   unparsed_count bigint;
   still_null     bigint;
+  prefilled      bigint;
   bad_intakes    text;
   implausible    text;
 BEGIN
@@ -159,6 +165,32 @@ BEGIN
 
   IF NOT has_age AND NOT has_birth_date THEN
     RAISE EXCEPTION 'pets has neither "age" nor "birthDate"; refusing to guess what happened here';
+  END IF;
+
+  -- Refuse a table where `birthDate` already holds values while `age` is still here.
+  --
+  -- The likely route in is the obvious emergency fix for the read storm this file's header
+  -- describes: `ALTER TABLE pets ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01',
+  -- ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT true` — `db push`'s own statement
+  -- with the drops left off. The backfill below only touches rows whose `birthDate` IS NULL, so
+  -- without this guard the file would derive every date, write it to the archive, discard it,
+  -- drop `age` anyway, and report success — leaving every animal on the invented 2024-01-01 while
+  -- this file's headline promise says no row ever receives it. Found by review, probed on pglite.
+  --
+  -- The two legitimate states are handled elsewhere and do not reach here: a completed run has no
+  -- `age` (the no-op above), and a partial run cannot persist, because the whole block is one
+  -- statement and aborts atomically.
+  IF has_age AND has_birth_date THEN
+    SELECT count(*) INTO prefilled FROM "public"."pets" WHERE "birthDate" IS NOT NULL;
+    IF prefilled > 0 THEN
+      RAISE EXCEPTION
+        '% pets row(s) already have a birthDate while "age" is still present', prefilled
+        USING HINT =
+          'This file will not overwrite them, and dropping "age" now would strand them. '
+          'To keep the existing dates, drop "age" and "ageCategory" by hand. '
+          'To derive them from "age" instead: ALTER TABLE "public"."pets" ALTER COLUMN "birthDate" '
+          'DROP NOT NULL; UPDATE "public"."pets" SET "birthDate" = NULL; then re-run this file.';
+    END IF;
   END IF;
 
   -- Refuse an intakeDate that looks like a date and is not one, naming the animals. '2024-02-31'

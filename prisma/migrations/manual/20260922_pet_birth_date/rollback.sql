@@ -22,7 +22,9 @@
 -- cleanup.sql is a separate, deliberate step.
 --
 -- One DO block, so both columns change together and the 5-second lock timeout holds even if an
--- editor runs each statement in its own transaction.
+-- editor runs each statement in its own transaction. The advisory lock does NOT hold in that
+-- mode — `pg_advisory_xact_lock` releases when its own statement's transaction commits — so
+-- paste the whole file at once if anything else might be applying a migration.
 
 BEGIN;
 
