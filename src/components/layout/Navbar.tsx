@@ -52,7 +52,10 @@ export function Navbar() {
     {
       href: "/#how-it-works",
       label: isMs ? "Proses & Syarat Adopsi" : "Adoption Process & Criteria",
-      desc: isMs ? "Panduan 4-langkah adopsi percuma 100%" : "Step-by-step 100% free adoption guide",
+      // "3-langkah", not "4-langkah": `HomeProcessSection` renders steps 01-03.
+      // The link pointed at an unrendered anchor until 2026-09-22, so the
+      // mismatch was invisible — restoring the destination is what exposed it.
+      desc: isMs ? "Panduan 3-langkah adopsi percuma 100%" : "Step-by-step 100% free adoption guide",
       icon: Sparkles,
     },
     {
@@ -111,8 +114,17 @@ export function Navbar() {
               <span className="font-heading text-base sm:text-lg font-bold tracking-tight text-foreground leading-tight">
                 Hope for Strays <span className="text-primary text-xs font-bold uppercase tracking-wider">UM</span>
               </span>
+              {/*
+                The abbreviated tagline, in both languages. It used to carry
+                the full English headline — "Coexistence through TNRM &
+                Education" — which is verbatim the hero's `<h1>`, while its
+                Malay was already the short form. One string in two places, and
+                only one of them translated, is the shape AGENTS.md calls the
+                defect. Shortening the English removes the duplicate rather
+                than lengthening a `text-3xs` slot to match it.
+              */}
               <span className="text-3xs text-muted-foreground font-medium uppercase tracking-wider hidden sm:block">
-                {isMs ? "Kewujudan Bersama melalui TNRM" : "Coexistence through TNRM & Education"}
+                {isMs ? "Kewujudan Bersama melalui TNRM" : "Coexistence through TNRM"}
               </span>
             </div>
           </Link>

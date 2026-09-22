@@ -48,8 +48,28 @@ the two values in `src/lib/i18n/translations.ts` and the Malay follows.
 One string deliberately did **not** reuse its nearest key. The entry suggested `common.loading`
 ("Loading…" / "Memuatkan…") for the gallery's "Loading rescue animals…". Using it would have
 narrowed the English from a specific label to a generic one — a visible regression on the English
-site in order to fix a Malay bug. `HomeGalleryLoading` carries the specific string in both
+site in order to fix a Malay bug. A new `home.galleryLoading` carries the specific wording in both
 languages instead, and `common.loading` remains unused.
+
+## The heading prop takes a key, not a string
+
+`BulletinFeed`'s `title?: string` became `titleKey?: BulletinKey`, a template type over
+`keyof TranslationDictionary["bulletins"]`. Every caller is a Server Component that cannot resolve
+its own heading without giving up ISR, so each hands over a key and the feed — already a client
+component — resolves it. `/bulletins` passes `bulletins.allNoticesTitle`, `/pets` passes
+`bulletins.petsFeedTitle`, `/` passes nothing and gets `home.bulletinsTitle`.
+
+This was not in the entry's inventory. It became necessary *because of* the rest of this change:
+once the chips, byline and empty state around those two feeds rendered Malay, an English string
+literal above them left `/bulletins` and `/pets` in a worse mixed-language state than before. A
+change that improves one page by degrading two is not an improvement.
+
+The same typing rule applies to the category chips. `labelKey` is a `bulletins.*` template type
+rather than `string`, so renaming a key is a compile error instead of a chip silently falling back
+to English on the Malay site. **No `t()` call in `BulletinFeed` passes an English fallback**:
+`LanguageProvider` already falls through to the `en` dictionary when a key is missing from the
+active one, so a literal argument could only ever be a second copy of the label — unreachable, and
+free to drift from the one a translator edits.
 
 ## What stays English: the bulletin admin chrome
 
@@ -83,21 +103,21 @@ A comment at the `isAdminMode` block in `BulletinFeed.tsx` points here, so the n
   different change from this one, and the entry recorded it as not owned by itself.
 - **Bulletin and Pet content columns have no Malay field.** `title`, `content`, `breed`,
   `description` and `tags` are single-column English. That is a schema question, not a literal.
-- **`/pets` and `/bulletins` still pass English `title` props to `BulletinFeed`.** The prop still
-  works and a test pins that it does. Those pages are outside this entry's inventory, and both have
-  other untranslated chrome of their own.
+- **`/pets` and `/bulletins` still have untranslated chrome of their own**, outside this entry's
+  inventory. Their `BulletinFeed` headings are no longer part of it — see "The heading prop takes a
+  key" above — but the rest of each page is unchanged.
 
 ## Verification
 
-`tests/components/homeMalay.test.tsx`, 17 cases. Every Malay case asserts the **English is absent**
+`tests/components/homeMalay.test.tsx`, 18 cases. Every Malay case asserts the **English is absent**
 rather than that the Malay is present, which is the gap the entry names: the existing
 `home.test.tsx` asserted presence and passed for sixteen days beside a hardcoded English `<h1>`.
 Two further cases pin the English side, because an inverted `isMs` would satisfy every Malay
 assertion at once.
 
-Run against the components before this change, 12 of the 17 failed. The five that passed are the
-two new components (which did not exist), the explicit-title regression guard, and the two English
-cases — exactly the set that should not have moved.
+Run against the components before this change, 12 of the then-17 failed. The five that passed were
+the two new components (which did not exist), the heading-prop guard, and the two English cases —
+exactly the set that should not have moved.
 
 The image `alt` is read from the attribute, not by text: `queryByText` cannot see an `alt` at all,
 which is how that string stayed English while a Malay hero test passed next to it.

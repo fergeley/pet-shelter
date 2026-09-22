@@ -109,14 +109,21 @@ describe("BulletinFeed on the Malay site", () => {
     expect(screen.queryByText("Latest news and updates")).not.toBeInTheDocument();
   });
 
-  it("still honours an explicit title, so other pages are unaffected", () => {
+  it.each([
+    ["bulletins.allNoticesTitle", "Semua Notis Komuniti", "All Community Notices"],
+    ["bulletins.petsFeedTitle", "Notis Adopsi & Kemas Kini Klinik", "Adoption Notices & Clinic Updates"],
+  ] as const)("translates the %s heading a sibling page asks for", (titleKey, malay, english) => {
+    // `/bulletins` and `/pets` used to pass their headings as English string
+    // literals. Once the chrome around them became Malay, that left those two
+    // pages with a Malay feed under an English title — a worse mixed-language
+    // result than before. They pass a key now, and this is what pins it.
     seedBulletins([bulletin()]);
-    renderWithLanguage(
-      <BulletinFeed targetPage="home" title="Adoption Notices & Clinic Updates" />,
-      { language: "ms" }
-    );
+    renderWithLanguage(<BulletinFeed targetPage="home" titleKey={titleKey} />, {
+      language: "ms",
+    });
 
-    expect(screen.getByText("Adoption Notices & Clinic Updates")).toBeInTheDocument();
+    expect(screen.getByText(malay)).toBeInTheDocument();
+    expect(screen.queryByText(english)).not.toBeInTheDocument();
   });
 
   it.each<[BulletinCategory, string, string]>([

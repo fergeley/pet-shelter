@@ -81,6 +81,7 @@ export interface TranslationDictionary {
     availableTitle: string;
     availableSubtitle: string;
     viewAllPets: string;
+    galleryLoading: string;
     howItWorksTitle: string;
     howItWorksSubtitle: string;
     step1Title: string;
@@ -99,14 +100,6 @@ export interface TranslationDictionary {
     protocol3Desc: string;
     protocol4Title: string;
     protocol4Desc: string;
-    supportTitle: string;
-    supportSubtitle: string;
-    volunteerTitle: string;
-    volunteerDesc: string;
-    fosterTitle: string;
-    fosterDesc: string;
-    donateTitle: string;
-    donateDesc: string;
   };
   pets: {
     title: string;
@@ -348,6 +341,8 @@ export interface TranslationDictionary {
     urgentBadge: string;
     contactCoordinator: string;
     noBulletins: string;
+    allNoticesTitle: string;
+    petsFeedTitle: string;
     categoryUrgentNeed: string;
     categoryClinic: string;
     categoryEvent: string;
@@ -457,6 +452,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       availableTitle: "Animals Ready for Adoption",
       availableSubtitle: "Health-checked, vaccinated, microchipped, and sterilized before rehoming.",
       viewAllPets: "View All Adoptable Pets",
+      galleryLoading: "Loading rescue animals...",
       howItWorksTitle: "Our Transparent Adoption Journey",
       howItWorksSubtitle: "We ensure every rescue goes to a safe, committed home through a straightforward 3-step process with zero commercial adoption fees.",
       step1Title: "Browse & Submit Application",
@@ -475,14 +471,6 @@ export const translations: Record<Language, TranslationDictionary> = {
       protocol3Desc: "Our team provides ongoing behavioral transition guidance. If an adopter's life circumstances ever change, we maintain an unconditional open-door policy to welcome the animal back.",
       protocol4Title: "Structured Premise & Lifestyle Review",
       protocol4Desc: "We verify basic living suitability (landed housing vs high-rise pet guidelines, fenced perimeter safety, and household consensus) to ensure a safe, lasting match.",
-      supportTitle: "Community Action & Fostering",
-      supportSubtitle: "Join our network of dedicated animal lovers in Selangor. Whether you can foster, volunteer, or donate, your help directly saves lives.",
-      volunteerTitle: "Sanctuary Volunteering",
-      volunteerDesc: "Assist with dog walking, socialization, feeding, and facility maintenance at our SS2 sanctuary.",
-      fosterTitle: "Temporary Foster Care",
-      fosterDesc: "Provide a quiet temporary haven for recovering rescue animals, pregnant mothers, or young litters.",
-      donateTitle: "Medical & Nutrition Giving",
-      donateDesc: "Support lifesaving surgeries, core vaccines, and daily kibble with 100% LHDN tax-deductible contributions.",
     },
     pets: {
       title: "Adoptable Animals in Selangor",
@@ -729,6 +717,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       urgentBadge: "Urgent Notice",
       contactCoordinator: "WhatsApp Coordinator",
       noBulletins: "No active bulletins found for the selected category.",
+      allNoticesTitle: "All Community Notices",
+      petsFeedTitle: "Adoption Notices & Clinic Updates",
       categoryUrgentNeed: "Urgent Foster / Need",
       categoryClinic: "Clinic / Vaccine",
       categoryEvent: "Event",
@@ -836,6 +826,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       availableTitle: "Haiwan Sedia untuk Diangkat Anak",
       availableSubtitle: "Telah diperiksa kesihatan, divaksin, dipasang cip mikro, dan dimandulkan sebelum adopsi.",
       viewAllPets: "Lihat Semua Haiwan Sedia Diadopsi",
+      galleryLoading: "Memuatkan haiwan reskue...",
       howItWorksTitle: "Proses Adopsi Telus & Mudah",
       howItWorksSubtitle: "Kami memastikan setiap haiwan diserahkan kepada keluarga yang selamat dan bertanggungjawab melalui 3 langkah mudah tanpa sebarang yuran komersial.",
       step1Title: "Semak & Hantar Permohonan",
@@ -854,14 +845,6 @@ export const translations: Record<Language, TranslationDictionary> = {
       protocol3Desc: "Pasukan kami menyediakan panduan transisi tingkah laku berterusan. Jika keadaan hidup pengadopsi berubah, pintu kami sentiasa terbuka untuk menerima haiwan kembali.",
       protocol4Title: "Semakan Kediaman & Keselamatan",
       protocol4Desc: "Kami mengesahkan kesesuaian asas kediaman (garis panduan rumah bertanah vs bertingkat, pagar selamat, dan persetujuan seisi rumah) demi pemadanan kekal.",
-      supportTitle: "Tindakan Komuniti & Penjagaan Asuhan",
-      supportSubtitle: "Sertai rangkaian pencinta haiwan di Selangor. Bantuan anda sebagai sukarelawan, penjaga asuhan, atau penderma secara langsung menyelamatkan nyawa.",
-      volunteerTitle: "Sukarelawan Pusat",
-      volunteerDesc: "Bantu aktiviti berjalan anjing, sosialisasi kucing, penyusuan, dan penyelenggaraan pusat perlindungan SS2.",
-      fosterTitle: "Rumah Asuhan Sementara",
-      fosterDesc: "Sediakan tempat perlindungan sementara yang tenang untuk haiwan dalam fasa pemulihan atau anak haiwan tanpa ibu.",
-      donateTitle: "Sumbangan Perubatan & Makanan",
-      donateDesc: "Sokong pembedahan menyelamatkan nyawa, vaksin teras dan makanan harian dengan pelepasan cukai LHDN 100%.",
     },
     pets: {
       title: "Haiwan Sedia Diangkat Anak di Selangor",
@@ -1104,6 +1087,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       urgentBadge: "Notis Segera",
       contactCoordinator: "WhatsApp Penyelaras",
       noBulletins: "Tiada buletin aktif dijumpai untuk kategori pilihan.",
+      allNoticesTitle: "Semua Notis Komuniti",
+      petsFeedTitle: "Notis Adopsi & Kemas Kini Klinik",
       categoryUrgentNeed: "Asuhan Segera / Keperluan",
       categoryClinic: "Klinik / Vaksin",
       categoryEvent: "Program",

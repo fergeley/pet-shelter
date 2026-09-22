@@ -37,6 +37,20 @@ id exists anywhere else in `src`**. The candidates were checked:
 an import and a line, and changes no link. It goes back in its original slot — between the `#adopt`
 gallery and `HomeStandardsSection` — which is where `1137d3e` removed it from.
 
+**Remounting it also had to repair it.** Its step copy was inline ternaries duplicating
+`home.step1Title`…`step3Desc`, which no longer had any reader — and in three weeks unmounted the
+two copies drifted: the dictionary says "Semak & Hantar Permohonan" where the component said "Pilih
+Haiwan & Hantar Permohonan", and "no hidden fees" where the component said "zero adoption fees".
+Mounting a section is publishing its copy, so the divergence had to be settled first, and the
+dictionary won because it is the copy a translator can reach. The heading, eyebrow and subtitle stay
+inline like every other section in this file: `home.howItWorksTitle`/`Subtitle` are *different
+sentences*, not second copies of them, so adopting those keys would have been a copy change rather
+than a deduplication. They remain unused.
+
+One more thing the remount exposed: `Navbar.tsx:55` advertised the destination as a "Panduan
+4-langkah" in Malay, and the section renders three steps, `01`–`03`. The link went nowhere before,
+so nothing could contradict it.
+
 That commit is titled "chore(ui): update home page" and left four links behind pointing into what it
 removed. Leaving the links is the evidence that the removal was not a considered decision *about
 those links*; it is not evidence that the section was wanted back. Anyone who does want the home
@@ -73,6 +87,22 @@ three sections that were always mounted, so a file-level scan would have called 
 again.
 
 Run against the tree before this change, it named all four links from the open entry, at the lines
-the entry gives. Its ceiling is in the file: it does not evaluate conditionals, so it over-accepts.
-It also only counts ids on landmark elements, so an anchor added to a `<span>` would be rejected —
-move it to a `<div>` or `<section>`.
+the entry gives.
+
+**Two holes were found by review and closed before merge**, both of which made the guard weaker
+than it reads:
+
+- It matched only `"/#id"`, so `/get-involved#volunteer` — the link *this decision created* — fell
+  outside its own coverage, along with the four `/get-involved#…` links already in `Navbar.tsx`. It
+  now matches any `"/<route>#<id>"` and resolves the id against that route's `page.tsx`. Verified by
+  probe: pointing the footer at `/get-involved#ghost-section` fails the suite.
+- It scanned raw file text, so commenting a mount out still counted it as rendered — the exact
+  defect the guard exists to catch, passing silently. Block comments are now stripped first.
+  Verified by probe: commenting out `<HomeProcessSection />` makes `#how-it-works` unresolved and
+  names the three links that break. Three commented-out JSX blocks already exist in this tree, so
+  the stripping is load-bearing rather than theoretical. Line comments are deliberately left alone —
+  a double slash occurs inside every `https://` URL in a JSX attribute.
+
+Its remaining ceiling is in the file: it does not evaluate conditionals, so it over-accepts. It
+also only counts ids on landmark elements, so an anchor added to a `<span>` is reported unresolved —
+move it to a `<div>` or `<section>`, or widen the allowlist.

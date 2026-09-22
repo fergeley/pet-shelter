@@ -860,7 +860,8 @@ persistence passed, and the unit job was still running when `a6d1007` superseded
 # Home page defects — hero dead mounts, dead anchors, Malay copy (#77, #78, #80)
 
 **Branch:** `worktree-home-page-defects-77-78-80` · opened 2026-09-22 · ROUTINE lane
-**Base:** `origin/master` at `8d36ace`
+**Base:** branched at `origin/master` `8d36ace`; merged `4782ff2` (#88) and `fa3021e` (#89) during
+the work, so the merge base at review time is `fa3021e`
 
 > Appended at the tail rather than prepended, on the instruction in the prompt that opened this
 > stream: concurrent branches all insert at the top of this file, and two insertions at one line
@@ -873,7 +874,11 @@ persistence passed, and the unit job was still running when `a6d1007` superseded
 Three commits, one per defect, each carrying its own tests and deleting its own `tasks/open/` entry.
 
 - `f58991a` **#77** — `Hero` dropped `PetMatchQuiz` and `SponsorshipModal`, which it mounted with
-  `open={false}` and could never open. `tests/components/heroDialogMounts.test.tsx`.
+  `open={false}` and could never open. **`4782ff2` (#88) shipped the identical code change from
+  another session while this branch was being written**, so the merge absorbed this commit to a net
+  zero on `Hero.tsx`. What the branch actually contributes for #77 is
+  `tests/components/heroDialogMounts.test.tsx`, which #88 shipped without, and a decision entry
+  correcting two of the three reasons #88's entry gives.
 - `f6e1b3b` **#80** — `HomeProcessSection` remounted on `/`; `HomeCommunitySection` and
   `HomeGalleryHeader` deleted; `/#support` repointed to `/get-involved#volunteer`; the impossible
   `pathname === "/#how-it-works"` comparison dropped. `tests/unit/homeAnchors.test.ts`.
@@ -928,10 +933,35 @@ left exactly as found. **Whoever owns it should drop it before this merges.**
   `tasks/open/drift-log-recorded-nothing-for-a-whole-session.md` with the observations separated
   from the inferred cause.
 
+## Review round, and what it changed
+
+`/code-review` at xhigh over the whole diff returned fourteen findings. None was a crash-class bug;
+most were coverage holes, duplication, and one silent copy change. Every one was probed before being
+accepted. The substantive outcomes:
+
+- **The new anchor guard had two holes, both closed.** It matched only `"/#id"`, so the
+  `/get-involved#volunteer` link this very branch created was outside its own coverage; and it
+  scanned raw text, so a commented-out mount still counted as rendered. Both now probe-verified.
+  A guard that does not cover the fix that produced it is half a guard.
+- **Remounting `HomeProcessSection` was republishing drifted copy.** Its steps duplicated
+  `home.step*`, and the two had diverged while the section sat unmounted. Wired to the dictionary.
+- **`BulletinFeed`'s `title` prop became `titleKey`.** Translating the chrome around the heading
+  while leaving the heading an English literal left `/bulletins` and `/pets` *worse* than before.
+- **Type-safety and duplicate-copy cleanups**: `labelKey` is a dictionary-keyed template type, and
+  no `t()` call in that file passes an English fallback — the provider already falls through to
+  `en`, so a literal argument could only be an unreachable second copy.
+- **Two copy corrections the remount exposed**: the navbar advertised a "4-langkah" guide for a
+  three-step section, and its tagline carried the hero `<h1>`'s English verbatim while its Malay was
+  already abbreviated. Shortened the English rather than lengthening a `text-3xs` slot.
+- **Eight `home.*` keys orphaned by deleting `HomeCommunitySection`** were removed; the sweep that
+  proved two keys unused should have caught these in the same pass.
+
 ## Verification
 
-`npm run check` (0 errors, 12 pre-existing warnings, one fewer than at `8d36ace`); unit 1582,
-components 188, integration 59; `npm run build` compiled, and `/` still reports `○ (Static) 5m` —
-ISR intact, which was `#78`'s binding constraint. Each new suite was run against the unfixed tree
-first and observed failing: 1 of 1 for `#77`, both cases naming all four broken links for `#80`,
-12 of 17 for `#78`.
+Final: `npm run check` 0 errors, 12 pre-existing warnings (one fewer than at the base);
+`npm run test:all` 119 files / 1844 tests; `npm run test:integration` 70; `npm run build` compiled
+with `/` still `○ (Static) 5m` — ISR intact, which was `#78`'s binding constraint.
+
+Each new suite was run against the unfixed tree first and observed failing: 1 of 1 for `#77`, both
+cases naming all four broken links for `#80`, 12 of the then-17 for `#78`. The guard's two repaired
+holes were each re-probed after the fix.

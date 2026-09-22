@@ -20,7 +20,7 @@ export default function BulletinsPage() {
         </div>
 
         {/* Full Feed with Admin Controls */}
-        <BulletinFeed targetPage="all" title="All Community Notices" />
+        <BulletinFeed targetPage="all" titleKey="bulletins.allNoticesTitle" />
       </div>
     </div>
   );

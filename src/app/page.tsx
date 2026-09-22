@@ -45,7 +45,7 @@ export default async function HomePage() {
 
       <HomeQuickActionsSection />
 
-      {/* 3. Latest news and updates */}
+      {/* 3. Shelter bulletins — headed by home.bulletinsTitle */}
       <section className="border-t border-border bg-background py-10 sm:py-14">
         <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
           <BulletinFeed targetPage="home" maxItems={2} />

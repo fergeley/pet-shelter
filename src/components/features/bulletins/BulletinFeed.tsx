@@ -13,14 +13,26 @@ import {
   RotateCcw
 } from "lucide-react";
 import { Bulletin, BulletinCategory, BulletinFormData, BulletinTargetPage } from "@/types/bulletin";
+import type { TranslationDictionary } from "@/lib/i18n/translations";
 import { useBulletins } from "@/lib/client/bulletinStore";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { AdminBulletinModal } from "./AdminBulletinModal";
 import { Button } from "@/components/ui/button";
 
+/** A dot path into the `bulletins` namespace, checked against the dictionary. */
+type BulletinKey = `bulletins.${keyof TranslationDictionary["bulletins"]}`;
+
 interface BulletinFeedProps {
   targetPage?: BulletinTargetPage;
-  title?: string;
+  /**
+   * Dictionary key for the heading, not the heading itself.
+   *
+   * Every caller is a Server Component, and the reader's language is client
+   * state, so a page cannot resolve its own heading without giving up ISR. It
+   * hands over a key and this component — which is already a client component —
+   * resolves it. Omitted, the feed titles itself `home.bulletinsTitle`.
+   */
+  titleKey?: BulletinKey;
   maxItems?: number;
   compact?: boolean;
 }
@@ -30,37 +42,29 @@ interface BulletinFeedProps {
  * and `@/lib/presentation/medicalTimelinePresentation`. `happy_tail` takes `highlight` rather than `success`
  * because `clinic` already owns green, and two categories sharing a colour makes the
  * badge legend unreadable.
+ *
+ * `labelKey` is keyed to the dictionary rather than typed as `string`, so
+ * renaming `bulletins.categoryClinic` is a compile error instead of a chip that
+ * silently falls back to English on the Malay site. No English literal sits
+ * beside it, and no `t()` call in this file passes one: `LanguageProvider`
+ * already falls through to the `en` dictionary when a key is missing from the
+ * active one, so a literal here could only ever be a second copy of the label —
+ * unreachable, and free to drift from the one a translator edits.
  */
 const CATEGORY_LABELS: Record<
   BulletinCategory,
-  { labelKey: string; labelEn: string; toneClass: string }
+  { labelKey: BulletinKey; toneClass: string }
 > = {
-  urgent_need: {
-    labelKey: "bulletins.categoryUrgentNeed",
-    labelEn: "Urgent Foster / Need",
-    toneClass: "tone-danger",
-  },
-  clinic: {
-    labelKey: "bulletins.categoryClinic",
-    labelEn: "Clinic / Vaccine",
-    toneClass: "tone-success",
-  },
-  event: { labelKey: "bulletins.categoryEvent", labelEn: "Event", toneClass: "tone-info" },
-  happy_tail: {
-    labelKey: "bulletins.categoryHappyTail",
-    labelEn: "Adoption Update",
-    toneClass: "tone-highlight",
-  },
-  announcement: {
-    labelKey: "bulletins.categoryAnnouncement",
-    labelEn: "Notice",
-    toneClass: "tone-neutral",
-  },
+  urgent_need: { labelKey: "bulletins.categoryUrgentNeed", toneClass: "tone-danger" },
+  clinic: { labelKey: "bulletins.categoryClinic", toneClass: "tone-success" },
+  event: { labelKey: "bulletins.categoryEvent", toneClass: "tone-info" },
+  happy_tail: { labelKey: "bulletins.categoryHappyTail", toneClass: "tone-highlight" },
+  announcement: { labelKey: "bulletins.categoryAnnouncement", toneClass: "tone-neutral" },
 };
 
 export function BulletinFeed({
   targetPage = "all",
-  title,
+  titleKey,
   maxItems,
   compact = false,
 }: BulletinFeedProps) {
@@ -105,7 +109,7 @@ export function BulletinFeed({
       <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-3 mb-6">
         <div>
           <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {title ?? t("home.bulletinsTitle", "Shelter Bulletins & Updates")}
+            {titleKey ? t(titleKey) : t("home.bulletinsTitle")}
           </h2>
         </div>
 
@@ -121,8 +125,8 @@ export function BulletinFeed({
           >
             {isAdminMode ? <Unlock className="size-3.5" /> : <Lock className="size-3.5" />}
             {isAdminMode
-              ? t("bulletins.adminModeActive", "Admin Mode Active")
-              : t("bulletins.staffAccess", "Staff Admin Access")}
+              ? t("bulletins.adminModeActive")
+              : t("bulletins.staffAccess")}
           </Button>
 
           {/*
@@ -213,12 +217,12 @@ export function BulletinFeed({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className={`tone-chip px-3 py-1 ${catInfo.toneClass}`}>
-                          {t(catInfo.labelKey, catInfo.labelEn)}
+                          {t(catInfo.labelKey)}
                         </span>
 
                         {bulletin.isPinned && (
                           <span className="tone-chip tone-warning px-3 py-1">
-                            <Pin className="size-3" /> {t("bulletins.pinned", "Pinned")}
+                            <Pin className="size-3" /> {t("bulletins.pinned")}
                           </span>
                         )}
                       </div>
@@ -243,7 +247,7 @@ export function BulletinFeed({
 
                 {/* Footer / Author & Admin Actions */}
                 <div className="p-6 pt-0 border-t border-border/40 mt-3 flex items-center justify-between text-sm text-muted-foreground">
-                  <span>{t("bulletins.postedBy", "Posted by:")} <strong className="text-foreground">{bulletin.author}</strong></span>
+                  <span>{t("bulletins.postedBy")} <strong className="text-foreground">{bulletin.author}</strong></span>
 
                   {isAdminMode && (
                     <div className="flex items-center gap-1.5">
@@ -284,7 +288,7 @@ export function BulletinFeed({
       ) : (
         <div className="border border-dashed border-border bg-muted/10 p-8 text-center space-y-3">
           <p className="text-sm text-muted-foreground">
-            {t("bulletins.noUpdates", "No updates or bulletins posted for this section.")}
+            {t("bulletins.noUpdates")}
           </p>
           {isAdminMode && (
             <Button size="sm" onClick={handleCreate} className="text-sm font-semibold">

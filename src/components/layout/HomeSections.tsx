@@ -33,16 +33,22 @@ import { useLanguage } from "@/components/providers/LanguageProvider";
  * nothing and lets them call `t()`.
  *
  * Like every other Malay string on the site, these switch after hydration: the
- * served HTML is English because the server cannot know the language. That is
- * tracked separately — `<html lang>` is hardcoded `"en"` in `layout.tsx`.
+ * **served HTML** is English, because the server cannot know the language. The
+ * `<html lang>` attribute takes the same path rather than being simply wrong —
+ * `layout.tsx` serves `lang="en"` and `LanguageProvider` corrects
+ * `document.documentElement.lang` in an effect — so the mismatch exists only
+ * in the server-rendered document, which is what a crawler reads. No entry in
+ * `tasks/open/` covers that today, and closing it means deciding whether `/`
+ * gives up ISR: a larger change than this one, not a deferral to a tracker
+ * that exists.
  */
 export function HomeGalleryLoading() {
-  const { isMs } = useLanguage();
+  const { t } = useLanguage();
 
   return (
     <div className="flex items-center justify-center py-20 text-muted-foreground">
       <Loader2 className="size-6 animate-spin mr-2" />
-      <span>{isMs ? "Memuatkan haiwan reskue..." : "Loading rescue animals..."}</span>
+      <span>{t("home.galleryLoading")}</span>
     </div>
   );
 }
@@ -59,7 +65,7 @@ export function HomeViewAllPetsLink() {
           className: "text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl gap-2",
         })}
       >
-        {t("home.viewAllPets", "View All Adoptable Pets")}
+        {t("home.viewAllPets")}
         <ArrowRight className="size-4" />
       </Link>
     </div>
@@ -300,32 +306,45 @@ export function HomeQuickActionsSection() {
   );
 }
 
+/**
+ * The three-step adoption journey, and the `#how-it-works` anchor.
+ *
+ * The copy comes from `home.step*` rather than inline ternaries. Those keys
+ * exist in both locales and had no reader: `1137d3e` unmounted this section,
+ * and the two copies then drifted apart unobserved — the dictionary says
+ * "Semak & Hantar Permohonan" where this file said "Pilih Haiwan & Hantar
+ * Permohonan", and "no hidden fees" where this file said "zero adoption fees".
+ * AGENTS.md, "Boundaries and duplication": once two copies have diverged, that
+ * is the defect. The dictionary wins, because it is the copy a translator can
+ * actually reach. No English fallback is passed to `t()` — the provider already
+ * falls through to the `en` dictionary, so a literal here could only ever be a
+ * third copy, unreachable and free to drift.
+ *
+ * The heading, eyebrow and subtitle stay inline, like every other section in
+ * this file. `home.howItWorksTitle`/`Subtitle` are not second copies of them:
+ * they are different sentences, so adopting those keys would be a copy change
+ * rather than a deduplication. They remain unused.
+ */
 export function HomeProcessSection() {
-  const { isMs } = useLanguage();
+  const { isMs, t } = useLanguage();
 
   const steps = [
     {
       num: "01",
-      title: isMs ? "Pilih Haiwan & Hantar Permohonan" : "Browse & Submit Application",
-      description: isMs
-        ? "Lihat profil anjing & kucing reskue kami secara dalam talian atau kunjungi santuari PJ. Hantar borang ringkas untuk mendaftar minat keluarga anda."
-        : "Browse our adoptable dogs and cats online or visit our Petaling Jaya sanctuary. Submit a straightforward application to register your household interest.",
+      title: t("home.step1Title"),
+      description: t("home.step1Desc"),
       icon: FileText,
     },
     {
       num: "02",
-      title: isMs ? "Sesi Suai Kenal di Santuari" : "Meet & Socialize",
-      description: isMs
-        ? "Luangkan masa berinteraksi dengan haiwan di laman luar atau bilik kucing santuari. Kami mengatur pengenalan berstruktur jika anda mempunyai haiwan sedia ada."
-        : "Spend time interacting with the animal in our outdoor play yard or cat room. If you have resident pets, we arrange a structured, supervised introduction.",
+      title: t("home.step2Title"),
+      description: t("home.step2Desc"),
       icon: Users,
     },
     {
       num: "03",
-      title: isMs ? "Lengkapkan Adopsi (100% Percuma)" : "Finalize & Welcome Home",
-      description: isMs
-        ? "Tandatangani perjanjian adopsi standard tanpa sebarang yuran tersembunyi. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya."
-        : "Sign our standard adoption agreement with zero adoption fees. All animals are already vaccinated, microchipped, and spayed or neutered.",
+      title: t("home.step3Title"),
+      description: t("home.step3Desc"),
       icon: HomeIcon,
     },
   ];
