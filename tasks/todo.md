@@ -64,6 +64,15 @@ the status check turns exactly the 3 status tests red; removing only the exact-i
 exactly the case-variant test red; moving the lookup back above the budgets turns exactly the
 rate-limit test red; restoring `|| allPets[0]` turns 3 of the 7 unit tests red.
 
+**The suites are flaky under load, and it cost time here.** Seven other sessions were running in
+this repo concurrently. Single runs of `--project unit` reported 63, then 72, then 12 failures
+across *different* unrelated files each time, then 1587/1587 green on an unchanged tree; the
+components tier failed two files with `Hook timed out in 10000ms` inside the `nextMocks.ts`
+`beforeEach`. `vitest.config.mts` raises `testTimeout` to 20s but never sets `hookTimeout`, so
+setup hooks keep the 10s default. Nothing here was a real failure — every file passed in isolation
+— but the first instinct was to suspect this diff. A parallel session has filed the run counts;
+not duplicated here. Rule of thumb: one failure each across unrelated files means load, not you.
+
 **Rejecting `Pending` is a product call, and it was already made.**
 `tasks/decisions/2026-09-10-pending-is-a-stage-of-adoption-not-a-track.md` files Pending in the
 adoptable *track* while the detail page renders its button disabled on purpose. `isAdoptable` is
@@ -77,8 +86,10 @@ true for `Available` alone, so the server now agrees with the button rather than
   including `src/actions/sponsorships.ts` — a public write path with no covering test — inside a
   change whose claim is about adoption. A parallel session is landing exactly that fix
   (`worktree-pet-missing-row-is-an-answer`, `97df591`), which also *closes* that ledger entry by
-  deleting it. The two branches were merged locally and verified together: typecheck clean, unit
-  1589, integration 79. A note recording "third guarded caller" was drafted onto that entry and
+  deleting it. The two branches were merged locally and verified together at that commit:
+  typecheck clean, unit 1589, integration 79 (this branch's 10, theirs, and the existing 59). That
+  branch has since moved past `97df591`, so the measurement is pinned to the commit it was taken
+  against rather than to a moving tip. A note recording "third guarded caller" was drafted onto that entry and
   then withdrawn — modifying a file the other branch deletes is a modify/delete conflict, and a
   conflicted PR gets no CI run at all. The relationship is recorded in the decision entry instead.
   The remaining collision is `tasks/todo.md`, which both branches prepend to; that is the known
@@ -92,6 +103,17 @@ true for `Available` alone, so the server now agrees with the button rather than
 - **`lookupApplicationStatusAction`'s mirror read** at the same file's line 505. Read-only display
   enrichment that already falls back to the application's stored `petBreed`; a mirror hit costs a
   stale breed and photo, not a wrong write.
+- **The stored `petName` is still the one the caller posted**, although the resolved animal is in
+  scope one block above. One line to repair, and the suites would stay green, but it changes what a
+  public write path *stores* inside a change whose claim is that the target is *checked*. Filed as
+  `tasks/open/an-application-stores-the-pet-name-the-caller-posted.md`.
+- **The outage half of the fixture fallback.** The guard reads the database whenever the database
+  answers. When the query *throws*, `handlePersistenceError` swallows it outside strict mode and
+  the mirror answers under the posted id, so an outage still accepts applications against fixture
+  animals at fixture status. That fallback is required by
+  `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`,
+  so it is a policy question rather than a bug here. The first draft of the decision entry claimed
+  `97df591` closed "the residual"; it closes the missing-row half only, and the entry now says so.
 - **`selectedPet` is still returned without a status check.** Opening the form from an animal's own
   page should headline that animal; the server is the boundary that refuses the submission.
 - **No component test for the `defaultPet === null` render.** The dialog title already branched on

@@ -65,9 +65,23 @@ pull request gets no CI run at all. The record lives here instead.
 
 What changes when that fix lands is the residual below, not this decision.
 
-**The residual is therefore real and stated:** on this branch alone, an id present in `pets.json`
-but absent from a populated database still resolves to the fixture animal and can be applied for.
-It is named in a comment at the guard, and it is what `97df591` closes.
+**The residual is therefore real, and it is two cases, not one.** Both are named in a comment at
+the guard. Neither is caught by the exact-id comparison, because in both the fixture answers under
+the very id that was posted:
+
+- *the database answers "no such row"* for an id that is in `pets.json`. This is what `97df591`
+  closes.
+- *the query throws.* `handlePersistenceError` rethrows only under `STRICT_PERSISTENCE`, which
+  nothing outside `vitest.config.mts` and one npm script sets, so in production an outage returns
+  the mirror and an application is accepted against a fixture animal at the fixture's status.
+  `97df591` does not close this and is not meant to: a swallowed database error must not fail the
+  mutation, which is
+  `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`.
+
+So the claim this entry's title makes holds whenever the database answers, and not when it cannot.
+That distinction was missing from the first draft of this entry, which said `97df591` closed "the
+residual" as though there were one; the parallel session's reviewer caught it and it was checked
+here against `persistenceMode.ts` before being corrected.
 
 ## The lookup moved behind the rate limits
 

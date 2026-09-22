@@ -143,11 +143,21 @@ export async function submitApplication(
     // POST; the mirror read it replaces was free, so leaving it above the budgets would hand
     // an anonymous caller one `findUnique` per request with nothing bounding it.
     //
-    // What this does not close: a database that answers "no such row" for an id that *is* in
-    // `pets.json` still falls through to the fixture, so a fixture animal the database never
-    // held can still be applied for. That is the repository's fallback policy, not this
-    // action's — `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`, of
-    // which this is now the third caller guarding itself rather than the policy being settled.
+    // What this does not close — two cases, both the repository's fallback policy rather than
+    // this action's, and neither caught by the id comparison, because the fixture answers under
+    // the very id that was posted:
+    //
+    //  - the database answers "no such row" for an id that *is* in `pets.json`. Tracked in
+    //    `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`, of which this
+    //    is the third caller guarding itself rather than the policy being settled.
+    //  - the query *throws*. `handlePersistenceError` rethrows only under `STRICT_PERSISTENCE`,
+    //    which nothing outside `vitest.config.mts` and one npm script sets, so in production an
+    //    outage returns the mirror and an application is accepted against a fixture animal at
+    //    the fixture's status. That fallback is deliberate — a swallowed database error must not
+    //    fail the mutation, per
+    //    `tasks/lessons/2026-09-04-a-dual-layer-fallback-must-never-let-a-swallowed-database-error-fail.md`
+    //    — so "checked against the database" holds whenever the database answers, and not when
+    //    it cannot.
     const requestedPetId = validated.petId.trim();
     const pet = await findServerPetByIdAsync(requestedPetId);
     if (!pet || pet.id !== requestedPetId) {
