@@ -9,6 +9,7 @@ import {
 } from "@/lib/validations/pet";
 import { Pet } from "@/types/pet";
 import { normalizePetStatus } from "@/lib/domain/stateMachine";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import { matchesPetSearch } from "@/lib/domain/petSearch";
 import { getVerifiedSession } from "@/lib/security/dal";
 import { AdminPrincipal, verifyAdminSession } from "@/lib/security/adminSession";
@@ -182,13 +183,12 @@ export async function createPet(
     const actor = await getAdminActorOrThrow();
     const validated = petFormSchema.parse(data);
 
-    const newPet: Pet = {
+    const newPet: Pet = withDerivedAge({
       id: `pet-${Date.now()}`,
       name: validated.name,
       species: validated.species,
       breed: validated.breed,
       age: validated.age,
-      ageCategory: validated.ageCategory,
       gender: validated.gender,
       size: validated.size,
       weight: validated.weight,
@@ -201,6 +201,8 @@ export async function createPet(
       tags: validated.tags,
       featured: validated.featured,
       intakeDate: validated.intakeDate,
+      birthDate: validated.birthDate || undefined,
+      birthDateIsEstimate: validated.birthDate ? (validated.birthDateIsEstimate ?? true) : true,
       customQrUrl: validated.customQrUrl || null,
       rehabStage: validated.rehabStage,
       rehabStageMs: validated.rehabStageMs,
@@ -221,7 +223,7 @@ export async function createPet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await insertServerPet(newPet, actor);
 
@@ -287,9 +289,32 @@ export async function updatePet(
     const storedGallery = wantsNotification ? await getStoredGalleryImages(id) : null;
     const previousGallery = storedGallery ?? [...(existing.galleryImages || [])];
 
-    const updated: Pet = {
+    // Omitting `birthDate` leaves the stored birthday alone; sending an empty string is the
+    // operator clearing it. Assigning `validated.birthDate || undefined` unconditionally would
+    // discard a recorded birthday on any payload that simply did not mention one — and
+    // `withDerivedAge` would then quietly re-derive it from the age text.
+    //
+    // The flag follows the same fork rather than `??`: `petFormSchema` gives
+    // `birthDateIsEstimate` a default of `true`, so the parsed value is never `undefined` and a
+    // `?? existing.birthDateIsEstimate` arm can never run. Reading it only when the payload
+    // actually carried a birthday is what keeps an exact record from being downgraded to an
+    // estimate by an update that said nothing about it. `petStore.updatePet` splits it the same
+    // way; the two are meant to answer identically for the same submission.
+    const submittedBirthDate = validated.birthDate !== undefined;
+    const nextBirthDate = submittedBirthDate
+      ? validated.birthDate || undefined
+      : existing.birthDate;
+    const nextBirthDateIsEstimate = !nextBirthDate
+      ? true
+      : submittedBirthDate
+        ? validated.birthDateIsEstimate
+        : existing.birthDateIsEstimate ?? true;
+
+    const updated: Pet = withDerivedAge({
       ...existing,
       ...validated,
+      birthDate: nextBirthDate,
+      birthDateIsEstimate: nextBirthDateIsEstimate,
       // The submitted form is authoritative for rehabilitation progress: omitting the
       // fields clears them, so a cleared animal cannot keep a stale progress bar.
       rehabStage: validated.rehabStage,
@@ -316,7 +341,7 @@ export async function updatePet(
         goodWithKids: validated.goodWithKids,
         energyLevel: validated.energyLevel,
       },
-    };
+    });
 
     await updateServerPet(id, updated, actor);
 

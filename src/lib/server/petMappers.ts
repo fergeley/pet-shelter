@@ -207,7 +207,9 @@ function mapDbMedicalTimelineEvent(row: DbMedicalTimelineEventRecord): MedicalTi
  */
 export function mapDbPetToPet(p: DbPetRecord): Pet {
   const birthDate = deriveBirthDate(p);
-  const birthDateIsEstimate = p.birthDateIsEstimate !== undefined ? p.birthDateIsEstimate : true;
+  const birthDateIsEstimate = p.birthDate
+    ? (p.birthDateIsEstimate !== undefined ? p.birthDateIsEstimate : true)
+    : true;
   // Always derived, never read back from the row. `age`/`ageCategory` have not been columns
   // since 6108d82; preferring a stored value here only ever served stale fixture data (PS-114).
   const age = formatAgeString(birthDate).en;
@@ -263,7 +265,9 @@ export function mapDbPetToPet(p: DbPetRecord): Pet {
  */
 export function buildPetPersistencePayload(pet: Pet): PetPersistencePayload {
   const birthDate = deriveBirthDate(pet);
-  const birthDateIsEstimate = pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true;
+  const birthDateIsEstimate = pet.birthDate
+    ? (pet.birthDateIsEstimate !== undefined ? pet.birthDateIsEstimate : true)
+    : true;
 
   return {
     name: pet.name,

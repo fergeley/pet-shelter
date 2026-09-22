@@ -5,6 +5,7 @@ import { Pet } from "@/types/pet";
 import { PetFormInput } from "@/lib/validations/pet";
 import type { PhotoNotificationOptions } from "@/actions/pets";
 import { usePetStore } from "@/lib/client/petStore";
+import { withDerivedAge } from "@/lib/domain/petAge";
 import { matchesAdminPetFilters, scopeByArchiveFilter } from "@/lib/presentation/adminPetFilters";
 import { buildPetStatusFilterOptions } from "@/lib/presentation/petStatusPresentation";
 import { exportPetsToCsv } from "@/lib/presentation/exportCsv";
@@ -96,7 +97,11 @@ export function usePetTableController(initialPets?: (Pet & { applicationCount?: 
       updatePet(editingPet.id, data);
       setLocalPets((prev) => {
         const base = prev || pets;
-        return base.map((p) => (p.id === editingPet.id ? { ...p, ...data } : p));
+        // Derived through the same function both write paths use. Spreading the raw form input
+        // would paint the operator's typed `age`/`ageCategory` onto the row, while `petStore`
+        // and `updatePet` recompute both from the birthday — so the table would show the typed
+        // number until a refresh silently replaced it with a different one.
+        return base.map((p) => (p.id === editingPet.id ? withDerivedAge({ ...p, ...data }) : p));
       });
 
       const rollback = (errorMessage: string) => {

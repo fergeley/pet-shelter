@@ -15,6 +15,73 @@ Historical completed work streams (August-September 2026) have been archived to 
 
 Record active multi-step work streams below.
 
+# Pet form birth date — critique, revise and finish PR #42
+
+**Branch:** `feat/pet-form-birth-date` · PR #42 · picked up 2026-09-22
+**Ledger:** `tasks/open/birth-date-needs-a-column-production-does-not-have.md`
+
+## Items
+
+- [x] Audit before touching anything. PR #42 was eight days stale, `CONFLICTING`, and the only
+      open PR. The entry it claims to settle, `tasks/open/pet-form-has-no-birth-date-field.md`,
+      was still on master, so the problem was real and unclaimed.
+- [x] Merge `origin/master` — 61 commits. One conflict, the import block of
+      `src/actions/pets.ts`: master added `matchesPetSearch`, the branch added `withDerivedAge`,
+      both are called (`bb42ab8`).
+- [x] Critique. The blocking defect: `handleBirthDateChange` never cleared
+      `birthDateIsEstimate`, which defaults to `true`. Every picked date was filed as an
+      estimate, and because `handleAgeChange` only spares *exact* birthdays, the next keystroke
+      in the Age field replaced the chosen day with `intakeDate` minus the typed age (`817b506`).
+- [x] Component tests. `tests/components/` held no `PetFormDialog` test at all, which is why a
+      dialog whose two date fields write to each other shipped with the write going the wrong
+      way. Each new test was watched failing against the historical component, aliased in under
+      a throwaway config so `src/` was never edited (`784cffc`).
+- [x] `/code-review high` against `origin/master`. Ten findings; each probed before it was
+      accepted or dismissed.
+- [x] Fixed five of them (`816a1f0`). The largest: a typed age was reckoned from the intake date
+      while `withDerivedAge` reads ages as of today, so "3 years" on a pet taken in three years
+      ago saved as six — the very drift the birth date field was added to end.
+- [x] Recorded the other four as ledger entries rather than widening the PR (`710e263`).
+- [ ] **Production has no `pets.birthDate` column.** Not this branch's to apply; agents in this
+      repo are refused production writes and a peer session holds the migration.
+
+## Review
+
+The brief said "continue implementing". The more useful answer was that the feature could not do
+the one thing it existed for: with the estimate flag stuck on, there was no way to record an
+exact birthday, and the Age field quietly destroyed any date you picked. Both halves came from a
+single missing assignment, which is the lesson worth keeping —
+`tasks/lessons/2026-09-22-a-flag-that-both-labels-data-and-gates-a-rewrite-breaks-twice.md`.
+
+The review's highest finding was one the first critique missed. `withDerivedAge` computes age
+from the birthday *as of now*; the dialog computed the birthday from the age *as of intake*.
+Each half is right read alone. Only a round trip separates them, and the component test could
+not, because the dialog defaults `intakeDate` to today for a new animal — so both anchors agree
+in exactly the case the test set up. It took an `editingPet` with a past intake date.
+
+Gates at close, all on `816a1f0`+: `npm run check` (typecheck, lint, docs:check) clean; unit
+99 files / 1599 tests; components 12 / 179; integration 6 / 59; `npm run build` compiled.
+
+`npm run test:all` reports 30 failures, and they are **not** this branch's: every project passes
+run on its own, and the failures are Prisma errors inside `insertServerPet`, which this diff
+never touches. Whether `test:all` is green on master was not checked.
+
+## Explicitly NOT done
+
+- **No migration.** The feature writes `birthDate` and `birthDateIsEstimate` to columns
+  production does not have. Writing the migration was left alone deliberately: a peer session
+  holds that work, and the owner applies it.
+- **The estimate flag is still never rendered.** Nothing outside the admin form reads
+  `birthDateIsEstimate`, so an operator who ticks the box sees no effect anywhere. Showing it
+  needs Malay copy as well as English, which is a decision, not a mechanical change.
+- **The Age Stage select still accepts a choice it discards.** The safe fix is to render the
+  derived band as read-only and drop `ageCategory` from the form schema — larger than this PR.
+- **The two new date rules were not counted against live rows.** Born-at-the-shelter animals
+  legitimately have a birthday after intake, and `intakeDate` has never been shape-constrained
+  in the database. Both need a query nobody here can run.
+- **No copy change to the Age helper text.** It reads "Computed automatically from birth date",
+  which is true of the common path and silent about the reverse derivation. Left as-is rather
+  than grown into a paragraph.
 # A pet the database lacks stops being served from the fixture
 
 **Branch:** `worktree-pet-missing-row-is-an-answer` · opened 2026-09-22 · ROUTINE lane
