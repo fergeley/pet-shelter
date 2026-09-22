@@ -82,6 +82,185 @@ never touches. Whether `test:all` is green on master was not checked.
 - **No copy change to the Age helper text.** It reads "Computed automatically from birth date",
   which is true of the common path and silent about the reverse derivation. Left as-is rather
   than grown into a paragraph.
+# A pet the database lacks stops being served from the fixture
+
+**Branch:** `worktree-pet-missing-row-is-an-answer` · opened 2026-09-22 · ROUTINE lane
+**Closes:** `tasks/open/pet-profile-falls-back-to-a-fixture-the-database-lacks.md`
+
+## Items
+
+- [x] Audit the brief against `origin/master` 8d36ace before writing anything. Four of its five
+      steps needed revising; step 3 was already satisfied and step 4's test shape would not have
+      discriminated.
+- [x] `findServerPetByIdAsync` returns `null` after a successful read that found nothing. One
+      line; the `catch` and the no-database path are untouched.
+- [x] `tests/integration/petMissingRowIsAnAnswer.test.ts`, 10 tests, every one on `pet-001`.
+- [x] Probe: pre-fix reader put back, suite run, 3 failures observed, fix restored.
+- [x] Three stale comments repaired — `prismaDouble.ts`, `faqEmptyPublishSet.test.ts`,
+      `pets.ts` — all describing a `length > 0` trigger that no reader has used for weeks.
+- [x] Ledger: decision entry; `pets-json-fallback-empty-means-outage.md` narrowed to the two
+      readers that remain; one lesson.
+- [x] Collision check against the nine live worktrees. `worktree-adoption-submit-guards` is
+      closing `submit-application-checks-a-fixture-and-no-status.md` right now; a note written
+      there was reverted rather than shipped into a modify/delete conflict.
+- [x] Gates: `typecheck`, `test:integration` (70), `test:components` (170), `lint` (0 errors),
+      `docs:check`. `npm test` is reported separately — see Review. CI is the authority for the
+      two that cannot run here: `Strict persistence against Postgres` and `Playwright golden
+      paths` both passed on PR #89.
+- [x] `/code-review high` on `origin/master...HEAD`: 4 findings, all verified by probe, 3 fixed
+      in `06393d3` and the fourth refiled as an open entry. Second review round on that fix
+      commit, per the standing order that a fix round is unreviewed code.
+- [x] Merged `origin/master` after #88 landed mid-session. The merge-check was clean, and the
+      clean result was not taken as the answer: `tasks/todo.md` is the one file both sides
+      touched, and it was read afterwards to confirm neither stream was dropped — `git diff
+      origin/master -- tasks/todo.md` shows no removed lines, so this copy is a superset of
+      theirs. #88 touches no `prisma/` path, so no `db:generate` was needed before re-running
+      the gates.
+
+## Review
+
+The brief asked for five things and four of them were wrong about the repository, which is the
+part worth recording.
+
+**Step 3 — "verify callers return 404/error" — was already true.** `getPetById` has returned
+`null` on a falsy pet since PR #38 and `createPetSponsorshipAction` has returned
+`{success: false}` since it was written. Neither was edited. Editing them would also have
+collided with `codex/sponsorship-contract`, an unmerged branch that rewrites
+`src/actions/sponsorships.ts` wholesale — worth checking for before touching a file, not after.
+
+**Step 4's suggested test would not have failed against the bug.** The brief pointed at
+`softDeleteFiltering.test.ts`, whose own comments already document why: an `itest-` id is absent
+from the fixture mirror too, so the reader returns `null` for it either way. Every test in the
+new suite uses `pet-001`, a real row in `src/data/pets.json`, unarchived there.
+
+**The decision was not actually open.** Both the open entry and `prismaDouble.ts` described
+`getServerPetsAsync` as gating its fallback on `rows.length > 0`; it has not done that since it
+was fixed, and `softDeleteFiltering.test.ts` pins the current behaviour. So the catalogue and the
+profile disagreed about the same table, and the profile was the odd one out — which turns "should
+a missing row fall back?" from a policy question into a consistency defect. That is the whole
+argument for the one-line change, and it was sitting in the repository rather than in the brief.
+
+**Deliberately not done:**
+
+- **`src/actions/sponsorships.ts` untouched.** A genuinely unknown `petId` now gets
+  `SPONSORSHIP_RECORDING_UNCONFIRMED_MESSAGE` — "we could not confirm your pledge" — which invites
+  a retry that can never succeed. It is the wrong message for the case, but it is the right
+  *outcome*, the file is being rewritten on another branch, and a copy change is not this task.
+- **`submitApplication` untouched, and its open entry left alone.** Another session is closing
+  both on `worktree-adoption-submit-guards`, off the same base commit. The two changes compose —
+  their caller switch plus this reader fix — but neither is complete alone: on their branch a
+  fixture id still resolves, because they inherit the pre-fix reader. The paths are disjoint, so
+  the merge will be clean and will prove nothing; whoever lands second runs the other's suite.
+- **The mirror is still rewritten on every public profile view**, so during an outage the
+  catalogue's order follows recent profile views. Carried into the decision entry rather than
+  fixed: it is cosmetic, and the sync is what lets a later outage serve a recently viewed animal.
+- **Tier 3b (`npm run test:db`) not run** — no Postgres on 5432 here, and
+  `tests/integration/db/` has no pet-read coverage, so it could not have exercised this.
+- **`npm run build` not run.** The worktree has its own `npm ci`, so it could have been; it was
+  left out because nothing here touches a route, a component or the Prisma schema, and the build
+  would only re-prove what `tsc --noEmit` already proved. Named rather than implied.
+- **The unit suite was not made to pass, because it does not pass on `master` either.** Five runs
+  in ninety minutes: `1580 passed (1580)`, then `57 failed` on the same tree, then `54 failed`
+  on the main checkout carrying **none** of this branch's changes, then `1819` green across all
+  three projects from a review sub-agent, then `8 failed` after the merge — on a set of files
+  *disjoint* from the earlier failures, one test in each of eight unrelated domains.
+
+  Two measurements pin it as order-dependence rather than breakage, and they point opposite
+  ways: the eight files from the last run pass when run together alone (`8 passed`, `156
+  passed`), and `tests/unit/volunteerForm.test.ts` fails when run alone (`4 failed | 10
+  passed`) on both trees while passing inside the full suite. One group needs the suite, the
+  other needs to avoid it.
+
+  Filed as `tasks/open/unit-suite-is-order-dependent-in-both-directions.md` with all five counts
+  and both repros. Not fixed here: it is not this change's defect and it is its own task. The
+  claim this branch can actually make is the narrow one — every deterministic gate passes, the
+  new suite passes in every run it appeared in, and the gate that is not deterministic is
+  reported as such rather than as a pass.
+
+## Review round
+
+`/code-review high` found four, none touching the fix. Each was checked by probe before being
+accepted, per the standing order:
+
+1. **Sponsorship checkout accepts an archived animal** — confirmed by `grep -n "isArchived"
+   src/actions/sponsorships.ts`, which returns nothing. The settled entry had recorded this and
+   the decision entry replacing it had not carried it, so it would have left the ledger with the
+   file. Refiled to `open/`, where it mirrors to a public issue. Not fixed: it is a caller check,
+   and the caller is being rewritten on `codex/sponsorship-contract`.
+2. **The `getPetById` comment understated its own guard**, saying the exact-id check covers "the
+   no-database path" when the `catch` path reaches the same case-insensitive mirror. Fixed — and
+   pointed at, because this branch's lesson is precisely that comments become the spec.
+3. **`not.toHaveBeenCalled()` depended on test declaration order** — the ledger `vi.fn()` is
+   built once in the module factory and no config clears it. Fixed with `vi.clearAllMocks()`.
+4. **`@/lib/email` was mocked wholesale**, leaving twelve of fourteen exports undefined for the
+   next test that needs one. Fixed with `importOriginal` and a spread.
+
+The reviewer also ran the probe independently and reproduced the same three failures, which is
+the part of its report worth more than the findings.
+
+### Second round, on the fix commit — and it was right to insist
+
+The standing order says a fix round is unreviewed code. It found five more, and this is the part
+of the stream worth reading:
+
+1. **The exposure is still open on the outage path.** `handlePersistenceError` rethrows only
+   under `STRICT_PERSISTENCE`, which nothing outside `vitest.config.mts` and one npm script sets
+   — so in production a transient read failure serves fixture `pet-001` at its exact URL and
+   bills a pledge against it. The decision entry had filed this under "what this deliberately
+   stops serving", as a *virtue*, and not under "not closed by this". The code was right and the
+   claim was wrong, which is the more dangerous of the two. Filed as
+   `tasks/open/an-outage-serves-and-bills-fixture-animals.md`; framing corrected in place.
+2. **Three comments I had just written were factually wrong about other functions** —
+   "the same trigger `getServerPetsAsync` uses" (it has no `isDatabasePersistent()` gate at all),
+   "all three fall back only from their `catch`" (contradicted by a test in the same commit), and
+   the exact-id guard "covers" both mirror routes (it refuses a case-variant and nothing more).
+   This stream's own lesson is about exactly this, and I reintroduced it within the hour. The
+   lesson now says so and carries a stronger rule: a comment naming another symbol is a claim
+   that requires opening that symbol, not recalling it.
+3. **A test pinned the repair shut.** "Leaves the mirror holding the fixture it declined to
+   serve" also asserted that the reader may never evict the denied id — which is the cheapest fix
+   for finding 1. It now asserts a *different* fixture id survives, proving the suite has not
+   simply lost its fixtures without forbidding the improvement.
+4. The wrong checkout message is **newly reachable because of this change**: `if (!pet)` was
+   nearly dead before, and is now the normal answer for a hard-deleted animal, telling supporters
+   to chase a bank reference for a pledge nothing attempted. Recorded on the sponsorship entry.
+
+The probe was re-run after the test edit — same 3 of 10 fail against the pre-fix reader — because
+changing an assertion invalidates the earlier discrimination evidence.
+
+### Third round, before the merge — and it stopped the merge
+
+Run against the whole diff once the PR was open. Five findings; one of them was the reason this
+list insists on a review per fix round.
+
+**The change had silently retired the test guarding `getPetById`'s exact-id check.** That guard
+was pinned by `softDeleteFiltering.test.ts`'s case-variant test, which arranges `findUnique` to
+resolve `null` for `PET-001`. Against the old reader that null reached the case-insensitive
+mirror and the guard refused the result; against the new reader the empty read returns `null`
+first and the guard is never reached. Measured, not argued: deleting `pet.id !== requested` left
+**69 of 69 integration tests green**. Two earlier reviews missed it, and so did I — the line is
+still executed, just never decisive, so nothing flags it. A comment in the same commit said "do
+not delete this guard", which is a note, not a test.
+
+Closed by a new test that reaches the guard the way production still can — no `DATABASE_URL`, and
+a non-strict outage — with a positive control asserting `/pets/pet-001` *does* resolve on the same
+route, so a reader that refused everything could not pass it either. Verified by probe: removing
+the guard now fails that test, where before it failed nothing. Integration is 70, not 69, for
+this reason. Lesson written:
+`tasks/lessons/2026-09-22-a-fix-can-silently-retire-the-test-that-guarded-the-thing-it-did-not-fix.md`.
+
+The other four were narrower and all confirmed: a test of mine whose comment claimed coverage it
+did not provide (`resetServerStore()` reseeds the array it asserts on, so it holds even against a
+reader with no fallback); a `prismaDouble.ts` comment saying the no-database door is unreachable
+under that double when this branch's own test walks through it; a docstring naming one place
+`STRICT_PERSISTENCE` is set where the branch's own ledger entry names two; and the checkout
+rejection being pinned only as `success: false`, which locks in a message that tells supporters to
+chase a bank reference for an animal that never existed. The first three are fixed. The last is
+recorded on the sponsorship entry rather than fixed, because that file is being rewritten
+elsewhere.
+
+Three of the five were, again, prose asserting something about code — the failure this stream
+already wrote a lesson about, found twice more after writing it.
 
 # Sponsor portal production activation — audit, run, close
 

@@ -1,36 +1,39 @@
-# The pet reader cannot tell an empty table from an unreachable one
+# Two readers still cannot tell an empty table from an unreachable one
 
-**Status:** ASSERTED · opened 2026-09-03 · noticed while writing `faqRepository`
+**Status:** ASSERTED · opened 2026-09-03 · narrowed 2026-09-22, the pet and FAQ halves are settled
 
-`getServerPetsAsync` falls back to `src/data/pets.json` on a count, not on an
-error:
+A repository read can fall back to its bundled fixture on a *count* rather than on an *error*:
 
-    const dbPets = await prisma.pet.findMany({ ... });
-    if (dbPets && dbPets.length > 0) { return ...map(mapDbPetToPet); }
+    const rows = await prisma.<model>.findMany({ ... });
+    if (rows && rows.length > 0) { return ...; }
     // falls through to the in-memory fixture
 
-So a successful query returning zero rows serves fixture pets. Whether that is
-right depends on a question nobody has answered: **can this table legitimately
-be empty?** For FAQs the answer was yes — staff unpublishing everything is a
-supported action — and the same shape was a real defect there, fixed in PR #13
-and now pinned by `tests/integration/faqEmptyPublishSet.test.ts`
-(`decisions/2026-09-03-empty-faq-table-is-pinned-as-an-answer.md`).
+A successful query returning nothing then serves fixture data. Whether that is right depends on a
+question that has to be answered per reader: **can this table legitimately be empty?**
 
-For pets it is arguable in the other direction. A shelter listing zero animals
-is more plausibly a broken connection than a deliberate state, and showing
-fixture animals may beat showing an empty directory.
+**Answered, for three readers.** All three now treat an empty or absent result as an answer and
+fall back only from their `catch`:
 
-`faqRepository.ts:142` already asserts as much in passing — *"appropriate for a
-catalogue that is never legitimately empty"* — but that is a claim made from the
-neighbouring file by someone who did not check, not a decision by anyone who
-owns the pet path. `petRepository`'s own comment describes the storage strategy
-and is silent on the trigger.
+- FAQs — staff unpublishing everything is a supported action. Fixed in PR #13, pinned by
+  `tests/integration/faqEmptyPublishSet.test.ts`
+  (`decisions/2026-09-03-empty-faq-table-is-pinned-as-an-answer.md`).
+- The pet catalogue, `getServerPetsAsync` — pinned by `tests/integration/softDeleteFiltering.test.ts`,
+  "returns an empty array without falling back to fixtures when the database is merely empty".
+- A single pet, `findServerPetByIdAsync` — the last one holding the old shape, and the one where
+  it was publishing demo animals at their exact URL and taking sponsorship pledges against them.
+  Settled 2026-09-22 by `decisions/2026-09-22-a-pet-the-database-lacks-is-a-missing-pet.md`,
+  pinned by `tests/integration/petMissingRowIsAnAnswer.test.ts`.
 
-Adjacent to `tasks/open/pets-json-fallback-reach-unverified.md`, which asks
-whether the fallback is ever reached in production at all. This entry asks a
-different question: given that it is reached, is the *trigger* correct.
+**Unexamined, and all this entry now asks about:** `getServerApplicationsAsync` and
+`settingsRepository`. Nobody has decided whether an empty result from either is an answer or an
+outage, and neither has a test that would notice the difference. Settings in particular may want
+the opposite answer from the pet readers — a missing settings row plausibly *should* fall back to
+a shipped default — which is the reason this is a per-reader question and not a house rule.
 
-`getServerApplicationsAsync` and `settingsRepository` are worth the same read.
+Adjacent to `tasks/open/pets-json-fallback-reach-unverified.md`, which asks whether the fallback
+is ever reached in production at all. This entry asks a different question: given that it is
+reached, is the *trigger* correct.
 
-**Settles when:** someone decides, per reader, whether an empty result is an
-answer or an outage — and the chosen one is written down where the guard is.
+**Settles when:** someone decides, for `getServerApplicationsAsync` and `settingsRepository`,
+whether an empty result is an answer or an outage — and the chosen one is written down where the
+guard is, with a test that fails if the trigger is changed back.
