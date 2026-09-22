@@ -279,7 +279,18 @@ does not report nullability.
   `eaca046` (2026-09-14), a 35-file docs move whose message cites test runs and no database
   observation. It cites no measurement and is contradicted by three `migrate diff` runs. Treat it
   as unsettled until the `/pets` probe above is taken.
-- `tasks/open/pets-json-fallback-empty-means-outage.md` quotes a count-based fallback
-  (`if (dbPets && dbPets.length > 0)`) that no longer exists; the current reader falls back only on
-  a thrown error. Under today's code a missing column is exactly the trigger, which is a stronger
-  version of the question that entry asks.
+- `tasks/open/pets-json-fallback-empty-means-outage.md` was narrowed on 2026-09-22 by #89 and its
+  pet half is settled: an empty result is now an answer, and the reader falls back only on a
+  thrown error. That is what makes the missing column the live trigger rather than a hypothetical
+  one — under today's code the *only* way the catalogue serves fixtures is a throw, and a column
+  the client selects and the database lacks is exactly that.
+
+**Corroborated independently on 2026-09-22 by #89's own review**, which opened
+`tasks/open/an-outage-serves-and-bills-fixture-animals.md`: `handlePersistenceError` rethrows only
+under `STRICT_PERSISTENCE`, and that flag is set in `package.json`'s `test:integration` script and
+`vitest.config.mts` and nowhere a deployment sets it. That entry reaches the same conclusion about
+the swallow from the by-id path, and adds what it costs — a sponsorship pledge recorded against a
+fixture animal. It is also marked ASSERTED for the same reason this section is: nobody has
+provoked the outage against a running instance. Two sessions reasoning to the same place from
+different code paths is not a measurement, and the `/pets` probe above is still the thing that
+would settle it.
