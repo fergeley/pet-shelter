@@ -75,6 +75,20 @@ whose form fixtures still supplied `age`/`ageCategory`, and nowhere in `src/`.
   control, so a screen reader announced "Age Stage" attached to nothing and the computed age with
   no name. The label carries an `id` and the readout an `aria-labelledby`.
 
+A second round, on the fix commits, found the birth-date rule had a hole on the path it was
+written to protect. It was purely relative, and `intakeDate` is only `z.string().min(4)` — so
+`intakeDate: "2026"` failed the shape test, skipped the check entirely, and let any birthday
+through. `createPet({ birthDate: "2099-01-01" })` then rendered as a plausible "1 month", because
+`computeAgeInMonths` clamps a negative age to zero: exactly the failure the rule exists to stop.
+There is now an absolute bound as well, which depends on no other field.
+
+**`intakeDate` was deliberately not tightened to `isoDateSchema`.** Its stored values in
+production are unknown, every edit re-validates the whole form, and a stricter rule would strand
+any record whose intake date is not already ISO — the same trap as the `max` binding above, which
+is the second time this shape has come up on this branch. The bound is compared against *tomorrow*
+in UTC rather than today, so an animal born this morning in Kuala Lumpur is not refused because
+UTC has not caught up.
+
 The same review noted that `birthDateIsEstimate` is stored end to end and read by nothing —
 filed as `tasks/open/birth-date-estimate-flag-is-stored-but-never-shown.md` rather than fixed,
 because displaying it touches seven components and needs a Malay string for every English one,

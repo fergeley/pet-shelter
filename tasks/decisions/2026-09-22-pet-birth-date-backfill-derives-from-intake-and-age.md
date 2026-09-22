@@ -151,6 +151,24 @@ This is the second time on this branch that running the file beat reading it. Th
 defects came from an adversarial comparison that executed both candidate migrations; this one from
 a review that did the same. No amount of re-reading the SQL produced any of the three.
 
+## A fourth: the archive carried the date and dropped the flag
+
+A second review round — of the fix commits, because a fix round is unreviewed code — found that
+the archive recorded `derivedBirthDate` and not `birthDateIsEstimate`. So an animal created after
+the conversion with a *known* birthday, which is the only reason the form's checkbox exists, was
+archived with its date alone; `rollback.sql` then dropped the column, and re-applying stamped
+`true` over every restored row. A known birthday silently became an estimate, while
+`rollback.sql`'s own header said "Nothing is lost in either direction".
+
+The rehearsal could not have caught it: its round-trip check asserted only that the *date*
+survived. The archive now carries the flag, the backfill reads it back instead of hardcoding
+`true`, and the round-trip check asserts both. **Verified by mutation** — restoring the hardcoded
+`true` fails exactly that one check and nothing else, so the assertion discriminates rather than
+merely passing.
+
+Four defects on this branch, all found by executing the SQL, none by reading it. The pattern is
+strong enough to be the branch's main lesson.
+
 **Not rehearsed:** production's actual rows, and any view or constraint there referencing `age`.
 Either aborts the transaction rather than damaging anything.
 
