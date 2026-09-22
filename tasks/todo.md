@@ -672,3 +672,82 @@ GitHub rather than in a test.
 CI for `102763d` shows **cancelled**, not failed: Playwright, static analysis and strict
 persistence passed, and the unit job was still running when `a6d1007` superseded it, which is what
 `cancel-in-progress` in `ci.yml` is for. The same tree passed every job on this branch beforehand.
+
+# Home page defects — hero dead mounts, dead anchors, Malay copy (#77, #78, #80)
+
+**Branch:** `worktree-home-page-defects-77-78-80` · opened 2026-09-22 · ROUTINE lane
+**Base:** `origin/master` at `8d36ace`
+
+> Appended at the tail rather than prepended, on the instruction in the prompt that opened this
+> stream: concurrent branches all insert at the top of this file, and two insertions at one line
+> conflict — which costs a PR its whole CI run. The HTML comment at the top of this file still says
+> to prepend. Those two instructions disagree; this is the contradiction, recorded rather than
+> silently resolved. Whoever splits this file per `tasks/README.md` should retire one of them.
+
+## What landed
+
+Three commits, one per defect, each carrying its own tests and deleting its own `tasks/open/` entry.
+
+- `f58991a` **#77** — `Hero` dropped `PetMatchQuiz` and `SponsorshipModal`, which it mounted with
+  `open={false}` and could never open. `tests/components/heroDialogMounts.test.tsx`.
+- `f6e1b3b` **#80** — `HomeProcessSection` remounted on `/`; `HomeCommunitySection` and
+  `HomeGalleryHeader` deleted; `/#support` repointed to `/get-involved#volunteer`; the impossible
+  `pathname === "/#how-it-works"` comparison dropped. `tests/unit/homeAnchors.test.ts`.
+- `bce4c16` **#78** — the hero `<h1>` and image `alt`, the bulletin feed's public chrome, and the
+  three literals `page.tsx` rendered itself now switch on `isMs`.
+  `tests/components/homeMalay.test.tsx`.
+
+Reasoning is in three `tasks/decisions/` entries dated 2026-09-22, not repeated here.
+
+## Review — what was deliberately not done
+
+**The bulletin admin chrome stays English.** Seven strings behind `isAdminMode`. The entry that
+owns that editor — `bulletins-are-a-per-browser-demo-anyone-can-edit.md` — settles by deleting it,
+so translating it commissions Malay for copy that entry removes. `#78`'s settle condition allows a
+row to be accepted as intentionally English if the acceptance is written down; it is.
+
+**`common.loading` was not reused** for the gallery's "Loading rescue animals…", though the entry
+named it as the nearest existing key. It would have narrowed the English from a specific label to
+"Loading…" — a visible regression on the English site to fix a Malay bug. The key stays unused.
+
+**`<html lang>` is still hardcoded `"en"`** in `layout.tsx`, site-wide, so every page's served HTML
+is English until hydration. Translating the `<h1>` makes that mismatch sharper, not milder. Out of
+scope and stated in the PR; it needs a decision about whether `/` gives up ISR, which this work
+deliberately did not.
+
+**`/pets` and `/bulletins` still pass English `title` props to `BulletinFeed`.** The prop still
+works and a test pins that it does. Those pages are outside `#78`'s inventory and have other
+untranslated chrome of their own.
+
+**`#adopt`, `#our-work` and `#mission` still have no `scroll-mt`**, though the sticky header means
+an anchor lands under it. Nothing links to them, so nothing scrolls to them. Only `#how-it-works`
+got the offset, because after this change it is the only id on `/` that anything links to.
+
+**`hero.quizBtn` and `hero.sponsorBtn` were left in the dictionary**, now unused, along with the
+rest of the dead `hero.*` namespace. They are the human-authored labels a FE-02 restore would need;
+deleting them would throw away Malay that a restore would have to re-commission.
+
+**The parallel #77 work in the shared checkout was not touched.** At 00:50 an unidentified session
+edited `src/components/layout/Hero.tsx` and wrote
+`tasks/decisions/2026-09-22-hero-removes-dead-dialog-mounts.md` in `D:/Dev/Repos/pet-shelter` on
+`master`, uncommitted. It reaches the same conclusion as `f58991a` by partly wrong reasoning (see
+the `toContain` lesson). It is someone's in-flight work and the index there is shared, so it was
+left exactly as found. **Whoever owns it should drop it before this merges.**
+
+## Two things found that were not the task
+
+- `tests/components/home.test.tsx:153` does not pin the hero layout the way the brief and a
+  parallel decision file both claimed. `toContain` is not exhaustive and modal triggers are not
+  links. Written up as a lesson; the decision it was cited for was still correct.
+- The write-path drift log recorded **nothing** for this session and named a different session in
+  the only state file it touched, so close-out step 2 could not be performed as written. Filed as
+  `tasks/open/drift-log-recorded-nothing-for-a-whole-session.md` with the observations separated
+  from the inferred cause.
+
+## Verification
+
+`npm run check` (0 errors, 12 pre-existing warnings, one fewer than at `8d36ace`); unit 1582,
+components 188, integration 59; `npm run build` compiled, and `/` still reports `○ (Static) 5m` —
+ISR intact, which was `#78`'s binding constraint. Each new suite was run against the unfixed tree
+first and observed failing: 1 of 1 for `#77`, both cases naming all four broken links for `#80`,
+12 of 17 for `#78`.
