@@ -166,13 +166,34 @@ export function findServerPetById(id: string): Pet | null {
 /**
  * Marks the cached pet adopted and returns it, or null when no pet matches.
  *
+ * **The id is tried against the whole array before the name is tried at all.**
+ * It used to be one predicate — `p.id === petId || p.name === petName` — and
+ * `find` walks in order, so a *name* match on an earlier entry beat the exact
+ * *id* match on a later one. Two shelter animals sharing a name was enough.
+ *
+ * That mattered because the order is publicly influenceable:
+ * `findServerPetByIdAsync` moves every animal it reads to the head of this
+ * array, and that read sits behind an anonymous profile GET and an
+ * unauthenticated adoption POST. So a visitor could choose which of two
+ * same-named animals `atomicUpdateApplicationStatus` marks on approval — and
+ * the caller writes the returned id into the `PET_STATUS_TRANSITION_ADOPTED`
+ * audit row, making it a wrong permanent record rather than a stale cache.
+ * Pinned by `tests/integration/approvalMarksTheAnimalItAsksFor.test.ts`;
+ * settled in `tasks/decisions/2026-09-22-an-approval-marks-the-id-it-asks-for.md`.
+ *
+ * The name fallback stays: applications predating the `petId` column reach here
+ * with an empty string, and the name is the only identifier they carry. It is
+ * now what it always read as — a fallback — rather than a competing match.
+ *
  * Replace-on-write: the mirror array is never mutated in place, so concurrent
  * readers never observe a partially-updated entry.
  */
 export function markCachedPetAdopted(petId: string, petName: string): Pet | null {
-  const target = serverPets.find(
-    (p) => p.id === petId || p.name.toLowerCase() === petName.toLowerCase()
-  );
+  // Name comparison left exactly as it was — `toLowerCase`, no trim. Widening it is a separate
+  // question from which identifier wins, and this change is only about the latter.
+  const target =
+    (petId ? serverPets.find((p) => p.id === petId) : undefined) ??
+    serverPets.find((p) => p.name.toLowerCase() === petName.toLowerCase());
   if (!target) return null;
   const adopted = { ...target, status: "Adopted" as const };
   serverPets = serverPets.map((p) => (p.id === target.id ? adopted : p));

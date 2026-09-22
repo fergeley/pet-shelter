@@ -48,6 +48,27 @@ precedent, `grep` the function's name across `src/`, `tests/` and `tasks/` and f
 copy in the same commit — the same "once two copies have diverged, fix both" that `AGENTS.md`
 applies to code.
 
+## A third time, and the rule above would not have caught it
+
+The same day, the decision entry for that change called a side effect "cosmetic": an anonymous GET
+reorders the shared `serverPets` mirror. A reviewer on a neighbouring branch then found that
+`markCachedPetAdopted` reads that order — taking the first entry matching id *or* name — so an
+approval could mark the wrong same-named animal and write *its* id into a
+`PET_STATUS_TRANSITION_ADOPTED` audit row. Not cosmetic: a wrong permanent record, with the order
+chosen by an unauthenticated caller. Settled in
+`tasks/decisions/2026-09-22-an-approval-marks-the-id-it-asks-for.md`.
+
+"Cosmetic" was an assessment of *consequence*, not a claim about a named symbol, so "open the
+symbol you name" does not fire on it. Nothing was named. The question it silently answered was
+**"who else reads this?"**, and the honest answer needed `grep serverPets`, which nobody ran —
+the claim was reasoned from what the reordering does to catalogue display, and generalised.
+
+**Rule:** before calling a side effect on shared mutable state cosmetic, grep for every reader of
+that state and name them. A side effect is only as cosmetic as its least careful consumer, and the
+consumer that makes it serious is rarely the one you were thinking about. The same applies to
+"harmless", "internal only" and "cache only" — each is a claim about the whole set of readers, and
+the set is a `grep`, not a recollection.
+
 **And treat a comment that names another symbol as a claim requiring a read, not a recollection.**
 Before writing "the same as X" or "X does Y", open X. If the sentence survives, keep it; if
 opening X is not worth it, the sentence is not worth writing — delete it rather than ship an
