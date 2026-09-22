@@ -84,12 +84,17 @@
 --     is not a real calendar date, aborts the file naming that row's id and both values. The
 --     column's '2024-01-01' default is never allowed to stand as an answer.
 --   * Implausible ages abort too: over 60 years or 720 months is a typo or junk, not an animal.
---   * Safe to re-run. A `pets` that already has `birthDate` is left completely alone -- this
---     file will not overwrite a date a human has since corrected through the admin form. The
---     two DROP NOT NULLs are no-ops the second time.
+--   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
+--     this file will not overwrite a date a human has since corrected through the admin form.
+--     The two DROP NOT NULLs are no-ops the second time. A table carrying only one of the pair
+--     is refused rather than treated as done: the client selects both, so one without the other
+--     is still broken, and which of exact-or-estimate the stored dates are is not knowable here.
 --   * Refuses rather than invents: if `birthDate` is absent AND `age` is absent, there is
 --     nothing to derive from and the file aborts instead of defaulting every row.
---   * Takes the advisory lock the other manual migrations take.
+--   * The advisory lock serialises this against the other manual migrations only when the file
+--     is run as one transaction. Run statement by statement, `pg_advisory_xact_lock` is its own
+--     transaction and releases at once -- the same caveat 20260917_status_enums carries. The
+--     per-block `lock_timeout` and the all-or-nothing DO block do not depend on it.
 --   * ADD COLUMN with a constant default does not rewrite the table on PostgreSQL 11+. The
 --     UPDATE and the two DROP NOT NULLs do take an ACCESS EXCLUSIVE lock; this table holds tens
 --     of rows, so expect milliseconds. If the lock is not granted within 5 seconds it gives up
@@ -151,7 +156,7 @@
 -- "PetStatus" as the owner applied on 2026-09-18, `intakeDate` as text, and every other scalar
 -- master's Pet model declares, so a Prisma select differs from it in exactly the two columns.
 --
--- Forty-nine checks, all passing. Forty-two at the SQL level and seven driving master's own
+-- Fifty-one checks, all passing. Forty-four at the SQL level and seven driving master's own
 -- generated Prisma client. They are listed in
 -- tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md. In summary:
 --   * The ten src/data/pets.json animals backfill to the exact `birthDate` that file carries,
@@ -182,6 +187,7 @@ DECLARE
   has_age          boolean;
   has_age_category boolean;
   has_birth_date   boolean;
+  has_estimate     boolean;
   offenders        text;
   clamped          text;
   updated          integer;
@@ -198,17 +204,30 @@ BEGIN
     RAISE EXCEPTION 'public.pets does not exist';
   END IF;
 
-  SELECT count(*) FILTER (WHERE column_name = 'age')         > 0,
-         count(*) FILTER (WHERE column_name = 'ageCategory') > 0,
-         count(*) FILTER (WHERE column_name = 'birthDate')   > 0
-    INTO has_age, has_age_category, has_birth_date
+  SELECT count(*) FILTER (WHERE column_name = 'age')                 > 0,
+         count(*) FILTER (WHERE column_name = 'ageCategory')         > 0,
+         count(*) FILTER (WHERE column_name = 'birthDate')           > 0,
+         count(*) FILTER (WHERE column_name = 'birthDateIsEstimate') > 0
+    INTO has_age, has_age_category, has_birth_date, has_estimate
     FROM information_schema.columns
    WHERE table_schema = 'public' AND table_name = 'pets';
 
+  -- "Already migrated" is decided on both columns, not just `birthDate`. The client selects
+  -- every scalar, so one of the pair present without the other leaves it failing on the other
+  -- one -- and gating the whole backfill on `birthDate` alone would make this file report
+  -- "nothing to do" against a table that is still broken. Refuse instead: adding the missing
+  -- column here would have to guess whether the dates already stored are exact or estimates.
+  IF has_birth_date <> has_estimate THEN
+    RAISE EXCEPTION
+      'pets has "%" but not "%". This file will not add the missing one: whether the dates already stored are exact or estimates is not something it can know. Add it by hand with the default the schema declares, or drop the stray column and re-run this file.',
+      CASE WHEN has_birth_date THEN 'birthDate' ELSE 'birthDateIsEstimate' END,
+      CASE WHEN has_birth_date THEN 'birthDateIsEstimate' ELSE 'birthDate' END;
+  END IF;
+
   IF has_birth_date THEN
-    -- Already migrated, or a human has since corrected dates through the admin form. Either
-    -- way this file has no business rewriting them.
-    RAISE NOTICE 'pets."birthDate" already exists; no column added and no value rewritten.';
+    -- Both columns are present: already migrated, or a human has since corrected dates through
+    -- the admin form. Either way this file has no business rewriting them.
+    RAISE NOTICE 'pets already has "birthDate" and "birthDateIsEstimate"; no column added and no value rewritten.';
 
   ELSIF NOT has_age THEN
     RAISE EXCEPTION

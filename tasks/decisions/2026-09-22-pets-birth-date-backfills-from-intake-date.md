@@ -71,7 +71,7 @@ not what the app would have computed.
 
 ## What was rehearsed
 
-Forty-nine checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
+Fifty-one checks, all passing, on a throwaway embedded PostgreSQL 18.4 started by
 `prisma/migrations/manual/20260922_pets_birth_date/rehearse.mjs` with its connection string inline
 — never against production, and resolving nothing from `.env.local` or `prisma.config.ts`. **The
 script is kept beside the migration**, which the `20260917_status_enums` rehearsal did not do: its
@@ -99,6 +99,9 @@ able to re-take the measurement.
 - **H1–H5** under a foreign `search_path` the columns still land on `public.pets` and nothing is
   created elsewhere; under a held ACCESS EXCLUSIVE lock it gives up at 5 s having committed
   nothing, and finishes on a re-run.
+- **K1–K2** a table carrying only one of `birthDate` / `birthDateIsEstimate` is refused rather
+  than reported as already migrated -- the client selects both, so half the pair is still broken,
+  and which of exact-or-estimate the stored dates are is not knowable from here.
 - **I1** the TEMP scratch table exists nowhere afterwards.
 - **J1–J2** the pre-check query printed in the header — the thing the owner actually runs first —
   returns the right verdict for each row and changes nothing.

@@ -27,7 +27,7 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 49 checks on a throwaway embedded PostgreSQL 18.4, all passing,
+- [x] `rehearse.mjs` beside it — 51 checks on a throwaway embedded PostgreSQL 18.4, all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
 - [x] `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md` — the backfill

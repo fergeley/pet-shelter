@@ -1,4 +1,4 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 49 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. 51 checks.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -16,7 +16,7 @@
 // Set REHEARSAL_PORT to move it off 55433 if that is taken.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped and reported as skipped, and the other forty-two still run.
+// they are skipped and reported as skipped, and the other forty-four still run.
 
 import { readFileSync, mkdtempSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -378,6 +378,30 @@ for (const [name, rows, expect] of REFUSALS) {
   const after = await c.query(`SELECT "birthDate" FROM "public"."pets" WHERE "id"=$1`, [FIXTURES[0][0]]);
   check("H5 re-running once the lock is free finishes the job", after.rows[0].birthDate === FIXTURES[0][3]);
   await runner.end();
+}
+
+// ------------------- K. half of the pair present is refused, not mistaken for "already done"
+{
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2024-01-01'`);
+  const r = await expectFail(c, MIGRATION);
+  const cols = await columns(c);
+  check(
+    "K1 birthDate without birthDateIsEstimate is refused, not reported as already migrated",
+    r.failed && /birthDateIsEstimate/.test(r.message) && !cols.birthDateIsEstimate,
+    r.failed ? r.message.split("\n")[0].slice(0, 110) : "it did not abort"
+  );
+}
+{
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT true`);
+  const r = await expectFail(c, MIGRATION);
+  const cols = await columns(c);
+  check(
+    "K2 birthDateIsEstimate without birthDate is refused, and no backfill runs",
+    r.failed && /birthDate/.test(r.message) && !cols.birthDate,
+    r.failed ? r.message.split("\n")[0].slice(0, 110) : "it did not abort"
+  );
 }
 
 // ---------------------------------- J. the header's own pre-check query, as the owner runs it
