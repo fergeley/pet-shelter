@@ -356,8 +356,15 @@ export async function settleDonationPledge(
 ): Promise<SettleGiftOutcome> {
   const when = options?.now ?? new Date();
 
+  // Above the mode branch, not inside it. `transitionPending` asserts too, but on
+  // the Postgres path it runs *inside* `withReceiptTransaction`, whose catch-all
+  // turns every non-unique-violation into `ReceiptIssuanceError` — so a
+  // programming error would reach the coordinator as "we could not confirm
+  // whether reconciliation completed", an outage message for a bad argument, and
+  // the two storage modes would disagree about the type of the failure.
+  assertGiftRefString(pledgeRef);
+
   if (!isLedgerPersistent()) {
-    assertGiftRefString(pledgeRef);
     const index = memoryPledges.findIndex((row) => row.pledgeRef === pledgeRef);
     if (index < 0) return { status: "not_found" };
 

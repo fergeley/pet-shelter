@@ -479,9 +479,10 @@ model Donation {
 ///
 /// Until 2026-09-22 the general-donation form allocated an `HFS-DON-*` number the
 /// moment it was submitted, so anyone could mint a Section 44(6) tax document from
-/// a public form without sending money. `tasks/open/general-donations-issue-
-/// receipts-before-payment-is-reconciled.md` records the defect; this table is the
-/// fix. Reconciliation is the issuance boundary, exactly as for a sponsorship.
+/// a public form without sending money. The defect and the fix are recorded in
+/// `tasks/decisions/2026-09-22-general-gifts-become-pending-until-reconciled.md`,
+/// which settled the open entry that reported it. Reconciliation is the issuance
+/// boundary, exactly as for a sponsorship.
 ///
 /// ## Why the pending state could not live on `Donation`
 ///

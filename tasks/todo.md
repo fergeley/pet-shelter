@@ -83,6 +83,28 @@ branch hit it and failed on leftover rows - 65 tests across 16 files, reproduced
 pristine main checkout at `b44f857` before concluding anything. It had stopped by the final run,
 which is green. Worth knowing before anyone reads a red unit run here as a regression.
 
+### Code review, and the fix round
+
+`/code-review high` over the whole branch diff returned six findings, each verified by probe
+before it was accepted. One was medium and the rest low; all six are fixed:
+
+1. `assertGiftRefString` ran inside `withReceiptTransaction` on the Postgres path, so a malformed
+   reference came back as `ReceiptIssuanceError` rather than `TypeError` — an outage message for a
+   programming error, and a disagreement between the two storage modes. Hoisted above the mode
+   branch. `tests/unit/donationPledgeRefGuard.test.ts` is the new guard; it was confirmed to fail
+   against the unfixed code before being kept.
+2. The LHDN CSV fallback fills "Donor Email" from `entry.actorEmail`, which is now the coordinator
+   rather than the donor. `exportCsv.ts` prefers `details.donorEmail` and keeps `actorEmail` as the
+   fallback for older rows.
+3. The migration's advisory lock used `4210771004` while every sibling uses `4210771001`, so its
+   own comment about queueing against them was false. Aligned.
+4. `isGiftRef` was dead and its docstring claimed a boundary it did not enforce. Wired into
+   `giftRefSchema`, so a receipt number pasted into the queue is rejected on shape.
+5. `useSponsorshipStore`'s contract still said `submitDonationPledgeAction` returns a
+   `DonationReceipt`. Corrected, including why the hook is kept rather than deleted.
+6. `prisma/schema.prisma` and the boundary test cited the open entry this branch deletes. Both now
+   point at the decision file.
+
 ### Deliberately not done
 
 - **No payment webhook.** The open entry offered it as the other fork. There is no processor

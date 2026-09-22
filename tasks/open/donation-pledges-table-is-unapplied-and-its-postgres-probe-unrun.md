@@ -56,6 +56,16 @@ is a close mirror of `sponsorshipLedger.ts`, whose equivalent branch is covered,
 cross-reference each other so the pair stays visibly a pair — but that is an argument from
 similarity, not a measurement.
 
+**This is not hypothetical.** A code review of the branch found one defect that only this tier
+would have caught: `assertGiftRefString` ran inside `transitionPending`, which on the Postgres
+path is inside `withReceiptTransaction`, whose catch-all rewrites every non-unique-violation as
+`ReceiptIssuanceError`. A malformed reference therefore failed as a `TypeError` in memory mode and
+as "we could not confirm whether reconciliation completed" against Postgres — an outage message
+for a programming error. It is fixed (the assertion is hoisted above the mode branch) and now
+guarded by `tests/unit/donationPledgeRefGuard.test.ts`, which mocks Prisma so it can assert the
+persistent branch without a server. One divergence between the two branches was found by reading;
+assume others are reachable only by running the tier.
+
 ## Settles when
 
 Someone with a local PostgreSQL runs the probe green, and the owner applies the migration:

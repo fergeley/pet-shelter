@@ -19,7 +19,7 @@
 
 BEGIN;
 
-SELECT pg_advisory_xact_lock(4210771004);
+SELECT pg_advisory_xact_lock(4210771001);
 
 DROP INDEX IF EXISTS "donation_pledges_donorEmail_idx";
 DROP INDEX IF EXISTS "donation_pledges_status_createdAt_idx";

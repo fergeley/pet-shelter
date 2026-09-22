@@ -8,9 +8,10 @@ import { ROLES } from "@/lib/security/permissions";
  * 44(6) receipt the moment the public donation form was submitted. Nothing had
  * observed a bank statement: the donor was shown a DuitNow QR and told us they
  * paid. Anyone could mint a filable tax document from a public form without
- * sending a cent. `tasks/open/general-donations-issue-receipts-before-payment-is-
- * reconciled.md` (issue #56) records the defect, and its "settles when" clause is
- * what this file asserts:
+ * sending a cent. It was settled by
+ * `tasks/decisions/2026-09-22-general-gifts-become-pending-until-reconciled.md`,
+ * and the "settles when" clause of the open entry it closed (issue #56) is what
+ * this file asserts:
  *
  *   "no official receipt is allocated before that boundary confirms the money,
  *    while duplicate confirmations remain idempotent."

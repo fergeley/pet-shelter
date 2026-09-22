@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isGiftRef } from "@/lib/domain/donationPledge";
 
 export const donationTierEnum = z.enum([
   "kibble",
@@ -105,7 +106,12 @@ export const giftRefSchema = z
   .string({ message: "A pledge reference must be text" })
   .trim()
   .min(1, "A pledge reference is required")
-  .max(64, "That is not a pledge reference");
+  .max(64, "That is not a pledge reference")
+  // Stricter than the sponsorship twin, which checks only length. This series has
+  // exactly one producer, `generateGiftRef`, so the shape is knowable — and the
+  // check is what stops a receipt number pasted into the queue's reference field
+  // reaching Prisma and coming back as an unhelpful "not found".
+  .refine(isGiftRef, "That is not a pledge reference");
 
 /**
  * What the donor sees the moment the donation form completes.

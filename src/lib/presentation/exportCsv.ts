@@ -249,7 +249,13 @@ export function generateReceiptsCsvString(
           (d.receiptNumber as string) || entry.entityId || "N/A",
           formattedDate,
           (d.donorName as string) || "Anonymous Donor",
-          entry.actorEmail || (d.donorEmail as string) || "",
+          // The donor's own email first, the actor's only as a fallback. These two
+          // were the same value while a donation was audited by the donor who made
+          // it. Since 2026-09-22 a general gift's `DONATION_RECEIVED` row is written
+          // by the coordinator who confirmed the transfer, so preferring `actorEmail`
+          // would print staff addresses in the "Donor Email" column of a tax export.
+          // Older rows carry no `details.donorEmail` and still resolve to `actorEmail`.
+          (d.donorEmail as string) || entry.actorEmail || "",
           (d.donorPhone as string) || "",
           (d.taxIdOrIc as string) || "",
           formattedAmount,

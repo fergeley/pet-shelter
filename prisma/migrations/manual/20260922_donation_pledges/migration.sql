@@ -39,7 +39,7 @@
 
 BEGIN;
 
-SELECT pg_advisory_xact_lock(4210771004);
+SELECT pg_advisory_xact_lock(4210771001);
 
 -- A general gift a supporter says they have sent, before anyone has checked.
 -- Distinct from `donations`, which is the append-only issued receipt: a pledge has

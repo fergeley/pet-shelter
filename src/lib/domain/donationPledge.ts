@@ -40,9 +40,12 @@ export function generateGiftRef(now: Date = new Date()): string {
 /**
  * True for a reference this application could have issued for a general gift.
  *
- * Used to reject a malformed reference before it reaches Prisma. It is a shape
- * check, not an existence check: a well-formed reference for no row still comes
- * back "not found".
+ * Enforced at the action boundary by `giftRefSchema` in
+ * `src/lib/validations/donation.ts`, which is what rejects a malformed reference
+ * before it reaches Prisma. A shape check, not an existence check: a well-formed
+ * reference naming no row still comes back "not found". The ledger's own
+ * `assertGiftRefString` is the separate, narrower guard — it defends the `where`
+ * clause against a non-string, which Prisma would read as a filter object.
  */
 export function isGiftRef(value: string): boolean {
   return /^HFS-GFT-\d{8}-\d{6}$/.test(value);
