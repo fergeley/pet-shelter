@@ -1,8 +1,6 @@
 import { Suspense } from "react";
-import Link from "next/link";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Hero } from "@/components/layout/Hero";
-import { buttonVariants } from "@/components/ui/button";
 import { PetGallery } from "@/components/features/pets/PetGallery";
 import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
 import {
@@ -10,6 +8,7 @@ import {
   HomeOurWorkSection,
   HomeQuickActionsSection,
 } from "@/components/layout/HomeSections";
+import { Section } from "@/components/layout/Section";
 import { getPublicPets } from "@/actions/pets";
 
 export default async function HomePage() {
@@ -31,45 +30,33 @@ export default async function HomePage() {
           <BulletinFeed
             targetPage="home"
             title="From the shelter"
-            maxItems={2}
+            subtitle="Rescue updates, clinic notes, and news from the Petaling Jaya sanctuary."
+            layout="carousel"
+            maxItems={4}
           />
         </div>
       </section>
 
       {/* 4. Adoptable & Recovering Pets Gallery Showcase */}
-      <section id="adopt" className="bg-work-ground py-16 sm:py-20">
-        <div className="w-full px-6 sm:px-8 lg:px-12 max-w-7xl mx-auto">
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center py-20 text-muted-foreground">
-                <Loader2 className="size-6 animate-spin mr-2" />
-                <span>Loading rescue animals...</span>
-              </div>
-            }
-          >
-            <PetGallery
-              initialPets={initialPets}
-              featuredOnly
-              showFilters={false}
-              syncUrl={false}
-            />
-          </Suspense>
-
-          {/* Centered View All Animals Button */}
-          <div className="flex justify-center pt-6">
-            <Link
-              href="/pets"
-              className={buttonVariants({
-                variant: "outline",
-                className: "text-sm font-semibold uppercase tracking-wider focus-visible:ring-2 rounded-xl gap-2",
-              })}
-            >
-              View All Animals
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        </div>
-      </section>
+      <Section id="adopt">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-20 text-muted-foreground">
+              <Loader2 className="size-6 animate-spin mr-2" />
+              <span>Loading rescue animals...</span>
+            </div>
+          }
+        >
+          <PetGallery
+            initialPets={initialPets}
+            title="Adoptable Animals"
+            subtitle="Rescued dogs, cats, puppies and kittens waiting for a home right now."
+            featuredOnly
+            showFilters={false}
+            syncUrl={false}
+          />
+        </Suspense>
+      </Section>
 
       {/* 5. Shelter Standards & Veterinary Commitments */}
       <HomeStandardsSection />

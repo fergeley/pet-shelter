@@ -9,7 +9,9 @@ import {
   X,
   Compass,
   HeartHandshake,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 import { Pet } from "@/types/pet";
 import { PetCard } from "./PetCard";
 import { PetDetailDialog } from "./PetDetailDialog";
@@ -19,6 +21,7 @@ import { SponsorshipModal } from "./SponsorshipModal";
 import { Button } from "@/components/ui/button";
 import { usePetGalleryController } from "@/hooks/usePetGalleryController";
 import { useLanguage } from "@/components/providers/LanguageProvider";
+import { SectionHeader } from "@/components/layout/Section";
 import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
 
 /**
@@ -92,19 +95,19 @@ export function PetGallery({
   return (
     <section className="w-full">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mb-6">
-        <div>
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-            {displayTitle}
-          </h2>
-          {displaySubtitle && (
-            <p className="text-base text-muted-foreground mt-1">
-              {displaySubtitle}
-            </p>
-          )}
-        </div>
+      <div className={`flex flex-col sm:flex-row justify-between gap-4 ${featuredOnly ? "mb-12 sm:items-end" : "mb-6 sm:items-baseline"}`}>
+        <SectionHeader title={displayTitle} subtitle={displaySubtitle} />
 
         {/* Actions & Pet Counter */}
+        {featuredOnly ? (
+          <Link
+            href="/pets"
+            className="group inline-flex shrink-0 items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary focus-visible:ring-2 rounded-xl"
+          >
+            {t("home.viewAllPets", "View All Adoptable Pets")}
+            <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        ) : (
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
             size="sm"
@@ -126,10 +129,8 @@ export function PetGallery({
             {t("common.sponsor", "Sponsor")}
           </Button>
 
-          {/* <div className="text-xs font-mono text-muted-foreground font-semibold px-2 py-1 bg-muted rounded-md">
-            {filteredPets.length} / {pets.length} {isMs ? "haiwan" : "animals"}
-          </div> */}
         </div>
+        )}
       </div>
 
       {/* Filter Controls Bar */}
@@ -308,7 +309,7 @@ export function PetGallery({
         </div>
       ) : (
         /* Empty State */
-        <div className="text-center py-12 border border-border bg-muted/20 p-8 space-y-3 rounded-2xl">
+        <div className="text-center py-12 border border-border bg-work-panel p-8 space-y-3 rounded-3xl">
           <div className="mx-auto flex size-12 items-center justify-center bg-muted text-muted-foreground rounded-full">
             <SlidersHorizontal className="size-6" />
           </div>
