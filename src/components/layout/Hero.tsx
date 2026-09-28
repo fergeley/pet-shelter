@@ -6,168 +6,92 @@ import Image from "next/image";
 import {
   Heart,
   ArrowRight,
-  ShieldCheck,
-  Award,
-  Users2,
-  Stethoscope,
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { useLanguage } from "@/components/providers/LanguageProvider";
 
+/**
+ * Placement for the hero cut-outs: three sizes ringing the centred copy, the larger animals
+ * lower and nearer the reader.
+ *
+ * Coordinates are inline styles, not `lg:left-[2%]` classes. Tailwind scanned that class
+ * string and emitted every other utility in it — size, rotate, absolute, block — but not the
+ * arbitrary-percentage insets, so all eight elements landed on the same auto position and
+ * stacked. Inline styles do not depend on the scanner. They are unconditional, which is
+ * harmless: below `lg` these elements are `hidden` and statically positioned, so left/top
+ * apply to nothing.
+ *
+ * These files live in `public/cutouts/` and are caught by the `*.png` rule in `.gitignore`,
+ * so they are present locally and absent from a fresh clone. Replace them with real Hope for
+ * Strays cut-outs, and commit those, before this ships.
+ */
+const CUTOUTS = [
+  { src: "/cutouts/cat-png-17.png", box: "lg:size-52 lg:-rotate-6", pos: { left: "2%", top: "12%" } },
+  { src: "/cutouts/dog-png-2.png", box: "lg:size-60 lg:rotate-3", pos: { left: "12%", bottom: "8%" } },
+  { src: "/cutouts/cat-png-9.png", box: "lg:size-36 lg:rotate-6", pos: { left: "24%", top: "4%" } },
+  { src: "/cutouts/dog-png-14.png", box: "lg:size-40 lg:rotate-2", pos: { left: "1%", top: "48%" } },
+  { src: "/cutouts/dog-png-30.png", box: "lg:size-56 lg:rotate-6", pos: { right: "2%", top: "10%" } },
+  { src: "/cutouts/cat-png-20.png", box: "lg:size-60 lg:-rotate-3", pos: { right: "12%", bottom: "8%" } },
+  { src: "/cutouts/dog-png-18.png", box: "lg:size-36 lg:-rotate-6", pos: { right: "24%", top: "4%" } },
+  { src: "/cutouts/cat-png-28.png", box: "lg:size-40 lg:-rotate-2", pos: { right: "1%", top: "48%" } },
+];
+
 export function Hero() {
   const { isMs } = useLanguage();
 
-  const impactStats = [
-    {
-      metric: "520+",
-      labelEn: "Neutered via TNRM",
-      labelMs: "Dimandulkan (TNRM)",
-      icon: ShieldCheck,
-    },
-    {
-      metric: "380+",
-      labelEn: "Animals Rehabilitated",
-      labelMs: "Haiwan Dipulihkan",
-      icon: Stethoscope,
-    },
-    {
-      metric: "290+",
-      labelEn: "Adopted into Homes",
-      labelMs: "Berjaya Diadopsi",
-      icon: Heart,
-    },
-    {
-      metric: "150+",
-      labelEn: "Active Volunteers",
-      labelMs: "Sukarelawan Aktif",
-      icon: Users2,
-    },
-    {
-      metric: "25+",
-      labelEn: "Partnerships & Vets",
-      labelMs: "Rakan Kolaborasi & Vet",
-      icon: Award,
-    },
-  ];
-
   return (
-    <>
-      <section className="flex min-h-[calc(100dvh-4rem)] items-center bg-work-ground">
-        <div className="w-full px-6 py-12 sm:px-8 sm:py-16 lg:px-12 lg:py-20">
-          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-12 lg:gap-12 max-w-7xl mx-auto">
-            
-            {/* Left Text Content */}
-            <div className="space-y-6 lg:col-span-7">
+    <section className="relative flex min-h-[calc(100dvh-4rem)] items-center overflow-hidden bg-work-ground">
+      {/* Transparent-background cut-outs, not framed photographs: a frame reads as a picture
+          of an animal, the cut-out reads as the animal. No border or radius for the same
+          reason. Eight at three sizes so the ring has depth rather than a flat border,
+          object-contain so silhouettes are never cropped, and a drop shadow that follows the
+          alpha edge instead of a rectangle. */}
+      {CUTOUTS.map((cutout) => (
+        <div
+          key={cutout.src}
+          style={cutout.pos}
+          className={`pointer-events-none hidden lg:absolute lg:block ${cutout.box}`}
+        >
+          <Image src={cutout.src} alt="" width={320} height={320} className="size-full object-contain drop-shadow-xl" />
+        </div>
+      ))}
 
-              <div className="space-y-2">
-                <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.15]">
-                  Coexistence through TNRM & Education
-                </h1>
-              </div>
+      <div className="relative w-full px-6 py-12 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-2xl space-y-6 text-center">
+          <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.15]">
+            Coexistence through TNRM & Education
+          </h1>
 
-              <p className="max-w-2xl text-base sm:text-lg text-muted-foreground leading-relaxed">
-                {isMs
-                  ? <>
-                      <span className="font-bold">Hope for Strays</span> ialah organisasi kebajikan haiwan komuniti yang memberi tumpuan kepada keseimbangan hidup bersama manusia dan haiwan. Kami menjalankan TNRM, pendidikan komuniti, dan pemulihan klinikal demi menstabilkan populasi jalanan dan menambah kesedaran awam.
-                    </>
-                  : <>
-                      <span className="font-bold">Hope for Strays</span> is a community-led animal welfare organisation focused on peaceful coexistence between people and animals. We work through TNRM, public education, and clinical rehabilitation to stabilize stray populations and build lasting community understanding.
-                    </>}
-              </p>
+          <p className="mx-auto text-base sm:text-lg text-muted-foreground leading-relaxed">
+            {isMs
+              ? "Hope for Strays ialah organisasi kebajikan haiwan komuniti yang memberi tumpuan kepada keseimbangan hidup bersama manusia dan haiwan. Kami menjalankan TNRM, pendidikan komuniti, dan pemulihan klinikal."
+              : "Hope for Strays is a community-led animal welfare organisation focused on peaceful coexistence between people and animals. We work through TNRM, public education, and clinical rehabilitation."}
+          </p>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Link
-                  href="/pets"
-                  className={buttonVariants({
-                    size: "lg",
-                    className: "gap-2 px-6 text-sm font-bold tracking-wide rounded-xl shadow-xs focus-visible:ring-2",
-                  })}
-                >
-                  <Heart className="size-4 fill-current" />
-                  {isMs ? "Lihat Haiwan Reskue" : "Meet Our Animals"}
-                  <ArrowRight className="size-4 ml-0.5" />
-                </Link>
-
-                {/* <Link
-                  href="/needs"
-                  className={buttonVariants({
-                    variant: "outline",
-                    size: "lg",
-                    className: "gap-2 px-5 text-sm font-bold tracking-wide rounded-xl",
-                  })}
-                >
-                  <Package className="size-4 text-primary" />
-                  {isMs ? "Keperluan Pemulihan" : "Wishlist Needs"}
-                </Link> */}
-
-                {/* <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => setIsSponsorshipOpen(true)}
-                  className="gap-2 px-5 text-sm font-bold tracking-wide rounded-xl cursor-pointer"
-                >
-                  <HeartHandshake className="size-4 text-care-accent" />
-                  {isMs ? "Taja Haiwan (RM30)" : "Sponsor Care"}
-                </Button> */}
-              </div>
-
-              {/* Sanctuary Hours & Address Banner */}
-              {/* <div className="border-t border-border pt-4 text-xs text-muted-foreground flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <span className="font-bold text-foreground">{isMs ? "Waktu Santuari PJ:" : "Sanctuary Visiting Hours:"} </span>
-                  {isMs ? "Selasa – Ahad, 10:00 PG – 5:00 PTG. Walk-in dialu-alukan." : "Tuesday through Sunday, 10:00 AM – 5:00 PM. Walk-ins welcome."}
-                </div>
-                <div className="font-bold text-foreground">
-                  Petaling Jaya & UM Campus, Selangor
-                </div>
-              </div> */}
-            </div>
-
-            {/* Right Image */}
-            <div className="lg:col-span-5">
-              <div className="relative aspect-4/3 w-full overflow-hidden border border-border bg-muted shadow-md rounded-3xl">
-                <Image
-                  src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1000&q=80"
-                  alt="Rescued shelter animals enjoying sanctuary grounds"
-                  fill
-                  priority
-                  className="object-cover"
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 40vw"
-                />
-              </div>
-            </div>
+          <div className="flex justify-center pt-1">
+            <Link
+              href="/pets"
+              className={buttonVariants({
+                size: "lg",
+                className: "gap-2 px-6 text-sm font-bold tracking-wide rounded-xl shadow-xs focus-visible:ring-2",
+              })}
+            >
+              <Heart className="size-4 fill-current" />
+              {isMs ? "Lihat Haiwan Reskue" : "Meet Our Animals"}
+              <ArrowRight className="size-4 ml-0.5" />
+            </Link>
           </div>
 
-          {/* Impact Showcase Strip (FE-02) */}
-          {/* <div className="max-w-7xl mx-auto mt-20 sm:mt-24">
-            <div className="mb-4">
-              <span className="text-2xs font-bold uppercase tracking-widest text-muted-foreground">
-                {isMs ? "Kerja yang sedang berjalan" : "Work already underway"}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {impactStats.map((stat, idx) => (
-                <div
-                  key={idx}
-                  className="border border-border bg-work-panel p-4 rounded-2xl space-y-1.5 shadow-xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-heading text-2xl sm:text-3xl font-bold tracking-tight text-primary">
-                      {stat.metric}
-                    </span>
-                    <stat.icon className="size-4 text-muted-foreground opacity-60" />
-                  </div>
-                  <p className="text-xs font-semibold text-foreground leading-tight">
-                    {isMs ? stat.labelMs : stat.labelEn}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div> */}
-        </div>
-      </section>
+          {/* Below lg the scatter is meaningless — absolute placement at 375px is a stack with
+              extra steps — so the same cut-outs become an honest row. */}
+          <div className="grid grid-cols-4 gap-3 pt-8 lg:hidden">
+            {CUTOUTS.slice(0, 4).map((cutout) => (
+              <Image key={cutout.src} src={cutout.src} alt="" width={160} height={160} className="aspect-square w-full object-contain" />
+            ))}
+          </div>
 
-    </>
+        </div>
+      </div>
+    </section>
   );
 }

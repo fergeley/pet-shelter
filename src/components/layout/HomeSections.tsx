@@ -95,9 +95,9 @@ export function HomeOurWorkSection() {
       titleEn: "Sanctuary & Rehabilitation",
       titleMs: "Santuari & Rumah Pemulihan",
       descEn:
-        "Animals with severe fractures, chronic mange, or trauma are admitted to our Petaling Jaya Rehabilitation House. Under veterinary supervision, they receive medical care until fully healed.",
+        "Animals with severe fractures, chronic mange, or trauma are admitted to our Rehabilitation House. Under veterinary supervision, they receive medical care until fully healed.",
       descMs:
-        "Haiwan yang cedera parah, menghidap kurap teruk, atau trauma dimasukkan ke Rumah Pemulihan Petaling Jaya kami untuk rawatan rapi dan terapi pemulihan berterusan.",
+        "Haiwan yang cedera parah, menghidap kurap teruk, atau trauma dimasukkan ke Rumah Pemulihan kami untuk rawatan rapi dan terapi pemulihan berterusan.",
       highlightsEn: [
         "Post-op sterile recovery enclosures & wound care",
         "Medicated baths & demodicosis/sarcoptic therapy",
@@ -277,7 +277,7 @@ export function HomeProcessSection() {
       title: isMs ? "Pilih Haiwan & Hantar Permohonan" : "Browse & Submit Application",
       description: isMs
         ? "Lihat profil anjing & kucing reskue kami secara dalam talian atau kunjungi santuari PJ. Hantar borang ringkas untuk mendaftar minat keluarga anda."
-        : "Browse our adoptable dogs and cats online or visit our Petaling Jaya sanctuary. Submit a straightforward application to register your household interest.",
+        : "Browse our adoptable dogs and cats online or visit our sanctuary. Submit a straightforward application to register your household interest.",
       icon: FileText,
     },
     {
@@ -305,8 +305,8 @@ export function HomeProcessSection() {
           title={isMs ? "Padanan yang teliti, langkah demi langkah" : "A careful match, step by step"}
           subtitle={
             isMs
-              ? "Proses berstruktur kami memastikan padanan yang bertanggungjawab antara haiwan reskue dan keluarga di seluruh Lembah Klang."
-              : "Our structured adoption process ensures responsible matching between animals and families across Selangor and the Klang Valley."
+              ? "Proses berstruktur kami memastikan padanan yang bertanggungjawab antara haiwan reskue dan keluarga."
+              : "Our structured adoption process ensures responsible matching between animals and families."
           }
         />
 
@@ -447,7 +447,7 @@ export function HomeCommunitySection() {
                     {isMs ? "Peranan Sukarelawan & Penjaga Aktif" : "Active Volunteer & Foster Roles"}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    {isMs ? "Slot fleksibel dibuka setiap minggu di santuari Petaling Jaya kami." : "Flexible slots available weekly at our Petaling Jaya sanctuary."}
+                    {isMs ? "Slot fleksibel dibuka setiap minggu di santuari kami." : "Flexible slots available weekly at our sanctuary."}
                   </p>
                 </div>
               </div>

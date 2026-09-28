@@ -30,7 +30,7 @@ export default async function HomePage() {
           <BulletinFeed
             targetPage="home"
             title="From the shelter"
-            subtitle="Rescue updates, clinic notes, and news from the Petaling Jaya sanctuary."
+            subtitle="Rescue updates, clinic notes, and news from the sanctuary."
             layout="carousel"
             maxItems={4}
           />
@@ -50,7 +50,7 @@ export default async function HomePage() {
           <PetGallery
             initialPets={initialPets}
             title="Adoptable Animals"
-            subtitle="Rescued dogs, cats, puppies and kittens waiting for a home right now."
+            subtitle="Rescued dogs, cats and kittens waiting for a home right now."
             featuredOnly
             showFilters={false}
             syncUrl={false}

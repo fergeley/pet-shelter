@@ -30,10 +30,10 @@ import { AGE_BANDS, formatAgeBandRange } from "@/lib/domain/petAge";
  * left both 3 and 7 claimed by two filter options at once (PS-114).
  */
 const AGE_BAND_LABEL_KEYS: Record<(typeof AGE_BANDS)[number], string> = {
-  puppy_kitten: "pets.puppyKitten",
-  young: "pets.young",
-  adult: "pets.adult",
-  senior: "pets.senior",
+  puppy_kitten: "Puppy/Kitten",
+  young: "Young Adult",
+  adult: "Mature Adult",
+  senior: "Senior",
 };
 
 interface PetGalleryProps {
@@ -90,7 +90,7 @@ export function PetGallery({
   } = handlers;
 
   const displayTitle = title || t("pets.title", "Adoptable Animals in Selangor");
-  const displaySubtitle = subtitle || t("pets.subtitle", "Browse rescued dogs, cats, puppies, and kittens awaiting their forever homes in Petaling Jaya.");
+  const displaySubtitle = subtitle || t("pets.subtitle", "Browse rescued dogs, cats, and kittens awaiting their forever homes in Petaling Jaya.");
 
   return (
     <section className="w-full">
@@ -266,6 +266,7 @@ export function PetGallery({
               >
                 <option value="all">{isMs ? "Semua Status" : "All Statuses"}</option>
                 <option value="Available">{isMs ? "Tersedia untuk Adopsi" : "Available for Adoption"}</option>
+                <option value="Available">{isMs ? "Tersedia untuk Jagaan Senenrara" : "Available to Foster"}</option>
                 <option value="In Rehabilitation">{isMs ? "Dalam Pemulihan" : "In Rehabilitation"}</option>
                 <option value="Pending">{isMs ? "Sedang Diproses" : "Application Pending"}</option>
               </select>

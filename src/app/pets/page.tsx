@@ -1,10 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { PetGallery } from "@/components/features/pets/PetGallery";
-import { BulletinFeed } from "@/components/features/bulletins/BulletinFeed";
-import { PetsFaqSection } from "@/components/layout/PetsFaqSection";
 import { getPublicPets } from "@/actions/pets";
-import { getServerFaqsAsync, getServerFaqCategories } from "@/lib/server/faqCatalog";
 import { Loader2 } from "lucide-react";
 import { Species, PetSize, AgeCategory, PetStatus } from "@/types/pet";
 
@@ -35,11 +32,6 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
     search,
   });
 
-  const initialFaqs = await getServerFaqsAsync();
-  // Only the categories the fixture actually populates, so the tab strip cannot
-  // offer a filter that matches nothing.
-  const initialFaqCategories = getServerFaqCategories();
-
   return (
     <div className="min-h-screen bg-card pb-20">
       {/* Directory Gallery */}
@@ -59,18 +51,6 @@ export default async function PetsDirectoryPage(props: PetsDirectoryPageProps) {
         </Suspense>
       </div>
 
-      {/* Directory Bulletins / Notices */}
-      <section className="w-full px-6 sm:px-8 lg:px-12 pt-10 border-t border-border mt-10">
-        <BulletinFeed
-          targetPage="pets"
-          title="Adoption Notices & Clinic Updates"
-          compact={true}
-          maxItems={2}
-        />
-      </section>
-
-      {/* FAQs */}
-      <PetsFaqSection initialFaqs={initialFaqs} initialCategories={initialFaqCategories} />
     </div>
   );
 }

@@ -67,10 +67,10 @@ describe("Frontend TNRM Overhaul & UI Contracts", () => {
     });
   });
 
-  describe("Interactive FAQ Accordion Data Layer (FE-09 / PetsFaqSection)", () => {
-    it("should retrieve all 8 committed FAQs", () => {
+  describe("Interactive FAQ Accordion Data Layer (FE-09 / FaqSection)", () => {
+    it("should retrieve all 13 committed FAQs", () => {
       const allFaqs = getServerFaqs();
-      expect(allFaqs.length).toBe(8);
+      expect(allFaqs.length).toBe(13);
     });
 
     it("should support category filtering for TNRM, sponsorship, and visiting via Server Action", async () => {

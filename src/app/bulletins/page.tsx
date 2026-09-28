@@ -15,7 +15,7 @@ export default function BulletinsPage() {
             Shelter Updates & Bulletins
           </h1>
           <p className="text-sm sm:text-base text-muted-foreground mt-2 leading-relaxed">
-            Community spay/neuter clinic schedules, urgent foster requests, and video updates from our rescue sanctuary in Petaling Jaya.
+            Community spay/neuter clinic schedules, urgent foster requests, and video updates from our rescue sanctuary.
           </p>
         </div>
 

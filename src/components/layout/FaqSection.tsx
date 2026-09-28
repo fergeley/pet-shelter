@@ -5,56 +5,30 @@ import { PhoneCall, HelpCircle, ChevronDown, MessageCircle } from "lucide-react"
 import { useLanguage } from "@/components/providers/LanguageProvider";
 import { FaqItem } from "@/types/faq";
 import { getFaqsAction } from "@/actions/faqs";
-import {
-  ALL_CATEGORY_VALUE,
-  CategoryTab,
-  DerivedCategory,
-  withAllTab,
-  getFaqCategoryLabel,
-} from "@/lib/presentation/categoryTabs";
+import { getFaqCategoryLabel } from "@/lib/presentation/categoryTabs";
 
-/**
- * The one tab that is not derived from the fixture. Its wording is carried
- * over verbatim from the hardcoded list this component used to own: the
- * bilingual category labels come from the fixture rows, and "all" has no row
- * to come from.
- */
-const ALL_FAQ_TAB: CategoryTab = {
-  value: ALL_CATEGORY_VALUE,
-  labelEn: "All Topics",
-  labelMs: "Semua Topik",
-};
-
-export function PetsFaqSection({
+export function FaqSection({
   initialFaqs,
-  initialCategories,
-}: { initialFaqs?: FaqItem[]; initialCategories?: DerivedCategory[] } = {}) {
+}: { initialFaqs?: FaqItem[] } = {}) {
   const { isMs } = useLanguage();
   const [faqs, setFaqs] = useState<FaqItem[]>(initialFaqs || []);
-  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY_VALUE);
-  const [openIds, setOpenIds] = useState<Set<string>>(new Set(["faq-001", "faq-004", "faq-006"]));
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
   const isInitialMount = useRef(true);
-
-  const categoryTabs = withAllTab(ALL_FAQ_TAB, initialCategories);
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (initialFaqs && initialFaqs.length > 0 && selectedCategory === ALL_CATEGORY_VALUE) {
-        return;
-      }
+      if (initialFaqs && initialFaqs.length > 0) return;
     }
 
     startTransition(async () => {
-      const res = await getFaqsAction(
-        selectedCategory === ALL_CATEGORY_VALUE ? undefined : selectedCategory
-      );
+      const res = await getFaqsAction();
       if (res.success && res.data) {
         setFaqs(res.data);
       }
     });
-  }, [selectedCategory, initialFaqs]);
+  }, [initialFaqs]);
 
   const toggleAccordion = (id: string) => {
     setOpenIds((prev) => {
@@ -69,42 +43,22 @@ export function PetsFaqSection({
   };
 
   return (
-    <section className="w-full px-6 sm:px-8 lg:px-12 pt-14 border-t border-border mt-12" id="faq">
+    <section className="w-full bg-work-ground px-6 sm:px-8 lg:px-12 py-16 sm:py-20" id="faq">
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Header */}
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
             <HelpCircle className="size-3.5" />
-            {isMs ? "Soalan Lazim Komuniti" : "Community & Operations FAQ"}
+            {isMs ? "Soalan Lazim" : "Questions & Answers"}
           </div>
           <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-foreground">
-            {isMs ? "Soalan Lazim Mengenai TNRM & Perlindungan" : "Frequently Asked Questions"}
+            {isMs ? "Soalan Lazim" : "Frequently Asked Questions"}
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground max-w-2xl leading-relaxed">
             {isMs
-              ? "Ketahui lebih lanjut mengenai program TNRM kampus UM, penajaan peribadi haiwan reskue, pelepasan cukai LHDN Seksyen 44(6), dan garis panduan lawatan santuari."
-              : "Learn about UM campus stray management, ear-notching science, personalized animal sponsorships, LHDN Sec 44(6) tax deductions, and shelter visiting hours."}
+              ? "Adopsi, penajaan, sumbangan, TNRM dan lawatan santuari — semuanya di satu tempat."
+              : "Adoption, sponsorship, donations, TNRM and visiting the sanctuary — all in one place."}
           </p>
-        </div>
-
-        {/* Category Filter Tabs */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          {categoryTabs.map((tab) => {
-            const isActive = selectedCategory === tab.value;
-            return (
-              <button
-                key={tab.value}
-                onClick={() => setSelectedCategory(tab.value)}
-                className={`px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-foreground text-background shadow-xs"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                }`}
-              >
-                {isMs ? tab.labelMs : tab.labelEn}
-              </button>
-            );
-          })}
         </div>
 
         {/* Accordion FAQ List */}

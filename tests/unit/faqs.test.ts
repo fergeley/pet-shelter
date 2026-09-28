@@ -31,12 +31,12 @@ describe("FAQ Data Layer & Server Actions", () => {
       expect(faqCategorySchema.safeParse("invalid").success).toBe(false);
     });
 
-    it("should load all 8 committed FAQ fixtures", () => {
+    it("should load all 13 committed FAQ fixtures", () => {
       expect(initialFaqs).toBeDefined();
-      expect(initialFaqs.length).toBe(8);
+      expect(initialFaqs.length).toBe(13);
     });
 
-    it("should validate all 8 fixture records against faqItemSchema", () => {
+    it("should validate all 13 fixture records against faqItemSchema", () => {
       for (const faq of initialFaqs) {
         const result = faqItemSchema.safeParse(faq);
         expect(result.success, `Failed to parse FAQ ${faq.id}: ${JSON.stringify(result)}`).toBe(true);
@@ -106,12 +106,12 @@ describe("FAQ Data Layer & Server Actions", () => {
   describe("Store Reader Functions (L-B2)", () => {
     it("should return all FAQs when no category filter is passed", async () => {
       const faqs = await getServerFaqsAsync();
-      expect(faqs.length).toBe(8);
+      expect(faqs.length).toBe(13);
     });
 
     it("should return all FAQs when category is 'all'", async () => {
       const faqs = await getServerFaqsAsync("all");
-      expect(faqs.length).toBe(8);
+      expect(faqs.length).toBe(13);
     });
 
     it("should filter FAQs by category (tnrm)", async () => {
@@ -145,13 +145,14 @@ describe("FAQ Data Layer & Server Actions", () => {
 
     it("should extract distinct categories with labels via getServerFaqCategories", () => {
       const categories = getServerFaqCategories();
-      expect(categories.length).toBe(5);
+      expect(categories.length).toBe(6);
       expect(categories.map((c) => c.category)).toEqual([
         "tnrm",
         "sponsorship",
         "adoption",
         "visiting",
         "get_involved",
+        "general",
       ]);
       expect(categories[0].labelEn).toBe("TNRM & Coexistence");
       expect(categories[0].labelMs).toBe("TNRM & Kewujudan Bersama");
@@ -159,7 +160,7 @@ describe("FAQ Data Layer & Server Actions", () => {
 
     it("should support synchronous store reads via getServerFaqs", () => {
       const faqs = getServerFaqs();
-      expect(faqs.length).toBe(8);
+      expect(faqs.length).toBe(13);
       const sponsorship = getServerFaqs("sponsorship");
       expect(sponsorship.length).toBe(2);
     });
@@ -170,7 +171,7 @@ describe("FAQ Data Layer & Server Actions", () => {
       const res = await getFaqsAction();
       expect(res.success).toBe(true);
       expect(res.data).toBeDefined();
-      expect(res.data?.length).toBe(8);
+      expect(res.data?.length).toBe(13);
       expect(res.error).toBeUndefined();
     });
 
@@ -205,7 +206,7 @@ describe("FAQ Data Layer & Server Actions", () => {
     it("should treat whitespace category as all items", async () => {
       const res = await getFaqsAction("   ");
       expect(res.success).toBe(true);
-      expect(res.data?.length).toBe(8);
+      expect(res.data?.length).toBe(13);
     });
 
     it("should retrieve single item via getFaqByIdAction", async () => {
