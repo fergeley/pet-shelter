@@ -289,10 +289,10 @@ export function HomeProcessSection() {
     },
     {
       num: "03",
-      title: isMs ? "Lengkapkan Adopsi (100% Percuma)" : "Finalize & Welcome Home",
+      title: isMs ? "Lengkapkan & Bawa Pulang (100% Percuma)" : "Finalize & Welcome Home",
       description: isMs
-        ? "Tandatangani perjanjian adopsi standard tanpa sebarang yuran tersembunyi. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya."
-        : "Sign our standard adoption agreement with zero adoption fees. All animals are already vaccinated, microchipped, and spayed or neutered.",
+        ? "Tandatangani perjanjian adopsi atau asuhan tanpa sebarang yuran. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya."
+        : "Sign the adoption or foster agreement — there are no fees. All animals are already vaccinated, microchipped, and spayed or neutered.",
       icon: HomeIcon,
     },
   ];
@@ -304,8 +304,8 @@ export function HomeProcessSection() {
           title={isMs ? "Padanan yang teliti, langkah demi langkah" : "A careful match, step by step"}
           subtitle={
             isMs
-              ? "Proses berstruktur kami memastikan padanan yang bertanggungjawab antara haiwan reskue dan keluarga."
-              : "Our structured adoption process ensures responsible matching between animals and families."
+              ? "Adopsi dan asuhan mengikut tiga langkah yang sama, supaya setiap haiwan reskue dipadankan dengan keluarga yang sesuai."
+              : "Adopting and fostering follow the same three steps, so every rescue is matched with the right family."
           }
         />
 

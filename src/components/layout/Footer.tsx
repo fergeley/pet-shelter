@@ -51,12 +51,12 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/adoption" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  {t("nav.adoptionProcess", "Adoption Process & Fees")}
+                  {t("nav.adoptOrFoster", "Adopt or Foster")}
                 </Link>
               </li>
               <li>
                 <Link href="/get-involved#volunteer" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  {t("nav.volunteerFoster", "Volunteer & Foster Care")}
+                  {t("nav.volunteer", "Volunteer")}
                 </Link>
               </li>
               <li>

@@ -6,8 +6,8 @@ export interface TranslationDictionary {
     donate: string;
     trackApplication: string;
     bulletins: string;
-    adoptionProcess: string;
-    volunteerFoster: string;
+    adoptOrFoster: string;
+    volunteer: string;
     matchQuiz: string;
     sponsor: string;
     adopt: string;
@@ -352,8 +352,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       donate: "Donate & Sponsor",
       trackApplication: "Track Application Status",
       bulletins: "Updates & News",
-      adoptionProcess: "Adoption Process",
-      volunteerFoster: "Volunteer & Foster",
+      adoptOrFoster: "Adopt or Foster",
+      volunteer: "Volunteer",
       matchQuiz: "Match Quiz",
       sponsor: "Sponsor Care",
       adopt: "Adopt",
@@ -697,8 +697,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       donate: "Derma & Penajaan",
       trackApplication: "Semak Status Permohonan",
       bulletins: "Berita & Buletin",
-      adoptionProcess: "Proses Adopsi",
-      volunteerFoster: "Sukarelawan & Asuhan",
+      adoptOrFoster: "Adopsi atau Asuh",
+      volunteer: "Sukarelawan",
       matchQuiz: "Kuiz Padanan",
       sponsor: "Taja Rawatan",
       adopt: "Adopsi",
