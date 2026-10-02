@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 export default function BulletinsPage() {
   return (
     <div className="min-h-screen bg-card py-12 sm:py-16">
-      <div className="w-full px-6 sm:px-8 lg:px-12">
-        <div className="mb-10 max-w-2xl">
+      <div className="mx-auto w-full max-w-7xl px-6 sm:px-8 lg:px-12">
+        <div className="mb-10">
           <h1 className="font-heading text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
             Shelter Updates & Bulletins
           </h1>

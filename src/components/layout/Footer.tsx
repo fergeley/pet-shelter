@@ -42,7 +42,7 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/applications/track" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
-                  {t("nav.trackApplication", "Track Adoption Application")}
+                  {t("nav.trackApplication", "Track Application Status")}
                 </Link>
               </li>
               <li>
@@ -51,12 +51,12 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/#how-it-works" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                <Link href="/adoption" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   {t("nav.adoptionProcess", "Adoption Process & Fees")}
                 </Link>
               </li>
               <li>
-                <Link href="/#support" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
+                <Link href="/get-involved#volunteer" className="text-muted-foreground hover:text-foreground hover:underline transition-colors font-medium">
                   {t("nav.volunteerFoster", "Volunteer & Foster Care")}
                 </Link>
               </li>
