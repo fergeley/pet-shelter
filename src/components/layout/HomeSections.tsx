@@ -275,8 +275,8 @@ export function HomeProcessSection() {
       num: "01",
       title: isMs ? "Pilih Haiwan & Hantar Permohonan" : "Browse & Submit Application",
       description: isMs
-        ? "Lihat profil anjing & kucing reskue kami secara dalam talian atau kunjungi santuari PJ. Hantar borang ringkas untuk mendaftar minat keluarga anda."
-        : "Browse our adoptable dogs and cats online or visit our sanctuary. Submit a straightforward application to register your household interest.",
+        ? "Lihat profil anjing & kucing reskue kami secara dalam talian atau kunjungi santuari PJ. Hantar borang ringkas — kami menyemak kesesuaian asas kediaman anda (pagar selamat, garis panduan bangunan bertingkat, persetujuan isi rumah)."
+        : "Browse our dogs and cats online or visit our sanctuary, then submit a short application. We check basic home suitability — landed vs high-rise pet guidelines, safe fencing, and household agreement.",
       icon: FileText,
     },
     {
@@ -291,8 +291,8 @@ export function HomeProcessSection() {
       num: "03",
       title: isMs ? "Lengkapkan & Bawa Pulang (100% Percuma)" : "Finalize & Welcome Home",
       description: isMs
-        ? "Tandatangani perjanjian adopsi atau asuhan tanpa sebarang yuran. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya."
-        : "Sign the adoption or foster agreement — there are no fees. All animals are already vaccinated, microchipped, and spayed or neutered.",
+        ? "Tandatangani perjanjian adopsi atau asuhan tanpa sebarang yuran. Semua haiwan telah divaksin, dimikrocip, dan dimandulkan sepenuhnya. Jika keadaan hidup anda berubah, kami sentiasa menerima haiwan itu kembali."
+        : "Sign the adoption or foster agreement — there are no fees. All animals are already vaccinated, microchipped, and spayed or neutered. If your circumstances ever change, we will always take the animal back.",
       icon: HomeIcon,
     },
   ];
