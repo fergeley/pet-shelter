@@ -194,6 +194,20 @@ describe("AdoptionForm", () => {
       expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument();
     });
 
+    it("shows the reference ID and links to tracking with it prefilled", async () => {
+      const { user } = renderForm();
+      await fillValidContact(user);
+
+      await user.click(submitButton());
+
+      expect(await screen.findByText("app-1")).toBeInTheDocument();
+      const track = screen.getByRole("link", { name: /track application status/i });
+      expect(track).toHaveAttribute(
+        "href",
+        `/applications/track?ref=app-1&email=${encodeURIComponent(VALID.email)}`
+      );
+    });
+
     it("keeps the form open and shows the reason when the action refuses", async () => {
       submitApplication.mockResolvedValue({
         success: false,

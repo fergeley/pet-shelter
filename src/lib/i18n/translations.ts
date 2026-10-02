@@ -218,6 +218,7 @@ export interface TranslationDictionary {
     nextStep1: string;
     nextStep2: string;
     nextStep3: string;
+    trackLink: string;
     closeButton: string;
     trackButton: string;
   };
@@ -564,7 +565,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       nextStepsTitle: "What happens next?",
       nextStep1: "Our adoption team will review your application within 24–48 hours.",
       nextStep2: "We will contact you via WhatsApp to arrange an in-person Meet & Greet at our sanctuary.",
-      nextStep3: "Track live status anytime at /applications/track using your Reference ID and Email.",
+      nextStep3: "Track your application anytime with your Reference ID and email.",
+      trackLink: "Track Application Status",
       closeButton: "Close",
       trackButton: "Track Live Application Status",
     },
@@ -909,7 +911,8 @@ export const translations: Record<Language, TranslationDictionary> = {
       nextStepsTitle: "Apakah langkah seterusnya?",
       nextStep1: "Pasukan adopsi kami akan menyemak permohonan anda dalam tempoh 24–48 jam.",
       nextStep2: "Kami akan menghubungi anda melalui WhatsApp untuk menetapkan sesi Suai Kenal di pusat perlindungan.",
-      nextStep3: "Semak status terkini pada bila-bila masa di /applications/track menggunakan ID Rujukan dan E-mel anda.",
+      nextStep3: "Semak permohonan anda pada bila-bila masa dengan ID Rujukan dan e-mel anda.",
+      trackLink: "Semak Status Permohonan",
       closeButton: "Tutup",
       trackButton: "Semak Status Permohonan Terkini",
     },

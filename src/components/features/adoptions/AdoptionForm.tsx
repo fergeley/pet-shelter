@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { Pet } from "@/types/pet";
 import {
@@ -59,7 +60,7 @@ export function AdoptionForm(props: AdoptionFormProps) {
   const { open, allPets } = props;
   const { t, isMs } = useLanguage();
   const { state, form, handlers } = useAdoptionFormController(props);
-  const { activePet, isSubmitted, submittedData, submissionError } = state;
+  const { activePet, isSubmitted, submittedData, referenceId, submissionError } = state;
   const { register, handleSubmit, setValue, formState: { errors, isSubmitting } } = form;
   const { onSubmit, handleClose } = handlers;
 
@@ -361,7 +362,25 @@ export function AdoptionForm(props: AdoptionFormProps) {
               <p className="font-bold text-foreground text-sm">{t("adoptionForm.nextStepsTitle", "What happens next?")}</p>
               <p>1. {t("adoptionForm.nextStep1", "Our adoption team will review your application within 24–48 hours.")}</p>
               <p>2. {t("adoptionForm.nextStep2", "We will contact you via WhatsApp to arrange an in-person Meet & Greet at our sanctuary.")}</p>
-              <p>3. {t("adoptionForm.nextStep3", "Track live status anytime at /applications/track using your Reference ID and Email.")}</p>
+              <p>
+                3. {t("adoptionForm.nextStep3", "Track your application anytime with your Reference ID and email.")}{" "}
+                <Link
+                  href={
+                    referenceId && submittedData
+                      ? `/applications/track?ref=${encodeURIComponent(referenceId)}&email=${encodeURIComponent(submittedData.applicantEmail)}`
+                      : "/applications/track"
+                  }
+                  className="font-semibold text-primary hover:underline"
+                >
+                  {t("adoptionForm.trackLink", "Track Application Status")}
+                </Link>
+              </p>
+              {referenceId && (
+                <p className="pt-1">
+                  {t("adoptionForm.referenceIdLabel", "Application Reference ID")}:{" "}
+                  <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">{referenceId}</code>
+                </p>
+              )}
             </div>
 
             <div className="pt-3">

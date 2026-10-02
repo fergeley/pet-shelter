@@ -44,6 +44,8 @@ export function useAdoptionFormController({
   const { addApplication } = useApplicationStore();
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [submittedData, setSubmittedData] = useState<AdoptionFormValues | null>(null);
+  // The new application's id — the Reference ID the applicant tracks it by.
+  const [referenceId, setReferenceId] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const availablePets = allPets.filter((p) => p.status === "Available");
@@ -102,6 +104,7 @@ export function useAdoptionFormController({
         setSubmissionError(res.error || "Failed to submit adoption application. Please try again.");
         return;
       }
+      setReferenceId(res.data?.id ?? null);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Connection error while submitting application.";
       setSubmissionError(msg);
@@ -146,6 +149,7 @@ export function useAdoptionFormController({
       activePet,
       isSubmitted,
       submittedData,
+      referenceId,
       submissionError,
     },
     form,
