@@ -10,6 +10,7 @@ Welcome to the centralized documentation repository for the **Hope for Strays** 
 - **[Installation & Local Development Guide](setup.md)**: Prerequisites, environment configuration, database seeding, and development workflow.
 - **[Contributing Guidelines](../.github/CONTRIBUTING.md)**: Coding standards, branch strategy, PR workflow, and architectural rules.
 - **[Design System & UI Tokens](design-system.md)**: Design philosophy, typography, colors, component guidelines, and accessibility.
+- **[Page Style Guide](page-style-guide.md)**: How a public page is composed — section frame, gutters, vertical rhythm, heading scale, the panel card recipe and CTAs. Read from the home page; follow it on every new page.
 
 ---
 
