@@ -68,9 +68,9 @@ describe("Frontend TNRM Overhaul & UI Contracts", () => {
   });
 
   describe("Interactive FAQ Accordion Data Layer (FE-09 / FaqSection)", () => {
-    it("should retrieve all 13 committed FAQs", () => {
+    it("should retrieve all 9 committed FAQs", () => {
       const allFaqs = getServerFaqs();
-      expect(allFaqs.length).toBe(13);
+      expect(allFaqs.length).toBe(9);
     });
 
     it("should support category filtering for TNRM, sponsorship, and visiting via Server Action", async () => {
@@ -80,7 +80,7 @@ describe("Frontend TNRM Overhaul & UI Contracts", () => {
 
       const sponsorFaqs = await getFaqsAction("sponsorship");
       expect(sponsorFaqs.success).toBe(true);
-      expect(sponsorFaqs.data?.length).toBe(2);
+      expect(sponsorFaqs.data?.length).toBe(1);
 
       const visitingFaqs = await getFaqsAction("visiting");
       expect(visitingFaqs.success).toBe(true);

@@ -60,8 +60,6 @@ export interface TranslationDictionary {
     submitting: string;
     loading: string;
     verified: string;
-    taxExemptBadge: string;
-    rosBadge: string;
   };
   hero: {
     badge: string;
@@ -271,15 +269,12 @@ export interface TranslationDictionary {
     badge: string;
     title: string;
     subtitle: string;
-    rosBadge: string;
-    lhdnBadge: string;
     freeAdoptionGuarantee: string;
     widgetTitle: string;
     selectTierLabel: string;
     customAmountLabel: string;
     frequencyOneTime: string;
     frequencyMonthly: string;
-    taxReliefNoticeTitle: string;
     taxReliefNoticeDesc: string;
     dedicateLabel: string;
     dedicatePlaceholder: string;
@@ -343,7 +338,6 @@ export interface TranslationDictionary {
     closedMondays: string;
     locationContactTitle: string;
     address: string;
-    rosReg: string;
     privacyNotice: string;
     adoptionTerms: string;
     staffPortal: string;
@@ -412,8 +406,6 @@ export const translations: Record<Language, TranslationDictionary> = {
       submitting: "Submitting...",
       loading: "Loading...",
       verified: "Verified",
-      taxExemptBadge: "LHDN Tax Deductible (Sec 44(6) ITA 1967)",
-      rosBadge: "ROS Reg: {regNo}",
     },
     hero: {
       badge: "Animal Welfare & Rescue Sanctuary",
@@ -457,7 +449,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       fosterTitle: "Temporary Foster Care",
       fosterDesc: "Provide a quiet temporary haven for recovering rescue animals, pregnant mothers, or young litters.",
       donateTitle: "Medical & Nutrition Giving",
-      donateDesc: "Support lifesaving surgeries, core vaccines, and daily kibble with 100% LHDN tax-deductible contributions.",
+      donateDesc: "Support lifesaving surgeries, core vaccines, and daily kibble.",
     },
     pets: {
       title: "Adoptable Animals",
@@ -624,19 +616,16 @@ export const translations: Record<Language, TranslationDictionary> = {
       badge: "Direct Rescue Giving & Sponsorship",
       title: "Donate & Sponsor",
       subtitle: "Every ringgit directly supports emergency surgeries, core vaccinations, and wholesome meals at our sanctuary. Because of your generosity, 100% of our rescued animals are rehomed through our Free Adoption policy.",
-      rosBadge: "ROS Reg: {regNo}",
-      lhdnBadge: "LHDN Tax Deductible: Sec 44(6) ITA 1967",
       freeAdoptionGuarantee: "100% Free Adoption Guarantee",
-      widgetTitle: "Make a Tax-Deductible Gift",
+      widgetTitle: "Make a Gift",
       selectTierLabel: "Select Giving Tier",
       customAmountLabel: "Or Enter Custom Amount (MYR)",
       frequencyOneTime: "One-time Donation",
       frequencyMonthly: "Monthly Rescue Hero",
-      taxReliefNoticeTitle: "LHDN Tax Exemption (Subsek 44(6) ACP 1967)",
-      taxReliefNoticeDesc: "Provide your Full Name and Malaysian IC / Passport / SSM number to receive an official e-Receipt valid for tax deductions.",
+      taxReliefNoticeDesc: "Provide your name and email so we can confirm your pledge.",
       dedicateLabel: "Dedicate or Sponsor a Specific Pet (Optional)",
       dedicatePlaceholder: "e.g. For Bella's surgery recovery / Milo's care",
-      donorNameLabel: "Donor Full Name (for tax receipt) *",
+      donorNameLabel: "Donor Full Name *",
       donorEmailLabel: "Email Address (to receive e-Receipt) *",
       donorPhoneLabel: "Phone Number (WhatsApp receipt updates)",
       donorIcLabel: "Malaysian IC / Passport / SSM Company No. *",
@@ -650,7 +639,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       duitNowScanTitle: "DuitNow National QR Pay",
       duitNowInstructions: "Scan using Maybank MAE, CIMB Clicks, Touch 'n Go eWallet, Public Bank, or any Malaysian banking app.",
       pledgeBtn: "Complete Donation Pledge & Generate e-Receipt",
-      pledgeProcessing: "Recording Tax-Deductible Pledge...",
+      pledgeProcessing: "Recording Pledge...",
       receiptTitle: "Official Donation e-Receipt",
       receiptSubtitle: "Approved Under Subsection 44(6) Income Tax Act 1967 • Ref: {taxRef}",
       printReceiptBtn: "Print Official Receipt",
@@ -696,11 +685,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       closedMondays: "Closed Mondays for sanctuary deep cleaning",
       locationContactTitle: "Location & Contact",
       address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-      rosReg: "ROS Reg: {regNo}",
       privacyNotice: "Privacy Notice (PDPA)",
       adoptionTerms: "Adoption Terms",
       staffPortal: "Staff Portal",
-      copyright: "Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor). All rights reserved.",
+      copyright: "Hope for Strays. All rights reserved.",
     },
   },
   ms: {
@@ -763,8 +751,6 @@ export const translations: Record<Language, TranslationDictionary> = {
       submitting: "Menghantar...",
       loading: "Memuatkan...",
       verified: "Disahkan",
-      taxExemptBadge: "Pelepasan Cukai LHDN (Sek 44(6) ACP 1967)",
-      rosBadge: "No. ROS: {regNo}",
     },
     hero: {
       badge: "Pusat Kebajikan & Penyelamatan Haiwan",
@@ -808,7 +794,7 @@ export const translations: Record<Language, TranslationDictionary> = {
       fosterTitle: "Rumah Asuhan Sementara",
       fosterDesc: "Sediakan tempat perlindungan sementara yang tenang untuk haiwan dalam fasa pemulihan atau anak haiwan tanpa ibu.",
       donateTitle: "Sumbangan Perubatan & Makanan",
-      donateDesc: "Sokong pembedahan menyelamatkan nyawa, vaksin teras dan makanan harian dengan pelepasan cukai LHDN 100%.",
+      donateDesc: "Sokong pembedahan menyelamatkan nyawa, vaksin teras dan makanan harian.",
     },
     pets: {
       title: "Haiwan Sedia Diangkat Anak",
@@ -975,19 +961,16 @@ export const translations: Record<Language, TranslationDictionary> = {
       badge: "Sumbangan & Penajaan Terus",
       title: "Taja & Sumbang",
       subtitle: "Setiap ringgit disalurkan terus bagi pembedahan kecemasan, vaksinasi teras, dan makanan berkhasiat di pusat perlindungan kami. Berkat kemurahan hati anda, 100% haiwan reskue kami diserahkan melalui polisi Adopsi Percuma.",
-      rosBadge: "No. ROS: {regNo}",
-      lhdnBadge: "Pengecualian Cukai LHDN: Sek 44(6) ACP 1967",
       freeAdoptionGuarantee: "Jaminan Adopsi 100% Percuma",
-      widgetTitle: "Buat Sumbangan Dikecualikan Cukai",
+      widgetTitle: "Buat Sumbangan",
       selectTierLabel: "Pilih Pakej Sumbangan",
       customAmountLabel: "Atau Masukkan Jumlah Tersuai (MYR)",
       frequencyOneTime: "Sumbangan Sekali Sahaja",
       frequencyMonthly: "Wira Reskue Bulanan",
-      taxReliefNoticeTitle: "Pengecualian Cukai LHDN (Subseksyen 44(6) ACP 1967)",
-      taxReliefNoticeDesc: "Sila masukkan Nama Penuh dan No. Kad Pengenalan / Pasport / SSM Syarikat anda untuk menerima e-Resit rasmi bagi tujuan potongan cukai pendapatan.",
+      taxReliefNoticeDesc: "Sila masukkan nama dan emel anda supaya kami boleh mengesahkan ikrar anda.",
       dedicateLabel: "Dedikasikan atau Taja Haiwan Tertentu (Pilihan)",
       dedicatePlaceholder: "cth. Untuk pemulihan pembedahan Bella / penjagaan Milo",
-      donorNameLabel: "Nama Penuh Penderma (untuk resit cukai) *",
+      donorNameLabel: "Nama Penuh Penderma *",
       donorEmailLabel: "Alamat E-mel (untuk penerimaan e-Resit) *",
       donorPhoneLabel: "Nombor Telefon (makluman WhatsApp)",
       donorIcLabel: "No. Kad Pengenalan / Pasport / No. SSM Syarikat *",
@@ -1047,11 +1030,10 @@ export const translations: Record<Language, TranslationDictionary> = {
       closedMondays: "Tutup pada hari Isnin untuk sanitasi menyeluruh",
       locationContactTitle: "Lokasi & Hubungan",
       address: "No. 18, Jalan SS 2/72, 47300 Petaling Jaya, Selangor, Malaysia",
-      rosReg: "No. ROS: {regNo}",
       privacyNotice: "Notis Privasi (PDPA)",
       adoptionTerms: "Syarat Adopsi",
       staffPortal: "Portal Staf",
-      copyright: "Hope for Strays (Persatuan Harapan Haiwan Terbiar Selangor). Hak cipta terpelihara.",
+      copyright: "Hope for Strays. Hak cipta terpelihara.",
     },
   },
 };

@@ -31,12 +31,12 @@ describe("FAQ Data Layer & Server Actions", () => {
       expect(faqCategorySchema.safeParse("invalid").success).toBe(false);
     });
 
-    it("should load all 13 committed FAQ fixtures", () => {
+    it("should load all 9 committed FAQ fixtures", () => {
       expect(initialFaqs).toBeDefined();
-      expect(initialFaqs.length).toBe(13);
+      expect(initialFaqs.length).toBe(9);
     });
 
-    it("should validate all 13 fixture records against faqItemSchema", () => {
+    it("should validate all 9 fixture records against faqItemSchema", () => {
       for (const faq of initialFaqs) {
         const result = faqItemSchema.safeParse(faq);
         expect(result.success, `Failed to parse FAQ ${faq.id}: ${JSON.stringify(result)}`).toBe(true);
@@ -96,7 +96,7 @@ describe("FAQ Data Layer & Server Actions", () => {
       const getInvolvedCount = categories.filter((c) => c === "get_involved").length;
 
       expect(tnrmCount).toBe(3);
-      expect(sponsorshipCount).toBe(2);
+      expect(sponsorshipCount).toBe(1);
       expect(adoptionCount).toBe(1);
       expect(visitingCount).toBe(1);
       expect(getInvolvedCount).toBe(1);
@@ -106,12 +106,12 @@ describe("FAQ Data Layer & Server Actions", () => {
   describe("Store Reader Functions (L-B2)", () => {
     it("should return all FAQs when no category filter is passed", async () => {
       const faqs = await getServerFaqsAsync();
-      expect(faqs.length).toBe(13);
+      expect(faqs.length).toBe(9);
     });
 
     it("should return all FAQs when category is 'all'", async () => {
       const faqs = await getServerFaqsAsync("all");
-      expect(faqs.length).toBe(13);
+      expect(faqs.length).toBe(9);
     });
 
     it("should filter FAQs by category (tnrm)", async () => {
@@ -160,9 +160,9 @@ describe("FAQ Data Layer & Server Actions", () => {
 
     it("should support synchronous store reads via getServerFaqs", () => {
       const faqs = getServerFaqs();
-      expect(faqs.length).toBe(13);
+      expect(faqs.length).toBe(9);
       const sponsorship = getServerFaqs("sponsorship");
-      expect(sponsorship.length).toBe(2);
+      expect(sponsorship.length).toBe(1);
     });
   });
 
@@ -171,14 +171,14 @@ describe("FAQ Data Layer & Server Actions", () => {
       const res = await getFaqsAction();
       expect(res.success).toBe(true);
       expect(res.data).toBeDefined();
-      expect(res.data?.length).toBe(13);
+      expect(res.data?.length).toBe(9);
       expect(res.error).toBeUndefined();
     });
 
     it("should filter by category in getFaqsAction", async () => {
       const res = await getFaqsAction("sponsorship");
       expect(res.success).toBe(true);
-      expect(res.data?.length).toBe(2);
+      expect(res.data?.length).toBe(1);
       expect(res.data?.every((f) => f.category === "sponsorship")).toBe(true);
     });
 
@@ -206,7 +206,7 @@ describe("FAQ Data Layer & Server Actions", () => {
     it("should treat whitespace category as all items", async () => {
       const res = await getFaqsAction("   ");
       expect(res.success).toBe(true);
-      expect(res.data?.length).toBe(13);
+      expect(res.data?.length).toBe(9);
     });
 
     it("should retrieve single item via getFaqByIdAction", async () => {
