@@ -1,4 +1,6 @@
-// Rehearsal for migration.sql and rollback.sql beside this file. 92 checks.
+// Rehearsal for migration.sql and rollback.sql beside this file. This script is the check list:
+// each check prints its own name and the run ends by printing how many ran, so no prose copy of
+// the list has to be kept in step with it.
 //
 // The 20260917_status_enums rehearsal was run the same way and its script was not kept, so its
 // twenty-nine checks can only be re-read, never re-run. This one is kept for that reason: a
@@ -17,8 +19,8 @@
 // and an orphan from a crashed run blocks nothing. Set REHEARSAL_PORT to pin one.
 //
 // The seven Prisma-level checks need a generated client (`npm run db:generate`). Without one
-// they are skipped -- loudly, and the run then exits non-zero -- and the other eighty-five
-// still run.
+// they are skipped -- loudly, and the run then exits non-zero -- and every other check
+// still runs.
 
 import { readFileSync, mkdtempSync, existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -59,7 +61,9 @@ const DB_URL = `postgresql://postgres:rehearsal@127.0.0.1:${PORT}/rehearsal_utf8
 
 let failures = 0;
 let skipped = 0;
+let ran = 0;
 const check = (name, ok, detail = "") => {
+  ran++;
   if (!ok) failures++;
   console.log(`${ok ? "  ok  " : "FAIL  "} ${name}${detail ? `  -- ${detail}` : ""}`);
 };
@@ -382,22 +386,25 @@ for (const [name, rows, expect] of REFUSALS) {
     ["e-7", "18 months", "2026-06-12", "2024-12-12"],
     ["e-8", "About 3 years old", "2026-06-12", "2023-06-12"],
     ["e-9", "0 months", "2026-06-12", "2026-06-12"],
+    // Two quantities, each with its own unit, in the short spellings. The fraction guard used to
+    // refuse these as "fractional" while accepting e-5, which says the same thing in longer words.
+    ["e-10", "1 yr 6 mo", "2026-06-12", "2025-06-12"],
+    ["e-11", "2 y 3 m", "2026-06-12", "2024-06-12"],
+    ["e-12", "12 yr 6 mo", "2026-06-12", "2014-06-12"],
   ];
   await fresh(c, CASES);
   await c.query(MIGRATION);
   const r = await c.query(`SELECT "id","age","birthDate" FROM "public"."pets" ORDER BY "id"`);
   const wrong = r.rows.filter((row) => row.birthDate !== CASES.find((x) => x[0] === row.id)[3]);
-  // NOT "as the app does" -- that was the earlier name and it was false. master's
-  // approximateBirthDate (src/lib/domain/petAge.ts) matches only /(\d+)\s*y/ and /(\d+)\s*m/, so
-  // for e-1..e-4 it matches nothing and returns the intake date unchanged. The four Malay cases
-  // are exactly where this SQL and today's app disagree, deliberately, and migration.sql's header
-  // says so. The English cases do agree with the app. These expectations are calendar arithmetic
-  // stated by hand, which is what they should be: deriving them from the app would make the
-  // check agree with whatever the app does, including its bugs.
+  // These expectations are calendar arithmetic stated by hand, which is what they should be:
+  // deriving them from the app would make the check agree with whatever the app does, including
+  // its bugs. Agreement with the app is O2's claim, not this one's. Every case here is English --
+  // e-1..e-4 were Malay until the file stopped reading Malay, and those spellings are now O3's
+  // refusals.
   check("E1 every English unit spelling, and years-before-months, derives the stated date", wrong.length === 0, wrong.length ? JSON.stringify(wrong) : `${r.rows.length}/${r.rows.length}`);
 }
 
-// ------------------------------------------------------ F. month-end clamping is reported
+// ------------------------------------------------------ F. month-end rollover is reported
 {
   const CASES = [
     ["f-1", "1 month", "2026-03-31", "2026-03-03"],
@@ -695,6 +702,7 @@ function appRule(ageStr, intakeStr) {
     ["o-7", "About 3 years old", "2026-06-12"], ["o-8", "0 months", "2026-06-12"],
     ["o-9", "1 year 6 months", "2026-06-12"], ["o-10", "8 yrs", "2026-03-15"],
     ["o-11", "5 mo", "2026-08-01"], ["o-12", "1 month", "2026-01-31"],
+    ["o-17", "1 yr 6 mo", "2026-06-12"], ["o-18", "2 y 3 m", "2026-06-12"],
   ];
   await fresh(c, CORPUS);
   await c.query(MIGRATION);
@@ -713,6 +721,40 @@ function appRule(ageStr, intakeStr) {
     const r = await expectFail(c, MIGRATION);
     check(`O3 "${age}" is refused, not translated: the app reads it as the intake date`, r.failed && new RegExp(id).test(r.message), r.failed ? "" : "it was accepted");
   }
+}
+
+{
+  // O2 is a corpus, and a corpus cannot find the string nobody put in it. The app's patterns are
+  // unanchored and this file's are whole words, so one string can yield two numbers -- and before
+  // this check existed the file stored its own. Each of these is refused with both readings named.
+  for (const [id, age, sqlReads, appReads] of [
+    ["o-19", "2 young pups, 6 months", "6 months", "2 years"],
+    ["o-20", "6 months, 2 yo", "6 months", "2 years"],
+    ["o-21", "3 males, 2 mo", "2 months", "3 months"],
+    // JavaScript's \s takes a non-breaking space and [[:space:]] under this ctype does not, so the
+    // app-side pattern has to spell the class out or this one reads as agreement.
+    ["o-22", "3\u00a0y old, 2 years", "2 years", "3 years"],
+  ]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    const app = appRule(age, "2026-06-12");
+    check(
+      `O4 ${JSON.stringify(age)} is refused: the app reads ${appReads}, this file ${sqlReads}`,
+      r.failed && r.message.includes(`this file reads ${sqlReads}, the app reads ${appReads}`) && !(await columns(c)).birthDate,
+      r.failed ? `app would store ${app}` : "it was accepted"
+    );
+  }
+}
+{
+  // A Malay word beside an English unit. Master's app reads the months; PR #42's reads the
+  // tahun. Without the Malay refusal this backfilled as six months and the pre-check called it ok.
+  await fresh(c, [["o-23", "2 tahun 6 months", "2026-06-12"]]);
+  const r = await expectFail(c, MIGRATION);
+  check(
+    'O5 "2 tahun 6 months" is refused as Malay, not backfilled from its English half',
+    r.failed && /Malay age word/.test(r.message) && /o-23/.test(r.message) && !(await columns(c)).birthDate,
+    r.failed ? "" : "it was accepted"
+  );
 }
 
 // ------------- N. spaced and worded ranges, and the guards that only looked at tight spellings
@@ -801,6 +843,11 @@ function appRule(ageStr, intakeStr) {
     ["j-6", "500 years", "2026-06-12", "implausible age"],
     ["j-7", "900 months", "2026-06-12", "implausible age"],
     ["j-8", "1.5 years", "2026-06-12", "fractional age"],
+    ["j-9", "1 yr 6 mo", "2026-06-12", "ok: years"],
+    ["j-10", "2 young pups, 6 months", "2026-06-12", "app reads another number"],
+    ["j-11", "2 tahun", "2026-06-12", "malay age word"],
+    ["j-12", "2 tahun 6 months", "2026-06-12", "malay age word"],
+    ["j-13", "2 yo", "2026-06-12", "unparseable age"],
   ];
   await fresh(c, J);
   const verdict = Object.fromEntries((await c.query(PRECHECK)).rows.map((x) => [x.id, x.verdict]));
@@ -829,6 +876,75 @@ function appRule(ageStr, intakeStr) {
     "J3 every pre-check verdict matches what migration.sql actually does",
     j3bad.length === 0,
     j3bad.length ? JSON.stringify(j3bad) : `${J.length} rows`
+  );
+}
+
+// ------------------------------- Q. rollback.sql against each state the two columns can be in
+{
+  // Run twice. The second run finds neither column; it used to say birthDate was "left in place"
+  // and that "nothing has been undone", about a column that was not there.
+  await fresh(c);
+  await c.query(MIGRATION);
+  await c.query(ROLLBACK);
+  const notices = [];
+  c.on("notice", (n) => notices.push(n.message));
+  const r = await expectFail(c, ROLLBACK);
+  c.removeAllListeners("notice");
+  check(
+    "Q1 a second rollback says there is nothing to drop, not that a column was left in place",
+    !r.failed && notices.some((n) => /neither "birthDate" nor "birthDateIsEstimate"/.test(n)) && !notices.some((n) => /"birthDate(IsEstimate)?" left in place/.test(n)),
+    r.failed ? r.message.split("\n")[0] : (notices[0] || "no notice").slice(0, 90)
+  );
+}
+{
+  // birthDate dropped by hand, the marked flag left behind. Rollback used to leave the flag, and
+  // migration.sql refuses a table carrying one of the pair without the other.
+  await fresh(c);
+  await c.query(MIGRATION);
+  await c.query(`ALTER TABLE "public"."pets" DROP COLUMN "birthDate"`);
+  await c.query(ROLLBACK);
+  const cols = await columns(c);
+  check(
+    "Q2 a marked birthDateIsEstimate left without birthDate is dropped, and the NOT NULLs come back",
+    !cols.birthDateIsEstimate && cols.age.is_nullable === "NO" && cols.ageCategory.is_nullable === "NO",
+    cols.birthDateIsEstimate ? "the flag is still there" : ""
+  );
+  const reapply = await expectFail(c, MIGRATION);
+  const after = reapply.failed ? null : (await c.query(`SELECT "birthDate" FROM "public"."pets" WHERE "id"=$1`, [FIXTURES[0][0]])).rows[0].birthDate;
+  check("Q3 so migration.sql applies again", after === FIXTURES[0][3], reapply.failed ? reapply.message.split("\n")[0].slice(0, 90) : after);
+}
+{
+  // The same half-state, but the flag is somebody else's. Not ours to drop -- and the notice must
+  // be about the column that is there, and say what it blocks.
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT false`);
+  const notices = [];
+  c.on("notice", (n) => notices.push(n.message));
+  await c.query(ROLLBACK);
+  c.removeAllListeners("notice");
+  check(
+    "Q4 an unmarked birthDateIsEstimate on its own is left, named, and said to block migration.sql",
+    !!(await columns(c)).birthDateIsEstimate && notices.some((n) => /"birthDateIsEstimate" left in place/.test(n) && /refuses a table/.test(n)) && !notices.some((n) => /"birthDate" left in place/.test(n)),
+    (notices[0] || "no notice").slice(0, 90)
+  );
+}
+{
+  // A foreign pair, which migration.sql leaves alone while still relaxing the NOT NULLs. Rollback
+  // keeps the pair and restores the constraints -- so "nothing has been undone" was false.
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2019-01-01'`);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDateIsEstimate" BOOLEAN NOT NULL DEFAULT false`);
+  await c.query(MIGRATION);
+  const relaxed = (await columns(c)).age.is_nullable === "YES";
+  const notices = [];
+  c.on("notice", (n) => notices.push(n.message));
+  await c.query(ROLLBACK);
+  c.removeAllListeners("notice");
+  const cols = await columns(c);
+  check(
+    "Q5 with a foreign pair kept, rollback restores the NOT NULLs and does not claim nothing was undone",
+    relaxed && !!cols.birthDate && !!cols.birthDateIsEstimate && cols.age.is_nullable === "NO" && !notices.some((n) => /nothing has been undone/i.test(n)),
+    `age nullable after apply=${relaxed}, after rollback=${cols.age.is_nullable}`
   );
 }
 
@@ -924,7 +1040,7 @@ function appRule(ageStr, intakeStr) {
 // A skip is not a pass. The Prisma group is the only skippable one and it carries the strongest
 // evidence here, so losing it has to change the exit code, not just add a word to the summary.
 if (skipped) console.log(`\n${skipped} check(s) SKIPPED -- read the reason above; this run did not prove what a full one proves.`);
-console.log(`\n${failures ? `${failures} FAILED` : skipped ? "no failures, but checks were skipped" : "all checks passed"}`);
+console.log(`\n${ran} checks ran. ${failures ? `${failures} FAILED` : skipped ? "no failures, but checks were skipped" : "all checks passed"}`);
 await c.end();
 try {
   await server.stop();

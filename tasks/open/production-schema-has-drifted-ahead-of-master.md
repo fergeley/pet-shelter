@@ -228,10 +228,13 @@ does not. The `pets.age` → `birthDate` migration and the `shelter_settings` co
 
 `prisma/migrations/manual/20260922_pets_birth_date/` (with `rollback.sql` and the `rehearse.mjs`
 that produced its checks) adds `birthDate` and `birthDateIsEstimate`, backfills them from the
-prose `age` production still carries, and relaxes the `age`/`ageCategory` NOT NULLs. Ninety-two
-checks on a throwaway embedded PostgreSQL 18.4, all passing. **It has not touched production; the
-owner applies it in the Neon SQL editor, following the file's header.** Rationale and the full
-check list: `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md`.
+prose `age` production still carries, and relaxes the `age`/`ageCategory` NOT NULLs. 102 checks
+on a throwaway embedded PostgreSQL 18.4 as of 2026-10-13, all passing; the script prints its own
+count, which is the one to trust. **It has not touched production; the owner applies it in the
+Neon SQL editor, following the file's header.** Rationale: the two
+`tasks/decisions/2026-09-22-*` entries about this migration and
+`tasks/decisions/2026-10-13-expand-refuses-what-the-app-would-read-differently.md`. The check
+list is `rehearse.mjs` itself.
 
 **It does not close this entry.** The file deliberately does not drop `age`/`ageCategory` — that
 half destroys the only record of what staff typed and cannot be rolled back — so after it is

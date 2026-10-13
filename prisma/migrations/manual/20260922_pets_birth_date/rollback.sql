@@ -35,7 +35,12 @@
 -- file's marker; a `birthDate` created by something else -- a stray `db push`, a hand-applied
 -- fix -- is left alone and said so, because dropping it would destroy birthdays this pair never
 -- wrote. If migration.sql took its "already has both columns, nothing added" branch, this file
--- correctly does nothing to them.
+-- correctly does nothing to them -- though it still restores any NOT NULL that run removed.
+--
+-- Run a second time, it finds neither column and says so; it does not report a column "left in
+-- place" that is not there. And if somebody dropped `birthDate` by hand and left the flag, a
+-- marked `birthDateIsEstimate` is dropped here, because migration.sql refuses a table carrying
+-- one of the pair without the other. An unmarked one is left and named, with what it blocks.
 --
 -- The NOT NULLs come back only where migration.sql removed them. It marks each column it
 -- relaxes with a comment; this file restores the constraint only on a marked column, then
@@ -58,7 +63,8 @@
 -- migration.sql applies again cleanly afterwards, a post-migration row whose `age` is NULL keeps
 -- the column nullable and is named rather than aborting, a table whose `age` was already
 -- nullable before migration.sql is left nullable rather than tightened, and a column that
--- carried a comment before any of this gets that comment back.
+-- carried a comment before any of this gets that comment back. Re-taken 2026-10-13 with the
+-- four column states above: both present, neither, the flag alone marked, the flag alone not.
 
 BEGIN;
 
@@ -78,6 +84,9 @@ DECLARE
   marked    text;
   prior     text;
   mine      boolean;
+  est_mine  boolean;
+  has_birth boolean;
+  has_est   boolean;
 BEGIN
   PERFORM set_config('lock_timeout', '5s', true);
 
@@ -111,18 +120,52 @@ BEGIN
   -- dropping it here would destroy every exact birthday a human has typed since, none of which
   -- this pair put there. That is the same asymmetry the NOT NULL marker exists to prevent, and
   -- the columns deserve it more, because they hold the data.
+  --
+  -- "Not there" and "there, but not mine" are different answers, and FOUND is what tells them
+  -- apart: with no such column the SELECT returns no row and leaves the flag NULL, which an
+  -- `IS NOT TRUE` test reads as an unmarked column. That made a second run of this file report a
+  -- `birthDate` "left in place" on a table that had none.
   SELECT coalesce(col_description('"public"."pets"'::regclass, a.attnum), '')
            = 'added by 20260922_pets_birth_date'
     INTO mine
     FROM pg_attribute a
    WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'birthDate';
+  has_birth := FOUND;
 
-  IF mine IS NOT TRUE THEN
+  SELECT coalesce(col_description('"public"."pets"'::regclass, a.attnum), '')
+           = 'added by 20260922_pets_birth_date'
+    INTO est_mine
+    FROM pg_attribute a
+   WHERE a.attrelid = '"public"."pets"'::regclass AND a.attname = 'birthDateIsEstimate';
+  has_est := FOUND;
+
+  IF NOT has_birth AND NOT has_est THEN
     RAISE NOTICE
-      'pets."birthDate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. Nothing has been undone. Remove the columns by hand if that is really what you want, after exporting them.';
-  ELSE
-    ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDate";
+      'pets has neither "birthDate" nor "birthDateIsEstimate": there is no column here to drop. Either this file has already run or migration.sql never did.';
+
+  ELSIF NOT has_birth THEN
+    -- Half a pair. migration.sql adds both columns or neither and this file drops both in one
+    -- transaction, so this is somebody's hand-run DROP -- and migration.sql refuses a table
+    -- carrying one without the other. A marked flag is this pair's own leftover, so it goes; an
+    -- unmarked one is not ours to drop, and the reader is told what it blocks.
+    IF est_mine THEN
+      ALTER TABLE "public"."pets" DROP COLUMN "birthDateIsEstimate";
+      RAISE NOTICE
+        'pets."birthDateIsEstimate" dropped: it carries the marker from 20260922_pets_birth_date and "birthDate" is already gone, so it was the half of the pair left behind.';
+    ELSE
+      RAISE NOTICE
+        'pets."birthDateIsEstimate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. There is no "birthDate" beside it, and migration.sql refuses a table carrying one without the other: drop it by hand, or add "birthDate" by hand, before re-applying.';
+    END IF;
+
+  ELSIF mine THEN
+    -- The flag goes with the date whether or not it still carries its own marker: it means
+    -- nothing without the column it describes, and leaving it would be the half-state above.
+    ALTER TABLE "public"."pets" DROP COLUMN "birthDate";
     ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDateIsEstimate";
+
+  ELSE
+    RAISE NOTICE
+      'pets."birthDate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. Neither it nor "birthDateIsEstimate" has been dropped; a NOT NULL that migration.sql removed is still restored below. Remove the columns by hand if that is really what you want, after exporting them.';
   END IF;
 
   FOREACH col IN ARRAY ARRAY['age', 'ageCategory'] LOOP
