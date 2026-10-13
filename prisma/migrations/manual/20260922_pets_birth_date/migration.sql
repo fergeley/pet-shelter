@@ -161,13 +161,25 @@
 --     backfill as the year exactly as "1 year 6 months" does.
 --   * More than one quantity aborts, with that one exception. An age holding two
 --     number-and-unit quantities is read as a single age only when it is years then months
---     with nothing between them but spaces, commas or full stops. Everything else is refused
---     however it is spelled and however far apart the numbers sit: "2 years - 3 years",
---     "6 months - 1 year", "1 yr - 18 mo", "6 months 1 year", "1 year and 6 months". This is
---     counted, not looked for within a distance, because the five-character guard above let
---     the long spellings through -- "6 months - 1 year" was stored as one year, its upper
---     bound. "1 year and 6 months" is refused on purpose: "and" also joins the two ends of
---     "between 1 year and 18 months", and this file will not guess which was meant.
+--     with nothing between them but spaces, commas or full stops. Any other second quantity
+--     is refused however far apart the numbers sit: "2 years - 3 years", "6 months - 1 year",
+--     "1 yr - 18 mo", "6 months 1 year", "1 year and 6 months". This is counted, not looked
+--     for within a distance, because the five-character guard above let the long spellings
+--     through -- "6 months - 1 year" was stored as one year, its upper bound. "1 year and
+--     6 months" is refused on purpose: "and" also joins the two ends of "between 1 year and
+--     18 months", and this file will not guess which was meant. So is an age with a second
+--     duration that is not an age at all, "2 years, in shelter 6 months": the file cannot
+--     tell a tenure from a range, and one such row aborts the table until it is retyped.
+--   * WHAT THE COUNT CANNOT SEE, AND YOU CAN. It counts a number followed by one of the unit
+--     words listed under "THE BACKFILL RULE", and nothing else. A second quantity written any
+--     other way is invisible to it, and where the app reads the same number the row is
+--     STORED: "8 weeks - 1 year", "six months - 1 year" and "6 mnths - 1 year" all backfill
+--     as exactly one year, the upper end of the range. So does a range whose first number
+--     has a non-breaking space after it. A years-then-months pair is also taken at its word
+--     whatever the months say, so "1 year, 18 months" is one year. No rule here will ever
+--     read prose completely. The pre-check prints the `age` column beside each verdict for
+--     this reason: read it for every row holding two numbers, a range word, or a second
+--     duration, and retype any that is not a plain "2 years" or "1 yr 6 mo".
 --   * An age the app would read as a different number aborts, naming both readings. See "THE
 --     INVARIANT THIS FILE KEEPS".
 --   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
@@ -581,7 +593,7 @@ BEGIN
      WHERE fractional OR quantities > CASE WHEN year_month_pair THEN 2 ELSE 1 END;
 
     IF offenders IS NOT NULL THEN
-      RAISE EXCEPTION E'pets rows whose "age" is fractional, a range, or more than one quantity, which this file will not round, narrow or add up:\n    %\nThe rule reads the digits next to the unit, so "1.5 years" would be stored as 5 years before intake and "3-4 years" as 4. Two quantities are read as one age only when written years then months with nothing but spaces, commas or full stops between them, as in "1 yr 6 mo"; "1 year and 6 months" and "6 months - 1 year" are refused. Rewrite each as one whole number and one unit -- "18 months" for "1.5 years" -- then re-run. Nothing has been changed.',
+      RAISE EXCEPTION E'pets rows whose "age" is fractional, a range, or more than one quantity, which this file will not round, narrow or add up:\n    %\nThe rule reads the digits next to the unit, so "1.5 years" would be stored as 5 years before intake and "3-4 years" as 4. Two quantities are read as one age only when written years then months with nothing but spaces, commas or full stops between them, as in "1 yr 6 mo"; "1 year and 6 months", "6 months - 1 year" and "2 years, in shelter 6 months" are refused. If a row already looks like an accepted form, retype it: an invisible character such as a non-breaking space is not a space here. Rewrite each as one whole number and one unit -- "18 months" for "1.5 years" -- then re-run. Nothing has been changed.',
         offenders;
     END IF;
 

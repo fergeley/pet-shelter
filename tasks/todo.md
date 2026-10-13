@@ -258,8 +258,8 @@ It is fixed by counting, not by a wider window. An age holding more than one num
 quantity is refused at any distance, unless it is exactly years then months separated by spaces,
 commas or full stops. `"1 year and 6 months"` is refused under that rule on purpose.
 
-**Verified:** rehearsal 123/123 on the last run of 2026-10-13 (was 92), 7 of them through master's
-generated client.
+**Verified:** every rehearsal check passing on the last run (the script prints the count; it was
+92 when this session started), 7 of them through master's generated client.
 Mutation-tested: removing each new guard turns its own checks red — the app-disagreement refusal
 (O4 ×4, J3), the Malay refusal (O5, J3), the spelled-out whitespace class (O4's non-breaking
 space), `FOUND` in rollback (Q1–Q4), the stranded-flag drop (Q2, Q3), the pre-check verdict (J1),
@@ -287,9 +287,16 @@ not chased here.
 - **Deriving `unit` and `qty` from `sql_pick`**, so the token lists exist once in the body
   rather than three times. Suggested by the review of the fix. It rewrites the expressions every
   stored date comes from, and the copies have not diverged.
-- **A fifth review, of the last fix commit.** Four were run and each found something. The last
-  commit is unreviewed code, by the standard this stream itself set, and the owner should weigh
-  that before pasting.
+- **A further guard for second quantities the count cannot read.** A fifth review ran, on the
+  commit that added the count, and found `"8 weeks - 1 year"`, `"six months - 1 year"` and
+  `"1 year, 18 months"` are still stored as one year. They are now named in the header in
+  capitals and pinned by T1, and the header's instruction to read the `age` column, which that
+  commit had deleted, is back. No fifth pattern was written: the last four each had a hole.
+- **A sixth review, of the commit that made those last changes.** It is header text, two message
+  strings and four checks, with no change to what the SQL accepts or stores. It is still
+  unreviewed, by the standard this stream set.
+- **Refusing a years-then-months pair whose months are twelve or more.** Suggested by the fifth
+  review. It would refuse `"2 years 800 months"`, which N3 pins as accepted since round four.
 - **Measuring the app-agreement check under an ICU ctype.** The NULL case it guards is reasoned,
   not observed; the harness pins ctype C.
 - **Widening the file to read Malay now that PR #42 does.** The app moves first; #42 is open and

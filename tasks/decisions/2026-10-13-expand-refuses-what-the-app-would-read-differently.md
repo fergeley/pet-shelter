@@ -95,7 +95,24 @@ wrong in the same direction:
 `between 1 year and 18 months`, and the file does not guess. It costs the owner a retype of a
 spelling a volunteer might plausibly use.
 
-Checks **N7** and **N8**, and pre-check rows **j-17** to **j-19**, which exist because the
+**What the count cannot see is still stored, and the control for it is a person.** It counts a
+number followed by one of the file's unit words. `8 weeks - 1 year`, `six months - 1 year` and
+`6 mnths - 1 year` each hold a second quantity it cannot read, the app reads one year from each,
+and one year is stored: the upper end of the range. `1 year, 18 months` is taken as a pair and
+stored as one year. A fifth review found these, and also found that the commit introducing the
+count had deleted the header's instruction to read the `age` column and replaced it with "refused
+however it is spelled". That sentence was false and the instruction is back, in capitals, with
+these strings in it. Check **T1** asserts they are stored, for the reason N8 once did: so the
+warning cannot be read as hypothetical. No further guard was added. Each of the last four was
+answered with a narrower regular expression and each answer had a hole; a file that parses prose
+will always have one more, and the honest position is a named limit and a human reading the
+pre-check, not a fifth pattern.
+
+The count also refuses an age carrying a second duration that is not an age,
+`2 years, in shelter 6 months`, which used to backfill correctly. That is a cost, accepted
+because the file cannot tell a tenure from a range. Pinned in N8.
+
+Checks **N7** and **N8**, and pre-check rows **j-17** to **j-20**, which exist because the
 pre-check carries its own copy of the rule and a copy nobody tests is how the two drift.
 Attempts 2 and 3 are not in the file: once the count existed, loosening the narrow exemption
 turned no check red, so it was redundant and went back to its simplest form.

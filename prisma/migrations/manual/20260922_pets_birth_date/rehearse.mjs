@@ -789,8 +789,8 @@ function appRule(ageStr, intakeStr) {
   // only the quantity count stands between a range and a stored date.
   // The next three are the separator: a dash or "or" between a year and a month quantity makes
   // a range, and an exemption that allowed any separator read each as exactly one year. They are
-  // spelled tightly on purpose -- the guard looks five characters back, and the same ranges
-  // written with longer gaps are outside it, which N8 below records rather than hides.
+  // spelled tightly here; N8 below has the same ranges written with longer gaps, which the
+  // five-character guard never saw and the quantity count refuses.
   for (const [id, age] of [
     ["n2-10", "6 m - 1 y"], ["n2-11", "2 y - 3 y"], ["n2-12", "3 m - 4 m"],
     ["n2-13", "1 y - 2 m"], ["n2-14", "1yr-18mo"], ["n2-15", "1y or 2m"], ["n2-16", "6 mo 1 yr"],
@@ -811,6 +811,9 @@ function appRule(ageStr, intakeStr) {
     ["n2-17", "2 years - 3 years"], ["n2-18", "6 months - 1 year"], ["n2-19", "1 yr - 18 mo"],
     ["n2-21", "6 months 1 year"], ["n2-22", "1 year and 6 months"], ["n2-23", "between 1 year and 18 months"],
     ["n2-24", "1 yr 6 mo, mother 4 years"],
+    // Not a range at all, and refused all the same: the file cannot tell a tenure from a range.
+    // Pinned so the cost is a decision somebody can find, not a surprise in production.
+    ["n2-25", "2 years, in shelter 6 months"],
   ]) {
     await fresh(c, [[id, age, "2026-06-12"]]);
     const r = await expectFail(c, MIGRATION);
@@ -904,6 +907,7 @@ function appRule(ageStr, intakeStr) {
     ["j-17", "1 y - 2 m", "2026-06-12", "fractional age"],
     ["j-18", "1 y, 6 m", "2026-06-12", "ok: years"],
     ["j-19", "6 months - 1 year", "2026-06-12", "fractional age"],
+    ["j-20", "1 yr. 6 mo.", "2026-06-12", "ok: years"],
   ];
   await fresh(c, J);
   const verdict = Object.fromEntries((await c.query(PRECHECK)).rows.map((x) => [x.id, x.verdict]));
@@ -1042,6 +1046,30 @@ function appRule(ageStr, intakeStr) {
     "S2 the spelled-out whitespace class appears six times and no other spelling of it exists",
     copies === 6 && started === 6,
     `${copies} canonical, ${started} in all`
+  );
+}
+
+// ------------------- T. what the quantity count cannot see: pinned, because it is still true
+{
+  // The count sees a number followed by one of this file's unit words. A second quantity written
+  // any other way is invisible to it, the app reads the same number, and the row is stored -- each
+  // of these as exactly one year, the upper end of its range. This is a limit, not a behaviour to
+  // preserve: migration.sql's header says so in capitals and makes reading the `age` column the
+  // control for it. If a later change refuses one of these, that is an improvement; update the
+  // header's "WHAT THE COUNT CANNOT SEE" paragraph and this list together.
+  const UNSEEN = [
+    ["t-1", "8 weeks - 1 year", "2026-06-12", "2025-06-12"],
+    ["t-2", "six months - 1 year", "2026-06-12", "2025-06-12"],
+    ["t-3", "6 mnths - 1 year", "2026-06-12", "2025-06-12"],
+    ["t-4", "1 year, 18 months", "2026-06-12", "2025-06-12"],
+  ];
+  await fresh(c, UNSEEN);
+  const r = await expectFail(c, MIGRATION);
+  const got = r.failed ? {} : Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
+  check(
+    "T1 KNOWN LIMIT: a second quantity the count cannot read is stored, as the header warns",
+    !r.failed && UNSEEN.every(([id, , , want]) => got[id] === want),
+    r.failed ? r.message.slice(0, 100) : JSON.stringify(got)
   );
 }
 
