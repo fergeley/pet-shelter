@@ -396,7 +396,8 @@ for (const [name, rows, expect] of REFUSALS) {
     ["e-11", "2 y 3 m", "2026-06-12", "2024-06-12"],
     ["e-12", "12 yr 6 mo", "2026-06-12", "2014-06-12"],
     ["e-14", "1 y, 6 m", "2026-06-12", "2025-06-12"],
-    ["e-15", "1 y and 6 m", "2026-06-12", "2025-06-12"],
+    ["e-15", "1 yr. 6 mo.", "2026-06-12", "2025-06-12"],
+    ["e-16", "1 year, 6 months", "2026-06-12", "2025-06-12"],
     // UTC midnight is the one time of day that is the same date to the app and to this file.
     ["e-13", "2 years", "2026-06-12T00:00:00.000Z", "2024-06-12"],
   ];
@@ -782,10 +783,10 @@ function appRule(ageStr, intakeStr) {
   }
 }
 {
-  // The compound exemption is one shape -- a year quantity, then a month quantity. A first draft
-  // exempted any first number carrying a unit, which let these through: the app reads the upper
-  // bound of the first and the lower bound of the other two, so the app-agreement check passes
-  // them and only this guard stands between a range and a stored date.
+  // Two quantities are one age in exactly one shape -- years, then months. A first draft let any
+  // first number carrying a unit through, which stored these: the app reads the upper bound of
+  // the first and the lower bound of the next two, so the app-agreement check passes them and
+  // only the quantity count stands between a range and a stored date.
   // The next three are the separator: a dash or "or" between a year and a month quantity makes
   // a range, and an exemption that allowed any separator read each as exactly one year. They are
   // spelled tightly on purpose -- the guard looks five characters back, and the same ranges
@@ -793,6 +794,8 @@ function appRule(ageStr, intakeStr) {
   for (const [id, age] of [
     ["n2-10", "6 m - 1 y"], ["n2-11", "2 y - 3 y"], ["n2-12", "3 m - 4 m"],
     ["n2-13", "1 y - 2 m"], ["n2-14", "1yr-18mo"], ["n2-15", "1y or 2m"], ["n2-16", "6 mo 1 yr"],
+    // "and" joins a compound and also the two ends of "between 1 yr and 18 mo". Not guessed at.
+    ["n2-20", "1 y and 6 m"],
   ]) {
     await fresh(c, [[id, age, "2026-06-12"]]);
     const r = await expectFail(c, MIGRATION);
@@ -800,27 +803,23 @@ function appRule(ageStr, intakeStr) {
   }
 }
 {
-  // The limit, pinned so that nobody reads the header's warning as hypothetical. The range guard's
-  // window is five characters. These are ranges, they are wider than that, and they are STORED:
-  // the first as its lower bound and the other two as the year, which for the second is the upper
-  // bound. The app reads each the same way, so the app-agreement check passes them too. If this
-  // check ever fails because one is refused, that is an improvement -- update the header with it.
-  const WIDE = [
-    ["n2-17", "2 years - 3 years", "2026-06-12", "2024-06-12"],
-    ["n2-18", "6 months - 1 year", "2026-06-12", "2025-06-12"],
-    ["n2-19", "1 yr - 18 mo", "2026-06-12", "2025-06-12"],
-  ];
-  await fresh(c, WIDE);
-  const r = await expectFail(c, MIGRATION);
-  const got = r.failed ? {} : Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
-  check(
-    "N8 KNOWN LIMIT: a range wider than the five-character window is stored, not refused",
-    !r.failed && WIDE.every(([id, , , want]) => got[id] === want),
-    r.failed ? r.message.slice(0, 90) : JSON.stringify(got)
-  );
+  // The windowed guard looks five characters back, and every one of these has a longer gap. They
+  // used to be STORED -- "6 months - 1 year" as one year, its upper bound, because years are read
+  // first -- and the app reads each the same way, so the app-agreement check passed them. They
+  // are caught by counting quantities instead, which has no distance in it.
+  for (const [id, age] of [
+    ["n2-17", "2 years - 3 years"], ["n2-18", "6 months - 1 year"], ["n2-19", "1 yr - 18 mo"],
+    ["n2-21", "6 months 1 year"], ["n2-22", "1 year and 6 months"], ["n2-23", "between 1 year and 18 months"],
+    ["n2-24", "1 yr 6 mo, mother 4 years"],
+  ]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(`N8 "${age}" is refused: more than one quantity, at any distance`, r.failed && /more than one quantity/.test(r.message) && new RegExp(id).test(r.message), r.failed ? "" : "it was accepted");
+  }
 }
 {
-  // ...without breaking the round-2 cases, where the extra number sits after the unit.
+  // None of the range and quantity refusals above may break these, where the extra number is not
+  // an age quantity at all, or is the months half of a years-then-months pair.
   const OK = [
     ["n2-6", "2 years, 12.5 kg", "2026-06-12", "2024-06-12"],
     ["n2-7", "3 years (lahir 12/06/2023)", "2026-06-12", "2023-06-12"],
@@ -900,6 +899,11 @@ function appRule(ageStr, intakeStr) {
     ["j-14", "2 years", "2026-03-01T02:00:00+08:00", "bad intakeDate"],
     ["j-15", "6 m - 1 y", "2026-06-12", "fractional age"],
     ["j-16", "2 years", "2026-06-12T00:00:00Z", "ok: years"],
+    // These three exist to pin the pre-check's own copy of the two-quantity rules: each gives a
+    // different verdict if that copy alone falls behind the body's.
+    ["j-17", "1 y - 2 m", "2026-06-12", "fractional age"],
+    ["j-18", "1 y, 6 m", "2026-06-12", "ok: years"],
+    ["j-19", "6 months - 1 year", "2026-06-12", "fractional age"],
   ];
   await fresh(c, J);
   const verdict = Object.fromEntries((await c.query(PRECHECK)).rows.map((x) => [x.id, x.verdict]));
@@ -1031,7 +1035,14 @@ function appRule(ageStr, intakeStr) {
   const CLASS = "[[:space:]" + ["00A0", "1680", "2000", "200A", "2028", "2029", "202F", "205F", "3000", "FEFF"]
     .map((h, i) => (i === 3 ? "-" : "") + String.fromCharCode(92) + "u" + h).join("") + "]";
   const copies = MIGRATION.split(CLASS).length - 1;
-  check("S2 the spelled-out whitespace class appears six times, each one identical", copies === 6, `${copies} copies`);
+  // Every class that starts spelling out a code point must be the canonical one, so a seventh,
+  // narrower copy cannot sit beside six good ones.
+  const started = MIGRATION.split("[[:space:]" + String.fromCharCode(92) + "u").length - 1;
+  check(
+    "S2 the spelled-out whitespace class appears six times and no other spelling of it exists",
+    copies === 6 && started === 6,
+    `${copies} canonical, ${started} in all`
+  );
 }
 
 // ------------------------------------------------ I. no scratch table is left behind

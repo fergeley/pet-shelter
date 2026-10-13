@@ -27,7 +27,7 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 92 checks (116 since 2026-10-13) on a throwaway embedded PostgreSQL 18.4 created UTF8,
+- [x] `rehearse.mjs` beside it — 92 checks then, more since; the script prints its count. On a throwaway embedded PostgreSQL 18.4 created UTF8,
       all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
@@ -220,8 +220,7 @@ accepted, and the probe changed the answer for three of them. Settled in
       script, no M, N or O. **The remedy implied was not available**: `tasks/README.md` forbids
       rewriting a decision entry. The header now points at `rehearse.mjs`, which prints its count.
 - [x] **3. The comment above E1 argued the Malay case.** Confirmed and rewritten.
-- [x] **4. `"1 yr 6 mo"` refused as fractional.** Confirmed. A year quantity followed by a month
-      quantity is now exempt, and nothing wider — see the review of the fix, below.
+- [x] **4. `"1 yr 6 mo"` refused as fractional.** Confirmed. Took four attempts; see below.
 - [x] **5. The invariant was over-claimed.** Confirmed, and wider than reported: the stray token
       can sit *after* the real one (`"6 months, 2 yo"`) and can be an `m` (`"3 males, 2 mo"`).
       Fixed in the SQL rather than in the sentence — the file reads each age with the app's own
@@ -249,21 +248,25 @@ characters where escapes had been typed. A NULL on the app side passed `<>`. One
 still spoke of a column that was not there. All fixed in the commit after the merge; the decision
 entry lists them.
 
-**A third `/code-review`, on that commit, found eight more.** The exemption was still too wide:
-it allowed any separator, so `"1 y - 2 m"` passed as a compound. Writing the checks for that fix
-is what showed the real limit, because three of the new checks failed for a different reason
-than the review gave: the range guard only looks five characters back, and `"1 yr - 18 mo"`,
-`"6 months - 1 year"` and `"2 years - 3 years"` are outside it and are **stored**. That limit
-predates this session. It is now stated in the header in capitals and pinned by N8, and it is
-the main thing the owner should know before pasting: **read the `age` column for any row with
-two numbers in it.**
+**A third `/code-review`, on that commit, found eight more, and a fourth found nine.** The
+exemption was still too wide, twice. Writing the checks for the third attempt is what showed the
+real defect, because three of them failed for a reason no review had given: the range guard only
+ever looked five characters back, so `"6 months - 1 year"` had always been **stored**, as one
+year, its upper bound. That predates this session and no earlier round found it.
 
-**Verified:** rehearsal 116/116 (was 92), 7 of them through master's generated client.
+It is fixed by counting, not by a wider window. An age holding more than one number-and-unit
+quantity is refused at any distance, unless it is exactly years then months separated by spaces,
+commas or full stops. `"1 year and 6 months"` is refused under that rule on purpose.
+
+**Verified:** rehearsal 123/123 on the last run of 2026-10-13 (was 92), 7 of them through master's
+generated client.
 Mutation-tested: removing each new guard turns its own checks red — the app-disagreement refusal
 (O4 ×4, J3), the Malay refusal (O5, J3), the spelled-out whitespace class (O4's non-breaking
 space), `FOUND` in rollback (Q1–Q4), the stranded-flag drop (Q2, Q3), the pre-check verdict (J1),
-the narrow exemption and its separator (N7), the whole-string `intakeDate` (C12, C13, J3), the
-lone-`birthDate` notice (Q6), and a literal non-breaking space anywhere in the file (S1). Removing the compound-unit lookahead altogether **crashes the run at E1** rather
+the quantity count (N7, N8, J3), the pre-check's own copy of it (J1), the whole-string
+`intakeDate` (C12, C13, J3), the lone-`birthDate` notice (Q6), and a literal non-breaking space
+anywhere in the file (S1). One mutation turned nothing red, and that was information: loosening
+the narrowed exemption once the count existed. The exemption was redundant and was simplified. Removing the compound-unit lookahead altogether **crashes the run at E1** rather
 than failing a check, because E1 calls `c.query(MIGRATION)` bare; it exits non-zero, so it is
 red, but it is the defect the comment above A3 describes and it is still there in every group
 that expects success.
@@ -284,9 +287,9 @@ not chased here.
 - **Deriving `unit` and `qty` from `sql_pick`**, so the token lists exist once in the body
   rather than three times. Suggested by the review of the fix. It rewrites the expressions every
   stored date comes from, and the copies have not diverged.
-- **Widening the range guard's five-character window.** It is what decides whether
-  `"2 years, 12.5 kg"` blocks the table and it has been moved three times. The limit is pinned
-  and announced instead; a human reading the pre-check is the control for it.
+- **A fifth review, of the last fix commit.** Four were run and each found something. The last
+  commit is unreviewed code, by the standard this stream itself set, and the owner should weigh
+  that before pasting.
 - **Measuring the app-agreement check under an ICU ctype.** The NULL case it guards is reasoned,
   not observed; the harness pins ctype C.
 - **Widening the file to read Malay now that PR #42 does.** The app moves first; #42 is open and

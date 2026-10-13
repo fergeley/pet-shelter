@@ -158,17 +158,16 @@
 --     "1 - 2", "6 to 8", "between 2 and 3" -- is refused and named. A number *after* the unit
 --     is not a range, so "2 years, 12.5 kg" backfills normally. Nor is a year quantity
 --     followed by a month quantity: "1 yr 6 mo" and "2 y 3 m" are two quantities, and they
---     backfill as the year exactly as "1 year 6 months" does. Only whitespace, a comma or
---     "and" may separate the two, so "1 y - 2 m" is a range and is refused, as are ranges
---     that repeat or reverse the unit -- "2 y - 3 y", "6 m - 1 y" -- and a compound written
---     months first, "6 mo 1 yr".
---   * THE RANGE GUARD HAS A WINDOW, AND LONG SPELLINGS FALL OUTSIDE IT. It looks five
---     characters back from the number beside the unit. "2 years - 3 years",
---     "6 months - 1 year" and "1 yr - 18 mo" have a longer gap and are NOT refused: the first
---     stores 2 years, the second stores 1 year -- its upper bound, because years are read
---     before months -- and the third stores 1 year. The app reads all three the same way, so
---     nothing else here catches them, and the rehearsal's N8 records it. The pre-check prints
---     the `age` column for exactly this reason -- read it for any row holding two numbers.
+--     backfill as the year exactly as "1 year 6 months" does.
+--   * More than one quantity aborts, with that one exception. An age holding two
+--     number-and-unit quantities is read as a single age only when it is years then months
+--     with nothing between them but spaces, commas or full stops. Everything else is refused
+--     however it is spelled and however far apart the numbers sit: "2 years - 3 years",
+--     "6 months - 1 year", "1 yr - 18 mo", "6 months 1 year", "1 year and 6 months". This is
+--     counted, not looked for within a distance, because the five-character guard above let
+--     the long spellings through -- "6 months - 1 year" was stored as one year, its upper
+--     bound. "1 year and 6 months" is refused on purpose: "and" also joins the two ends of
+--     "between 1 year and 18 months", and this file will not guess which was meant.
 --   * An age the app would read as a different number aborts, naming both readings. See "THE
 --     INVARIANT THIS FILE KEEPS".
 --   * Safe to re-run. A `pets` that already has **both** new columns is left completely alone --
@@ -222,8 +221,13 @@
 --                                               substr(left("intakeDate",10),6,2)::int, 1)
 --                                     + interval '1 month' - interval '1 day')) THEN 'bad intakeDate'
 --            WHEN lower(coalesce("age",''))
---                 ~ ('[0-9](?![[:space:]]*(years|year|yrs|yr|y)\M[[:space:],]*(and[[:space:]]+)?[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M)'
+--                 ~ ('[0-9](?![[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M)'
 --                    || '[^0-9]{1,5}[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M')
+--                 OR (SELECT count(*) FROM regexp_matches(lower(coalesce("age",'')),
+--                       '[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M', 'g'))
+--                    > CASE WHEN lower(coalesce("age",''))
+--                                ~ '[0-9]+[[:space:]]*(years|year|yrs|yr|y)\M[[:space:],.]*[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M'
+--                           THEN 2 ELSE 1 END
 --                 THEN 'fractional age'
 --            -- What this file's whole-word tokens pick, against what the app's unanchored
 --            -- patterns pick. The long bracket is JavaScript's \s, spelled out.
@@ -259,9 +263,10 @@
 --                             UPDATEs above, or rewrite as "2 years", "4 months"
 --   bad intakeDate            not a real calendar date, or a date with a time or anything
 --                             else after it; store the bare date, "2026-03-01"
---   fractional age            a decimal, a range, or two quantities not written years then
---                             months: "1.5 years" reads as 5, "3-4 years" as 4, "6 mo 1 yr" as
---                             1; pick one whole number and one unit -- "18 months", "3 years"
+--   fractional age            a decimal, a range, or more than one quantity: "1.5 years"
+--                             reads as 5, "3-4 years" as 4, "6 months - 1 year" as 1. Two
+--                             quantities are one age only as years then months, "1 yr 6 mo".
+--                             Pick one whole number and one unit -- "18 months", "3 years"
 --   app reads another number  the app would take a different number from the same words, as in
 --                             "2 young pups, 6 months"; rewrite with one number and one unit
 --   implausible age           over 60 years or 720 months; a typo, not an animal
@@ -477,18 +482,30 @@ BEGIN
                -- digit run that sits next to the unit token, so "1.5 years" would yield 5, not
                -- 1 -- a birthday three and a half years wrong, with every other check passing.
                --
-               -- The lookahead exempts one shape only: a year quantity followed by a month quantity.
-               -- "1 yr 6 mo" is two quantities, not a fraction or a range, and without it the guard
-               -- refused that spelling while accepting the synonymous "1 year 6 months" -- whose
-               -- first unit merely happens to be longer than the five-character window. It is
-               -- deliberately no wider: exempting any first number with a unit let "6 m - 1 y"
-               -- through as its upper bound and "2 y - 3 y" as its lower, and allowing any
-               -- separator between the two let "1 y - 2 m" through as a year. Only whitespace,
-               -- a comma or "and" may sit between them.
+               -- The lookahead steps over a first number that carries a unit of its own. This guard
+               -- is about one quantity written with two numbers -- "1.5 years", "3-4 years" -- and
+               -- "1 yr 6 mo" is two quantities, which it used to refuse while accepting the
+               -- synonymous "1 year 6 months", whose first unit is merely longer than the
+               -- five-character window. Whether two quantities are acceptable is not decided
+               -- here: the `quantities` count below decides it, at any distance. Narrowing this
+               -- lookahead was tried twice and is redundant with that count -- loosening it again
+               -- turned no check red -- so it is kept as simple as it can be.
                lower(coalesce(p."age", ''))
-                 ~ ('[0-9](?![[:space:]]*(years|year|yrs|yr|y)\M[[:space:],]*(and[[:space:]]+)?[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M)'
+                 ~ ('[0-9](?![[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M)'
                     || '[^0-9]{1,5}[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M')
                  AS fractional,
+               -- How many number-and-unit quantities the age holds, and whether it holds the one
+               -- pair that is read as a single age: years, then months, with nothing between them
+               -- but spaces, commas or full stops. The guard above only looks five characters
+               -- back, so "6 months - 1 year" walked past it and was stored as one year, the upper
+               -- bound. Counting needs no window. Units only, so the kg in "2 years, 12.5 kg" and
+               -- the date in "3 years (lahir 12/06/2023)" are not quantities.
+               (SELECT count(*) FROM regexp_matches(lower(coalesce(p."age", '')),
+                  '[0-9]+[[:space:]]*(years|year|yrs|yr|y|months|month|mths|mth|mos|mo|m)\M', 'g'))
+                 AS quantities,
+               lower(coalesce(p."age", ''))
+                 ~ '[0-9]+[[:space:]]*(years|year|yrs|yr|y)\M[[:space:],.]*[0-9]+[[:space:]]*(months|month|mths|mth|mos|mo|m)\M'
+                 AS year_month_pair,
                -- A number beside a Malay age word, anywhere in the string. Unanchored and with
                -- JavaScript's \s, because that is how PR #42's widened approximateBirthDate reads
                -- them: a row this matches is one master's app and that one date differently.
@@ -548,7 +565,7 @@ BEGIN
      WHERE intake IS NULL OR unit IS NULL;
 
     IF offenders IS NOT NULL THEN
-      RAISE EXCEPTION E'pets rows whose birthday cannot be derived:\n    %\nCorrect "age" or "intakeDate" for each, then re-run. An age needs a whole number and a unit, "2 years" or "4 months". An intakeDate must be a real calendar date and nothing else, "2026-03-01": a time, an offset or any other trailing text is refused, because the app reads the whole value. Nothing has been changed.',
+      RAISE EXCEPTION E'pets rows whose birthday cannot be derived:\n    %\nCorrect "age" or "intakeDate" for each, then re-run. An age needs a whole number and a unit, "2 years" or "4 months"; if a row already looks like that, retype it, because an invisible character such as a non-breaking space between the number and the unit is refused. An intakeDate must be a real calendar date, "2026-03-01": a time of day, an offset or any other trailing text is refused, because the app reads the whole value. The one exception is exactly UTC midnight, "2026-03-01T00:00:00Z", which is the same day either way. Nothing has been changed.',
         offenders;
     END IF;
 
@@ -561,10 +578,10 @@ BEGIN
              format('%L (age=%L)', "id", "age"), E'\n    ' ORDER BY "id")
       INTO offenders
       FROM _pets_birth_backfill
-     WHERE fractional;
+     WHERE fractional OR quantities > CASE WHEN year_month_pair THEN 2 ELSE 1 END;
 
     IF offenders IS NOT NULL THEN
-      RAISE EXCEPTION E'pets rows whose "age" is fractional or a range, which this file will not round or narrow:\n    %\nThe rule reads the digits next to the unit, so "1.5 years" would be stored as 5 years before intake and "3-4 years" as 4. Two quantities are read as one only when written years then months, as in "1 yr 6 mo". Rewrite each as one whole number and one unit -- "18 months" for "1.5 years" -- then re-run. Nothing has been changed.',
+      RAISE EXCEPTION E'pets rows whose "age" is fractional, a range, or more than one quantity, which this file will not round, narrow or add up:\n    %\nThe rule reads the digits next to the unit, so "1.5 years" would be stored as 5 years before intake and "3-4 years" as 4. Two quantities are read as one age only when written years then months with nothing but spaces, commas or full stops between them, as in "1 yr 6 mo"; "1 year and 6 months" and "6 months - 1 year" are refused. Rewrite each as one whole number and one unit -- "18 months" for "1.5 years" -- then re-run. Nothing has been changed.',
         offenders;
     END IF;
 

@@ -68,32 +68,37 @@ the arithmetic moves. It does **not** fail if the vocabulary moves, because it c
 transcription pinned by O1 to the English ages in `src/data/pets.json` — choice 2 is what covers
 vocabulary.
 
-## 4. Two quantities are not a range
+## 4. More than one quantity is refused, except years then months
 
 The range guard refused `1 yr 6 mo` and `2 y 3 m` as "fractional" while accepting
-`1 year 6 months`, only because ` year ` is six characters and the guard's window is five. The
-guard now exempts one shape: a year quantity followed by a month quantity. All three backfill as
-the year, which is what the app reads.
+`1 year 6 months`, only because ` year ` is six characters and the guard looks five back.
 
-**The first answer to this was wrong, and the review of the fix caught it.** It exempted any
-first number carrying a unit, on the argument that a narrower exemption was one regular
-expression too many. That let `6 m - 1 y` through as one year, its *upper* bound, and
-`2 y - 3 y` and `3 m - 4 m` through as their lower. The app reads the same numbers, so choice 1
-could not catch them, and the header still promised that a range aborts. The narrower exemption
-is what shipped. Check **N7** pins the three ranges; widening the lookahead back turns it red.
+It took four attempts, and the first three are recorded because each was reviewed and each was
+wrong in the same direction:
 
-**The second answer was still too wide, and the next review caught that.** The lookahead allowed
-anything between the year quantity and the month quantity, so `1 y - 2 m` and `1yr-18mo` were
-exempt as "compounds". Only whitespace, a comma or `and` may separate them now.
+1. Exempt any first number that carries a unit. This let `6 m - 1 y` through as one year, its
+   *upper* bound.
+2. Exempt only a year quantity followed by a month quantity. This still allowed any separator,
+   so `1 y - 2 m` was a "compound".
+3. Restrict the separator. Writing the checks for this is what exposed the real defect: three of
+   them failed for a reason no review had given. The guard only ever looked five characters
+   back, so `6 months - 1 year`, `2 years - 3 years` and `1 yr - 18 mo` had always been
+   stored. That predates this session. For one commit it was documented and pinned as a known
+   limit, which the next review rightly called the wrong altitude.
+4. **Count the quantities.** An age holding more than one number-and-unit quantity is refused,
+   whatever the spelling and whatever the distance, with one exception: exactly two, written
+   years then months, with nothing between them but spaces, commas or full stops. The windowed
+   guard keeps its original job, one quantity written with two numbers (`1.5 years`,
+   `3-4 years`), and steps over a first number that has its own unit.
 
-**The limit that remains is the window, and it is pinned rather than implied.** The guard looks
-five characters back from the number beside the unit. `2 years - 3 years`, `6 months - 1 year`
-and `1 yr - 18 mo` have longer gaps and are stored: two years, one year (the *upper* bound,
-because years are read first) and one year. The app reads each the same way, so nothing else
-catches them. Check **N8** asserts that they are stored, so the header's warning cannot be read
-as hypothetical, and the header tells the owner to read the `age` column for any row holding two
-numbers. Widening the window was not done: it is the knob that decides whether
-`2 years, 12.5 kg` blocks the table, and it has been moved three times already.
+`1 year and 6 months` is refused under this rule, knowingly. `and` also joins the two ends of
+`between 1 year and 18 months`, and the file does not guess. It costs the owner a retype of a
+spelling a volunteer might plausibly use.
+
+Checks **N7** and **N8**, and pre-check rows **j-17** to **j-19**, which exist because the
+pre-check carries its own copy of the rule and a copy nobody tests is how the two drift.
+Attempts 2 and 3 are not in the file: once the count existed, loosening the narrow exemption
+turned no check red, so it was redundant and went back to its simplest form.
 
 ## 5. Rollback tells "not there" from "not mine"
 
@@ -139,8 +144,8 @@ names any such row as `bad intakeDate` before anything runs.
 `migration.sql` pointed at the first decision entry for "the full check list". That entry says
 eighty-six checks and has no groups M, N or O; the script had ninety-two. The entry is a record of
 its date and stays as written. The header now points at `rehearse.mjs`, which prints each check's
-name and ends by printing how many ran: **116** when this entry was last touched, seven of them
-driving master's generated Prisma client. A count quoted in prose is a copy and will drift again;
+name and ends by printing how many ran. Seven of them drive master's generated Prisma client. No
+count is quoted here: this paragraph quoted one three times in one day and was wrong twice. A count quoted in prose is a copy and will drift again;
 the script's own last line is the number to trust.
 
 ## What the review of this fix found
@@ -161,8 +166,8 @@ them. PostgreSQL read them correctly and every check passed. The file is meant t
 a web editor, where a stripped or normalised character would silently narrow one copy. They are
 escapes now, and the edit script refuses to write a non-ASCII character beside `[[:space:]]`.
 
-A third review, of the commit that fixed those, found eight more. The separator and the window
-are in choice 4. The rest: two exception messages whose advice did not fit every row they could
+A third review, of the commit that fixed those, found eight more, and a fourth, of that commit,
+nine. The separator, the window and the count that replaced both are in choice 4. The rest: two exception messages whose advice did not fit every row they could
 name (a months-first compound told to rewrite a decimal; a timestamp told only to "correct
 intakeDate"); nothing in the repository pinning the escapes, so checks **S1** and **S2** now fail
 on any non-ASCII character in either SQL file and on any copy of the class that differs; the
