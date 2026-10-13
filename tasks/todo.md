@@ -27,7 +27,7 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 92 checks (102 since 2026-10-13) on a throwaway embedded PostgreSQL 18.4 created UTF8,
+- [x] `rehearse.mjs` beside it — 92 checks (108 since 2026-10-13) on a throwaway embedded PostgreSQL 18.4 created UTF8,
       all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
@@ -220,9 +220,8 @@ accepted, and the probe changed the answer for three of them. Settled in
       script, no M, N or O. **The remedy implied was not available**: `tasks/README.md` forbids
       rewriting a decision entry. The header now points at `rehearse.mjs`, which prints its count.
 - [x] **3. The comment above E1 argued the Malay case.** Confirmed and rewritten.
-- [x] **4. `"1 yr 6 mo"` refused as fractional.** Confirmed. A first number carrying its own unit
-      is now exempt. Knowingly accepted with it: `"2 y - 3 y"` takes the 2, as
-      `"2 years - 3 years"` always did.
+- [x] **4. `"1 yr 6 mo"` refused as fractional.** Confirmed. A year quantity followed by a month
+      quantity is now exempt, and nothing wider — see the review of the fix, below.
 - [x] **5. The invariant was over-claimed.** Confirmed, and wider than reported: the stray token
       can sit *after* the real one (`"6 months, 2 yo"`) and can be an `m` (`"3 males, 2 mo"`).
       Fixed in the SQL rather than in the sentence — the file reads each age with the app's own
@@ -241,13 +240,30 @@ accepted, and the probe changed the answer for three of them. Settled in
       this migration as the reason. It does widen the app to read Malay, which is what made
       `"2 tahun 6 months"` a row with no date both versions compute. Now refused.
 
-**Verified:** rehearsal 102/102 (was 92), 95 SQL-level and 7 through master's generated client.
+**`/code-review` on the fix commit found ten more, and the pattern held: the worst was in the
+fix.** The exemption for finding 4 was first written to cover any first number with a unit, which
+let `"6 m - 1 y"` through as its upper bound; it is now one shape. The invariant sentence the fix
+had just rewritten still did not hold for an `intakeDate` carrying a time and offset, so the whole
+string is read now. The app-side whitespace class reached the file as sixteen literal invisible
+characters where escapes had been typed. A NULL on the app side passed `<>`. One rollback notice
+still spoke of a column that was not there. All fixed in the commit after the merge; the decision
+entry lists them.
+
+**Verified:** rehearsal 108/108 (was 92), 7 of them through master's generated client.
 Mutation-tested: removing each new guard turns its own checks red — the app-disagreement refusal
 (O4 ×4, J3), the Malay refusal (O5, J3), the spelled-out whitespace class (O4's non-breaking
-space), `FOUND` in rollback (Q1, Q2, Q3, Q4), the stranded-flag drop (Q2, Q3), the pre-check
-verdict (J1). Removing the compound-unit lookahead **crashes the run at E1** rather than failing a
-check, because E1 calls `c.query(MIGRATION)` bare; it exits non-zero, so it is red, but it is the
-defect the comment above A3 describes and it is still there in every group that expects success.
+space), `FOUND` in rollback (Q1–Q4), the stranded-flag drop (Q2, Q3), the pre-check verdict (J1),
+the narrow exemption (N7), the whole-string `intakeDate` (C12, C13, J3), the lone-`birthDate`
+notice (Q6). Removing the compound-unit lookahead altogether **crashes the run at E1** rather
+than failing a check, because E1 calls `c.query(MIGRATION)` bare; it exits non-zero, so it is
+red, but it is the defect the comment above A3 describes and it is still there in every group
+that expects success.
+
+`npm run check`, `test:components` (170), `test:integration` (86) and `build` pass on the
+merged tree. `npm run test` failed 5 of 1589 on its first run, one of them a hook timeout, in
+files this branch does not touch, and passed 1589 of 1589 on the second; master's
+`tasks/open/unit-suite-is-order-dependent-in-both-directions.md` is the likely reason and it was
+not chased here.
 
 **Deliberately not done:**
 - **Rewriting the two 2026-09-22 decision entries.** They cite 86 checks, twelve shapes, Malay
@@ -256,9 +272,11 @@ defect the comment above A3 describes and it is still there in every group that 
 - **Wrapping every bare `await c.query(MIGRATION)` in `expectFail`.** It would make a mutation
   fail a named check instead of crashing. Mechanical, about thirty call sites, and not one of the
   seven findings.
-- **A narrower range exemption for finding 4** (year token first, month token second). It would
-  keep `"2 y - 3 y"` refused, at the price of a third regular expression. Reasoning in the
-  decision entry.
+- **Deriving `unit` and `qty` from `sql_pick`**, so the token lists exist once in the body
+  rather than three times. Suggested by the review of the fix. It rewrites the expressions every
+  stored date comes from, and the copies have not diverged.
+- **Measuring the app-agreement check under an ICU ctype.** The NULL case it guards is reasoned,
+  not observed; the harness pins ctype C.
 - **Widening the file to read Malay now that PR #42 does.** The app moves first; #42 is open and
   conflicting.
 - **Opening a pull request.** Not asked for. The owner applies this file by hand and it needs no

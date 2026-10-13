@@ -5,7 +5,8 @@
 Amends `tasks/decisions/2026-09-22-expand-stores-only-what-the-app-computes.md` and, for its
 check list only, `tasks/decisions/2026-09-22-pets-birth-date-backfills-from-intake-date.md`.
 Neither is rewritten. This entry records what a fifth review found in
-`prisma/migrations/manual/20260922_pets_birth_date/` and the five choices made answering it.
+`prisma/migrations/manual/20260922_pets_birth_date/`, the six choices made answering it, and
+what a review of those answers then found.
 
 ## 1. The invariant's parsing half is enforced, not sampled
 
@@ -31,7 +32,10 @@ more is safe, storing differently is not — applied to a case it had not seen.
 
 The app-side pattern spells out JavaScript's `\s` rather than using `[[:space:]]`, which is
 narrower: `3<nbsp>y old, 2 years` is 3 to the app, and the narrower class read it as agreement.
-Check **O4** pins all four strings.
+Check **O4** pins all four strings. Where the app-side pattern finds nothing at all the row is
+refused too, by coalescing before the comparison: that cannot happen under the C ctype this was
+rehearsed on, and is not promised impossible under an ICU one, whose `[[:space:]]` is wider.
+That last sentence is reasoning. No ICU database was available to measure it on.
 
 **What is still only measured: the date arithmetic.** O2 covers it for a corpus, and for a UTC
 process. Master's function subtracts in the server's local time, and under `America/Los_Angeles`
@@ -68,14 +72,18 @@ vocabulary.
 
 The range guard refused `1 yr 6 mo` and `2 y 3 m` as "fractional" while accepting
 `1 year 6 months`, only because ` year ` is six characters and the guard's window is five. The
-guard now exempts a first number that carries a unit of its own, so all three backfill as the
-year, which is what the app reads.
+guard now exempts one shape: a year quantity followed by a month quantity. All three backfill as
+the year, which is what the app reads.
 
-The exemption is by shape, and one consequence is accepted knowingly: a range that repeats its
-unit, `2 y - 3 y`, now takes the first number. `2 years - 3 years` always did, and the app does
-the same with both. A narrower exemption (year token first, month token second) was considered
-and not taken: it is a third regular expression in a file whose review history is mostly regular
-expressions, to protect one spelling of a range while the longer spelling stays accepted anyway.
+**The first answer to this was wrong, and the review of the fix caught it.** It exempted any
+first number carrying a unit, on the argument that a narrower exemption was one regular
+expression too many. That let `6 m - 1 y` through as one year, its *upper* bound, and
+`2 y - 3 y` and `3 m - 4 m` through as their lower. The app reads the same numbers, so choice 1
+could not catch them, and the header still promised that a range aborts. The narrower exemption
+is what shipped. Check **N7** pins the three ranges; widening the lookahead back turns it red.
+
+One limit is unchanged and now written in the header: the window is five characters, so
+`2 years - 3 years` is not caught and takes the first number, as the app does.
 
 ## 5. Rollback tells "not there" from "not mine"
 
@@ -90,7 +98,8 @@ branches on `FOUND`, for both columns:
 | absent | present, marked | drops it |
 | absent | present, unmarked | leaves it, and says what it blocks |
 | present, marked | either | drops both |
-| present, unmarked | either | leaves both |
+| present, unmarked | present | leaves both |
+| present, unmarked | absent | leaves it, and says what it blocks |
 
 The review called the second row a state that makes `migration.sql` refuse the table
 "permanently". It was not permanent: the refusal names the stray column and says to drop it. And
@@ -100,16 +109,51 @@ marked flag is this pair's own leftover and the misleading notice was real.
 
 The last row's notice also said "Nothing has been undone" while the same run restored the
 NOT NULLs `migration.sql` had removed. It now says which columns were kept and that the
-constraints are still restored. Checks **Q1–Q5**.
+constraints are still restored. Checks **Q1–Q6**.
+
+## 6. The whole `intakeDate` is read
+
+Found by the review of the fix, in text the fix had just rewritten to say "every row". The file
+validated and used the first ten characters of `intakeDate`. Master's app passes the whole
+string to `new Date`, so `2026-03-01T02:00:00+08:00` is 28 February there and 1 March here, and
+`2026-06-12 (approx)` is no date at all there. A row is now refused unless `intakeDate` is a
+bare date or a date at exactly UTC midnight, the two forms that are the same day to both. Checks
+**C12**, **C13**, and **e-13**/**o-24** for the accepted form.
+
+This can refuse a table the old file would have migrated, if production stores timestamps. The
+fixtures and the admin form both write bare dates, so that is not expected, and the pre-check
+names any such row as `bad intakeDate` before anything runs.
 
 ## The check list lives in `rehearse.mjs`
 
 `migration.sql` pointed at the first decision entry for "the full check list". That entry says
 eighty-six checks and has no groups M, N or O; the script had ninety-two. The entry is a record of
 its date and stays as written. The header now points at `rehearse.mjs`, which prints each check's
-name and ends by printing how many ran: **102** as of this entry, 95 at the SQL level and seven
-driving master's generated Prisma client. A count quoted in prose is a copy and will drift again;
+name and ends by printing how many ran: **108** on 2026-10-13, seven of them driving master's
+generated Prisma client. A count quoted in prose is a copy and will drift again;
 the script's own last line is the number to trust.
+
+## What the review of this fix found
+
+Ten findings on the commit that answered the seven. Each was checked before it was acted on.
+
+Fixed: the over-wide exemption (choice 4); the whole-string `intakeDate` (choice 6); the NULL
+comparison (choice 1); a rollback notice about a flag that was not there, in the one column state
+the first five Q checks did not cover; three more passages still citing a contract migration that
+re-derives every row, which PR #94 no longer does; a header that pointed at the two entries this
+one amends and not at this one; and the Malay advice, which told the owner to run two `UPDATE`s
+that do not reach everything the refusal reaches. The header now says so.
+
+One was a defect in how the fix was written rather than in what it meant. The app-side
+whitespace class had been typed as backslash-u escapes and arrived in the file as sixteen
+literal invisible characters, six times, because the tool that wrote the edit script decoded
+them. PostgreSQL read them correctly and every check passed. The file is meant to be pasted into
+a web editor, where a stripped or normalised character would silently narrow one copy. They are
+escapes now, and the edit script refuses to write a non-ASCII character beside `[[:space:]]`.
+
+Not done: deriving `unit` and `qty` from `sql_pick` so the token lists exist once in the body
+instead of three times. It is a real simplification and it rewrites the expressions every stored
+date comes from, in a round whose brief was to fix findings. The copies have not diverged.
 
 ## What would reverse this
 

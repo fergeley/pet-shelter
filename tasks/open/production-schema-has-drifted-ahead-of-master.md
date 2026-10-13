@@ -228,9 +228,9 @@ does not. The `pets.age` → `birthDate` migration and the `shelter_settings` co
 
 `prisma/migrations/manual/20260922_pets_birth_date/` (with `rollback.sql` and the `rehearse.mjs`
 that produced its checks) adds `birthDate` and `birthDateIsEstimate`, backfills them from the
-prose `age` production still carries, and relaxes the `age`/`ageCategory` NOT NULLs. 102 checks
-on a throwaway embedded PostgreSQL 18.4 as of 2026-10-13, all passing; the script prints its own
-count, which is the one to trust. **It has not touched production; the owner applies it in the
+prose `age` production still carries, and relaxes the `age`/`ageCategory` NOT NULLs. Every
+check passing on a throwaway embedded PostgreSQL 18.4 when re-taken on 2026-10-13; the script
+prints its own count, which is the one to trust. **It has not touched production; the owner applies it in the
 Neon SQL editor, following the file's header.** Rationale: the two
 `tasks/decisions/2026-09-22-*` entries about this migration and
 `tasks/decisions/2026-10-13-expand-refuses-what-the-app-would-read-differently.md`. The check

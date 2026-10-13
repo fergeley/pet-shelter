@@ -31,8 +31,9 @@
 --
 --       UPDATE "public"."pets" SET "age" = '2 years' WHERE "id" = '...';   -- whole units only
 --
--- IT UNDOES ONLY WHAT migration.sql DID. Both columns are dropped only if they carry that
--- file's marker; a `birthDate` created by something else -- a stray `db push`, a hand-applied
+-- IT UNDOES ONLY WHAT migration.sql DID. The pair is dropped only if `birthDate` carries that
+-- file's marker, and then the flag goes with it whatever it carries, since a flag without its
+-- date is the half-state migration.sql refuses; a `birthDate` created by something else -- a stray `db push`, a hand-applied
 -- fix -- is left alone and said so, because dropping it would destroy birthdays this pair never
 -- wrote. If migration.sql took its "already has both columns, nothing added" branch, this file
 -- correctly does nothing to them -- though it still restores any NOT NULL that run removed.
@@ -163,9 +164,13 @@ BEGIN
     ALTER TABLE "public"."pets" DROP COLUMN "birthDate";
     ALTER TABLE "public"."pets" DROP COLUMN IF EXISTS "birthDateIsEstimate";
 
-  ELSE
+  ELSIF has_est THEN
     RAISE NOTICE
       'pets."birthDate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. Neither it nor "birthDateIsEstimate" has been dropped; a NOT NULL that migration.sql removed is still restored below. Remove the columns by hand if that is really what you want, after exporting them.';
+
+  ELSE
+    RAISE NOTICE
+      'pets."birthDate" left in place: it carries no marker from 20260922_pets_birth_date, so this file did not create it and will not drop it. There is no "birthDateIsEstimate" beside it, and migration.sql refuses a table carrying one without the other: add the flag by hand, or drop "birthDate" after exporting it, before re-applying. A NOT NULL that migration.sql removed is still restored below.';
   END IF;
 
   FOREACH col IN ARRAY ARRAY['age', 'ageCategory'] LOOP

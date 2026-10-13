@@ -348,6 +348,10 @@ const REFUSALS = [
   ["C9 a decimal age aborts instead of reading the digits beside the unit", [["bad-9", "1.5 years", "2026-01-01"]], /fractional/],
   ["C10 a comma decimal aborts", [["bad-10", "1,5 years", "2026-01-01"]], /fractional/],
   ["C11 a written fraction aborts", [["bad-11", "1 1/2 years", "2026-01-01"]], /fractional/],
+  // The whole intakeDate is read, not its first ten characters. Master's app gives all of it to
+  // `new Date`, where this offset is 28 February in UTC and the trailing prose is no date at all.
+  ["C12 an intakeDate with a time and offset aborts", [["bad-12", "2 years", "2026-03-01T02:00:00+08:00"]], /bad-12/],
+  ["C13 an intakeDate with trailing prose aborts", [["bad-13", "2 years", "2026-06-12 (approx)"]], /bad-13/],
 ];
 for (const [name, rows, expect] of REFUSALS) {
   await fresh(c, [...FIXTURES, ...rows]);
@@ -391,6 +395,8 @@ for (const [name, rows, expect] of REFUSALS) {
     ["e-10", "1 yr 6 mo", "2026-06-12", "2025-06-12"],
     ["e-11", "2 y 3 m", "2026-06-12", "2024-06-12"],
     ["e-12", "12 yr 6 mo", "2026-06-12", "2014-06-12"],
+    // UTC midnight is the one time of day that is the same date to the app and to this file.
+    ["e-13", "2 years", "2026-06-12T00:00:00.000Z", "2024-06-12"],
   ];
   await fresh(c, CASES);
   await c.query(MIGRATION);
@@ -703,6 +709,7 @@ function appRule(ageStr, intakeStr) {
     ["o-9", "1 year 6 months", "2026-06-12"], ["o-10", "8 yrs", "2026-03-15"],
     ["o-11", "5 mo", "2026-08-01"], ["o-12", "1 month", "2026-01-31"],
     ["o-17", "1 yr 6 mo", "2026-06-12"], ["o-18", "2 y 3 m", "2026-06-12"],
+    ["o-24", "2 years", "2026-06-12T00:00:00.000Z"],
   ];
   await fresh(c, CORPUS);
   await c.query(MIGRATION);
@@ -768,6 +775,17 @@ function appRule(ageStr, intakeStr) {
     await fresh(c, [[id, age, "2026-06-12"]]);
     const r = await expectFail(c, MIGRATION);
     check(`N1 "${age}" is refused rather than silently taking one bound`, r.failed && /fractional/.test(r.message), r.failed ? "" : "it was accepted");
+  }
+}
+{
+  // The compound exemption is one shape -- a year quantity, then a month quantity. A first draft
+  // exempted any first number carrying a unit, which let these through: the app reads the upper
+  // bound of the first and the lower bound of the other two, so the app-agreement check passes
+  // them and only this guard stands between a range and a stored date.
+  for (const [id, age] of [["n2-10", "6 m - 1 y"], ["n2-11", "2 y - 3 y"], ["n2-12", "3 m - 4 m"]]) {
+    await fresh(c, [[id, age, "2026-06-12"]]);
+    const r = await expectFail(c, MIGRATION);
+    check(`N7 "${age}" is still refused: a range, not a year-and-month pair`, r.failed && /fractional/.test(r.message), r.failed ? "" : "it was accepted");
   }
 }
 {
@@ -848,6 +866,9 @@ function appRule(ageStr, intakeStr) {
     ["j-11", "2 tahun", "2026-06-12", "malay age word"],
     ["j-12", "2 tahun 6 months", "2026-06-12", "malay age word"],
     ["j-13", "2 yo", "2026-06-12", "unparseable age"],
+    ["j-14", "2 years", "2026-03-01T02:00:00+08:00", "bad intakeDate"],
+    ["j-15", "6 m - 1 y", "2026-06-12", "fractional age"],
+    ["j-16", "2 years", "2026-06-12T00:00:00Z", "ok: years"],
   ];
   await fresh(c, J);
   const verdict = Object.fromEntries((await c.query(PRECHECK)).rows.map((x) => [x.id, x.verdict]));
@@ -945,6 +966,22 @@ function appRule(ageStr, intakeStr) {
     "Q5 with a foreign pair kept, rollback restores the NOT NULLs and does not claim nothing was undone",
     relaxed && !!cols.birthDate && !!cols.birthDateIsEstimate && cols.age.is_nullable === "NO" && !notices.some((n) => /nothing has been undone/i.test(n)),
     `age nullable after apply=${relaxed}, after rollback=${cols.age.is_nullable}`
+  );
+}
+
+{
+  // The mirror image of Q4: somebody else's birthDate with no flag beside it. The notice must not
+  // speak of a flag that is not there, and must say the half-pair blocks migration.sql.
+  await fresh(c);
+  await c.query(`ALTER TABLE "public"."pets" ADD COLUMN "birthDate" TEXT NOT NULL DEFAULT '2019-01-01'`);
+  const notices = [];
+  c.on("notice", (n) => notices.push(n.message));
+  await c.query(ROLLBACK);
+  c.removeAllListeners("notice");
+  check(
+    "Q6 an unmarked birthDate on its own is left, and the notice does not mention keeping a flag",
+    !!(await columns(c)).birthDate && notices.some((n) => /"birthDate" left in place/.test(n) && /There is no "birthDateIsEstimate"/.test(n) && /refuses a table/.test(n)) && !notices.some((n) => /Neither it nor/.test(n)),
+    (notices[0] || "no notice").slice(0, 90)
   );
 }
 
