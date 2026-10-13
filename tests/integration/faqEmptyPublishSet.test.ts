@@ -17,10 +17,13 @@ import {
  * retracted — and no admin action could empty `/faq`.
  *
  * This is easy to reintroduce, which is why it is pinned here rather than left
- * to review. The wrong shape is next door in `petRepository.getServerPetsAsync`,
- * and `support/prismaDouble.ts` explains its empty-by-default reads in terms of
- * that guard. Someone making the two readers consistent has two nearby
- * precedents pointing the wrong way.
+ * to review. It was the only reader with the right shape for a while: both pet
+ * readers next door treated an empty result as an outage, and
+ * `support/prismaDouble.ts` explained its empty-by-default reads in terms of
+ * that. Both are now fixed the way this one always was — see
+ * `softDeleteFiltering.test.ts` for the catalogue and
+ * `petMissingRowIsAnAnswer.test.ts` for the single-animal read — so the three
+ * readers agree and the precedents nearby point the same way.
  *
  * Both halves matter. Asserting only that an empty result stays empty would
  * also pass against a reader that had lost its fallback altogether, so the

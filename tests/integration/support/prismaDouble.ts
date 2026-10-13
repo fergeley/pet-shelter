@@ -54,17 +54,29 @@ export interface PrismaDouble {
 /**
  * Builds a client double whose reads all resolve empty by default.
  *
- * Empty rather than populated on purpose: `getServerPetsAsync` only trusts the
- * database when it returns at least one row, and falls through to the in-memory
- * fixtures otherwise. Defaulting to empty means a test that forgets to arrange
- * its rows exercises the fallback and fails on a fixture value it never chose,
- * instead of quietly passing against data it did not write.
+ * Empty means "the database holds nothing", and every reader here now takes that
+ * as an answer rather than as a cue to serve fixtures: `getServerPetsAsync`
+ * returns `[]`, `findServerPetByIdAsync` returns `null`, `getServerFaqsAsync`
+ * returns `[]`. So a test that forgets to arrange its rows sees an empty
+ * shelter, not bundled demo animals — and a test that *wants* the fallback has
+ * to provoke a failure, which is the arrangement that actually exercises it.
  *
- * That rationale is about the *pet* reader, not a house rule. `faqRepository`
- * deliberately treats an empty result as an answer — staff have unpublished
- * everything — and falls back only from its `catch`, so for FAQs this default
- * means "nothing published" rather than "arrange your rows". See
- * `faqEmptyPublishSet.test.ts`, which pins that difference.
+ * The two list readers fall back only from their `catch`. `findServerPetByIdAsync`
+ * has one more door: it is gated on `isDatabasePersistent()` and serves the
+ * mirror without querying at all when no database is configured. Do not carry
+ * "only from their `catch`" across to that reader; it is not true of it.
+ *
+ * That door is reachable under this double, despite the project setting
+ * `STRICT_PERSISTENCE`: `persistenceMode` reads both flags per call, so a test
+ * that stubs `STRICT_PERSISTENCE=false` and `DATABASE_URL=""` takes it.
+ * `petMissingRowIsAnAnswer.test.ts` does exactly that, and it is the only place
+ * `getPetById`'s exact-id guard is exercised.
+ *
+ * This default once carried the opposite rationale, because the pet catalogue
+ * gated its fallback on `rows.length > 0` and the single-pet read fell through
+ * after an empty result. Both are fixed —
+ * `softDeleteFiltering.test.ts` and `petMissingRowIsAnAnswer.test.ts` pin them —
+ * and `faqEmptyPublishSet.test.ts` pins the FAQ reader that was right first.
  */
 export function createPrismaDouble(): PrismaDouble {
   return {
