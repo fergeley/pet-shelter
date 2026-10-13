@@ -27,7 +27,7 @@ Record active multi-step work streams below.
       relaxes the `age`/`ageCategory` NOT NULLs. Drops nothing.
 - [x] `rollback.sql` beside it — restores the previous shape exactly, because `age` is never
       written to. Its header says plainly what it costs after go-live.
-- [x] `rehearse.mjs` beside it — 92 checks (108 since 2026-10-13) on a throwaway embedded PostgreSQL 18.4 created UTF8,
+- [x] `rehearse.mjs` beside it — 92 checks (116 since 2026-10-13) on a throwaway embedded PostgreSQL 18.4 created UTF8,
       all passing,
       7 of them driving master's own generated Prisma client. **Kept, unlike the
       `20260917_status_enums` script**, so a reviewer can re-take the measurement.
@@ -249,12 +249,21 @@ characters where escapes had been typed. A NULL on the app side passed `<>`. One
 still spoke of a column that was not there. All fixed in the commit after the merge; the decision
 entry lists them.
 
-**Verified:** rehearsal 108/108 (was 92), 7 of them through master's generated client.
+**A third `/code-review`, on that commit, found eight more.** The exemption was still too wide:
+it allowed any separator, so `"1 y - 2 m"` passed as a compound. Writing the checks for that fix
+is what showed the real limit, because three of the new checks failed for a different reason
+than the review gave: the range guard only looks five characters back, and `"1 yr - 18 mo"`,
+`"6 months - 1 year"` and `"2 years - 3 years"` are outside it and are **stored**. That limit
+predates this session. It is now stated in the header in capitals and pinned by N8, and it is
+the main thing the owner should know before pasting: **read the `age` column for any row with
+two numbers in it.**
+
+**Verified:** rehearsal 116/116 (was 92), 7 of them through master's generated client.
 Mutation-tested: removing each new guard turns its own checks red — the app-disagreement refusal
 (O4 ×4, J3), the Malay refusal (O5, J3), the spelled-out whitespace class (O4's non-breaking
 space), `FOUND` in rollback (Q1–Q4), the stranded-flag drop (Q2, Q3), the pre-check verdict (J1),
-the narrow exemption (N7), the whole-string `intakeDate` (C12, C13, J3), the lone-`birthDate`
-notice (Q6). Removing the compound-unit lookahead altogether **crashes the run at E1** rather
+the narrow exemption and its separator (N7), the whole-string `intakeDate` (C12, C13, J3), the
+lone-`birthDate` notice (Q6), and a literal non-breaking space anywhere in the file (S1). Removing the compound-unit lookahead altogether **crashes the run at E1** rather
 than failing a check, because E1 calls `c.query(MIGRATION)` bare; it exits non-zero, so it is
 red, but it is the defect the comment above A3 describes and it is still there in every group
 that expects success.
@@ -275,6 +284,9 @@ not chased here.
 - **Deriving `unit` and `qty` from `sql_pick`**, so the token lists exist once in the body
   rather than three times. Suggested by the review of the fix. It rewrites the expressions every
   stored date comes from, and the copies have not diverged.
+- **Widening the range guard's five-character window.** It is what decides whether
+  `"2 years, 12.5 kg"` blocks the table and it has been moved three times. The limit is pinned
+  and announced instead; a human reading the pre-check is the control for it.
 - **Measuring the app-agreement check under an ICU ctype.** The NULL case it guards is reasoned,
   not observed; the harness pins ctype C.
 - **Widening the file to read Malay now that PR #42 does.** The app moves first; #42 is open and

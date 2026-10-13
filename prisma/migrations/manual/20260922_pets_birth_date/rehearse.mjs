@@ -395,6 +395,8 @@ for (const [name, rows, expect] of REFUSALS) {
     ["e-10", "1 yr 6 mo", "2026-06-12", "2025-06-12"],
     ["e-11", "2 y 3 m", "2026-06-12", "2024-06-12"],
     ["e-12", "12 yr 6 mo", "2026-06-12", "2014-06-12"],
+    ["e-14", "1 y, 6 m", "2026-06-12", "2025-06-12"],
+    ["e-15", "1 y and 6 m", "2026-06-12", "2025-06-12"],
     // UTC midnight is the one time of day that is the same date to the app and to this file.
     ["e-13", "2 years", "2026-06-12T00:00:00.000Z", "2024-06-12"],
   ];
@@ -669,8 +671,8 @@ for (const [name, rows, expect] of REFUSALS) {
 
 // ---- O. THE INVARIANT: every stored date equals what approximateBirthDate would compute
 //
-// This is the property the contract migration depends on, so it is checked here rather than
-// asserted in prose. `appRule` is a transcription of src/lib/domain/petAge.ts
+// This is the property anything re-deriving these rows later depends on, so it is checked here
+// rather than asserted in prose. (The contract migration once re-derived them; it no longer does.) `appRule` is a transcription of src/lib/domain/petAge.ts
 // `approximateBirthDate` -- a copy, and therefore capable of drifting from it. O1 pins the
 // transcription against src/data/pets.json, whose birthDate values came from the real function;
 // if the transcription drifts, O1 fails before O2 can pass for the wrong reason.
@@ -741,6 +743,8 @@ function appRule(ageStr, intakeStr) {
     // JavaScript's \s takes a non-breaking space and [[:space:]] under this ctype does not, so the
     // app-side pattern has to spell the class out or this one reads as agreement.
     ["o-22", "3\u00a0y old, 2 years", "2 years", "3 years"],
+    // The months copy of the class, and a character from the far end of it.
+    ["o-25", "3\u3000males, 2 mo", "2 months", "3 months"],
   ]) {
     await fresh(c, [[id, age, "2026-06-12"]]);
     const r = await expectFail(c, MIGRATION);
@@ -782,11 +786,38 @@ function appRule(ageStr, intakeStr) {
   // exempted any first number carrying a unit, which let these through: the app reads the upper
   // bound of the first and the lower bound of the other two, so the app-agreement check passes
   // them and only this guard stands between a range and a stored date.
-  for (const [id, age] of [["n2-10", "6 m - 1 y"], ["n2-11", "2 y - 3 y"], ["n2-12", "3 m - 4 m"]]) {
+  // The next three are the separator: a dash or "or" between a year and a month quantity makes
+  // a range, and an exemption that allowed any separator read each as exactly one year. They are
+  // spelled tightly on purpose -- the guard looks five characters back, and the same ranges
+  // written with longer gaps are outside it, which N8 below records rather than hides.
+  for (const [id, age] of [
+    ["n2-10", "6 m - 1 y"], ["n2-11", "2 y - 3 y"], ["n2-12", "3 m - 4 m"],
+    ["n2-13", "1 y - 2 m"], ["n2-14", "1yr-18mo"], ["n2-15", "1y or 2m"], ["n2-16", "6 mo 1 yr"],
+  ]) {
     await fresh(c, [[id, age, "2026-06-12"]]);
     const r = await expectFail(c, MIGRATION);
     check(`N7 "${age}" is still refused: a range, not a year-and-month pair`, r.failed && /fractional/.test(r.message), r.failed ? "" : "it was accepted");
   }
+}
+{
+  // The limit, pinned so that nobody reads the header's warning as hypothetical. The range guard's
+  // window is five characters. These are ranges, they are wider than that, and they are STORED:
+  // the first as its lower bound and the other two as the year, which for the second is the upper
+  // bound. The app reads each the same way, so the app-agreement check passes them too. If this
+  // check ever fails because one is refused, that is an improvement -- update the header with it.
+  const WIDE = [
+    ["n2-17", "2 years - 3 years", "2026-06-12", "2024-06-12"],
+    ["n2-18", "6 months - 1 year", "2026-06-12", "2025-06-12"],
+    ["n2-19", "1 yr - 18 mo", "2026-06-12", "2025-06-12"],
+  ];
+  await fresh(c, WIDE);
+  const r = await expectFail(c, MIGRATION);
+  const got = r.failed ? {} : Object.fromEntries((await c.query(`SELECT "id","birthDate" FROM "public"."pets"`)).rows.map((x) => [x.id, x.birthDate]));
+  check(
+    "N8 KNOWN LIMIT: a range wider than the five-character window is stored, not refused",
+    !r.failed && WIDE.every(([id, , , want]) => got[id] === want),
+    r.failed ? r.message.slice(0, 90) : JSON.stringify(got)
+  );
 }
 {
   // ...without breaking the round-2 cases, where the extra number sits after the unit.
@@ -983,6 +1014,24 @@ function appRule(ageStr, intakeStr) {
     !!(await columns(c)).birthDate && notices.some((n) => /"birthDate" left in place/.test(n) && /There is no "birthDateIsEstimate"/.test(n) && /refuses a table/.test(n)) && !notices.some((n) => /Neither it nor/.test(n)),
     (notices[0] || "no notice").slice(0, 90)
   );
+}
+
+// ------------------------------------- S. the two SQL files are what they look like in a diff
+{
+  // The whitespace class was once typed as escapes and written as sixteen literal invisible
+  // characters. PostgreSQL matched them all the same, so every check above stayed green. These
+  // files are pasted by hand into a web editor, which may strip or normalise such a character in
+  // one copy and not another -- so the bytes are checked, since nothing else can see them.
+  const nonAscii = (text) => [...text.matchAll(/[^\x00-\x7F]/g)].length;
+  check(
+    "S1 migration.sql and rollback.sql are pure ASCII",
+    nonAscii(MIGRATION) === 0 && nonAscii(ROLLBACK) === 0,
+    `migration.sql: ${nonAscii(MIGRATION)}, rollback.sql: ${nonAscii(ROLLBACK)} non-ASCII characters`
+  );
+  const CLASS = "[[:space:]" + ["00A0", "1680", "2000", "200A", "2028", "2029", "202F", "205F", "3000", "FEFF"]
+    .map((h, i) => (i === 3 ? "-" : "") + String.fromCharCode(92) + "u" + h).join("") + "]";
+  const copies = MIGRATION.split(CLASS).length - 1;
+  check("S2 the spelled-out whitespace class appears six times, each one identical", copies === 6, `${copies} copies`);
 }
 
 // ------------------------------------------------ I. no scratch table is left behind

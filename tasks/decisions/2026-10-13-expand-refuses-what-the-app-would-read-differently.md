@@ -82,8 +82,18 @@ expression too many. That let `6 m - 1 y` through as one year, its *upper* bound
 could not catch them, and the header still promised that a range aborts. The narrower exemption
 is what shipped. Check **N7** pins the three ranges; widening the lookahead back turns it red.
 
-One limit is unchanged and now written in the header: the window is five characters, so
-`2 years - 3 years` is not caught and takes the first number, as the app does.
+**The second answer was still too wide, and the next review caught that.** The lookahead allowed
+anything between the year quantity and the month quantity, so `1 y - 2 m` and `1yr-18mo` were
+exempt as "compounds". Only whitespace, a comma or `and` may separate them now.
+
+**The limit that remains is the window, and it is pinned rather than implied.** The guard looks
+five characters back from the number beside the unit. `2 years - 3 years`, `6 months - 1 year`
+and `1 yr - 18 mo` have longer gaps and are stored: two years, one year (the *upper* bound,
+because years are read first) and one year. The app reads each the same way, so nothing else
+catches them. Check **N8** asserts that they are stored, so the header's warning cannot be read
+as hypothetical, and the header tells the owner to read the `age` column for any row holding two
+numbers. Widening the window was not done: it is the knob that decides whether
+`2 years, 12.5 kg` blocks the table, and it has been moved three times already.
 
 ## 5. Rollback tells "not there" from "not mine"
 
@@ -129,8 +139,8 @@ names any such row as `bad intakeDate` before anything runs.
 `migration.sql` pointed at the first decision entry for "the full check list". That entry says
 eighty-six checks and has no groups M, N or O; the script had ninety-two. The entry is a record of
 its date and stays as written. The header now points at `rehearse.mjs`, which prints each check's
-name and ends by printing how many ran: **108** on 2026-10-13, seven of them driving master's
-generated Prisma client. A count quoted in prose is a copy and will drift again;
+name and ends by printing how many ran: **116** when this entry was last touched, seven of them
+driving master's generated Prisma client. A count quoted in prose is a copy and will drift again;
 the script's own last line is the number to trust.
 
 ## What the review of this fix found
@@ -150,6 +160,16 @@ literal invisible characters, six times, because the tool that wrote the edit sc
 them. PostgreSQL read them correctly and every check passed. The file is meant to be pasted into
 a web editor, where a stripped or normalised character would silently narrow one copy. They are
 escapes now, and the edit script refuses to write a non-ASCII character beside `[[:space:]]`.
+
+A third review, of the commit that fixed those, found eight more. The separator and the window
+are in choice 4. The rest: two exception messages whose advice did not fit every row they could
+name (a months-first compound told to rewrite a decimal; a timestamp told only to "correct
+intakeDate"); nothing in the repository pinning the escapes, so checks **S1** and **S2** now fail
+on any non-ASCII character in either SQL file and on any copy of the class that differs; the
+rollback header describing four column states where the code has five; one more passage citing
+the contract migration, in the rehearsal. The NULL branch of choice 1 was exercised once by
+breaking the app-side patterns on purpose: it refuses and formats its message. It is still not
+exercised by any kept check.
 
 Not done: deriving `unit` and `qty` from `sql_pick` so the token lists exist once in the body
 instead of three times. It is a real simplification and it rewrites the expressions every stored

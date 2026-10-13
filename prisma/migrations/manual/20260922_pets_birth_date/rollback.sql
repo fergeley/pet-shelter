@@ -42,6 +42,8 @@
 -- place" that is not there. And if somebody dropped `birthDate` by hand and left the flag, a
 -- marked `birthDateIsEstimate` is dropped here, because migration.sql refuses a table carrying
 -- one of the pair without the other. An unmarked one is left and named, with what it blocks.
+-- The mirror image is treated the same way: a `birthDate` this file did not create, with no
+-- flag beside it, is left in place and the notice says migration.sql will refuse the table.
 --
 -- The NOT NULLs come back only where migration.sql removed them. It marks each column it
 -- relaxes with a comment; this file restores the constraint only on a marked column, then
@@ -65,7 +67,8 @@
 -- the column nullable and is named rather than aborting, a table whose `age` was already
 -- nullable before migration.sql is left nullable rather than tightened, and a column that
 -- carried a comment before any of this gets that comment back. Re-taken 2026-10-13 with the
--- four column states above: both present, neither, the flag alone marked, the flag alone not.
+-- column states above: both present, neither, the flag alone marked, the flag alone unmarked,
+-- and an unmarked `birthDate` alone.
 
 BEGIN;
 
